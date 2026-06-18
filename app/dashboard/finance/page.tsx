@@ -384,7 +384,7 @@ export default function FinancePage() {
                   <Pie data={[{name:"Pemasukan",value:totalIncome},{name:"Pengeluaran",value:totalExpense}]} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" animationDuration={600}>
                     <Cell fill="#10b981" /><Cell fill="#ef4444" />
                   </Pie>
-                  <Tooltip formatter={(v:number) => formatRp(v)} contentStyle={{ background: "#0d1a10", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip formatter={(v) => formatRp(Number(v ?? 0))} contentStyle={{ background: "#0d1a10", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 12 }} />
                   <Legend formatter={v => <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{v}</span>} />
                 </PieChart>
               </ResponsiveContainer>

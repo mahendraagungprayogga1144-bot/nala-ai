@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { TrendingUp, TrendingDown, Plus, ArrowLeft, BarChart3, Download, Search, ChevronUp, ChevronDown, ArrowUpDown, X, FileText } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import * as XLSX from "xlsx";
+import { supabase } from "@/lib/supabase";
 
 interface Transaction {
   id: number;
@@ -51,7 +52,26 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 export default function FinancePage() {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    loadTransactions();
+  }, []);
+
+  const loadTransactions = async () => {
+    setLoadingData(true);
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .order("date", { ascending: false });
+    if (!error && data) {
+      setTransactions(data.map(t => ({ ...t, amount: Number(t.amount) })));
+    } else {
+      setTransactions(initialTransactions);
+    }
+    setLoadingData(false);
+  };
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: "income", amount: "", description: "", category: "Penjualan" });
   const [search, setSearch] = useState("");
@@ -96,9 +116,15 @@ export default function FinancePage() {
     else { setSortKey(key); setSortDir("desc"); }
   };
 
-  const addTransaction = () => {
+  const addTransaction = async () => {
     if (!form.amount || !form.description) return;
-    setTransactions([{ id: Date.now(), type: form.type as "income"|"expense", amount: parseInt(form.amount), description: form.description, category: form.category, date: new Date().toISOString().split("T")[0] }, ...transactions]);
+    const newT = { type: form.type, amount: parseInt(form.amount), description: form.description, category: form.category, date: new Date().toISOString().split("T")[0] };
+    const { data, error } = await supabase.from("transactions").insert([newT]).select().single();
+    if (!error && data) {
+      setTransactions([{ ...data, amount: Number(data.amount) }, ...transactions]);
+    } else {
+      setTransactions([{ id: Date.now(), ...newT, type: newT.type as "income"|"expense" }, ...transactions]);
+    }
     setForm({ type: "income", amount: "", description: "", category: "Penjualan" });
     setShowForm(false);
   };
@@ -346,7 +372,7 @@ export default function FinancePage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1000000).toFixed(0)}jt`} />
-                <Tooltip contentStyle={{ background: "#0d1a10", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [formatRp(v), n === "pemasukan" ? "Pemasukan" : "Pengeluaran"]} />
+                <Tooltip contentStyle={{ background: "#0d1a10", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 12 }} formatter={(v: number | string) => [formatRp(Number(v)), ""]} />
                 <Bar dataKey="pemasukan" fill="#10b981" radius={[4,4,0,0]} maxBarSize={40} />
                 <Bar dataKey="pengeluaran" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={40} />
               </BarChart>

@@ -372,7 +372,7 @@ export default function FinancePage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1000000).toFixed(0)}jt`} />
-                <Tooltip contentStyle={{ background: "#0d1a10", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 12 }} formatter={(v: number | string) => [formatRp(Number(v)), ""]} />
+                <Tooltip contentStyle={{ background: "#0d1a10", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 12 }} formatter={(v: number | string | undefined) => [formatRp(Number(v ?? 0)), ""] as [string, string]} />
                 <Bar dataKey="pemasukan" fill="#10b981" radius={[4,4,0,0]} maxBarSize={40} />
                 <Bar dataKey="pengeluaran" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={40} />
               </BarChart>

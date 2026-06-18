@@ -54,52 +54,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#060d08", fontFamily: "system-ui, -apple-system, sans-serif", display: "flex", color: "white" }}>
-      
-      {/* SIDEBAR */}
-      <aside style={{ width: 220, background: "rgba(4,10,6,0.95)", borderRight: "1px solid rgba(16,185,129,0.08)", display: "flex", flexDirection: "column", padding: "20px 12px", position: "fixed", height: "100vh", zIndex: 40 }}>
-        
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", marginBottom: 28 }}>
-          <img src="/logo.png" alt="NALA AI" style={{ width: 34, height: 34, borderRadius: 10, objectFit: "contain" }} />
-          <div>
-            <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "white" }}>NALA AI</p>
-            <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Business OS</p>
-          </div>
-        </div>
-
-        {/* Business Switcher */}
-        <div style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.1)", marginBottom: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "white" }}>Henima Parfum</p>
-            <p style={{ margin: 0, fontSize: 10, color: "#10b981" }}>● Aktif</p>
-          </div>
-          <ChevronDown size={14} color="rgba(255,255,255,0.3)" />
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          {navItems.map((item) => (
-            <a key={item.name} href={item.path} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, background: item.active ? "rgba(16,185,129,0.12)" : "transparent", border: item.active ? "1px solid rgba(16,185,129,0.2)" : "1px solid transparent", color: item.active ? "#10b981" : "rgba(255,255,255,0.45)", textDecoration: "none", fontSize: 13, fontWeight: item.active ? 600 : 400, transition: "all 0.15s" }}>
-              <item.icon size={15} color={item.active ? "#10b981" : (item.color || "rgba(255,255,255,0.4)")} />
-              {item.name}
-            </a>
-          ))}
-        </nav>
-
-        {/* Bottom */}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 2 }}>
-          <a href="/dashboard/settings" style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, color: "rgba(255,255,255,0.35)", textDecoration: "none", fontSize: 13 }}>
-            <Settings size={15} /> Pengaturan
-          </a>
-          <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, color: "rgba(255,255,255,0.35)", textDecoration: "none", fontSize: 13 }}>
-            <LogOut size={15} /> Keluar
-          </a>
-        </div>
-      </aside>
-
-      {/* MAIN */}
-      <div style={{ marginLeft: 220, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         
         {/* TOP NAVBAR */}
         <header style={{ height: 60, borderBottom: "1px solid rgba(16,185,129,0.06)", background: "rgba(6,13,8,0.9)", backdropFilter: "blur(20px)", display: "flex", alignItems: "center", padding: "0 24px", gap: 16, position: "sticky", top: 0, zIndex: 30 }}>
@@ -295,6 +250,5 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
-    </div>
-  );
+      );
 }

@@ -21,7 +21,7 @@ export default function InventoryPage() {
   const [showSell, setShowSell] = useState<Product | null>(null);
   const [search, setSearch] = useState("");
   const [sellQty, setSellQty] = useState("1");
-  const [form, setForm] = useState({ name: "", category: "Parfum", stock: "", min_stock: "10", hpp: "", price: "", unit: "botol" });
+  const [form, setForm] = useState({ name: "", category: "", stock: "", min_stock: "10", hpp: "", price: "", unit: "" });
 
   useEffect(() => { loadProducts(); }, []);
 
@@ -178,21 +178,60 @@ export default function InventoryPage() {
             <button onClick={() => setShowForm(false)} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "white" }}><X size={14} /></button>
             <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700 }}>Tambah Produk Baru</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                { label: "Nama Produk", key: "name", placeholder: "Black Opium", full: true },
-                { label: "Kategori", key: "category", placeholder: "Parfum" },
-                { label: "Stok Awal", key: "stock", placeholder: "50", type: "number" },
-                { label: "Min Stok Alert", key: "min_stock", placeholder: "10", type: "number" },
-                { label: "HPP (Rp)", key: "hpp", placeholder: "50000", type: "number" },
-                { label: "Harga Jual (Rp)", key: "price", placeholder: "150000", type: "number" },
-                { label: "Satuan", key: "unit", placeholder: "botol" },
-              ].map(f => (
-                <div key={f.key} style={{ gridColumn: f.full ? "1 / -1" : "auto" }}>
-                  <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>{f.label}</label>
-                  <input type={f.type || "text"} value={form[f.key as keyof typeof form]} onChange={e => setForm({...form, [f.key]: e.target.value})} placeholder={f.placeholder}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              {/* Nama Produk */}
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>Nama Produk *</label>
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="contoh: Baju Batik, Kopi Arabica, iPhone 14..."
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+
+              {/* Kategori */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>Kategori</label>
+                <input type="text" value={form.category} onChange={e => setForm({...form, category: e.target.value})} placeholder="contoh: Parfum, Fashion, F&B, Elektronik..."
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                  {["Parfum","Fashion","F&B","Elektronik","Skincare","Lainnya"].map(c => (
+                    <button key={c} onClick={() => setForm({...form, category: c})} style={{ padding: "3px 8px", borderRadius: 5, border: `1px solid ${form.category===c?"rgba(16,185,129,0.5)":"rgba(255,255,255,0.08)"}`, background: form.category===c?"rgba(16,185,129,0.12)":"transparent", color: form.category===c?"#10b981":"rgba(255,255,255,0.3)", fontSize: 11, cursor: "pointer" }}>{c}</button>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {/* Satuan */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>Satuan</label>
+                <input type="text" value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} placeholder="contoh: botol, pcs, kg, box, liter..."
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                  {["pcs","botol","kg","gram","liter","box","lusin"].map(u => (
+                    <button key={u} onClick={() => setForm({...form, unit: u})} style={{ padding: "3px 8px", borderRadius: 5, border: `1px solid ${form.unit===u?"rgba(16,185,129,0.5)":"rgba(255,255,255,0.08)"}`, background: form.unit===u?"rgba(16,185,129,0.12)":"transparent", color: form.unit===u?"#10b981":"rgba(255,255,255,0.3)", fontSize: 11, cursor: "pointer" }}>{u}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stok & Min Stok */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>Stok Awal *</label>
+                <input type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} placeholder="0"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>Min Stok Alert</label>
+                <input type="number" value={form.min_stock} onChange={e => setForm({...form, min_stock: e.target.value})} placeholder="10"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+
+              {/* HPP & Harga Jual */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>HPP / Modal (Rp)</label>
+                <input type="number" value={form.hpp} onChange={e => setForm({...form, hpp: e.target.value})} placeholder="0"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>Harga Jual (Rp)</label>
+                <input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} placeholder="0"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
             </div>
             <button onClick={addProduct} style={{ width: "100%", marginTop: 20, padding: "13px", borderRadius: 12, background: "#10b981", color: "black", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer" }}>Simpan Produk</button>
           </div>

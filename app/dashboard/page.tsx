@@ -86,7 +86,7 @@ export default function Dashboard() {
           </div>
 
           {/* KPI CARDS */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
             {kpis.map((kpi) => (
               <div key={kpi.label} style={{ padding: 20, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: 0, right: 0, width: 80, height: 80, borderRadius: "50%", background: kpi.color + "08", transform: "translate(20px, -20px)" }} />
@@ -105,7 +105,7 @@ export default function Dashboard() {
           </div>
 
           {/* CHARTS ROW */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 14, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 20 }}>
             
             {/* Revenue Chart */}
             <div style={{ padding: 22, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -163,7 +163,7 @@ export default function Dashboard() {
           </div>
 
           {/* BOTTOM ROW */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
             
             {/* Inventory Alerts */}
             <div style={{ padding: 22, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>

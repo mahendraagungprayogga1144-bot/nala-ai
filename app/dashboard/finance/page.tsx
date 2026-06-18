@@ -76,6 +76,7 @@ export default function FinancePage() {
   const [form, setForm] = useState({ type: "income", amount: "", description: "", category: "Penjualan" });
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [activeChart, setActiveChart] = useState<"bar"|"pie">("bar");
@@ -86,6 +87,7 @@ export default function FinancePage() {
     let data = [...transactions];
     if (search) data = data.filter(t => t.description.toLowerCase().includes(search.toLowerCase()) || t.category.toLowerCase().includes(search.toLowerCase()));
     if (filterType !== "all") data = data.filter(t => t.type === filterType);
+    if (filterMonth !== "all") data = data.filter(t => t.date.startsWith(filterMonth));
     data.sort((a, b) => {
       const va = sortKey === "amount" ? a.amount : a[sortKey];
       const vb = sortKey === "amount" ? b.amount : b[sortKey];
@@ -308,6 +310,12 @@ export default function FinancePage() {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `NALA_Finance_${date}.xlsx`; a.click();
   };
 
+  const deleteTransaction = async (id: number) => {
+    if (!confirm("Hapus transaksi ini?")) return;
+    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    if (!error) setTransactions(transactions.filter(t => t.id !== id));
+  };
+
   const th: React.CSSProperties = { padding: "10px 14px", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.4)", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", background: "rgba(255,255,255,0.02)" };
   const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13, borderBottom: "1px solid rgba(255,255,255,0.03)", whiteSpace: "nowrap" };
 
@@ -326,6 +334,10 @@ export default function FinancePage() {
           <button onClick={exportExcel} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
             <Download size={14} /> Export Excel
           </button>
+          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "white", fontSize: 13, outline: "none" }}>
+            <option value="all" style={{background:"#061009"}}>Semua Bulan</option>
+            {["2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2026-01","2026-02","2026-03","2026-04","2026-05","2026-06"].map(m => <option key={m} value={m} style={{background:"#061009"}}>{m}</option>)}
+          </select>
           <button onClick={() => setShowForm(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, background: "#10b981", color: "black", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
             <Plus size={14} /> Catat Transaksi
           </button>
@@ -473,6 +485,9 @@ export default function FinancePage() {
                     <td style={td}><span style={{ padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{t.category}</span></td>
                     <td style={{ ...td, color: "rgba(255,255,255,0.8)" }}>{t.description}</td>
                     <td style={{ ...td, textAlign: "right", fontWeight: 700, color: t.type==="income"?"#10b981":"#ef4444", fontSize: 14 }}>{t.type==="income"?"+":"-"}{formatRp(t.amount)}</td>
+                    <td style={{ ...td, textAlign: "center" }}>
+                      <button onClick={() => deleteTransaction(t.id)} style={{ padding: "3px 8px", borderRadius: 6, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: 11, cursor: "pointer" }}>Hapus</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

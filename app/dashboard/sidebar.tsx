@@ -2,7 +2,7 @@
 import { usePathname } from "next/navigation";
 import {
   Wallet, Store, MessageCircle, Package, Factory, Bird, Calculator, Sprout,
-  ShoppingCart, Users, Megaphone, BarChart3, QrCode, Receipt, FileText, Smartphone, Gauge,
+  ShoppingCart, Users, Megaphone, BarChart3, QrCode, Receipt, FileText, Gauge,
 } from "lucide-react";
 import BusinessSwitcher from "./business-switcher";
 
@@ -30,13 +30,12 @@ const fnb_modules = [
 ];
 
 const extraModules = [
-  { name: "Smart Profit Calculator", href: "/dashboard/chat", icon: Calculator, label: "MODUL LANJUTAN" },
-  { name: "CRM Pelanggan", href: "/dashboard/chat", icon: Users },
-  { name: "Gercep Marketing", href: "/dashboard/chat", icon: Megaphone },
-  { name: "Riset Bisnis", href: "/dashboard/chat", icon: BarChart3 },
-  { name: "Barcode QR Analyzer", href: "/dashboard/chat", icon: QrCode },
-  { name: "Pajak NPWP Center", href: "/dashboard/keuangan-bisnis", icon: FileText },
-  { name: "Multi Platform", href: "/dashboard/inventory", icon: Smartphone },
+  { name: "Smart Profit Calculator", href: "#", icon: Calculator, label: "MODUL LANJUTAN", disabled: true },
+  { name: "CRM Pelanggan", href: "#", icon: Users, disabled: true },
+  { name: "AI Marketing", href: "#", icon: Megaphone, disabled: true },
+  { name: "AI Riset Bisnis", href: "#", icon: BarChart3, disabled: true },
+  { name: "Barcode QR Analyzer", href: "#", icon: QrCode, disabled: true },
+  { name: "Pajak NPWP Center", href: "#", icon: FileText, disabled: true },
 ];
 
 type Business = { id: string; name: string; type: string | null };
@@ -51,13 +50,13 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
   embedded?: boolean;
 }) {
   const pathname = usePathname();
-  const types = new Set(businesses.map(b => b.type).filter(Boolean));
+  const bizType = activeBusiness?.type;
 
   const allModules = [
     ...baseModules,
-    ...(types.has("ternak") ? ternak_modules : []),
-    ...(types.has("pertanian") ? pertanian_modules : []),
-    ...(types.has("kuliner") ? fnb_modules : []),
+    ...(bizType === "ternak" ? ternak_modules : []),
+    ...(bizType === "pertanian" ? pertanian_modules : []),
+    ...(bizType === "kuliner" ? fnb_modules : []),
     ...extraModules,
   ];
 
@@ -88,30 +87,48 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
 
       <nav className="flex-1 overflow-y-auto px-2 py-3" style={{ scrollbarWidth: "none" }}>
         {allModules.map((m) => {
-          const isActive = pathname === m.href || (m.href !== "/dashboard/chat" && pathname.startsWith(m.href + "/"));
-          const showLabel = expanded && "label" in m && (m as { label?: string }).label;
+          const mod = m as { label?: string; disabled?: boolean };
+          const isDisabled = mod.disabled;
+          const isActive = !isDisabled && (pathname === m.href || (m.href !== "/dashboard/chat" && pathname.startsWith(m.href + "/")));
+          const showLabel = expanded && mod.label;
+          const itemCls = [
+            "mb-0.5 flex items-center gap-2.5 rounded-lg transition-all duration-200",
+            expanded ? "px-2.5 py-[7px]" : "justify-center p-[7px]",
+            isDisabled
+              ? "border border-transparent text-[#3A3B52] opacity-50 cursor-not-allowed"
+              : isActive
+                ? "border border-[#2DD4BF]/20 bg-gradient-to-r from-[#2DD4BF]/[0.12] to-[#8B5CF6]/[0.08] text-[#2DD4BF]"
+                : "border border-transparent text-[#5A5B7A] hover:bg-white/[0.03] hover:text-[#8B8AA0]",
+          ].join(" ");
+
           return (
             <div key={m.href + m.name}>
               {showLabel && (
                 <p className="mb-1.5 mt-3 px-2 text-[9px] font-semibold tracking-[0.08em] text-[#3A3B52] whitespace-nowrap">
-                  {(m as { label?: string }).label}
+                  {mod.label}
                 </p>
               )}
-              <a
-                href={m.href}
-                onClick={() => onNavigate?.()}
-                title={m.name}
-                className={[
-                  "mb-0.5 flex items-center gap-2.5 rounded-lg transition-all duration-200",
-                  expanded ? "px-2.5 py-[7px]" : "justify-center p-[7px]",
-                  isActive
-                    ? "border border-[#2DD4BF]/20 bg-gradient-to-r from-[#2DD4BF]/[0.12] to-[#8B5CF6]/[0.08] text-[#2DD4BF]"
-                    : "border border-transparent text-[#5A5B7A] hover:bg-white/[0.03] hover:text-[#8B8AA0]",
-                ].join(" ")}
-              >
-                <m.icon size={15} className="flex-shrink-0" />
-                {expanded && <span className="ml-2.5 whitespace-nowrap text-xs font-medium">{m.name}</span>}
-              </a>
+              {isDisabled ? (
+                <div title={`${m.name} — coming soon`} className={itemCls}>
+                  <m.icon size={15} className="flex-shrink-0" />
+                  {expanded && (
+                    <>
+                      <span className="ml-2.5 whitespace-nowrap text-xs font-medium">{m.name}</span>
+                      <span className="ml-auto text-[9px] font-medium text-[#5A5B7A]">Soon</span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <a
+                  href={m.href}
+                  onClick={() => onNavigate?.()}
+                  title={m.name}
+                  className={itemCls}
+                >
+                  <m.icon size={15} className="flex-shrink-0" />
+                  {expanded && <span className="ml-2.5 whitespace-nowrap text-xs font-medium">{m.name}</span>}
+                </a>
+              )}
             </div>
           );
         })}

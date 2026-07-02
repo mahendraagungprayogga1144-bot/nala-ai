@@ -105,7 +105,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   return (
     <div className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">Inventory</h1>
+        <h1 className="text-2xl font-semibold">{business?.type === "kuliner" ? "Stok Bahan" : "Inventory"}</h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
       {business?.type === "kuliner" ? (
@@ -156,20 +156,24 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      <TrendChart history={history || []} />
-      <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />
-      <LossBreakdownChart movements={(allMovements as never) || []} />
-      <InventoryCharts products={products || []} />
+      {business?.type !== "kuliner" && (
+        <>
+          <TrendChart history={history || []} />
+          <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />
+          <LossBreakdownChart movements={(allMovements as never) || []} />
+          <InventoryCharts products={products || []} />
 
-      <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl px-5 pt-4 pb-2 mb-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Riwayat Stok — {months[bulan - 1]} {tahun}</h3>
-          <Suspense><MonthYearFilter /></Suspense>
-        </div>
-      </div>
+          <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl px-5 pt-4 pb-2 mb-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">Riwayat Stok — {months[bulan - 1]} {tahun}</h3>
+              <Suspense><MonthYearFilter /></Suspense>
+            </div>
+          </div>
 
-      <MovementsChart movements={(movements as never) || []} />
-      <RecentMovements movements={(movements as never) || []} />
+          <MovementsChart movements={(movements as never) || []} />
+          <RecentMovements movements={(movements as never) || []} />
+        </>
+      )}
     </div>
   );
 }

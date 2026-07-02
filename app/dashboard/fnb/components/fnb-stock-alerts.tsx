@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { AlertTriangle, Package } from "lucide-react";
+import { AlertTriangle, CheckCircle, Package } from "lucide-react";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
 
@@ -11,7 +11,7 @@ export default function FnbStockAlerts({ products }: { products: Product[] }) {
   if (!habis.length && !kritis.length) {
     return (
       <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-        <span className="text-lg">✓</span>
+        <CheckCircle size={18} className="text-emerald-400 flex-shrink-0" />
         <p className="text-sm text-emerald-300">Semua bahan aman — siap jualan!</p>
       </div>
     );

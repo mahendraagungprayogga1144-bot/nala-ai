@@ -2,24 +2,135 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Minus, Search, Check, LogIn, LogOut, User, ShoppingCart, Trash2 } from "lucide-react";
+import { Plus, Minus, Search, Check, Trash2, X, UtensilsCrossed, Users } from "lucide-react";
 
-import { calcHpp } from "../lib/calc";
+import { calcHpp, fmtRp } from "../lib/calc";
 import type { FnbMenu } from "../lib/calc";
 import { validateCartStock, deductStockForSale } from "../lib/process-order";
 import FnbHubNav from "../components/fnb-hub-nav";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
+import FnbEmptyState from "../components/fnb-empty-state";
 
+type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
 type Checkin = { id: string; tanggal: string; jam_masuk: string; jam_keluar: string | null };
 type Employee = { id: string; nama: string; jabatan: string | null; checkins: Checkin[] };
 type CartItem = { menu: FnbMenu; qty: number };
 
 const KATEGORI_COLOR: Record<string, string> = { "Makanan": "#2DD4BF", "Minuman": "#38BDF8", "Snack": "#F59E0B", "Paket": "#8B5CF6", "Lainnya": "#8B8AA0" };
 const KATEGORI_ICON: Record<string, string> = { "Makanan": "ti-bowl-chopsticks", "Minuman": "ti-glass", "Snack": "ti-cookie", "Paket": "ti-package", "Lainnya": "ti-dots" };
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 
-export default function KasirClient({ menus, employees, userId, businessId, omzetHariIni, labaHariIni, totalOrder, today }: {
-  menus: FnbMenu[]; employees: Employee[]; userId: string; businessId: string;
+type OrderPanelProps = {
+  cart: CartItem[];
+  subtotal: number;
+  totalHpp: number;
+  diskon: string;
+  setDiskon: (v: string) => void;
+  metodeBayar: string;
+  setMetodeBayar: (v: string) => void;
+  catatan: string;
+  setCatatan: (v: string) => void;
+  total: number;
+  laba: number;
+  margin: number;
+  loading: boolean;
+  onProses: () => void;
+  onReset: () => void;
+  onRemoveItem: (menuId: string) => void;
+  onAddItem: (menu: FnbMenu) => void;
+  onDecItem: (menuId: string) => void;
+  compact?: boolean;
+};
+
+function OrderPanel({
+  cart, subtotal, totalHpp, diskon, setDiskon, metodeBayar, setMetodeBayar,
+  catatan, setCatatan, total, laba, margin, loading, onProses, onReset,
+  onRemoveItem, onAddItem, onDecItem, compact,
+}: OrderPanelProps) {
+  return (
+    <>
+      <div className={compact ? "px-0 py-0" : "px-4 py-3 border-b border-white/[0.06]"}>
+        {!compact && <p className="text-[10px] font-medium text-[#2DD4BF] tracking-widest uppercase mb-3">Order aktif</p>}
+        {cart.length === 0 ? (
+          <p className="text-xs text-[#3A3B52] text-center py-4">Pilih menu dulu ya</p>
+        ) : (
+          <div className="flex flex-col gap-1.5 mb-3">
+            {cart.map(c => (
+              <div key={c.menu.id} className="flex items-center justify-between text-xs gap-2">
+                <span className="text-[#8B8AA0] flex-1 min-w-0 truncate">{c.menu.nama}</span>
+                {compact && (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => onDecItem(c.menu.id)} className="w-6 h-6 rounded-lg flex items-center justify-center border border-white/[0.08] text-[#8B8AA0]"><Minus size={10} /></button>
+                    <span className="w-4 text-center font-mono">{c.qty}</span>
+                    <button onClick={() => onAddItem(c.menu)} className="w-6 h-6 rounded-lg flex items-center justify-center border border-[#2DD4BF]/40 text-[#2DD4BF] bg-[#2DD4BF]/08"><Plus size={10} /></button>
+                  </div>
+                )}
+                <span style={{ fontFamily: "monospace", color: "#C4C3D4" }}>Rp{(c.menu.harga_jual * c.qty).toLocaleString("id-ID")}</span>
+                {!compact && (
+                  <button onClick={() => onRemoveItem(c.menu.id)} className="ml-1 text-[#5A5B7A] hover:text-[#EC4899]"><Trash2 size={11} /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="h-px bg-white/[0.06] mb-2"></div>
+        <div className="flex justify-between text-xs mb-1.5"><span className="text-[#5A5B7A]">Subtotal</span><span style={{ fontFamily: "monospace", color: "#C4C3D4" }}>Rp{subtotal.toLocaleString("id-ID")}</span></div>
+        <div className="flex justify-between items-center text-xs mb-2">
+          <span className="text-[#5A5B7A]">Diskon</span>
+          <div className="flex items-center gap-1">
+            <input type="number" placeholder="0" value={diskon} onChange={e => setDiskon(e.target.value)}
+              className="w-20 text-right text-xs px-2 py-1 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] focus:outline-none" style={{ fontFamily: "monospace" }} />
+            <span className="text-[10px] text-[#5A5B7A]">Rp</span>
+          </div>
+        </div>
+        <div className="h-px bg-white/[0.06] mb-2"></div>
+        <div className="flex justify-between items-baseline mb-1">
+          <span className="text-sm font-medium text-[#F0EFF8]">Total</span>
+          <span className="text-base font-semibold" style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}>Rp{total.toLocaleString("id-ID")}</span>
+        </div>
+        <p className="text-[10px] text-[#5A5B7A]">Laba <span style={{ color: "#2DD4BF" }}>Rp{Math.round(laba).toLocaleString("id-ID")}</span> · margin {margin}%</p>
+      </div>
+
+      <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
+        <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Metode bayar</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[{ val: "tunai", lbl: "Tunai", icon: "ti-cash" }, { val: "qris", lbl: "QRIS", icon: "ti-qrcode" }, { val: "transfer", lbl: "Transfer", icon: "ti-credit-card" }].map(m => (
+            <button key={m.val} onClick={() => setMetodeBayar(m.val)}
+              className="py-2 rounded-lg border text-center text-xs font-medium"
+              style={metodeBayar === m.val ? { borderColor: "rgba(45,212,191,.45)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" } : { borderColor: "rgba(255,255,255,.08)", color: "#5A5B7A" }}>
+              <i className={"ti " + m.icon} style={{ fontSize: "14px", display: "block", marginBottom: "2px" }} aria-hidden="true"></i>
+              {m.lbl}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
+        <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Catatan</p>
+        <input type="text" placeholder="Meja 3, extra pedas..." value={catatan} onChange={e => setCatatan(e.target.value)}
+          className="w-full text-xs px-3 py-2 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
+      </div>
+
+      <div className={compact ? "pt-4 flex flex-col gap-2" : "px-4 py-4 flex flex-col gap-2"}>
+        <button onClick={onProses} disabled={loading || cart.length === 0}
+          className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+          style={BTN_GRAD}>
+          <Check size={15} />
+          {loading ? "Memproses..." : "Proses — Rp" + total.toLocaleString("id-ID")}
+        </button>
+        <button onClick={onReset}
+          className="w-full py-2 rounded-xl text-xs border font-medium"
+          style={{ borderColor: "rgba(236,72,153,.25)", color: "#EC4899", background: "rgba(236,72,153,.05)" }}>
+          Batal order
+        </button>
+      </div>
+    </>
+  );
+}
+
+export default function KasirClient({ menus, products, employees, userId, businessId, omzetHariIni, labaHariIni, totalOrder, today }: {
+  menus: FnbMenu[]; products: Product[]; employees: Employee[]; userId: string; businessId: string;
   omzetHariIni: number; labaHariIni: number; totalOrder: number; today: string;
 }) {
   const router = useRouter();
@@ -31,10 +142,10 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
   const [metodeBayar, setMetodeBayar] = useState("tunai");
   const [catatan, setCatatan] = useState("");
   const [loading, setLoading] = useState(false);
-  const [pinModal, setPinModal] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinEmployee, setPinEmployee] = useState<Employee | null>(null);
   const [checkinLoading, setCheckinLoading] = useState("");
+  const [cartOpen, setCartOpen] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [lastOrder, setLastOrder] = useState<{ total: number; disc: number; metode: string; laba: number } | null>(null);
 
   const todayCheckins = employees.map(e => ({
     ...e,
@@ -69,6 +180,7 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
   };
 
   const getQty = (menuId: string) => cart.find(c => c.menu.id === menuId)?.qty || 0;
+  const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
   const subtotal = cart.reduce((s, c) => s + c.menu.harga_jual * c.qty, 0);
   const totalHpp = cart.reduce((s, c) => s + calcHpp(c.menu) * c.qty, 0);
@@ -76,6 +188,9 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
   const total = Math.max(0, subtotal - diskonNum);
   const laba = total - totalHpp;
   const margin = total > 0 ? Math.round(laba / total * 100) : 0;
+  const dayMargin = omzetHariIni > 0 ? Math.round(labaHariIni / omzetHariIni * 100) : 0;
+
+  const resetOrder = () => { setCart([]); setDiskon(""); setCatatan(""); setMetodeBayar("tunai"); setCartOpen(false); };
 
   const handleCheckin = async (emp: Employee) => {
     setCheckinLoading(emp.id);
@@ -128,28 +243,43 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
       amount: total, transaction_date: today,
     });
 
-    setCart([]); setDiskon(""); setCatatan(""); setMetodeBayar("tunai");
+    setLastOrder({ total, disc: diskonNum, metode: metodeBayar, laba: Math.round(laba) });
+    resetOrder();
     setLoading(false);
+    setShowSuccess(true);
     router.refresh();
-    alert("Transaksi berhasil! Total: Rp" + total.toLocaleString("id-ID"));
   };
 
-  const inputCls = "w-full px-3 py-2 rounded-lg text-sm focus:outline-none";
+  const orderPanelProps: OrderPanelProps = {
+    cart, subtotal, totalHpp, diskon, setDiskon, metodeBayar, setMetodeBayar,
+    catatan, setCatatan, total, laba, margin, loading,
+    onProses: handleProses, onReset: resetOrder,
+    onRemoveItem: (id) => setCart(prev => prev.filter(x => x.menu.id !== id)),
+    onAddItem: addToCart, onDecItem: removeFromCart,
+  };
 
   return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+    <div className="pb-28 lg:pb-0">
       <FnbHubNav />
       <FnbKpiRow items={[
-        { label: "Omzet hari ini", value: "Rp" + (omzetHariIni / 1000).toFixed(0) + "rb", color: "#2DD4BF" },
+        { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
         { label: "Total order", value: String(totalOrder), color: "#8B5CF6" },
-        { label: "Laba hari ini", value: "Rp" + (labaHariIni / 1000).toFixed(0) + "rb", color: "#F59E0B" },
-        { label: "Margin", value: omzetHariIni > 0 ? Math.round(labaHariIni / omzetHariIni * 100) + "%" : "—", color: "#38BDF8" },
+        { label: "Laba hari ini", value: fmtRp(labaHariIni), color: "#F59E0B" },
+        { label: "Margin", value: omzetHariIni > 0 ? dayMargin + "%" : "—", color: "#38BDF8" },
       ]} />
 
+      <FnbStockAlerts products={products.map(p => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
+
       <div className="bg-[#0F0F1A] border border-white/[0.06] rounded-2xl p-4 mb-6">
-        <p className="text-[10px] font-medium text-[#2DD4BF] tracking-widest uppercase mb-3">Check-in karyawan — {today}</p>
+        <p className="text-[10px] font-medium text-[#2DD4BF] tracking-widest uppercase mb-3">Shift karyawan — {today}</p>
         {employees.length === 0 ? (
-          <p className="text-xs text-[#5A5B6A] text-center py-4">Belum ada karyawan. Tambah karyawan dulu.</p>
+          <FnbEmptyState
+            icon={Users}
+            title="Belum ada tim kasir"
+            subtitle="Tambah karyawan dulu biar bisa catat shift masuk/pulang."
+            actionLabel="Kelola Tim"
+            actionHref="/dashboard/fnb/karyawan"
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {todayCheckins.map(emp => (
@@ -174,7 +304,7 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
                     : { borderColor: "rgba(45,212,191,.3)", color: "#2DD4BF", background: "rgba(45,212,191,.06)" }
                   }
                 >
-                  {checkinLoading === emp.id ? "..." : emp.checkedIn ? "Check-out" : "Check-in"}
+                  {checkinLoading === emp.id ? "..." : emp.checkedIn ? "Pulang" : "Masuk shift"}
                 </button>
               </div>
             ))}
@@ -200,10 +330,18 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4">
             {filtered.length === 0 ? (
-              <p className="text-xs text-[#5A5B6A] text-center py-8 col-span-3">Tidak ada menu.</p>
+              <div className="col-span-full">
+                <FnbEmptyState
+                  icon={UtensilsCrossed}
+                  title="Belum ada menu aktif"
+                  subtitle="Buat menu dulu di Master Menu, pastikan statusnya aktif."
+                  actionLabel="Buat Menu"
+                  actionHref="/dashboard/fnb/menu"
+                />
+              </div>
             ) : filtered.map(m => {
               const hpp = calcHpp(m);
-              const margin = m.harga_jual > 0 ? Math.round((m.harga_jual - hpp) / m.harga_jual * 100) : 0;
+              const itemMargin = m.harga_jual > 0 ? Math.round((m.harga_jual - hpp) / m.harga_jual * 100) : 0;
               const qty = getQty(m.id);
               const kat = m.kategori || "Lainnya";
               const color = KATEGORI_COLOR[kat] || "#8B8AA0";
@@ -212,13 +350,19 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
                 <div key={m.id} className="bg-[#0A0A12] border rounded-2xl overflow-hidden cursor-pointer"
                   style={{ borderColor: qty > 0 ? "rgba(45,212,191,.4)" : "rgba(255,255,255,0.06)" }}
                   onClick={() => addToCart(m)}>
-                  <div className="flex items-center justify-center py-6" style={{ background: color + "10" }}>
-                    <i className={"ti " + icon} style={{ fontSize: "36px", color }} aria-hidden="true"></i>
-                  </div>
+                  {m.foto_url ? (
+                    <div className="h-24 overflow-hidden">
+                      <img src={m.foto_url} alt={m.nama} className="h-full w-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-6" style={{ background: color + "10" }}>
+                      <i className={"ti " + icon} style={{ fontSize: "36px", color }} aria-hidden="true"></i>
+                    </div>
+                  )}
                   <div className="p-3">
                     <span className="text-[10px] px-2 py-0.5 rounded-full mb-2 inline-block" style={{ background: color + "15", color }}>{kat}</span>
                     <p className="text-sm font-medium text-[#F0EFF8] mb-1">{m.nama}</p>
-                    <p className="text-[10px] text-[#5A5B7A] mb-2">HPP Rp{Math.round(hpp).toLocaleString("id-ID")} · {margin}%</p>
+                    <p className="text-[10px] text-[#5A5B7A] mb-2">HPP {fmtRp(Math.round(hpp))} · {itemMargin}%</p>
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold" style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}>Rp{m.harga_jual.toLocaleString("id-ID")}</p>
                       <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
@@ -240,75 +384,70 @@ export default function KasirClient({ menus, employees, userId, businessId, omze
           </div>
         </div>
 
-        <div className="bg-[#0F0F1A] border border-white/[0.06] rounded-2xl overflow-hidden h-fit">
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <p className="text-[10px] font-medium text-[#2DD4BF] tracking-widest uppercase mb-3">Order aktif</p>
-            {cart.length === 0 ? (
-              <p className="text-xs text-[#3A3B52] text-center py-4">Pilih menu di sebelah kiri</p>
-            ) : (
-              <div className="flex flex-col gap-1.5 mb-3">
-                {cart.map(c => (
-                  <div key={c.menu.id} className="flex items-center justify-between text-xs">
-                    <span className="text-[#8B8AA0] flex-1 min-w-0 truncate">{c.menu.nama} ×{c.qty}</span>
-                    <span style={{ fontFamily: "monospace", color: "#C4C3D4" }}>Rp{(c.menu.harga_jual * c.qty).toLocaleString("id-ID")}</span>
-                    <button onClick={() => setCart(prev => prev.filter(x => x.menu.id !== c.menu.id))} className="ml-2 text-[#5A5B7A] hover:text-[#EC4899]"><Trash2 size={11} /></button>
-                  </div>
-                ))}
+        <div className="hidden lg:block bg-[#0F0F1A] border border-white/[0.06] rounded-2xl overflow-hidden h-fit">
+          <OrderPanel {...orderPanelProps} />
+        </div>
+      </div>
+
+      {/* Mobile sticky cart bar */}
+      {cart.length > 0 && !cartOpen && (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="lg:hidden fixed bottom-4 left-4 right-4 z-40 flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-lg active:scale-[0.98]"
+          style={BTN_GRAD}
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#070711]/20 text-xs">{cartCount}</span>
+            Lihat order
+          </span>
+          <span className="font-mono text-sm font-bold">Rp{total.toLocaleString("id-ID")}</span>
+        </button>
+      )}
+
+      {/* Mobile cart bottom sheet */}
+      {cartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setCartOpen(false)}>
+          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-white/[0.08] bg-[#0D0D1A] p-5" onClick={e => e.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15" />
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-[#2DD4BF]">Order aktif</p>
+                <p className="text-xs text-[#5A5B7A]">{cart.length} item</p>
               </div>
-            )}
-            <div className="h-px bg-white/[0.06] mb-2"></div>
-            <div className="flex justify-between text-xs mb-1.5"><span className="text-[#5A5B7A]">Subtotal</span><span style={{ fontFamily: "monospace", color: "#C4C3D4" }}>Rp{subtotal.toLocaleString("id-ID")}</span></div>
-            <div className="flex justify-between items-center text-xs mb-2">
-              <span className="text-[#5A5B7A]">Diskon</span>
-              <div className="flex items-center gap-1">
-                <input type="number" placeholder="0" value={diskon} onChange={e => setDiskon(e.target.value)}
-                  className="w-20 text-right text-xs px-2 py-1 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] focus:outline-none" style={{ fontFamily: "monospace" }} />
-                <span className="text-[10px] text-[#5A5B7A]">Rp</span>
+              <button type="button" onClick={() => setCartOpen(false)} className="rounded-full bg-white/5 p-2 text-[#8B8AA0]"><X size={16} /></button>
+            </div>
+            <OrderPanel {...orderPanelProps} compact />
+          </div>
+        </div>
+      )}
+
+      {/* Success modal */}
+      {showSuccess && lastOrder && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070711]/95 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[#2DD4BF]/25 bg-[#0D0D1A] p-7 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-[#2DD4BF]/30 bg-[#2DD4BF]/10">
+              <Check size={24} className="text-[#2DD4BF]" />
+            </div>
+            <p className="mb-1 text-base font-semibold text-[#2DD4BF]">Transaksi berhasil!</p>
+            <p className="mb-5 text-[11px] text-[#5A5B7A]">Stok berkurang otomatis · Keuangan tercatat</p>
+            {[["Total", "Rp" + lastOrder.total.toLocaleString("id-ID"), true], ["Diskon", "Rp" + lastOrder.disc.toLocaleString("id-ID"), false], ["Metode", lastOrder.metode, false], ["Laba", "Rp" + lastOrder.laba.toLocaleString("id-ID"), false]].map(([k, v, highlight]) => (
+              <div key={k as string} className="flex justify-between border-b border-white/[0.04] py-1.5 text-xs">
+                <span className="text-[#5A5B7A]">{k as string}</span>
+                <span className="font-mono" style={{ color: highlight ? "#2DD4BF" : "#F0EFF8", fontWeight: highlight ? 600 : 400 }}>{v as string}</span>
               </div>
-            </div>
-            <div className="h-px bg-white/[0.06] mb-2"></div>
-            <div className="flex justify-between items-baseline mb-1">
-              <span className="text-sm font-medium text-[#F0EFF8]">Total</span>
-              <span className="text-base font-semibold" style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}>Rp{total.toLocaleString("id-ID")}</span>
-            </div>
-            <p className="text-[10px] text-[#5A5B7A]">Laba <span style={{ color: "#2DD4BF" }}>Rp{Math.round(laba).toLocaleString("id-ID")}</span> · margin {margin}%</p>
-          </div>
-
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Metode bayar</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[{ val: "tunai", lbl: "Tunai", icon: "ti-cash" }, { val: "qris", lbl: "QRIS", icon: "ti-qrcode" }, { val: "transfer", lbl: "Transfer", icon: "ti-credit-card" }].map(m => (
-                <button key={m.val} onClick={() => setMetodeBayar(m.val)}
-                  className="py-2 rounded-lg border text-center text-xs font-medium"
-                  style={metodeBayar === m.val ? { borderColor: "rgba(45,212,191,.45)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" } : { borderColor: "rgba(255,255,255,.08)", color: "#5A5B7A" }}>
-                  <i className={"ti " + m.icon} style={{ fontSize: "14px", display: "block", marginBottom: "2px" }} aria-hidden="true"></i>
-                  {m.lbl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Catatan</p>
-            <input type="text" placeholder="Meja 3, extra pedas..." value={catatan} onChange={e => setCatatan(e.target.value)}
-              className="w-full text-xs px-3 py-2 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
-          </div>
-
-          <div className="px-4 py-4 flex flex-col gap-2">
-            <button onClick={handleProses} disabled={loading || cart.length === 0}
-              className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}>
-              <Check size={15} />
-              {loading ? "Memproses..." : "Proses — Rp" + total.toLocaleString("id-ID")}
-            </button>
-            <button onClick={() => { setCart([]); setDiskon(""); setCatatan(""); }}
-              className="w-full py-2 rounded-xl text-xs border font-medium"
-              style={{ borderColor: "rgba(236,72,153,.25)", color: "#EC4899", background: "rgba(236,72,153,.05)" }}>
-              Reset order
+            ))}
+            <button
+              type="button"
+              onClick={() => setShowSuccess(false)}
+              className="mt-5 w-full rounded-xl py-3 text-sm font-semibold"
+              style={BTN_GRAD}
+            >
+              + Order berikutnya
             </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

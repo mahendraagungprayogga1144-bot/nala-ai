@@ -35,6 +35,12 @@ export default async function KasirPage() {
     .eq("aktif", true)
     .order("nama");
 
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name, stock, min_stock, category")
+    .eq("business_id", business.id)
+    .order("name");
+
   const { data: todayOrders } = await supabase
     .from("orders")
     .select("id, total, hpp, laba")
@@ -54,6 +60,7 @@ export default async function KasirPage() {
       <p className="text-[#8B8AA0] mb-6">Catat transaksi, stok berkurang otomatis.</p>
       <KasirClient
         menus={normalizeMenus(menus || [])}
+        products={products || []}
         employees={employees || []}
         userId={user!.id}
         businessId={business.id}

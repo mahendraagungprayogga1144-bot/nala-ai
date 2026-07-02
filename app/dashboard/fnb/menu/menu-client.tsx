@@ -2,18 +2,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, AlertTriangle, Upload, Image as ImageIcon, Link as LinkIcon } from "lucide-react";
+import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, AlertTriangle, Upload, Image as ImageIcon, Link as LinkIcon, Search, UtensilsCrossed } from "lucide-react";
 
 import { calcHpp, calcMargin, fmtRp, hppStatus, recipeLineCost, unwrapProduct } from "../lib/calc";
 import type { FnbMenu } from "../lib/calc";
 import FnbHubNav from "../components/fnb-hub-nav";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
+import FnbEmptyState from "../components/fnb-empty-state";
 
 type Product = { id: string; name: string; cost: number | null; stock: number; min_stock?: number; category: string | null };
 const KATEGORI_MENU = ["Makanan", "Minuman", "Snack", "Paket", "Lainnya"];
-const KATEGORI_COLOR: Record<string, string> = { "Makanan": "#1D9E75", "Minuman": "#185FA5", "Snack": "#BA7517", "Paket": "#534AB7", "Lainnya": "#888780" };
-const KATEGORI_BG: Record<string, string> = { "Makanan": "#E1F5EE", "Minuman": "#E6F1FB", "Snack": "#FAEEDA", "Paket": "#EEEDFE", "Lainnya": "#F1EFE8" };
+const KATEGORI_COLOR: Record<string, string> = { "Makanan": "#2DD4BF", "Minuman": "#38BDF8", "Snack": "#F59E0B", "Paket": "#8B5CF6", "Lainnya": "#8B8AA0" };
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50 text-sm";
 
 type FormMenuProps = {
@@ -90,7 +91,7 @@ function FormMenu({ editMenu, fNama, setFNama, fKategori, setFKategori, fHarga, 
           </div>
         )}
         <div className="flex gap-2 mt-1">
-          <button onClick={onSave} disabled={loading} className="flex-1 py-2 rounded-lg text-[#0A0A12] font-semibold text-sm disabled:opacity-50" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)" }}>
+          <button onClick={onSave} disabled={loading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>
             {loading ? "Menyimpan..." : "Simpan"}
           </button>
           <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
@@ -154,7 +155,7 @@ function FormResep({ products, fProductId, setFProductId, fQty, setFQty, fUnit, 
         </div>
       )}
       <div className="flex gap-2">
-        <button onClick={onSave} disabled={loading} className="flex-1 py-1.5 rounded-lg text-[#0A0A12] font-semibold text-xs disabled:opacity-50" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)" }}>
+        <button onClick={onSave} disabled={loading} className="flex-1 py-1.5 rounded-lg font-semibold text-xs disabled:opacity-50" style={BTN_GRAD}>
           {loading ? "..." : "Tambah Bahan"}
         </button>
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-[#8B8AA0]">Batal</button>
@@ -167,6 +168,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   const router = useRouter();
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState("Semua");
+  const [search, setSearch] = useState("");
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [editMenu, setEditMenu] = useState<FnbMenu | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -204,7 +206,8 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   };
   const resetResepForm = () => { setFProductId(""); setFQty(""); setFUnit("gr"); };
 
-  const filtered = activeTab === "Semua" ? menus : menus.filter(m => m.kategori === activeTab);
+  const filtered = (activeTab === "Semua" ? menus : menus.filter(m => m.kategori === activeTab))
+    .filter(m => m.nama.toLowerCase().includes(search.toLowerCase()));
 
   const handleSaveMenu = async () => {
     if (!fNama || !fHarga) return;
@@ -251,22 +254,45 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   }).length;
 
   return (
-    <div>
+    <div className="pb-24 md:pb-0">
       <FnbHubNav />
+
+      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-[#0F0F1A]/60 p-3">
+        {[
+          { step: "1", label: "Stok", sub: "Isi bahan + harga beli", href: "/dashboard/inventory" },
+          { step: "2", label: "Menu", sub: "Resep + HPP otomatis", href: "/dashboard/fnb/menu" },
+          { step: "3", label: "Kasir", sub: "Jual, stok turun sendiri", href: "/dashboard/fnb/kasir" },
+        ].map(s => (
+          <a key={s.step} href={s.href} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-center transition-colors hover:border-[#2DD4BF]/30">
+            <p className="text-[10px] font-bold text-[#2DD4BF]">{s.step}</p>
+            <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
+            <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
+          </a>
+        ))}
+      </div>
+
       <FnbKpiRow items={[
         { label: "Total menu", value: String(totalMenu), color: "#38BDF8" },
         { label: "Menu aktif", value: String(totalAktif), color: "#2DD4BF" },
-        { label: "Avg margin", value: `${Math.round(avgMargin)}%`, color: "#8B5CF6", sub: "Food cost otomatis" },
+        { label: "Margin rata-rata", value: `${Math.round(avgMargin)}%`, color: "#8B5CF6", sub: "Food cost otomatis" },
         { label: "Menu rugi", value: String(menuRugi), color: menuRugi > 0 ? "#EC4899" : "#2DD4BF" },
       ]} />
       <FnbStockAlerts products={products.map(p => ({ id: p.id, name: p.name, stock: p.stock, min_stock: p.min_stock ?? 5, category: p.category }))} />
 
       <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-3">
           <span className="font-medium text-sm">Daftar Menu</span>
-          <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)", color: "#0A0A12" }}>
+          <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="hidden md:flex text-xs px-3 py-1.5 rounded-lg items-center gap-1 font-semibold" style={BTN_GRAD}>
             <Plus size={13} /> Tambah Menu
           </button>
+        </div>
+
+        <div className="px-4 py-2.5 border-b border-white/10">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
+            <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] text-sm placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50" />
+          </div>
         </div>
 
         <div className="flex gap-2 px-4 py-2.5 border-b border-white/10 overflow-x-auto">
@@ -282,7 +308,13 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
         )}
 
         {filtered.length === 0 ? (
-          <p className="text-xs text-[#5A5B6A] text-center py-8">Belum ada menu. Klik "+ Tambah Menu" untuk mulai.</p>
+          <FnbEmptyState
+            icon={UtensilsCrossed}
+            title={search ? "Menu tidak ketemu" : "Belum ada menu nih"}
+            subtitle={search ? "Coba kata kunci lain atau ganti kategori." : "Tambah menu pertama, lalu isi resep bahannya biar HPP kehitung otomatis."}
+            actionLabel={search ? undefined : "Tambah menu pertama"}
+            onAction={search ? undefined : () => { resetMenuForm(); setShowMenuForm(true); }}
+          />
         ) : (
           <div className="divide-y divide-white/[0.04]">
             {filtered.map(m => {
@@ -293,8 +325,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
               const isRugi = mcalc?.isLoss ?? (hpp > 0 && laba < 0);
               const isExpanded = expandedId === m.id;
               const kat = m.kategori || "Lainnya";
-              const katColor = KATEGORI_COLOR[kat] || "#888780";
-              const katBg = KATEGORI_BG[kat] || "#F1EFE8";
+              const katColor = KATEGORI_COLOR[kat] || "#8B8AA0";
               const status = hppStatus(m);
               const bahanHabis = m.menu_recipes.filter(r => (unwrapProduct(r.products)?.stock ?? 0) <= 0);
               return (
@@ -303,7 +334,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <p className="text-sm font-medium">{m.nama}</p>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: katBg, color: katColor }}>{kat}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: katColor + "18", color: katColor }}>{kat}</span>
                         <span className={"text-[10px] px-2 py-0.5 rounded-full " + (m.status === "aktif" ? "bg-[#2DD4BF]/15 text-[#2DD4BF]" : "bg-white/5 text-[#8B8AA0]")}>{m.status}</span>
                         {bahanHabis.length > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EC4899]/15 text-[#EC4899]"><AlertTriangle size={9} className="inline mr-1" />bahan habis</span>}
                       </div>
@@ -312,21 +343,21 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
                         <span className="text-[#5A5B7A]">jual</span>
                       </div>
                       {/* HPP card — selalu terlihat */}
-                      <div className="mt-2 flex items-center justify-between rounded-xl border border-violet-500/25 bg-gradient-to-r from-violet-600/10 to-indigo-600/5 px-3 py-2">
-                        <span className="text-[11px] font-semibold text-violet-300">HPP / Modal</span>
+                      <div className="mt-2 flex items-center justify-between rounded-xl border border-[#2DD4BF]/25 bg-gradient-to-r from-[#2DD4BF]/10 to-[#8B5CF6]/5 px-3 py-2">
+                        <span className="text-[11px] font-semibold text-[#2DD4BF]">HPP / Modal</span>
                         {status === "ok" ? (
                           <div className="text-right">
-                            <span className="font-mono text-sm font-bold text-violet-200">{fmtRp(Math.round(hpp))}</span>
+                            <span className="font-mono text-sm font-bold text-[#F0EFF8]">{fmtRp(Math.round(hpp))}</span>
                             {margin !== null && (
-                              <span className={"ml-2 text-[10px] font-medium " + (isRugi ? "text-red-300" : "text-emerald-300")}>
+                              <span className={"ml-2 text-[10px] font-medium " + (isRugi ? "text-[#EC4899]" : "text-[#2DD4BF]")}>
                                 {isRugi ? "Rugi" : "Untung"} {Math.abs(margin)}%
                               </span>
                             )}
                           </div>
                         ) : status === "no_cost" ? (
-                          <span className="text-[10px] text-amber-300">Isi harga beli bahan di Stok</span>
+                          <span className="text-[10px] text-[#F59E0B]">Isi harga beli bahan di Stok</span>
                         ) : (
-                          <span className="text-[10px] text-amber-300">Tap → tambah resep bahan</span>
+                          <span className="text-[10px] text-[#F59E0B]">Tap → tambah resep bahan</span>
                         )}
                       </div>
                     </div>
@@ -421,6 +452,16 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
           </div>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => { resetMenuForm(); setShowMenuForm(true); }}
+        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
+        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
+        aria-label="Tambah menu"
+      >
+        <Plus size={24} />
+      </button>
     </div>
   );
 }

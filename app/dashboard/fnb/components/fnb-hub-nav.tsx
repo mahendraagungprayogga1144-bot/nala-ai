@@ -23,7 +23,7 @@ export default function FnbHubNav() {
             className={[
               "flex flex-shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
               active
-                ? "border-violet-500/40 bg-gradient-to-r from-violet-600/20 to-indigo-600/10 text-violet-300 shadow-[0_0_20px_rgba(124,58,237,0.15)]"
+                ? "border-[#2DD4BF]/40 bg-gradient-to-r from-[#2DD4BF]/20 to-[#8B5CF6]/10 text-[#2DD4BF] shadow-[0_0_20px_rgba(45,212,191,0.12)]"
                 : "border-white/[0.08] bg-white/[0.03] text-[#8B8AA0] hover:border-white/15 hover:text-[#F2F1F8]",
             ].join(" ")}
           >

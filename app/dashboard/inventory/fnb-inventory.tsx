@@ -2,19 +2,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Search, Trash2, ArrowLeftRight, Edit2, X } from "lucide-react";
+import { Plus, Search, Trash2, ArrowLeftRight, Edit2, X, Package } from "lucide-react";
 import FnbHubNav from "../fnb/components/fnb-hub-nav";
 import FnbKpiRow from "../fnb/components/fnb-kpi-row";
 import FnbStockAlerts from "../fnb/components/fnb-stock-alerts";
+import FnbEmptyState from "../fnb/components/fnb-empty-state";
 import { fmtRp } from "../fnb/lib/calc";
 
 type Product = { id: string; name: string; sku: string | null; stock: number; min_stock: number; price: number | null; cost: number | null; category: string | null; photo_url: string | null; unit?: string | null };
 
 const KATEGORI = ["Bahan Baku", "Bumbu", "Minuman", "Kemasan", "Produk Siap Jual"];
 const SATUAN_OPTIONS = ["kg", "gram", "liter", "ml", "pcs", "botol", "sachet", "bungkus", "porsi", "lusin", "unit"];
-const KATEGORI_COLOR: Record<string, string> = { "Bahan Baku": "#1D9E75", "Bumbu": "#BA7517", "Minuman": "#185FA5", "Kemasan": "#534AB7", "Produk Siap Jual": "#2DD4BF" };
-const KATEGORI_BG: Record<string, string> = { "Bahan Baku": "#E1F5EE", "Bumbu": "#FAEEDA", "Minuman": "#E6F1FB", "Kemasan": "#EEEDFE", "Produk Siap Jual": "#E1F5EE" };
+const KATEGORI_COLOR: Record<string, string> = { "Bahan Baku": "#2DD4BF", "Bumbu": "#F59E0B", "Minuman": "#38BDF8", "Kemasan": "#8B5CF6", "Produk Siap Jual": "#EC4899" };
 const KATEGORI_ICON: Record<string, string> = { "Bahan Baku": "ti-meat", "Bumbu": "ti-leaf", "Minuman": "ti-glass", "Kemasan": "ti-package", "Produk Siap Jual": "ti-bowl-chopsticks" };
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50 text-sm";
 
 type FormProps = {
@@ -65,7 +66,7 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
           </div>
         )}
         <div className="flex gap-2 mt-1">
-          <button onClick={onSave} disabled={formLoading} className="flex-1 py-2 rounded-lg text-[#0A0A12] font-semibold text-sm disabled:opacity-50" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)" }}>
+          <button onClick={onSave} disabled={formLoading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>
             {formLoading ? "Menyimpan..." : "Simpan"}
           </button>
           <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
@@ -159,6 +160,29 @@ export default function FnBInventory({ products, userId, businessId }: { product
   return (
     <div className="pb-24 md:pb-0">
       <FnbHubNav />
+
+      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-[#0F0F1A]/60 p-3">
+        {[
+          { step: "1", label: "Stok", sub: "Isi bahan + harga beli", active: true },
+          { step: "2", label: "Menu", sub: "Resep + HPP otomatis", href: "/dashboard/fnb/menu" },
+          { step: "3", label: "Kasir", sub: "Jual, stok turun sendiri", href: "/dashboard/fnb/kasir" },
+        ].map(s => (
+          s.href ? (
+            <a key={s.step} href={s.href} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-center transition-colors hover:border-[#2DD4BF]/30">
+              <p className="text-[10px] font-bold text-[#2DD4BF]">{s.step}</p>
+              <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
+              <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
+            </a>
+          ) : (
+            <div key={s.step} className="rounded-xl border border-[#2DD4BF]/30 bg-[#2DD4BF]/5 px-2 py-2 text-center">
+              <p className="text-[10px] font-bold text-[#2DD4BF]">{s.step}</p>
+              <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
+              <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
+            </div>
+          )
+        ))}
+      </div>
+
       <FnbStockAlerts products={products} />
       <FnbKpiRow items={[
         { label: "Total bahan", value: String(products.length), color: "#38BDF8" },
@@ -204,10 +228,15 @@ export default function FnBInventory({ products, userId, businessId }: { product
                   fSku={fSku} setFSku={setFSku} formLoading={formLoading}
                   onSave={handleSave} onCancel={() => { resetForm(); setShowForm(null); }} />
               )}
-              {items.length === 0 && !isShowing
-                ? <p className="text-xs text-[#5A5B6A] text-center py-4">{"Belum ada " + kat.toLowerCase() + "."}</p>
-                : items.map(p => {
-                  const bg = KATEGORI_BG[p.category || ""] || "#F1EFE8";
+              {items.length === 0 && !isShowing ? (
+                <FnbEmptyState
+                  icon={Package}
+                  title={"Belum ada " + kat.toLowerCase()}
+                  subtitle="Tambah bahan biar bisa dipakai di resep menu."
+                  actionLabel={"Tambah " + kat.split(" ")[0].toLowerCase()}
+                  onAction={() => { resetForm(); setFKategori(kat); setShowForm(kat); }}
+                />
+              ) : items.map(p => {
                   const pIcon = KATEGORI_ICON[p.category || ""] || "ti-package";
                   const pColor = KATEGORI_COLOR[p.category || ""] || "#8B8AA0";
                   const isKritis = p.stock <= p.min_stock;
@@ -218,7 +247,7 @@ export default function FnBInventory({ products, userId, businessId }: { product
                   return (
                     <div key={p.id} className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: bg, color: pColor }}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: pColor + "18", color: pColor }}>
                           <i className={"ti " + pIcon} style={{ fontSize: "16px" }} aria-hidden="true"></i>
                         </div>
                         <div>
@@ -282,7 +311,7 @@ export default function FnBInventory({ products, userId, businessId }: { product
             <div className="mb-2"><label className="text-[10px] text-[#8B8AA0] mb-1 block">Tanggal</label><input className={inputCls} type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)} style={{ colorScheme: "dark" }} /></div>
             <input className={inputCls + " mb-3"} placeholder="Catatan (opsional)" value={moveNote} onChange={e => setMoveNote(e.target.value)} />
             <p className="text-[10px] text-[#5A5B6A] mb-3">Otomatis tercatat di Keuangan Bisnis</p>
-            <button onClick={handleMove} disabled={moveLoading} className="w-full py-2.5 rounded-lg text-[#0A0A12] font-semibold text-sm disabled:opacity-50" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)" }}>
+            <button onClick={handleMove} disabled={moveLoading} className="w-full py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>
               {moveLoading ? "Menyimpan..." : "Simpan"}
             </button>
           </div>
@@ -293,7 +322,8 @@ export default function FnBInventory({ products, userId, businessId }: { product
       <button
         type="button"
         onClick={() => { resetForm(); setFKategori("Bahan Baku"); setQuickOpen(true); }}
-        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30 active:scale-95"
+        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
+        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
         aria-label="Tambah bahan"
       >
         <Plus size={24} />
@@ -322,7 +352,8 @@ export default function FnBInventory({ products, userId, businessId }: { product
                 type="button"
                 disabled={formLoading || !fNama || !fStok}
                 onClick={async () => { await handleSave(); setQuickOpen(false); }}
-                className="mt-2 w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-sm font-bold text-white disabled:opacity-40"
+                className="mt-2 w-full rounded-xl py-3.5 text-sm font-bold disabled:opacity-40"
+                style={BTN_GRAD}
               >
                 {formLoading ? "Menyimpan..." : "Simpan Bahan"}
               </button>

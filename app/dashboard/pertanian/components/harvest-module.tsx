@@ -29,6 +29,7 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
   const [fStok, setFStok] = useState("");
   const [fSatuan, setFSatuan] = useState("kg");
   const [fHarga, setFHarga] = useState("");
+  const [fHpp, setFHpp] = useState("");
   const [fHargaPasar, setFHargaPasar] = useState("");
   const [fLuas, setFLuas] = useState("");
   const [fTanam, setFTanam] = useState("");
@@ -44,7 +45,7 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
   const getMeta = (productId: string) => harvestMeta.find(m => m.product_id === productId);
 
   const reset = () => {
-    setFNama(""); setFStok(""); setFHarga(""); setFHargaPasar(""); setFLuas("");
+    setFNama(""); setFStok(""); setFHarga(""); setFHpp(""); setFHargaPasar(""); setFLuas("");
     setFTanam(""); setFPanen(""); setFLokasi(""); setFCatatan(""); setEditId(null);
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false);
   };
@@ -57,6 +58,7 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
     setFStok(String(p.stock));
     setFSatuan(m?.satuan || "kg");
     setFHarga(p.price ? String(p.price) : "");
+    setFHpp(p.cost ? String(p.cost) : "");
     setFHargaPasar(m?.harga_pasar ? String(m.harga_pasar) : "");
     setFLuas(m?.luas_lahan ? String(m.luas_lahan) : "");
     setFTanam(m?.tanggal_tanam || "");
@@ -85,7 +87,7 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
     const productPayload = {
       user_id: userId, business_id: businessId, name: fNama, category: fKategori,
       stock: Number(fStok), min_stock: Number(fMinStok),
-      price: fHarga ? Number(fHarga) : null, cost: null, photo_url: photoUrl,
+      price: fHarga ? Number(fHarga) : null, cost: fHpp ? Number(fHpp) : null, photo_url: photoUrl,
     };
     let productId = editId;
     if (editId) {
@@ -183,6 +185,7 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
             <input className={inputCls} type="date" value={fTanam} onChange={e => setFTanam(e.target.value)} />
             <input className={inputCls} type="date" value={fPanen} onChange={e => setFPanen(e.target.value)} />
             <input className={inputCls} type="number" placeholder="Harga Jual" value={fHarga} onChange={e => setFHarga(e.target.value)} />
+            <input className={inputCls} type="number" placeholder="HPP per unit (Rp) — opsional" value={fHpp} onChange={e => setFHpp(e.target.value)} />
             <input className={inputCls} type="number" placeholder="Harga Pasar" value={fHargaPasar} onChange={e => setFHargaPasar(e.target.value)} />
             <select className={inputCls} value={fGrade} onChange={e => setFGrade(e.target.value)}>
               {GRADE_OPTIONS.map(g => <option key={g} value={g}>Grade {g}</option>)}

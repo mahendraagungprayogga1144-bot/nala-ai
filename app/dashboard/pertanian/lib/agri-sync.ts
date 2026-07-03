@@ -1,4 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isHarvestCategory, isSaprotanCategory } from "./constants";
+
+type AgriProduct = { stock: number; cost: number | null; category: string | null; price?: number | null };
+
+/** Total biaya produksi = biaya catatan + semprot + nilai stok saprotan (sama seperti Modul Pertanian) */
+export function computeAgriTotalCost(
+  products: AgriProduct[],
+  biayaProduksi: number,
+  biayaSemprot: number,
+): { totalCost: number; saprotanCost: number; biayaProduksi: number; biayaSemprot: number; harvestStock: number; hppPerUnit: number } {
+  const saprotanCost = products
+    .filter(p => isSaprotanCategory(p.category))
+    .reduce((s, p) => s + Number(p.cost || 0) * p.stock, 0);
+  const totalCost = biayaProduksi + biayaSemprot + saprotanCost;
+  const harvestStock = products
+    .filter(p => isHarvestCategory(p.category))
+    .reduce((s, p) => s + p.stock, 0);
+  const hppPerUnit = harvestStock > 0 && totalCost > 0 ? Math.round(totalCost / harvestStock) : 0;
+  return { totalCost, saprotanCost, biayaProduksi, biayaSemprot, harvestStock, hppPerUnit };
+}
+
+/** HPP per unit untuk produk panen: pakai cost produk jika diisi, else alokasi global */
+export function calcAgriProductHpp(product: AgriProduct, globalHppPerUnit: number): number {
+  if (product.cost && product.cost > 0) return Math.round(product.cost);
+  return globalHppPerUnit;
+}
 
 export async function insertKeuanganPengeluaran(
   supabase: SupabaseClient,
@@ -15,12 +41,6 @@ export async function insertKeuanganPengeluaran(
     amount: opts.amount,
     transaction_date: opts.tanggal,
   });
-}
-
-/** HPP per unit panen = total biaya produksi / total stok panen (kg/unit) */
-export function calcAgriHppPerUnit(totalBiaya: number, totalPanenStock: number): number {
-  if (totalPanenStock <= 0 || totalBiaya <= 0) return 0;
-  return Math.round(totalBiaya / totalPanenStock);
 }
 
 export async function recordAgriPenjualan(

@@ -1,10 +1,10 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Search, ShoppingBag, AlertTriangle, X, Check } from "lucide-react";
-import { calcAgriHppPerUnit, recordAgriPenjualan } from "../pertanian/lib/agri-sync";
+import { computeAgriTotalCost, calcAgriProductHpp, recordAgriPenjualan } from "../pertanian/lib/agri-sync";
 import AgriHubNav from "../pertanian/agri-hub-nav";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
 import { fmtRp, isHarvestCategory, isSaprotanCategory, cardCls } from "../pertanian/lib/constants";
@@ -18,13 +18,15 @@ const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white
 
 export default function AgricultureInventory({
   products, harvestMeta, userId, businessId,
-  totalBiaya, profitHariIni, penjualanHariIni, hppHariIni, todaySales, today,
+  totalBiayaProduksi, totalBiayaSemprot,
+  profitHariIni, penjualanHariIni, hppHariIni, todaySales, today,
 }: {
   products: Product[];
   harvestMeta: HarvestMeta[];
   userId: string;
   businessId?: string;
-  totalBiaya: number;
+  totalBiayaProduksi: number;
+  totalBiayaSemprot: number;
   profitHariIni: number;
   penjualanHariIni: number;
   hppHariIni: number;
@@ -43,9 +45,9 @@ export default function AgricultureInventory({
 
   const harvest = products.filter(p => isHarvestCategory(p.category));
   const saprotan = products.filter(p => isSaprotanCategory(p.category));
-  const totalPanenStock = harvest.reduce((s, p) => s + p.stock, 0);
-  const hppPerUnit = calcAgriHppPerUnit(totalBiaya, totalPanenStock);
+  const { totalCost, saprotanCost, harvestStock, hppPerUnit } = computeAgriTotalCost(products, totalBiayaProduksi, totalBiayaSemprot);
   const kritisSaprotan = saprotan.filter(p => p.stock <= p.min_stock).length;
+  const hppBelumAda = hppPerUnit <= 0 && harvest.length > 0;
 
   const filteredHarvest = harvest.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -72,9 +74,15 @@ export default function AgricultureInventory({
       const { error: stockErr } = await supabase.from("products").update({ stock: newStock }).eq("id", sellingProduct.id);
       if (stockErr) throw new Error(stockErr.message);
 
+      const hpp = calcAgriProductHpp(sellingProduct, hppPerUnit);
+      if (hpp <= 0) {
+        const ok = confirm("HPP belum kehitung — catat biaya produksi & saprotan di Modul Pertanian dulu.\n\nLanjut jual tanpa catat HPP?");
+        if (!ok) { setSellLoading(false); return; }
+      }
+
       const { totalJual, laba } = await recordAgriPenjualan(supabase, {
         userId, businessId, productName: sellingProduct.name, qty, harga,
-        hppPerUnit, tanggal: today,
+        hppPerUnit: hpp, tanggal: today,
       });
 
       await supabase.from("stock_movements").insert({
@@ -106,9 +114,20 @@ export default function AgricultureInventory({
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      {hppBelumAda && (
+        <div className="mb-5 flex items-start gap-2 rounded-xl border border-[#F59E0B]/25 bg-[#F59E0B]/5 px-3 py-2.5">
+          <AlertTriangle size={14} className="text-[#F59E0B] mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-[#F59E0B] leading-relaxed">
+            HPP belum kehitung — catat <Link href="/dashboard/pertanian" className="underline text-[#2DD4BF]">Biaya Produksi</Link>,{" "}
+            <Link href="/dashboard/pertanian" className="underline text-[#2DD4BF]">Penyemprotan</Link>, atau saprotan dengan harga beli di Modul Pertanian.
+            Atau isi HPP manual saat edit panen.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className={`${cardCls} p-4`}><p className="text-xs text-[#8B8AA0] mb-1">Komoditas panen</p><p className="text-lg font-mono font-semibold text-[#2DD4BF]">{harvest.length}</p></div>
-        <div className={`${cardCls} p-4`}><p className="text-xs text-[#8B8AA0] mb-1">Stok panen</p><p className="text-lg font-mono font-semibold text-[#38BDF8]">{totalPanenStock}</p></div>
+        <div className={`${cardCls} p-4`}><p className="text-xs text-[#8B8AA0] mb-1">Stok panen</p><p className="text-lg font-mono font-semibold text-[#38BDF8]">{harvestStock}</p></div>
         <div className={`${cardCls} p-4`}><p className="text-xs text-[#8B8AA0] mb-1">HPP/unit</p><p className="text-lg font-mono font-semibold text-[#8B5CF6]">{fmtRp(hppPerUnit)}</p></div>
         <div className={`${cardCls} p-4`}>
           <p className="text-xs text-[#8B8AA0] mb-1">Profit hari ini</p>
@@ -116,6 +135,12 @@ export default function AgricultureInventory({
           <p className="text-[10px] text-[#5A5B7A] mt-0.5">Jual {fmtRp(penjualanHariIni)} · HPP {fmtRp(hppHariIni)}</p>
         </div>
       </div>
+
+      {totalCost > 0 && (
+        <p className="mb-6 text-[10px] text-[#5A5B7A] text-center">
+          Total biaya {fmtRp(totalCost)} = Biaya {fmtRp(totalBiayaProduksi)} + Semprot {fmtRp(totalBiayaSemprot)} + Saprotan {fmtRp(saprotanCost)} ÷ {harvestStock} stok
+        </p>
+      )}
 
       {todaySales.length > 0 && (
         <div className="mb-6 overflow-hidden rounded-2xl border border-white/[0.08]" style={{ background: "#0D0D1A" }}>
@@ -155,8 +180,9 @@ export default function AgricultureInventory({
             {filteredHarvest.map(p => {
               const isKritis = p.stock <= p.min_stock;
               const satuan = getSatuan(p.id);
-              const margin = p.price && hppPerUnit > 0 ? Math.round(((p.price - hppPerUnit) / p.price) * 100) : null;
-              const isRugi = p.price && hppPerUnit > 0 && hppPerUnit > p.price;
+              const productHpp = calcAgriProductHpp(p, hppPerUnit);
+              const margin = p.price && productHpp > 0 ? Math.round(((p.price - productHpp) / p.price) * 100) : null;
+              const isRugi = p.price && productHpp > 0 && productHpp > p.price;
               return (
                 <div key={p.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
@@ -169,7 +195,7 @@ export default function AgricultureInventory({
                       </div>
                       <div className="rounded-xl border border-[#2DD4BF]/20 px-3 py-2 mt-1" style={{ background: "rgba(45,212,191,0.06)" }}>
                         <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                          <div><p className="text-[9px] text-[#5A5B7A]">HPP/{satuan}</p><p className="font-mono font-semibold text-[#2DD4BF]">{fmtRp(hppPerUnit)}</p></div>
+                          <div><p className="text-[9px] text-[#5A5B7A]">HPP/{satuan}</p><p className="font-mono font-semibold text-[#2DD4BF]">{productHpp > 0 ? fmtRp(productHpp) : "—"}</p></div>
                           <div><p className="text-[9px] text-[#5A5B7A]">Harga jual</p><p className="font-mono font-semibold text-[#F0EFF8]">{p.price ? fmtRp(p.price) : "—"}</p></div>
                           <div><p className="text-[9px] text-[#5A5B7A]">Margin</p><p className="font-mono font-semibold" style={{ color: margin !== null && margin >= 0 ? "#2DD4BF" : "#EC4899" }}>{margin !== null ? margin + "%" : "—"}</p></div>
                         </div>
@@ -195,8 +221,9 @@ export default function AgricultureInventory({
       {sellingProduct && (() => {
         const qty = Number(sellQty) || 0;
         const harga = Number(sellPrice) || 0;
+        const unitHpp = calcAgriProductHpp(sellingProduct, hppPerUnit);
         const total = qty * harga;
-        const totalHpp = qty * hppPerUnit;
+        const totalHpp = qty * unitHpp;
         const laba = total - totalHpp;
         return (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSellingProduct(null)}>
@@ -205,7 +232,7 @@ export default function AgricultureInventory({
                 <h3 className="font-medium text-sm">{sellingProduct.name}</h3>
                 <button onClick={() => setSellingProduct(null)} className="text-[#8B8AA0]"><X size={18} /></button>
               </div>
-              <p className="text-xs text-[#8B8AA0] mb-3">Stok: {sellingProduct.stock} · HPP/{getSatuan(sellingProduct.id)}: {fmtRp(hppPerUnit)}</p>
+              <p className="text-xs text-[#8B8AA0] mb-3">Stok: {sellingProduct.stock} · HPP/{getSatuan(sellingProduct.id)}: {unitHpp > 0 ? fmtRp(unitHpp) : "belum dihitung"}</p>
               <div className="flex flex-col gap-2 mb-3">
                 <input className={inputCls} type="number" placeholder="Jumlah terjual" value={sellQty} onChange={e => setSellQty(e.target.value)} />
                 <input className={inputCls} type="number" placeholder="Harga jual per unit" value={sellPrice} onChange={e => setSellPrice(e.target.value)} />
@@ -213,6 +240,7 @@ export default function AgricultureInventory({
               {qty > 0 && harga > 0 && (
                 <div className="rounded-xl border border-white/[0.08] px-3 py-2 mb-3 text-xs space-y-1" style={{ background: "#0A0A12" }}>
                   <div className="flex justify-between"><span className="text-[#8B8AA0]">Total jual</span><span className="font-mono">{fmtRp(total)}</span></div>
+                  {totalHpp > 0 && <div className="flex justify-between"><span className="text-[#8B8AA0]">Total HPP</span><span className="font-mono text-[#EC4899]">{fmtRp(totalHpp)}</span></div>}
                   <div className="flex justify-between"><span className="text-[#8B8AA0]">Laba</span><span className="font-mono text-[#2DD4BF]">{fmtRp(laba)}</span></div>
                 </div>
               )}

@@ -87,7 +87,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
   let harvestMeta: { product_id: string; satuan: string | null }[] = [];
   let saprotanMeta: { product_id: string; satuan: string | null }[] = [];
-  let agriTotalBiaya = 0;
+  let agriBiayaProduksi = 0;
+  let agriBiayaSemprot = 0;
   let agriProfitHariIni = 0;
   let agriPenjualanHariIni = 0;
   let agriHppHariIni = 0;
@@ -104,7 +105,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     ]);
     harvestMeta = hm || [];
     saprotanMeta = sm || [];
-    agriTotalBiaya = (costs || []).reduce((s, c) => s + Number(c.jumlah || 0), 0) + (spray || []).reduce((s, r) => s + Number(r.biaya || 0), 0);
+    agriBiayaProduksi = (costs || []).reduce((s, c) => s + Number(c.jumlah || 0), 0);
+    agriBiayaSemprot = (spray || []).reduce((s, r) => s + Number(r.biaya || 0), 0);
     agriTodaySales = salesData || [];
     agriPenjualanHariIni = (todayTx || []).filter(t => t.type === "pemasukan" && t.category === "Penjualan Panen").reduce((s, t) => s + Number(t.amount || 0), 0);
     agriHppHariIni = (todayTx || []).filter(t => t.type === "pengeluaran" && t.category === "HPP").reduce((s, t) => s + Number(t.amount || 0), 0);
@@ -224,7 +226,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             harvestMeta={harvestMeta as never}
             userId={user!.id}
             businessId={business?.id}
-            totalBiaya={agriTotalBiaya}
+            totalBiayaProduksi={agriBiayaProduksi}
+            totalBiayaSemprot={agriBiayaSemprot}
             profitHariIni={agriProfitHariIni}
             penjualanHariIni={agriPenjualanHariIni}
             hppHariIni={agriHppHariIni}

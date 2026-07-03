@@ -20,6 +20,7 @@ import { executeSilentPrint, planReceiptPrint } from "../lib/trigger-receipt-pri
 import { getKasirPrintSettings } from "../lib/kasir-print-settings";
 import { isPrinterSetupDone, saveLastReceipt } from "../lib/last-receipt-storage";
 import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
+import { KASIR } from "../lib/kasir-theme";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
 type Checkin = { id: string; tanggal: string; jam_masuk: string; jam_keluar: string | null };
@@ -336,7 +337,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
   };
 
   return (
-    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="relative w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70" style={{ background: KASIR.bg.mesh }} aria-hidden />
       <FnbHubNav />
       <FnbKpiRow items={[
         { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
@@ -349,7 +351,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
         <FnbStockAlerts products={products.map(p => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
       </div>
 
-      <div className="mb-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0F0F1A] lg:mb-6">
+      <div className="mb-4 overflow-hidden rounded-2xl border border-[#2DD4BF]/15 bg-[#13131F]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-sm lg:mb-6">
         <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2 md:px-4">
           <button
             type="button"
@@ -407,8 +409,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px] lg:gap-6">
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0F0F1A]">
-          <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0F0F1A]/95 backdrop-blur-md lg:static lg:bg-transparent">
+        <div className="overflow-hidden rounded-2xl border border-[#2DD4BF]/15 bg-[#13131F]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-sm">
+          <div className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#13131F]/95 backdrop-blur-md lg:static lg:bg-transparent">
             <div className="flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3">
               <Search size={14} className="flex-shrink-0 text-[#5A5B7A]" />
               <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
@@ -443,8 +445,11 @@ export default function KasirClient({ menus, products, employees, userId, busine
               const color = KATEGORI_COLOR[kat] || "#8B8AA0";
               const icon = KATEGORI_ICON[kat] || "ti-dots";
               return (
-                <div key={m.id} className="cursor-pointer overflow-hidden rounded-2xl border bg-[#0A0A12] active:scale-[0.98]"
-                  style={{ borderColor: qty > 0 ? "rgba(45,212,191,.4)" : "rgba(255,255,255,0.06)" }}
+                <div key={m.id} className="cursor-pointer overflow-hidden rounded-2xl border bg-[#13131F] active:scale-[0.98] transition-shadow"
+                  style={{
+                    borderColor: qty > 0 ? "rgba(45,212,191,.45)" : "rgba(255,255,255,0.08)",
+                    boxShadow: qty > 0 ? "0 0 0 1px rgba(45,212,191,.35), 0 12px 32px rgba(45,212,191,.12)" : "0 8px 24px rgba(0,0,0,.3)",
+                  }}
                   onClick={() => addToCart(m)}>
                   {m.foto_url ? (
                     <div className="h-20 overflow-hidden sm:h-24">

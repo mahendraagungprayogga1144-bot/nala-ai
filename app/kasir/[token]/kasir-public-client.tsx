@@ -13,6 +13,7 @@ import KasirReprintBar from "@/app/dashboard/fnb/components/kasir-reprint-bar";
 import { executeSilentPrint, planReceiptPrint } from "@/app/dashboard/fnb/lib/trigger-receipt-print";
 import { getKasirPrintSettings } from "@/app/dashboard/fnb/lib/kasir-print-settings";
 import { isPrinterSetupDone, saveLastReceipt } from "@/app/dashboard/fnb/lib/last-receipt-storage";
+import { KASIR, kasirBtnGrad, kasirFonts, kasirShell } from "@/app/dashboard/fnb/lib/kasir-theme";
 
 type Menu = FnbMenu;
 type Employee = { id: string; nama: string; jabatan: string | null; kasir_token: string; webauthn_credential_id: string | null };
@@ -296,16 +297,17 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
     setCart({}); setDiskon(""); setBayar(""); setCatatan("");
   };
 
-  const S = { background: "#070711", color: "#F0EFF8", fontFamily: "'Space Grotesk', sans-serif", minHeight: "100vh" };
-  const btnGrad: React.CSSProperties = { width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "8px" };
+  const S = kasirShell;
+  const btnGrad = kasirBtnGrad;
+  const gradText: React.CSSProperties = { background: KASIR.gradient.text, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" };
 
   if (screen === "auth") return (
-    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: "radial-gradient(ellipse at 50% 0%, rgba(45,212,191,.08) 0%, transparent 60%), #070711" }}>
+    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: KASIR.bg.mesh }}>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap')`}</style>
-      <div style={{ fontSize: "24px", fontWeight: 700, marginBottom: ".25rem" }}>GercepAI <span style={{ background: "linear-gradient(135deg,#2DD4BF,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Kasir</span></div>
-      <div style={{ fontSize: "12px", color: "#5A5B7A", marginBottom: "2.5rem" }}>{business.name}</div>
-      <div style={{ background: "#0D0D1A", border: "0.5px solid rgba(255,255,255,0.07)", borderRadius: "20px", padding: "2rem", width: "100%", maxWidth: "360px" }}>
+      <style>{kasirFonts}</style>
+      <div style={{ fontSize: "26px", fontWeight: 700, marginBottom: ".25rem" }}>Gercep<span style={gradText}>AI</span> <span style={{ ...gradText, fontSize: "22px" }}>Kasir</span></div>
+      <div style={{ fontSize: "12px", color: KASIR.text.secondary, marginBottom: "2.5rem" }}>{business.name}</div>
+      <div style={{ background: KASIR.surface.cardGlass, border: `1px solid ${KASIR.border.accent}`, borderRadius: "22px", padding: "2rem", width: "100%", maxWidth: "360px", boxShadow: KASIR.shadow.card, backdropFilter: "blur(12px)" }}>
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <div style={{ position: "relative", width: "90px", height: "90px", margin: "0 auto 1rem" }}>
             <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1.5px solid rgba(45,212,191,.3)", animation: "fpRing 2s ease-in-out infinite" }} />
@@ -356,7 +358,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   );
 
   if (screen === "scanning") return (
-    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "radial-gradient(ellipse at 50% 50%, rgba(45,212,191,.06) 0%, transparent 60%), #070711" }}>
+    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: KASIR.bg.meshSoft }}>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
       <div style={{ width: "110px", height: "110px", borderRadius: "50%", border: "2px solid rgba(45,212,191,.5)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.5rem", fontSize: "42px", color: "#2DD4BF", position: "relative" }}>
         <style>{`@keyframes scanPulse{0%,100%{box-shadow:0 0 0 0 rgba(45,212,191,.2)}50%{box-shadow:0 0 0 24px rgba(45,212,191,.03)}}`}</style>
@@ -369,11 +371,11 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   );
 
   if (screen === "welcome") return (
-    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: "radial-gradient(ellipse at 50% 30%, rgba(45,212,191,.1) 0%, transparent 60%), #070711" }}>
+    <div style={{ ...S, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: KASIR.bg.mesh }}>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
-      <div style={{ background: "#0D0D1A", border: "0.5px solid rgba(45,212,191,.2)", borderRadius: "20px", padding: "2rem", width: "100%", maxWidth: "340px", textAlign: "center" }}>
-        <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "rgba(45,212,191,.12)", border: "0.5px solid rgba(45,212,191,.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem", fontSize: "26px", color: "#2DD4BF" }}>✓</div>
-        <div style={{ fontSize: "15px", fontWeight: 600, color: "#2DD4BF", marginBottom: ".25rem" }}>Selamat datang!</div>
+      <div style={{ background: KASIR.surface.cardGlass, border: `1px solid ${KASIR.border.accent}`, borderRadius: "22px", padding: "2rem", width: "100%", maxWidth: "340px", textAlign: "center", boxShadow: KASIR.shadow.card }}>
+        <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: KASIR.gradient.brandSoft, border: `1px solid ${KASIR.border.accent}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem", fontSize: "26px", color: KASIR.accent.teal }}>✓</div>
+        <div style={{ fontSize: "15px", fontWeight: 600, color: KASIR.accent.teal, marginBottom: ".25rem" }}>Selamat datang!</div>
         <div style={{ fontSize: "18px", fontWeight: 600, marginBottom: ".2rem" }}>{employee.nama}</div>
         <div style={{ fontSize: "12px", color: "#5A5B7A", marginBottom: ".75rem" }}>{employee.jabatan}</div>
         <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "14px", color: "#2DD4BF", marginBottom: ".5rem" }}>{clock}</div>
@@ -391,51 +393,56 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   return (
     <div style={{ ...S, display: "flex", flexDirection: "column", minHeight: "100vh", overflow: "hidden" }}>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');body{margin:0}`}</style>
+      <style>{kasirFonts}</style>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px 12px", borderBottom: "0.5px solid rgba(255,255,255,.06)", background: "#0D0D1A", flexShrink: 0, position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ background: KASIR.surface.header, flexShrink: 0, position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", borderBottom: `1px solid ${KASIR.border.subtle}` }}>
+        <div style={{ height: "2px", background: KASIR.gradient.headerLine }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "10px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
-          <div style={{ fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
-            Gercep<span style={{ background: "linear-gradient(135deg,#2DD4BF,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AI</span>
+          <div style={{ fontSize: "14px", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+            Gercep<span style={gradText}>AI</span>
           </div>
-          <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: "#2DD4BF", flexShrink: 0, fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em" }}>{clock}</div>
+          <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: KASIR.accent.teal, flexShrink: 0, fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "8px", background: "rgba(45,212,191,.1)", border: `1px solid ${KASIR.border.accent}` }}>{clock}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", minWidth: 0 }}>
-          <div style={{ fontSize: "11px", color: "#5A5B7A", minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <strong style={{ color: "#F0EFF8" }}>{employee.nama}</strong>
-            <span style={{ color: "#3A3B52" }}> · </span>
+          <div style={{ fontSize: "11px", color: KASIR.text.secondary, minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <strong style={{ color: KASIR.text.primary }}>{employee.nama}</strong>
+            <span style={{ color: KASIR.text.muted }}> · </span>
             <span>{business.name}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
-            <button onClick={() => setShowSOP(true)} aria-label="SOP" style={{ background: "none", border: "0.5px solid rgba(255,255,255,.1)", color: "#8B8AA0", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className="ti ti-book" /></button>
+            <button onClick={() => setShowSOP(true)} aria-label="SOP" style={{ background: KASIR.surface.input, border: `1px solid ${KASIR.border.subtle}`, color: KASIR.text.secondary, width: "28px", height: "28px", borderRadius: "9px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className="ti ti-book" /></button>
             <KasirReprintBar compact refreshKey={receiptVersion} />
             <KasirPrintSettingsButton compact />
-            <button onClick={() => setShowCheckout(true)} aria-label="Check-out" style={{ background: "rgba(236,72,153,.06)", border: "0.5px solid rgba(236,72,153,.2)", color: "#EC4899", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className="ti ti-logout" /></button>
+            <button onClick={() => setShowCheckout(true)} aria-label="Check-out" style={{ background: "rgba(244,114,182,.1)", border: "1px solid rgba(244,114,182,.35)", color: KASIR.accent.pink, width: "28px", height: "28px", borderRadius: "9px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className="ti ti-logout" /></button>
           </div>
+        </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "6px", padding: "8px 10px", borderBottom: "0.5px solid rgba(255,255,255,.05)", flexShrink: 0 }}>
-        {[
-          { l: "Omzet", v: "Rp" + (stats.omzet >= 1000 ? Math.round(stats.omzet/1000) + "rb" : stats.omzet), c: "#2DD4BF" },
-          { l: "Order", v: stats.totalOrders.toString(), c: "#8B5CF6" },
-          { l: "Laba", v: "Rp" + (stats.laba >= 1000 ? Math.round(stats.laba/1000) + "rb" : stats.laba), c: "#F59E0B" },
-          { l: "Food cost", v: stats.foodCost + "%", c: "#EC4899" },
-        ].map(k => (
-          <div key={k.l} style={{ background: "#0D0D1A", border: "0.5px solid rgba(255,255,255,.06)", borderRadius: "10px", padding: "7px 10px", borderBottom: "2px solid " + k.c }}>
-            <div style={{ fontSize: "10px", color: "#5A5B7A", marginBottom: "2px" }}>{k.l}</div>
-            <div style={{ fontSize: "13px", fontWeight: 600, fontFamily: "JetBrains Mono, monospace", color: k.c }}>{k.v}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "8px", padding: "10px 12px", flexShrink: 0 }}>
+        {([
+          { l: "Omzet", v: "Rp" + (stats.omzet >= 1000 ? Math.round(stats.omzet/1000) + "rb" : stats.omzet), k: "omzet" as const },
+          { l: "Order", v: stats.totalOrders.toString(), k: "order" as const },
+          { l: "Laba", v: "Rp" + (stats.laba >= 1000 ? Math.round(stats.laba/1000) + "rb" : stats.laba), k: "laba" as const },
+          { l: "Food cost", v: stats.foodCost + "%", k: "foodCost" as const },
+        ]).map(item => {
+          const kpi = KASIR.gradient.kpi[item.k];
+          return (
+          <div key={item.l} style={{ background: kpi.bg, border: `1px solid ${kpi.border}`, borderRadius: "12px", padding: "8px 10px", boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)" }}>
+            <div style={{ fontSize: "10px", color: KASIR.text.secondary, marginBottom: "3px", fontWeight: 500 }}>{item.l}</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: kpi.color }}>{item.v}</div>
           </div>
-        ))}
+        );})}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderBottom: "0.5px solid rgba(255,255,255,.05)", flexShrink: 0 }}>
-        <i className="ti ti-search" style={{ fontSize: "14px", color: "#3A3B52" }} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari menu..." style={{ flex: 1, background: "none", border: "none", fontSize: "13px", color: "#F0EFF8", outline: "none", fontFamily: "'Space Grotesk', sans-serif" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", margin: "0 12px", marginTop: "4px", borderRadius: "12px", background: KASIR.surface.card, border: `1px solid ${KASIR.border.subtle}`, flexShrink: 0 }}>
+        <i className="ti ti-search" style={{ fontSize: "14px", color: KASIR.accent.teal }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari menu..." style={{ flex: 1, background: "none", border: "none", fontSize: "13px", color: KASIR.text.primary, outline: "none", fontFamily: "'Space Grotesk', sans-serif" }} />
       </div>
-      <div style={{ display: "flex", gap: "6px", padding: "8px 12px", borderBottom: "0.5px solid rgba(255,255,255,.05)", overflowX: "auto", flexShrink: 0, WebkitOverflowScrolling: "touch" }}>
+      <div style={{ display: "flex", gap: "6px", padding: "10px 12px", overflowX: "auto", flexShrink: 0, WebkitOverflowScrolling: "touch" }}>
         {categories.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{ fontSize: "12px", padding: "5px 12px", borderRadius: "20px", border: "0.5px solid " + (activeTab === tab ? "rgba(45,212,191,.45)" : "rgba(255,255,255,.08)"), color: activeTab === tab ? "#2DD4BF" : "#5A5B7A", background: activeTab === tab ? "rgba(45,212,191,.08)" : "none", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{tab}</button>
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{ fontSize: "12px", padding: "6px 14px", borderRadius: "20px", border: `1px solid ${activeTab === tab ? KASIR.border.accent : KASIR.border.subtle}`, color: activeTab === tab ? KASIR.accent.teal : KASIR.text.muted, background: activeTab === tab ? "rgba(45,212,191,.12)" : KASIR.surface.input, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0, fontWeight: activeTab === tab ? 600 : 400 }}>{tab}</button>
         ))}
       </div>
 
@@ -449,15 +456,15 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
           const hpp = calcHpp(m);
           const mg = m.harga_jual > 0 ? Math.round((m.harga_jual - hpp) / m.harga_jual * 100) : 0;
           return (
-            <div key={m.id} onClick={() => addItem(m.id)} style={{ background: "#0D0D1A", border: "0.5px solid " + (qty > 0 ? "rgba(45,212,191,.4)" : "rgba(255,255,255,.06)"), borderRadius: "14px", overflow: "hidden", cursor: "pointer", position: "relative" }}>
-              {qty > 0 && <div style={{ position: "absolute", top: "8px", right: "8px", minWidth: "22px", height: "22px", padding: "0 5px", borderRadius: "11px", background: "#2DD4BF", color: "#070711", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{qty}</div>}
-              <div style={{ height: "72px", display: "flex", alignItems: "center", justifyContent: "center", background: color + "12" }}>
-                <i className={"ti " + icon} style={{ fontSize: "30px", color }} />
+            <div key={m.id} onClick={() => addItem(m.id)} style={{ background: KASIR.surface.card, border: `1px solid ${qty > 0 ? KASIR.border.accent : KASIR.border.subtle}`, borderRadius: "16px", overflow: "hidden", cursor: "pointer", position: "relative", boxShadow: qty > 0 ? KASIR.shadow.menuActive : KASIR.shadow.card, transition: "box-shadow .15s, border-color .15s" }}>
+              {qty > 0 && <div style={{ position: "absolute", top: "8px", right: "8px", minWidth: "22px", height: "22px", padding: "0 5px", borderRadius: "11px", background: KASIR.gradient.brand, color: "#050508", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(45,212,191,.4)" }}>{qty}</div>}
+              <div style={{ height: "76px", display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(160deg, ${color}28, ${color}08)` }}>
+                <i className={"ti " + icon} style={{ fontSize: "32px", color, filter: "drop-shadow(0 2px 8px " + color + "55)" }} />
               </div>
               <div style={{ padding: "10px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 500, marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.nama}</div>
-                <div style={{ fontSize: "11px", color: "#5A5B7A", marginBottom: "6px" }}>HPP Rp{Math.round(hpp).toLocaleString("id-ID")} · {mg}%</div>
-                <div style={{ fontSize: "15px", fontWeight: 600, fontFamily: "JetBrains Mono, monospace", color: "#2DD4BF", marginBottom: "8px" }}>Rp{m.harga_jual.toLocaleString("id-ID")}</div>
+                <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: KASIR.text.primary }}>{m.nama}</div>
+                <div style={{ fontSize: "11px", color: KASIR.text.muted, marginBottom: "6px" }}>HPP Rp{Math.round(hpp).toLocaleString("id-ID")} · {mg}%</div>
+                <div style={{ fontSize: "15px", fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: KASIR.accent.teal, marginBottom: "8px" }}>Rp{m.harga_jual.toLocaleString("id-ID")}</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <button onClick={e => { e.stopPropagation(); removeItem(m.id); }} aria-label="Kurangi" style={{ width: "30px", height: "30px", borderRadius: "9px", border: "0.5px solid " + (qty > 0 ? "rgba(45,212,191,.4)" : "rgba(255,255,255,.08)"), background: qty > 0 ? "rgba(45,212,191,.08)" : "rgba(255,255,255,.03)", color: qty > 0 ? "#2DD4BF" : "#5A5B7A", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "15px" }}>−</button>
                   <span style={{ fontSize: "14px", fontFamily: "monospace", fontWeight: 600, color: qty > 0 ? "#2DD4BF" : "#3A3B52", minWidth: "18px", textAlign: "center" }}>{qty}</span>
@@ -470,9 +477,9 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       </div>
 
       {cartItems.length > 0 && !cartOpen && (
-        <button onClick={() => setCartOpen(true)} style={{ position: "sticky", bottom: "12px", left: "12px", right: "12px", margin: "0 12px", background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711", border: "none", borderRadius: "16px", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", zIndex: 60 }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ background: "rgba(7,7,17,.18)", borderRadius: "50%", width: "22px", height: "22px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>{cartItems.reduce((s,c)=>s+c.qty,0)}</span>
+        <button onClick={() => setCartOpen(true)} style={{ position: "sticky", bottom: "12px", left: "12px", right: "12px", margin: "0 12px", background: KASIR.gradient.brand, color: "#050508", border: "none", borderRadius: "16px", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", zIndex: 60, boxShadow: KASIR.shadow.fab }}>
+          <span style={{ fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ background: "rgba(5,5,8,.2)", borderRadius: "50%", width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700 }}>{cartItems.reduce((s,c)=>s+c.qty,0)}</span>
             Lihat order
           </span>
           <span style={{ fontSize: "14px", fontWeight: 700, fontFamily: "JetBrains Mono, monospace" }}>Rp{total.toLocaleString("id-ID")}</span>
@@ -480,12 +487,13 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       )}
 
       {cartOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(7,7,17,.7)", zIndex: 100, display: "flex", alignItems: "flex-end" }} onClick={() => setCartOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#0D0D1A", borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ width: "36px", height: "4px", background: "rgba(255,255,255,.15)", borderRadius: "2px", margin: "10px auto" }} />
-            <div style={{ padding: "0 16px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "0.5px solid rgba(255,255,255,.06)", paddingBottom: "12px" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(5,5,8,.75)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", alignItems: "flex-end" }} onClick={() => setCartOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: KASIR.surface.elevated, borderRadius: "22px 22px 0 0", width: "100%", maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", border: `1px solid ${KASIR.border.accent}`, borderBottom: "none", boxShadow: "0 -12px 48px rgba(0,0,0,.5)" }}>
+            <div style={{ height: "3px", background: KASIR.gradient.headerLine, flexShrink: 0 }} />
+            <div style={{ width: "36px", height: "4px", background: "rgba(255,255,255,.2)", borderRadius: "2px", margin: "10px auto" }} />
+            <div style={{ padding: "0 16px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${KASIR.border.subtle}`, paddingBottom: "12px" }}>
               <div>
-                <div style={{ fontSize: "11px", color: "#2DD4BF", letterSpacing: ".08em", textTransform: "uppercase" }}>Order aktif</div>
+                <div style={{ fontSize: "11px", color: KASIR.accent.teal, letterSpacing: ".08em", textTransform: "uppercase", fontWeight: 600 }}>Order aktif</div>
                 <div style={{ fontSize: "12px", color: "#5A5B7A" }}>{cartItems.length} item</div>
               </div>
               <button onClick={() => setCartOpen(false)} aria-label="Tutup" style={{ background: "rgba(255,255,255,.05)", border: "none", color: "#8B8AA0", width: "30px", height: "30px", borderRadius: "50%", fontSize: "16px", cursor: "pointer" }}>✕</button>

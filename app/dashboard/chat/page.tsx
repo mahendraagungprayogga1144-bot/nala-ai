@@ -8,6 +8,7 @@ function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isPertanian = searchParams.get("context") === "pertanian";
+  const presetQ = searchParams.get("q");
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -17,7 +18,7 @@ function ChatContent() {
         : "Halo! Aku Gercep AI. Tanya omzet kasir, order hari ini, menu terlaris — atau cerita transaksi bisnis kamu, nanti otomatis aku catat.",
     },
   ]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(presetQ || "");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -25,11 +26,11 @@ function ChatContent() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  const handleSend = async (e?: React.FormEvent, overrideText?: string) => {
+    e?.preventDefault();
+    const userMessage = (overrideText ?? input).trim();
+    if (!userMessage || loading) return;
 
-    const userMessage = input;
     const newMessages = [...messages, { role: "user" as const, content: userMessage }];
     setMessages(newMessages);
     setInput("");
@@ -55,6 +56,11 @@ function ChatContent() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (presetQ) handleSend(undefined, presetQ);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col h-screen">

@@ -1,45 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
-import {
-  Wallet, Store, MessageCircle, Package, Factory, Bird, Calculator, Sprout,
-  ShoppingCart, Users, Megaphone, BarChart3, QrCode, Receipt, FileText, Gauge,
-} from "lucide-react";
 import BusinessSwitcher from "./business-switcher";
-
-const baseModules = [
-  { name: "Dashboard Owner", href: "/dashboard/owner", icon: Gauge, label: "MENU UTAMA" },
-  { name: "Gercep Chat", href: "/dashboard/chat", icon: MessageCircle },
-  { name: "Keuangan Bisnis", href: "/dashboard/keuangan-bisnis", icon: Store },
-  { name: "Keuangan Pribadi", href: "/dashboard/keuangan-pribadi", icon: Wallet },
-  { name: "Inventory", href: "/dashboard/inventory", icon: Package, label: "MANAJEMEN" },
-];
-
-const homeindustry_modules = [
-  { name: "Produksi", href: "/dashboard/produksi", icon: Factory },
-];
-
-const ternak_modules = [
-  { name: "Manajemen Ternak", href: "/dashboard/peternakan", icon: Bird },
-];
-
-const pertanian_modules = [
-  { name: "Modul Pertanian", href: "/dashboard/pertanian", icon: Sprout },
-];
-
-const fnb_modules = [
-  { name: "Master Menu", href: "/dashboard/fnb/menu", icon: Receipt },
-  { name: "Kasir", href: "/dashboard/fnb/kasir", icon: ShoppingCart },
-  { name: "Karyawan", href: "/dashboard/fnb/karyawan", icon: Users },
-];
-
-const extraModules = [
-  { name: "Smart Profit Calculator", href: "/dashboard/smart-profit", icon: Calculator, label: "MODUL LANJUTAN" },
-  { name: "CRM Pelanggan", href: "#", icon: Users, disabled: true },
-  { name: "AI Marketing", href: "#", icon: Megaphone, disabled: true },
-  { name: "AI Riset Bisnis", href: "#", icon: BarChart3, disabled: true },
-  { name: "Barcode QR Analyzer", href: "#", icon: QrCode, disabled: true },
-  { name: "Pajak NPWP Center", href: "#", icon: FileText, disabled: true },
-];
+import { getSidebarModules, type DashboardModule } from "./lib/modules-registry";
 
 type Business = { id: string; name: string; type: string | null };
 
@@ -53,16 +15,35 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
   embedded?: boolean;
 }) {
   const pathname = usePathname();
-  const bizType = activeBusiness?.type;
+  const groups = getSidebarModules(activeBusiness?.type);
 
-  const allModules = [
-    ...baseModules,
-    ...(bizType === "homeindustry" ? homeindustry_modules : []),
-    ...(bizType === "ternak" ? ternak_modules : []),
-    ...(bizType === "pertanian" ? pertanian_modules : []),
-    ...(bizType === "kuliner" ? fnb_modules : []),
-    ...extraModules,
-  ];
+  const isActive = (m: DashboardModule) =>
+    pathname === m.href || (m.href !== "/dashboard/chat" && pathname.startsWith(m.href + "/"));
+
+  const renderItem = (m: DashboardModule) => {
+    const active = isActive(m);
+    const itemCls = [
+      "mb-0.5 flex items-center gap-2.5 rounded-lg transition-all duration-200",
+      expanded ? "px-2.5 py-[7px]" : "justify-center p-[7px]",
+      active
+        ? "border border-[#2DD4BF]/20 bg-gradient-to-r from-[#2DD4BF]/[0.12] to-[#8B5CF6]/[0.08] text-[#2DD4BF]"
+        : "border border-transparent text-[#5A5B7A] hover:bg-white/[0.03] hover:text-[#8B8AA0]",
+    ].join(" ");
+
+    return (
+      <a key={m.href + m.name} href={m.href} onClick={() => onNavigate?.()} title={m.name} className={itemCls}>
+        <m.icon size={15} className="flex-shrink-0" />
+        {expanded && (
+          <>
+            <span className="ml-2.5 whitespace-nowrap text-xs font-medium">{m.name}</span>
+            {m.status === "beta" && (
+              <span className="ml-auto text-[8px] font-medium text-[#F59E0B]">β</span>
+            )}
+          </>
+        )}
+      </a>
+    );
+  };
 
   return (
     <aside
@@ -90,52 +71,16 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3" style={{ scrollbarWidth: "none" }}>
-        {allModules.map((m) => {
-          const mod = m as { label?: string; disabled?: boolean };
-          const isDisabled = mod.disabled;
-          const isActive = !isDisabled && (pathname === m.href || (m.href !== "/dashboard/chat" && pathname.startsWith(m.href + "/")));
-          const showLabel = expanded && mod.label;
-          const itemCls = [
-            "mb-0.5 flex items-center gap-2.5 rounded-lg transition-all duration-200",
-            expanded ? "px-2.5 py-[7px]" : "justify-center p-[7px]",
-            isDisabled
-              ? "border border-transparent text-[#3A3B52] opacity-50 cursor-not-allowed"
-              : isActive
-                ? "border border-[#2DD4BF]/20 bg-gradient-to-r from-[#2DD4BF]/[0.12] to-[#8B5CF6]/[0.08] text-[#2DD4BF]"
-                : "border border-transparent text-[#5A5B7A] hover:bg-white/[0.03] hover:text-[#8B8AA0]",
-          ].join(" ");
-
-          return (
-            <div key={m.href + m.name}>
-              {showLabel && (
-                <p className="mb-1.5 mt-3 px-2 text-[9px] font-semibold tracking-[0.08em] text-[#3A3B52] whitespace-nowrap">
-                  {mod.label}
-                </p>
-              )}
-              {isDisabled ? (
-                <div title={`${m.name} — coming soon`} className={itemCls}>
-                  <m.icon size={15} className="flex-shrink-0" />
-                  {expanded && (
-                    <>
-                      <span className="ml-2.5 whitespace-nowrap text-xs font-medium">{m.name}</span>
-                      <span className="ml-auto text-[9px] font-medium text-[#5A5B7A]">Soon</span>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <a
-                  href={m.href}
-                  onClick={() => onNavigate?.()}
-                  title={m.name}
-                  className={itemCls}
-                >
-                  <m.icon size={15} className="flex-shrink-0" />
-                  {expanded && <span className="ml-2.5 whitespace-nowrap text-xs font-medium">{m.name}</span>}
-                </a>
-              )}
-            </div>
-          );
-        })}
+        {groups.map(g => (
+          <div key={g.label}>
+            {expanded && (
+              <p className="mb-1.5 mt-3 px-2 text-[9px] font-semibold tracking-[0.08em] text-[#3A3B52] whitespace-nowrap">
+                {g.label}
+              </p>
+            )}
+            {g.modules.map(renderItem)}
+          </div>
+        ))}
       </nav>
 
       {expanded && (

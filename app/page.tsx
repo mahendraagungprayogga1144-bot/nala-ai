@@ -1,33 +1,34 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { MessageCircle, Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera, ShoppingCart, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent, Smartphone, Check, Zap, CircleCheck } from "lucide-react";
 
 const targetUsers = ["Pribadi", "Pelajar", "Karyawan", "Freelancer", "Reseller", "Dropshipper", "UMKM", "Toko Retail", "Online Seller", "Kasir", "Distributor", "Perusahaan"];
 
 const categories = [
   { title: "Keuangan dan Pajak", items: [
-    { icon: Wallet, name: "Keuangan Pribadi", desc: "Catat pemasukan-pengeluaran, target tabungan." },
-    { icon: Store, name: "Keuangan Bisnis", desc: "Modal, HPP, hutang-piutang, gaji karyawan." },
-    { icon: Calculator, name: "Smart Profit Calculator", desc: "Profit bersih sampai break even point." },
-    { icon: FileText, name: "Pajak NPWP Center", desc: "Rekap omzet, siap buat lapor pajak." },
+    { icon: Wallet, name: "Keuangan Pribadi", desc: "Catat pemasukan-pengeluaran, target tabungan.", href: "/dashboard/keuangan-pribadi" },
+    { icon: Store, name: "Keuangan Bisnis", desc: "Modal, HPP, hutang-piutang, gaji karyawan.", href: "/dashboard/keuangan-bisnis" },
+    { icon: Calculator, name: "Smart Profit Calculator", desc: "Profit bersih sampai break even point.", href: "/dashboard/smart-profit" },
+    { icon: FileText, name: "Pajak NPWP Center", desc: "Rekap omzet, siap buat lapor pajak.", href: "/dashboard/pajak" },
   ]},
   { title: "Operasional Toko", items: [
-    { icon: Package, name: "Inventory", desc: "Stok berkurang otomatis, notif kalau habis." },
-    { icon: Receipt, name: "AI Kasir", desc: "Struk, rekap kas, tutup shift otomatis." },
-    { icon: QrCode, name: "Barcode QR Analyzer", desc: "Scan barcode, cek info dan keaslian." },
-    { icon: Camera, name: "AI Jual Beli", desc: "Foto barang, AI estimasi harga pasar." },
+    { icon: Package, name: "Inventory", desc: "Stok berkurang otomatis, notif kalau habis.", href: "/dashboard/inventory" },
+    { icon: Receipt, name: "AI Kasir", desc: "Struk, rekap kas, tutup shift otomatis.", href: "/dashboard/kasir" },
+    { icon: QrCode, name: "Barcode QR Analyzer", desc: "Scan barcode, cek info dan keaslian.", href: "/dashboard/barcode" },
+    { icon: Camera, name: "AI Jual Beli", desc: "Foto barang, AI estimasi harga pasar.", href: "/dashboard/ai-jual-beli" },
   ]},
   { title: "Marketplace dan Marketing", items: [
-    { icon: ShoppingCart, name: "Marketplace Center", desc: "Shopee, TikTok Shop, Tokopedia jadi satu." },
-    { icon: Megaphone, name: "AI Marketing", desc: "Caption, broadcast WA, kalender konten." },
-    { icon: BarChart3, name: "AI Riset Bisnis", desc: "Tren pasar, kompetitor, peluang usaha." },
-    { icon: Users, name: "CRM Pelanggan", desc: "Riwayat order, follow up otomatis." },
+    { icon: ShoppingCart, name: "Marketplace Center", desc: "Shopee, TikTok Shop, Tokopedia jadi satu.", href: "/dashboard/marketplace" },
+    { icon: Megaphone, name: "AI Marketing", desc: "Caption, broadcast WA, kalender konten.", href: "/dashboard/marketing" },
+    { icon: BarChart3, name: "AI Riset Bisnis", desc: "Tren pasar, kompetitor, peluang usaha.", href: "/dashboard/riset" },
+    { icon: Users, name: "CRM Pelanggan", desc: "Riwayat order, follow up otomatis.", href: "/dashboard/crm" },
   ]},
   { title: "Platform dan Tim", items: [
-    { icon: LayoutDashboard, name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap." },
-    { icon: Layers, name: "Multi Bisnis", desc: "Skincare, fashion, kuliner satu akun." },
-    { icon: Percent, name: "Tim dan Komisi Karyawan", desc: "Rekap penjualan per sales, hitung komisi." },
-    { icon: Smartphone, name: "Multi Platform", desc: "Website, WhatsApp Bot, Telegram Bot." },
+    { icon: LayoutDashboard, name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner" },
+    { icon: Layers, name: "Multi Bisnis", desc: "Skincare, fashion, kuliner satu akun.", href: "/dashboard/bisnis" },
+    { icon: Percent, name: "Tim dan Komisi Karyawan", desc: "Rekap penjualan per sales, hitung komisi.", href: "/dashboard/tim-komisi" },
+    { icon: Smartphone, name: "Multi Platform", desc: "Website, WhatsApp Bot, Telegram Bot.", href: "/dashboard/multi-platform" },
   ]},
 ];
 
@@ -118,10 +119,13 @@ export default function Home() {
 
           <div className="bg-[#38BDF8]/5 border border-[#38BDF8]/25 rounded-2xl p-5 mb-10 flex items-center gap-4 max-w-[672px] mx-auto">
             <MessageCircle size={26} className="text-[#38BDF8] flex-shrink-0" />
-            <div>
+            <div className="flex-1">
               <h3 className="font-medium">Gercep Chat</h3>
               <p className="text-sm text-[#8B8AA0]">Pusat kendali semua modul, tinggal ngetik kayak chat biasa.</p>
             </div>
+            <Link href="/dashboard/chat" className="shrink-0 rounded-lg border border-[#38BDF8]/30 px-3 py-1.5 text-xs font-medium text-[#38BDF8] hover:bg-[#38BDF8]/10">
+              Buka
+            </Link>
           </div>
 
           {categories.map((cat) => (
@@ -129,11 +133,11 @@ export default function Home() {
               <p className="text-xs text-[#2DD4BF] font-medium tracking-wide mb-4">{cat.title.toUpperCase()}</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {cat.items.map((mod) => (
-                  <div key={mod.name} className="p-5 rounded-2xl border border-white/5 bg-[#0A0A12] hover:border-[#2DD4BF]/30 transition-all">
-                    <mod.icon size={20} className="text-[#8B8AA0] mb-3" />
+                  <Link key={mod.name} href={mod.href} className="block p-5 rounded-2xl border border-white/5 bg-[#0A0A12] hover:border-[#2DD4BF]/30 transition-all group">
+                    <mod.icon size={20} className="text-[#8B8AA0] mb-3 group-hover:text-[#2DD4BF] transition-colors" />
                     <h3 className="font-medium text-sm mb-1.5">{mod.name}</h3>
                     <p className="text-[#8B8AA0] text-xs leading-relaxed">{mod.desc}</p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

@@ -39,7 +39,7 @@ export default function OwnerKasirSummary({
             <h2 className="dash-card-title">Kasir Hari Ini</h2>
             {businessName && <p className="text-[10px] text-slate-500">{businessName}</p>}
           </div>
-          <Link href="/dashboard/fnb/kasir" className="dash-card-link">Buka Kasir</Link>
+          <Link href="/dashboard/ai-kasir" className="dash-card-link">Buka Kasir</Link>
         </div>
 
         <div className="mb-4 grid grid-cols-3 gap-2">

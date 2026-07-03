@@ -382,7 +382,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
             title="Belum ada tim kasir"
             subtitle="Tambah karyawan dulu biar bisa catat shift masuk/pulang."
             actionLabel="Kelola Tim"
-            actionHref="/dashboard/fnb/karyawan"
+            actionHref="/dashboard/karyawan-toko"
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -443,7 +443,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
                   title="Belum ada menu aktif"
                   subtitle="Buat menu dulu di Master Menu, pastikan statusnya aktif."
                   actionLabel="Buat Menu"
-                  actionHref="/dashboard/fnb/menu"
+                  actionHref="/dashboard/master-menu"
                 />
               </div>
             ) : filtered.map(m => {

@@ -1,76 +1,68 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Camera, TrendingUp, TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Camera, Plus } from "lucide-react";
 import ModuleHeader from "../components/module-header";
+import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../components/module-form-styles";
 
-type Product = { id: string; name: string; price: number; cost: number; stock: number; category: string | null };
+type Listing = {
+  id: string; nama_barang: string; kondisi: string | null;
+  harga_jual: number | null; harga_beli: number | null; lokasi: string | null; catatan: string | null;
+};
 
-export default function AiJualBeliClient({ businessName, products }: { businessName: string; products: Product[] }) {
-  const [selected, setSelected] = useState("");
-  const [kondisi, setKondisi] = useState<"baru" | "bekas_bagus" | "bekas">("baru");
+export default function AiJualBeliClient({
+  businessId, businessName, userId, listings,
+}: { businessId: string; businessName: string; userId: string; listings: Listing[] }) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ nama_barang: "", kondisi: "baru", harga_jual: "", harga_beli: "", lokasi: "", catatan: "" });
 
-  const product = products.find(p => p.id === selected);
-  const estimate = useMemo(() => {
-    if (!product) return null;
-    const base = product.price || product.cost * 1.4 || 0;
-    const mul = kondisi === "baru" ? 1 : kondisi === "bekas_bagus" ? 0.75 : 0.55;
-    const jual = Math.round(base * mul);
-    const beli = Math.round(jual * 0.65);
-    const margin = jual > 0 ? Math.round(((jual - (product.cost || beli * 0.5)) / jual) * 100) : 0;
-    return { jual, beli, margin };
-  }, [product, kondisi]);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.nama_barang.trim() || !businessId) return;
+    setLoading(true);
+    const { error } = await supabase.from("module_trade_listings").insert({
+      user_id: userId, business_id: businessId,
+      nama_barang: form.nama_barang.trim(), kondisi: form.kondisi,
+      harga_jual: form.harga_jual ? Number(form.harga_jual) : null,
+      harga_beli: form.harga_beli ? Number(form.harga_beli) : null,
+      lokasi: form.lokasi || null, catatan: form.catatan || null,
+    });
+    setLoading(false);
+    if (error) return alert(error.message);
+    setForm({ nama_barang: "", kondisi: "baru", harga_jual: "", harga_beli: "", lokasi: "", catatan: "" });
+    router.refresh();
+  };
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-      <ModuleHeader
-        icon={Camera}
-        title="AI Jual Beli"
-        subtitle={`${businessName} · estimasi dari data inventory`}
-        status="beta"
-        chatHint="Minta analisis harga pasar di Chat"
-      />
+      <ModuleHeader icon={Camera} title="AI Jual Beli" subtitle={`${businessName} — listing jual/beli sendiri`} status="beta" />
 
-      <label className="mb-4 block">
-        <span className="mb-1 block text-xs text-[#8B8AA0]">Pilih produk</span>
-        <select
-          value={selected}
-          onChange={e => setSelected(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-[#0A0A12] px-3 py-2.5 text-sm text-[#F0EFF8] focus:border-[#2DD4BF]/50 focus:outline-none"
-        >
-          <option value="">— Pilih dari inventory —</option>
-          {products.map(p => (
-            <option key={p.id} value={p.id}>{p.name} (stok {p.stock})</option>
-          ))}
+      <form onSubmit={save} className={MODULE_CARD + " mb-6 grid gap-3 sm:grid-cols-2"}>
+        <input required className={MODULE_INPUT + " sm:col-span-2"} placeholder="Nama barang *" value={form.nama_barang} onChange={e => setForm({ ...form, nama_barang: e.target.value })} />
+        <select className={MODULE_INPUT} value={form.kondisi} onChange={e => setForm({ ...form, kondisi: e.target.value })}>
+          <option value="baru">Baru</option>
+          <option value="bekas_bagus">Bekas bagus</option>
+          <option value="bekas">Bekas</option>
         </select>
-      </label>
+        <input className={MODULE_INPUT} placeholder="Lokasi" value={form.lokasi} onChange={e => setForm({ ...form, lokasi: e.target.value })} />
+        <input type="number" className={MODULE_INPUT} placeholder="Harga jual (Rp)" value={form.harga_jual} onChange={e => setForm({ ...form, harga_jual: e.target.value })} />
+        <input type="number" className={MODULE_INPUT} placeholder="Harga beli / modal (Rp)" value={form.harga_beli} onChange={e => setForm({ ...form, harga_beli: e.target.value })} />
+        <input className={MODULE_INPUT + " sm:col-span-2"} placeholder="Catatan" value={form.catatan} onChange={e => setForm({ ...form, catatan: e.target.value })} />
+        <button type="submit" disabled={loading} className={MODULE_BTN + " sm:col-span-2 flex items-center justify-center gap-2"}><Plus size={16} />{loading ? "Menyimpan..." : "Simpan listing"}</button>
+      </form>
 
-      <div className="mb-6 flex gap-2">
-        {([["baru", "Baru"], ["bekas_bagus", "Bekas bagus"], ["bekas", "Bekas"]] as const).map(([v, l]) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setKondisi(v)}
-            className={"rounded-lg border px-3 py-1.5 text-xs font-medium " + (kondisi === v ? "border-[#2DD4BF]/50 bg-[#2DD4BF]/15 text-[#2DD4BF]" : "border-white/10 text-[#8B8AA0]")}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {estimate && product && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[#2DD4BF]/25 bg-[#2DD4BF]/5 p-5">
-            <div className="mb-2 flex items-center gap-2 text-[#2DD4BF]"><TrendingUp size={18} /> Harga jual disarankan</div>
-            <p className="font-mono text-2xl font-bold">Rp{estimate.jual.toLocaleString("id-ID")}</p>
-            <p className="mt-1 text-xs text-[#8B8AA0]">Margin estimasi ~{estimate.margin}%</p>
-          </div>
-          <div className="rounded-2xl border border-[#8B5CF6]/25 bg-[#8B5CF6]/5 p-5">
-            <div className="mb-2 flex items-center gap-2 text-[#A78BFA]"><TrendingDown size={18} /> Harga beli / modal</div>
-            <p className="font-mono text-2xl font-bold">Rp{estimate.beli.toLocaleString("id-ID")}</p>
-            <p className="mt-1 text-xs text-[#8B8AA0]">HPP tercatat: Rp{(product.cost || 0).toLocaleString("id-ID")}</p>
-          </div>
+      {listings.map(l => (
+        <div key={l.id} className={MODULE_CARD + " mb-3"}>
+          <p className="font-medium">{l.nama_barang} <span className="text-xs text-[#8B8AA0]">({l.kondisi})</span></p>
+          <p className="mt-1 font-mono text-sm text-[#2DD4BF]">
+            Jual: {l.harga_jual ? `Rp${Number(l.harga_jual).toLocaleString("id-ID")}` : "—"}
+            {l.harga_beli ? ` · Beli: Rp${Number(l.harga_beli).toLocaleString("id-ID")}` : ""}
+          </p>
         </div>
-      )}
+      ))}
     </div>
   );
 }

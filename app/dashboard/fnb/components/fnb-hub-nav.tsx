@@ -6,9 +6,9 @@ import { FNB_NAV_HEIGHT_PX } from "../lib/mobile-layout";
 
 const LINKS = [
   { href: "/dashboard/inventory", label: "Stok", icon: Package, match: "/inventory" },
-  { href: "/dashboard/fnb/menu", label: "Menu", icon: UtensilsCrossed, match: "/fnb/menu" },
-  { href: "/dashboard/fnb/kasir", label: "Kasir", icon: ShoppingCart, match: "/fnb/kasir" },
-  { href: "/dashboard/fnb/karyawan", label: "Tim", icon: Users, match: "/fnb/karyawan" },
+  { href: "/dashboard/master-menu", label: "Menu", icon: UtensilsCrossed, match: "/master-menu" },
+  { href: "/dashboard/ai-kasir", label: "Kasir", icon: ShoppingCart, match: "/ai-kasir" },
+  { href: "/dashboard/karyawan-toko", label: "Tim", icon: Users, match: "/karyawan-toko" },
 ];
 
 function NavLink({ l, active, mobile }: { l: typeof LINKS[0]; active: boolean; mobile?: boolean }) {

@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
 
       if (memberData?.role === "kasir") {
         // Karyawan kasir hanya bisa akses halaman kasir
-        const kasirPath = "/dashboard/fnb/kasir";
+        const kasirPath = "/dashboard/ai-kasir";
         if (!request.nextUrl.pathname.startsWith(kasirPath)) {
           return NextResponse.redirect(new URL(kasirPath, request.url));
         }

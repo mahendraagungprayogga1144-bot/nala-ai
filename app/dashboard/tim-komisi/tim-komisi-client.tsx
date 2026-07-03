@@ -1,72 +1,113 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
-import { Percent } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Percent, Plus } from "lucide-react";
 import ModuleHeader from "../components/module-header";
+import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../components/module-form-styles";
 
-type Row = { id: string; nama: string; orderCount: number; omzet: number };
+type Staff = { id: string; nama: string; jabatan: string | null; komisi_pct: number | null; telepon: string | null };
+type Sale = {
+  id: string; tanggal: string; omzet: number; catatan: string | null;
+  module_commission_staff: { nama: string; komisi_pct: number | null } | { nama: string; komisi_pct: number | null }[] | null;
+};
 
 export default function TimKomisiClient({
-  businessName, businessType, rows,
-}: {
-  businessName: string; businessType: string | null; rows: Row[];
-}) {
-  const [komisiPct, setKomisiPct] = useState("5");
+  businessId, businessName, userId, staff, sales,
+}: { businessId: string; businessName: string; userId: string; staff: Staff[]; sales: Sale[] }) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [tab, setTab] = useState<"staff" | "sales">("staff");
+  const [loading, setLoading] = useState(false);
+  const [staffForm, setStaffForm] = useState({ nama: "", jabatan: "", komisi_pct: "5", telepon: "" });
+  const [saleForm, setSaleForm] = useState({ staff_id: "", tanggal: new Date().toISOString().split("T")[0], omzet: "", catatan: "" });
 
-  const pct = Number(komisiPct) || 0;
+  const saveStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffForm.nama.trim() || !businessId) return;
+    setLoading(true);
+    const { error } = await supabase.from("module_commission_staff").insert({
+      user_id: userId, business_id: businessId,
+      nama: staffForm.nama.trim(), jabatan: staffForm.jabatan || null,
+      komisi_pct: Number(staffForm.komisi_pct) || 5, telepon: staffForm.telepon || null,
+    });
+    setLoading(false);
+    if (error) return alert(error.message);
+    setStaffForm({ nama: "", jabatan: "", komisi_pct: "5", telepon: "" });
+    router.refresh();
+  };
 
-  if (businessType !== "kuliner") {
-    return (
-      <div className="mx-auto max-w-lg px-4 py-12 text-center sm:px-8">
-        <ModuleHeader icon={Percent} title="Tim dan Komisi Karyawan" subtitle={businessName} status="beta" />
-        <p className="text-sm text-[#8B8AA0]">
-          Rekap komisi per karyawan tersedia penuh untuk bisnis <strong className="text-[#2DD4BF]">Kuliner</strong> (data dari kasir).
-        </p>
-        <Link href="/dashboard/bisnis" className="mt-4 inline-block text-sm text-[#2DD4BF]">Kelola bisnis →</Link>
-      </div>
-    );
-  }
+  const saveSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!saleForm.staff_id || !businessId) return;
+    setLoading(true);
+    const { error } = await supabase.from("module_commission_sales").insert({
+      user_id: userId, business_id: businessId,
+      staff_id: saleForm.staff_id, tanggal: saleForm.tanggal,
+      omzet: Number(saleForm.omzet) || 0, catatan: saleForm.catatan || null,
+    });
+    setLoading(false);
+    if (error) return alert(error.message);
+    setSaleForm({ staff_id: "", tanggal: new Date().toISOString().split("T")[0], omzet: "", catatan: "" });
+    router.refresh();
+  };
+
+  const staffName = (s: Sale) => {
+    const st = s.module_commission_staff;
+    if (!st) return "—";
+    return Array.isArray(st) ? st[0]?.nama : st.nama;
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-      <ModuleHeader
-        icon={Percent}
-        title="Tim dan Komisi Karyawan"
-        subtitle={`${businessName} · penjualan hari ini`}
-        status="beta"
-      />
+      <ModuleHeader icon={Percent} title="Tim dan Komisi Karyawan" subtitle={`${businessName} — input tim & penjualan sendiri`} status="beta" />
 
-      <div className="mb-6 flex items-center gap-3">
-        <label className="text-xs text-[#8B8AA0]">Komisi (%)</label>
-        <input
-          type="number"
-          value={komisiPct}
-          onChange={e => setKomisiPct(e.target.value)}
-          className="w-20 rounded-lg border border-white/10 bg-[#0A0A12] px-2 py-1.5 text-sm font-mono focus:border-[#2DD4BF]/50 focus:outline-none"
-        />
-        <Link href="/dashboard/fnb/karyawan" className="ml-auto text-xs text-[#2DD4BF]">Kelola karyawan →</Link>
+      <div className="mb-4 flex gap-2">
+        {(["staff", "sales"] as const).map(t => (
+          <button key={t} type="button" onClick={() => setTab(t)} className={"rounded-lg border px-3 py-1.5 text-xs font-medium " + (tab === t ? "border-[#2DD4BF]/50 bg-[#2DD4BF]/15 text-[#2DD4BF]" : "border-white/10 text-[#8B8AA0]")}>
+            {t === "staff" ? "Data tim" : "Input penjualan"}
+          </button>
+        ))}
       </div>
 
-      {rows.length === 0 ? (
-        <p className="text-center text-sm text-[#8B8AA0]">Belum ada penjualan hari ini.</p>
+      {tab === "staff" ? (
+        <>
+          <form onSubmit={saveStaff} className={MODULE_CARD + " mb-6 grid gap-3 sm:grid-cols-2"}>
+            <input required className={MODULE_INPUT} placeholder="Nama karyawan *" value={staffForm.nama} onChange={e => setStaffForm({ ...staffForm, nama: e.target.value })} />
+            <input className={MODULE_INPUT} placeholder="Jabatan" value={staffForm.jabatan} onChange={e => setStaffForm({ ...staffForm, jabatan: e.target.value })} />
+            <input className={MODULE_INPUT} type="number" placeholder="Komisi %" value={staffForm.komisi_pct} onChange={e => setStaffForm({ ...staffForm, komisi_pct: e.target.value })} />
+            <input className={MODULE_INPUT} placeholder="Telepon" value={staffForm.telepon} onChange={e => setStaffForm({ ...staffForm, telepon: e.target.value })} />
+            <button type="submit" disabled={loading} className={MODULE_BTN + " sm:col-span-2 flex items-center justify-center gap-2"}><Plus size={16} /> Tambah anggota tim</button>
+          </form>
+          {staff.map(s => (
+            <div key={s.id} className={MODULE_CARD + " mb-2 flex justify-between"}>
+              <div><p className="font-medium">{s.nama}</p><p className="text-xs text-[#8B8AA0]">{s.jabatan || "—"} · komisi {s.komisi_pct}%</p></div>
+            </div>
+          ))}
+        </>
       ) : (
-        <div className="flex flex-col gap-2">
-          {rows.map(r => {
-            const komisi = Math.round(r.omzet * (pct / 100));
+        <>
+          <form onSubmit={saveSale} className={MODULE_CARD + " mb-6 grid gap-3 sm:grid-cols-2"}>
+            <select required className={MODULE_INPUT} value={saleForm.staff_id} onChange={e => setSaleForm({ ...saleForm, staff_id: e.target.value })}>
+              <option value="">Pilih karyawan *</option>
+              {staff.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
+            </select>
+            <input type="date" className={MODULE_INPUT} value={saleForm.tanggal} onChange={e => setSaleForm({ ...saleForm, tanggal: e.target.value })} />
+            <input required type="number" className={MODULE_INPUT} placeholder="Omzet penjualan (Rp) *" value={saleForm.omzet} onChange={e => setSaleForm({ ...saleForm, omzet: e.target.value })} />
+            <input className={MODULE_INPUT} placeholder="Catatan" value={saleForm.catatan} onChange={e => setSaleForm({ ...saleForm, catatan: e.target.value })} />
+            <button type="submit" disabled={loading || staff.length === 0} className={MODULE_BTN + " sm:col-span-2"}>{loading ? "Menyimpan..." : "Catat penjualan"}</button>
+          </form>
+          {sales.map(s => {
+            const pct = staff.find(x => x.nama === staffName(s))?.komisi_pct ?? 5;
+            const komisi = Math.round(Number(s.omzet) * (Number(pct) / 100));
             return (
-              <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-[#0D0D1A] px-4 py-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#A78BFA]/15 text-[10px] font-bold text-[#A78BFA]">
-                  {r.nama.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{r.nama}</p>
-                  <p className="text-[10px] text-[#8B8AA0]">{r.orderCount} order · omzet Rp{r.omzet.toLocaleString("id-ID")}</p>
-                </div>
-                <p className="font-mono text-sm font-semibold text-[#F59E0B]">Rp{komisi.toLocaleString("id-ID")}</p>
+              <div key={s.id} className={MODULE_CARD + " mb-2 flex justify-between"}>
+                <div><p className="font-medium">{staffName(s)} · {s.tanggal}</p><p className="text-xs text-[#8B8AA0]">Omzet Rp{Number(s.omzet).toLocaleString("id-ID")}</p></div>
+                <p className="font-mono text-sm text-[#F59E0B]">Rp{komisi.toLocaleString("id-ID")}</p>
               </div>
             );
           })}
-        </div>
+        </>
       )}
     </div>
   );

@@ -258,7 +258,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId, bus
   return (
     <FnbVividShell>
       <FnbHubNav />
-      <FnbWorkflowSteps activePath="/dashboard/fnb/menu" />
+      <FnbWorkflowSteps activePath="/dashboard/master-menu" />
 
       <FnbKpiRow variant="vivid" items={[
         { label: "Total menu", value: String(totalMenu), color: "#38BDF8" },

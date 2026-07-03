@@ -5,23 +5,51 @@ import { Plus, Bird } from "lucide-react";
 import PeternakanHubNav from "./peternakan-hub-nav";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
 
+type FarmTx = { jenis_transaksi: string; total: number; qty: number | null; batch_id: string };
+
 export default async function PeternakanPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
-  const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user!.id).order("created_at", { ascending: true });
-  const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user.id).order("created_at", { ascending: true });
+  const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.find(b => b.type === "ternak") || businessData?.[0] || null;
 
-  const { data: batches } = await supabase
+  if (business?.type !== "ternak") {
+    return (
+      <div className="px-8 py-12 text-center">
+        <p className="text-[#8B8AA0] mb-4">Manajemen Ternak hanya tersedia untuk bisnis tipe Peternakan.</p>
+        <p className="text-xs text-[#5A5B7A] mb-4">Pilih bisnis <strong className="text-[#F0EFF8]">Ternak Makmur</strong> di switcher sidebar.</p>
+        <Link href="/dashboard/owner" className="text-[#2DD4BF] text-sm hover:underline">Kembali ke Dashboard Owner</Link>
+      </div>
+    );
+  }
+
+  const { data: batches, error: batchErr } = await supabase
     .from("farm_batches")
-    .select("*, farm_transactions(*)")
-    .eq("user_id", user!.id)
-    .eq("business_id", business?.id || "")
+    .select("id, nama_batch, jenis_ternak, tanggal_mulai, tanggal_selesai, status")
+    .eq("user_id", user.id)
+    .eq("business_id", business.id)
     .order("tanggal_mulai", { ascending: false });
 
-  const getRingkasan = (transactions: { jenis_transaksi: string; total: number; qty: number }[]) => {
+  let txByBatch: Record<string, FarmTx[]> = {};
+  if (batches?.length) {
+    const ids = batches.map(b => b.id);
+    const { data: txs } = await supabase
+      .from("farm_transactions")
+      .select("batch_id, jenis_transaksi, total, qty")
+      .in("batch_id", ids);
+    for (const t of txs || []) {
+      if (!txByBatch[t.batch_id]) txByBatch[t.batch_id] = [];
+      txByBatch[t.batch_id].push(t as FarmTx);
+    }
+  }
+
+  const dbError = batchErr?.message;
+
+  const getRingkasan = (transactions: { jenis_transaksi: string; total: number; qty: number | null }[]) => {
     const bibit = transactions.filter(t => t.jenis_transaksi === "bibit").reduce((s, t) => s + Number(t.total), 0);
     const pakan = transactions.filter(t => t.jenis_transaksi === "pakan").reduce((s, t) => s + Number(t.total), 0);
     const obat = transactions.filter(t => ["obat", "vitamin"].includes(t.jenis_transaksi)).reduce((s, t) => s + Number(t.total), 0);
@@ -35,8 +63,8 @@ export default async function PeternakanPage() {
     return { bibit, pakan, obat, operasional, panen, totalModal, labaBersih, totalBibitEkor, totalMati, totalTerjual, populasiHidup: totalBibitEkor - totalMati - totalTerjual };
   };
 
-  const aktivBatches = batches?.filter(b => b.status === "aktif") || [];
-  const selesaiBatches = batches?.filter(b => b.status === "selesai") || [];
+  const aktivBatches = (batches || []).filter(b => b.status === "aktif");
+  const selesaiBatches = (batches || []).filter(b => b.status === "selesai");
 
   return (
     <div className="px-4 sm:px-8 py-4 sm:py-8">
@@ -45,6 +73,12 @@ export default async function PeternakanPage() {
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
       <p className="text-[#8B8AA0] mb-4 text-sm">Buat batch → catat bibit, pakan, panen → laba/rugi otomatis + sync Keuangan Bisnis.</p>
+
+      {dbError && (
+        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          Gagal memuat batch: {dbError}. Pastikan migration peternakan sudah dijalankan di Supabase.
+        </div>
+      )}
 
       <PeternakanHubNav />
 
@@ -57,7 +91,7 @@ export default async function PeternakanPage() {
           <h2 className="text-[11px] font-semibold text-[#2DD4BF] tracking-widest uppercase mb-3">Batch Aktif</h2>
           <div className="grid sm:grid-cols-2 gap-4 mb-8">
             {aktivBatches.map((b) => {
-              const r = getRingkasan(b.farm_transactions || []);
+              const r = getRingkasan(txByBatch[b.id] || []);
               return (
                 <Link key={b.id} href={`/dashboard/peternakan/batch/${b.id}`} className="block bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 hover:border-[#2DD4BF]/40 transition-colors">
                   <div className="flex items-center justify-between mb-3">
@@ -97,7 +131,7 @@ export default async function PeternakanPage() {
           <h2 className="text-[11px] font-semibold text-[#8B8AA0] tracking-widest uppercase mb-3">Riwayat Batch</h2>
           <div className="grid sm:grid-cols-2 gap-4">
             {selesaiBatches.map((b) => {
-              const r = getRingkasan(b.farm_transactions || []);
+              const r = getRingkasan(txByBatch[b.id] || []);
               return (
                 <Link key={b.id} href={`/dashboard/peternakan/batch/${b.id}`} className="block bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-colors opacity-75">
                   <div className="flex items-center justify-between mb-3">

@@ -1,5 +1,5 @@
 import type { ExportContext, ExportProductRow, InventoryKpis } from "./export-types";
-import { escapeHtml, fmtRpFull, formatWibNow, openPrintWindow } from "./export-helpers";
+import { escapeHtml, fmtRpFull, formatWibNow } from "./export-helpers";
 
 const A4_STYLES = `
   @page { size: A4; margin: 14mm; }
@@ -169,18 +169,16 @@ export function exportInventoryPdfRingkas(
   rows: ExportProductRow[],
   kpis: InventoryKpis,
   ctx: ExportContext,
-) {
-  if (rows.length === 0) return false;
-  openPrintWindow(buildPdfRingkasHtml(rows, kpis, ctx));
-  return true;
+): string | null {
+  if (rows.length === 0) return null;
+  return buildPdfRingkasHtml(rows, kpis, ctx);
 }
 
 export function exportInventoryPdfDetail(
   rows: ExportProductRow[],
   kpis: InventoryKpis,
   ctx: ExportContext,
-) {
-  if (rows.length === 0) return false;
-  openPrintWindow(buildPdfDetailHtml(rows, kpis, ctx));
-  return true;
+): string | null {
+  if (rows.length === 0) return null;
+  return buildPdfDetailHtml(rows, kpis, ctx);
 }

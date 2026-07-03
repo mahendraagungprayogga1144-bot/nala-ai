@@ -22,17 +22,17 @@ export function runInventoryExcel(products: InventoryProductInput[], ctx: Export
   return true;
 }
 
-export function runInventoryPdfRingkas(products: InventoryProductInput[], ctx: ExportContext) {
+export function runInventoryPdfRingkas(products: InventoryProductInput[], ctx: ExportContext): string | null {
   const { rows, kpis } = prepareInventoryExport(products);
   return exportInventoryPdfRingkas(rows, kpis, ctx);
 }
 
-export function runInventoryPdfDetail(products: InventoryProductInput[], ctx: ExportContext) {
+export function runInventoryPdfDetail(products: InventoryProductInput[], ctx: ExportContext): string | null {
   const { rows, kpis } = prepareInventoryExport(products);
   return exportInventoryPdfDetail(rows, kpis, ctx);
 }
 
-export function runInventoryThermal(products: InventoryProductInput[], ctx: ExportContext, widthMm: number) {
+export function runInventoryThermal(products: InventoryProductInput[], ctx: ExportContext, widthMm: number): string | null {
   const { rows, kpis } = prepareInventoryExport(products);
   return exportInventoryThermal(rows, kpis, ctx, widthMm);
 }

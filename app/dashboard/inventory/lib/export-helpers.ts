@@ -43,16 +43,48 @@ export function slugFilename(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "inventory";
 }
 
-export function openPrintWindow(html: string) {
-  const w = window.open("", "_blank");
-  if (!w) {
-    alert("Izinkan pop-up untuk mencetak laporan.");
-    return;
+export function openPrintWindow(html: string): boolean {
+  try {
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("title", "Cetak laporan");
+    Object.assign(iframe.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "0",
+      height: "0",
+      border: "0",
+      opacity: "0",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(iframe);
+
+    const win = iframe.contentWindow;
+    const doc = win?.document;
+    if (!doc || !win) {
+      iframe.remove();
+      return false;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const cleanup = () => setTimeout(() => iframe.remove(), 2000);
+    const doPrint = () => {
+      try {
+        win.focus();
+        win.print();
+      } finally {
+        cleanup();
+      }
+    };
+
+    setTimeout(doPrint, 400);
+    return true;
+  } catch {
+    return false;
   }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
 }
 
 export function escapeHtml(s: string): string {

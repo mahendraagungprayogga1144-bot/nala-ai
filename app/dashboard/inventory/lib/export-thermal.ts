@@ -1,5 +1,5 @@
 import type { ExportContext, ExportProductRow, InventoryKpis } from "./export-types";
-import { escapeHtml, fmtRpFull, fmtRpShort, formatWibNow, openPrintWindow } from "./export-helpers";
+import { escapeHtml, fmtRpFull, fmtRpShort, formatWibNow } from "./export-helpers";
 
 function thermalStyles(widthMm: number): string {
   return `
@@ -73,9 +73,8 @@ export function exportInventoryThermal(
   kpis: InventoryKpis,
   ctx: ExportContext,
   widthMm: number,
-) {
-  if (rows.length === 0) return false;
+): string | null {
+  if (rows.length === 0) return null;
   const w = Math.min(Math.max(widthMm, 48), 120);
-  openPrintWindow(buildThermalHtml(rows, kpis, ctx, w));
-  return true;
+  return buildThermalHtml(rows, kpis, ctx, w);
 }

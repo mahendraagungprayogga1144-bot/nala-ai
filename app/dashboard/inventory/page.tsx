@@ -161,9 +161,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   ];
 
   return (
-    <div className="px-4 sm:px-8 py-4 sm:py-8">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">
+    <div className="px-3 py-3 sm:px-8 sm:py-8">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold sm:text-2xl">
           {business?.type === "kuliner" ? "Stok Bahan"
             : business?.type === "homeindustry" ? "Stok & Penjualan"
             : business?.type === "pertanian" ? "Stok & Jual Panen"
@@ -173,7 +173,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
       {business?.type === "kuliner" ? (
-        <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → buat menu + resep → jual di kasir. Stok otomatis berkurang.</p>
+        <p className="mb-3 hidden text-sm text-[#8B8AA0] sm:mb-4 sm:block">Stok bahan → buat menu + resep → jual di kasir. Stok otomatis berkurang.</p>
       ) : business?.type === "homeindustry" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → produksi + resep → jual produk jadi. HPP & profit otomatis.</p>
       ) : business?.type === "pertanian" ? (

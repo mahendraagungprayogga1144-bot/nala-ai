@@ -7,6 +7,7 @@ import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, AlertTriangle, Upload, Ima
 import { calcHpp, calcMargin, fmtRp, hppStatus, recipeLineCost, unwrapProduct } from "../lib/calc";
 import type { FnbMenu } from "../lib/calc";
 import FnbHubNav from "../components/fnb-hub-nav";
+import FnbWorkflowSteps from "../components/fnb-workflow-steps";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
@@ -254,22 +255,9 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   }).length;
 
   return (
-    <div className="pb-24 md:pb-0">
+    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
-
-      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-[#0F0F1A]/60 p-3">
-        {[
-          { step: "1", label: "Stok", sub: "Isi bahan + harga beli", href: "/dashboard/inventory" },
-          { step: "2", label: "Menu", sub: "Resep + HPP otomatis", href: "/dashboard/fnb/menu" },
-          { step: "3", label: "Kasir", sub: "Jual, stok turun sendiri", href: "/dashboard/fnb/kasir" },
-        ].map(s => (
-          <a key={s.step} href={s.href} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-center transition-colors hover:border-[#2DD4BF]/30">
-            <p className="text-[10px] font-bold text-[#2DD4BF]">{s.step}</p>
-            <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
-            <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
-          </a>
-        ))}
-      </div>
+      <FnbWorkflowSteps activePath="/dashboard/fnb/menu" />
 
       <FnbKpiRow items={[
         { label: "Total menu", value: String(totalMenu), color: "#38BDF8" },
@@ -279,26 +267,27 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
       ]} />
       <FnbStockAlerts products={products.map(p => ({ id: p.id, name: p.name, stock: p.stock, min_stock: p.min_stock ?? 5, category: p.category }))} />
 
-      <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-3">
-          <span className="font-medium text-sm">Daftar Menu</span>
-          <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="hidden md:flex text-xs px-3 py-1.5 rounded-lg items-center gap-1 font-semibold" style={BTN_GRAD}>
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0F0F1A]">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5 md:px-4 md:py-3">
+          <span className="text-sm font-medium">Daftar Menu</span>
+          <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="hidden items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold md:flex" style={BTN_GRAD}>
             <Plus size={13} /> Tambah Menu
           </button>
         </div>
 
-        <div className="px-4 py-2.5 border-b border-white/10">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
-            <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] text-sm placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50" />
+        <div className="sticky top-0 z-10 border-b border-white/10 bg-[#0F0F1A]/95 backdrop-blur-md md:static md:bg-transparent">
+          <div className="px-3 py-2.5 md:px-4">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
+              <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-[#0A0A12] py-2.5 pl-9 pr-3 text-sm text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none" />
+            </div>
           </div>
-        </div>
-
-        <div className="flex gap-2 px-4 py-2.5 border-b border-white/10 overflow-x-auto">
-          {["Semua", ...KATEGORI_MENU].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={"text-[11px] px-3 py-1 rounded-full border whitespace-nowrap " + (activeTab === tab ? "bg-[#2DD4BF]/15 border-[#2DD4BF]/40 text-[#2DD4BF]" : "border-white/10 text-[#8B8AA0]")}>{tab}</button>
-          ))}
+          <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none md:px-4 md:py-2.5">
+            {["Semua", ...KATEGORI_MENU].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={"whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[11px] transition-colors " + (activeTab === tab ? "border-[#2DD4BF]/40 bg-[#2DD4BF]/15 font-medium text-[#2DD4BF]" : "border-white/10 text-[#8B8AA0]")}>{tab}</button>
+            ))}
+          </div>
         </div>
 
         {showMenuForm && (
@@ -329,8 +318,38 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
               const status = hppStatus(m);
               const bahanHabis = m.menu_recipes.filter(r => (unwrapProduct(r.products)?.stock ?? 0) <= 0);
               return (
-                <div key={m.id}>
-                  <div className="flex items-center px-4 py-3 gap-3 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : m.id)}>
+                <div key={m.id} className="border-b border-white/[0.04] last:border-0">
+                  {/* Mobile */}
+                  <div className="md:hidden">
+                    <button type="button" className="w-full px-3 py-3 text-left" onClick={() => setExpandedId(isExpanded ? null : m.id)}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-[#F0EFF8]">{m.nama}</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <span className="rounded-md px-1.5 py-0.5 text-[9px] font-medium" style={{ background: katColor + "18", color: katColor }}>{kat}</span>
+                            <span className={"rounded-md px-1.5 py-0.5 text-[9px] " + (m.status === "aktif" ? "bg-[#2DD4BF]/15 text-[#2DD4BF]" : "bg-white/5 text-[#8B8AA0]")}>{m.status}</span>
+                            {bahanHabis.length > 0 && <span className="rounded-md bg-[#EC4899]/15 px-1.5 py-0.5 text-[9px] text-[#EC4899]">Bahan habis</span>}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-mono text-base font-bold text-[#2DD4BF]">{fmtRp(m.harga_jual)}</p>
+                          {status === "ok" && <p className="text-[10px] text-[#8B8AA0]">HPP {fmtRp(Math.round(hpp))}</p>}
+                        </div>
+                      </div>
+                      {status !== "ok" && (
+                        <p className="mt-2 text-[10px] text-[#F59E0B]">{status === "no_cost" ? "Isi harga beli bahan di Stok" : "Tap untuk tambah resep bahan"}</p>
+                      )}
+                    </button>
+                    <div className="flex gap-2 border-t border-white/[0.04] px-3 py-2">
+                      <button type="button" onClick={() => startEdit(m)} className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.04] py-2 text-xs text-[#8B8AA0]"><Edit2 size={14} /> Edit</button>
+                      <button type="button" onClick={() => handleDeleteMenu(m.id)} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[#8B8AA0]"><Trash2 size={14} /></button>
+                      <button type="button" onClick={() => setExpandedId(isExpanded ? null : m.id)} className="rounded-xl border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-3 py-2 text-[#2DD4BF]">
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                  {/* Desktop */}
+                  <div className="hidden cursor-pointer items-center gap-3 px-4 py-3 md:flex" onClick={() => setExpandedId(isExpanded ? null : m.id)}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <p className="text-sm font-medium">{m.nama}</p>
@@ -369,7 +388,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
                   </div>
 
                   {isExpanded && (
-                    <div className="px-4 pb-4 border-t border-white/[0.04] bg-[#0A0A12]/40">
+                    <div className="border-t border-white/[0.04] bg-[#0A0A12]/40 px-3 pb-4 pt-2 md:px-4">
                       <div className="flex items-center justify-between py-2 mb-1">
                         <p className="text-[11px] font-medium text-[#8B5CF6] uppercase tracking-wide">Resep — {m.nama}</p>
                         <button onClick={() => setShowResepForm(showResepForm === m.id ? null : m.id)} className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg border border-[#8B5CF6]/40 bg-[#8B5CF6]/10 text-[#8B5CF6]">
@@ -456,7 +475,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
       <button
         type="button"
         onClick={() => { resetMenuForm(); setShowMenuForm(true); }}
-        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
+        className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
         style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
         aria-label="Tambah menu"
       >

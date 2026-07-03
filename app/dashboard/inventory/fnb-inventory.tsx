@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, Search, Trash2, ArrowLeftRight, Edit2, X, Package } from "lucide-react";
 import FnbHubNav from "../fnb/components/fnb-hub-nav";
+import FnbWorkflowSteps from "../fnb/components/fnb-workflow-steps";
 import FnbKpiRow from "../fnb/components/fnb-kpi-row";
 import FnbStockAlerts from "../fnb/components/fnb-stock-alerts";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
@@ -158,30 +159,9 @@ export default function FnBInventory({ products, userId, businessId }: { product
   const habis = products.filter(p => p.stock <= 0).length;
 
   return (
-    <div className="pb-24 md:pb-0">
+    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
-
-      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-[#0F0F1A]/60 p-3">
-        {[
-          { step: "1", label: "Stok", sub: "Isi bahan + harga beli", active: true },
-          { step: "2", label: "Menu", sub: "Resep + HPP otomatis", href: "/dashboard/fnb/menu" },
-          { step: "3", label: "Kasir", sub: "Jual, stok turun sendiri", href: "/dashboard/fnb/kasir" },
-        ].map(s => (
-          s.href ? (
-            <a key={s.step} href={s.href} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-center transition-colors hover:border-[#2DD4BF]/30">
-              <p className="text-[10px] font-bold text-[#2DD4BF]">{s.step}</p>
-              <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
-              <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
-            </a>
-          ) : (
-            <div key={s.step} className="rounded-xl border border-[#2DD4BF]/30 bg-[#2DD4BF]/5 px-2 py-2 text-center">
-              <p className="text-[10px] font-bold text-[#2DD4BF]">{s.step}</p>
-              <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
-              <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
-            </div>
-          )
-        ))}
-      </div>
+      <FnbWorkflowSteps activePath="/dashboard/inventory" />
 
       <FnbStockAlerts products={products} />
       <FnbKpiRow items={[
@@ -192,16 +172,18 @@ export default function FnBInventory({ products, userId, businessId }: { product
       ]} />
 
       <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0F0F1A]/90 backdrop-blur-sm">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3">
-          <div className="flex-1 relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
-            <input type="text" placeholder="Cari bahan..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-8 pr-3 py-2 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] text-sm placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50" />
+        <div className="sticky top-0 z-10 border-b border-white/10 bg-[#0F0F1A]/95 backdrop-blur-md md:static md:bg-transparent md:backdrop-blur-none">
+          <div className="flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
+              <input type="text" placeholder="Cari bahan..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0A0A12] py-2.5 pl-9 pr-3 text-sm text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none" />
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2 px-4 py-2.5 border-b border-white/10 overflow-x-auto">
-          {["Semua", ...KATEGORI].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={"text-[11px] px-3 py-1 rounded-full border whitespace-nowrap " + (activeTab === tab ? "bg-[#2DD4BF]/15 border-[#2DD4BF]/40 text-[#2DD4BF]" : "border-white/10 text-[#8B8AA0]")}>{tab}</button>
-          ))}
+          <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none md:px-4 md:py-2.5">
+            {["Semua", ...KATEGORI].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={"text-[11px] px-3.5 py-1.5 rounded-full border whitespace-nowrap transition-colors " + (activeTab === tab ? "bg-[#2DD4BF]/15 border-[#2DD4BF]/40 text-[#2DD4BF] font-medium" : "border-white/10 text-[#8B8AA0]")}>{tab}</button>
+            ))}
+          </div>
         </div>
 
         {(activeTab === "Semua" ? KATEGORI : [activeTab]).map(kat => {
@@ -244,35 +226,75 @@ export default function FnBInventory({ products, userId, businessId }: { product
                   const isSiapJual = p.category === "Produk Siap Jual";
                   const laba = isSiapJual && p.price && p.cost ? p.price - p.cost : null;
                   const isRugi = laba !== null && laba < 0;
+                  const stockColor = isHabis ? "text-[#EC4899]" : isKritis ? "text-[#F59E0B]" : "text-[#F2F1F8]";
+                  const detailLine = [
+                    p.unit ? `${p.stock} ${p.unit}` : null,
+                    p.cost ? `${isSiapJual ? "HPP" : "Beli"} ${fmtRp(Number(p.cost))}` : null,
+                    p.price ? `Jual ${fmtRp(Number(p.price))}` : null,
+                  ].filter(Boolean).join(" · ");
                   return (
-                    <div key={p.id} className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: pColor + "18", color: pColor }}>
-                          <i className={"ti " + pIcon} style={{ fontSize: "16px" }} aria-hidden="true"></i>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <p className="text-sm font-medium">{p.name}</p>
-                            {p.sku && <span className="text-[10px] text-[#8B8AA0] bg-white/5 px-1.5 py-0.5 rounded">{p.sku}</span>}
-                            {isHabis && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EC4899]/15 text-[#EC4899]">Habis</span>}
-                            {!isHabis && isKritis && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B]">Hampir habis</span>}
-                            {isRugi && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EC4899]/15 text-[#EC4899]">Rugi</span>}
+                    <div key={p.id}>
+                      {/* Mobile — card layout */}
+                      <div className="border-b border-white/[0.04] px-3 py-3 last:border-0 md:hidden">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl" style={{ background: pColor + "18", color: pColor }}>
+                            <i className={"ti " + pIcon} style={{ fontSize: "18px" }} aria-hidden="true"></i>
                           </div>
-                          <p className="text-[11px] text-[#8B8AA0]">
-                            {p.unit && <span>{p.stock} {p.unit} · </span>}
-                            {p.cost ? (isSiapJual ? "HPP" : "Beli") + " " + fmtRp(Number(p.cost)) : ""}
-                            {p.price ? " · Jual " + fmtRp(Number(p.price)) : ""}
-                            {laba !== null && <span style={{ color: laba >= 0 ? "#2DD4BF" : "#EC4899" }}>{" · " + (laba >= 0 ? "Laba" : "RUGI") + " Rp" + Math.abs(laba).toLocaleString("id-ID")}</span>}
-                          </p>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-[#F0EFF8]">{p.name}</p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {isHabis && <span className="rounded-md bg-[#EC4899]/15 px-1.5 py-0.5 text-[9px] text-[#EC4899]">Habis</span>}
+                                  {!isHabis && isKritis && <span className="rounded-md bg-[#F59E0B]/15 px-1.5 py-0.5 text-[9px] text-[#F59E0B]">Hampir habis</span>}
+                                  {isRugi && <span className="rounded-md bg-[#EC4899]/15 px-1.5 py-0.5 text-[9px] text-[#EC4899]">Rugi</span>}
+                                </div>
+                              </div>
+                              <p className={`font-mono text-lg font-bold tabular-nums ${stockColor}`}>{p.stock}</p>
+                            </div>
+                            {detailLine && <p className="mt-1.5 truncate text-[11px] text-[#8B8AA0]">{detailLine}</p>}
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setMovingProduct(p); setMoveType("masuk"); setMoveReason("terpakai"); }}
+                                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#2DD4BF]/30 bg-[#2DD4BF]/10 py-2.5 text-xs font-medium text-[#2DD4BF] active:scale-[0.98]"
+                              >
+                                <ArrowLeftRight size={14} /> Stok
+                              </button>
+                              <button type="button" onClick={() => startEdit(p)} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-[#8B8AA0] active:scale-[0.98]"><Edit2 size={16} /></button>
+                              <button type="button" onClick={() => handleDelete(p.id)} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-[#8B8AA0] active:scale-[0.98]"><Trash2 size={16} /></button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className={"font-mono font-semibold text-sm " + (isHabis ? "text-[#EC4899]" : isKritis ? "text-[#F59E0B]" : "text-[#F2F1F8]")}>{p.stock}</p>
+                      {/* Desktop — compact row */}
+                      <div className="hidden items-center justify-between border-b border-white/[0.04] px-4 py-3 last:border-0 md:flex">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: pColor + "18", color: pColor }}>
+                            <i className={"ti " + pIcon} style={{ fontSize: "16px" }} aria-hidden="true"></i>
+                          </div>
+                          <div>
+                            <div className="mb-0.5 flex items-center gap-2">
+                              <p className="text-sm font-medium">{p.name}</p>
+                              {p.sku && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-[#8B8AA0]">{p.sku}</span>}
+                              {isHabis && <span className="rounded bg-[#EC4899]/15 px-1.5 py-0.5 text-[10px] text-[#EC4899]">Habis</span>}
+                              {!isHabis && isKritis && <span className="rounded bg-[#F59E0B]/15 px-1.5 py-0.5 text-[10px] text-[#F59E0B]">Hampir habis</span>}
+                              {isRugi && <span className="rounded bg-[#EC4899]/15 px-1.5 py-0.5 text-[10px] text-[#EC4899]">Rugi</span>}
+                            </div>
+                            <p className="text-[11px] text-[#8B8AA0]">
+                              {p.unit && <span>{p.stock} {p.unit} · </span>}
+                              {p.cost ? (isSiapJual ? "HPP" : "Beli") + " " + fmtRp(Number(p.cost)) : ""}
+                              {p.price ? " · Jual " + fmtRp(Number(p.price)) : ""}
+                              {laba !== null && <span style={{ color: laba >= 0 ? "#2DD4BF" : "#EC4899" }}>{" · " + (laba >= 0 ? "Laba" : "RUGI") + " Rp" + Math.abs(laba).toLocaleString("id-ID")}</span>}
+                            </p>
+                          </div>
                         </div>
-                        <button onClick={() => { setMovingProduct(p); setMoveType("masuk"); setMoveReason("terpakai"); }} className="text-[#8B8AA0] hover:text-[#2DD4BF] p-1"><ArrowLeftRight size={14} /></button>
-                        <button onClick={() => startEdit(p)} className="text-[#8B8AA0] hover:text-[#38BDF8] p-1"><Edit2 size={14} /></button>
-                        <button onClick={() => handleDelete(p.id)} className="text-[#8B8AA0] hover:text-[#EC4899] p-1"><Trash2 size={14} /></button>
+                        <div className="flex items-center gap-3">
+                          <p className={`font-mono text-sm font-semibold ${stockColor}`}>{p.stock}</p>
+                          <button onClick={() => { setMovingProduct(p); setMoveType("masuk"); setMoveReason("terpakai"); }} className="p-1 text-[#8B8AA0] hover:text-[#2DD4BF]"><ArrowLeftRight size={14} /></button>
+                          <button onClick={() => startEdit(p)} className="p-1 text-[#8B8AA0] hover:text-[#38BDF8]"><Edit2 size={14} /></button>
+                          <button onClick={() => handleDelete(p.id)} className="p-1 text-[#8B8AA0] hover:text-[#EC4899]"><Trash2 size={14} /></button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -322,7 +344,7 @@ export default function FnBInventory({ products, userId, businessId }: { product
       <button
         type="button"
         onClick={() => { resetForm(); setFKategori("Bahan Baku"); setQuickOpen(true); }}
-        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
+        className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
         style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
         aria-label="Tambah bahan"
       >

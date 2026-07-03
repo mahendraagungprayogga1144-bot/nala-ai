@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Minus, Search, Check, Trash2, X, UtensilsCrossed, Users } from "lucide-react";
+import { Plus, Minus, Search, Check, Trash2, X, UtensilsCrossed, Users, ChevronDown, ChevronUp } from "lucide-react";
 
 import { calcHpp, fmtRp } from "../lib/calc";
 import type { FnbMenu } from "../lib/calc";
@@ -144,6 +144,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ total: number; disc: number; metode: string; laba: number } | null>(null);
 
@@ -259,7 +260,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   };
 
   return (
-    <div className="pb-28 lg:pb-0">
+    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0">
       <FnbHubNav />
       <FnbKpiRow items={[
         { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
@@ -268,10 +269,20 @@ export default function KasirClient({ menus, products, employees, userId, busine
         { label: "Margin", value: omzetHariIni > 0 ? dayMargin + "%" : "—", color: "#38BDF8" },
       ]} />
 
-      <FnbStockAlerts products={products.map(p => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
+      <div className="mb-3 hidden md:block">
+        <FnbStockAlerts products={products.map(p => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
+      </div>
 
-      <div className="bg-[#0F0F1A] border border-white/[0.06] rounded-2xl p-4 mb-6">
-        <p className="text-[10px] font-medium text-[#2DD4BF] tracking-widest uppercase mb-3">Shift karyawan — {today}</p>
+      <div className="mb-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0F0F1A] lg:mb-6">
+        <button
+          type="button"
+          onClick={() => setShiftOpen(v => !v)}
+          className="flex w-full items-center justify-between px-3 py-3 md:cursor-default md:px-4"
+        >
+          <p className="text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">Shift karyawan — {today}</p>
+          <span className="text-[#8B8AA0] md:hidden">{shiftOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
+        </button>
+        <div className={`border-t border-white/[0.06] px-3 pb-3 md:block md:border-0 md:px-4 md:pb-4 ${shiftOpen ? "block" : "hidden md:block"}`}>
         {employees.length === 0 ? (
           <FnbEmptyState
             icon={Users}
@@ -310,16 +321,18 @@ export default function KasirClient({ menus, products, employees, userId, busine
             ))}
           </div>
         )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-        <div className="bg-[#0F0F1A] border border-white/[0.06] rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
-            <Search size={14} className="text-[#5A5B7A] flex-shrink-0" />
-            <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
-              className="flex-1 bg-transparent text-sm text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
-          </div>
-          <div className="flex gap-2 px-4 py-2.5 border-b border-white/[0.06] overflow-x-auto">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px] lg:gap-6">
+        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0F0F1A]">
+          <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0F0F1A]/95 backdrop-blur-md lg:static lg:bg-transparent">
+            <div className="flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3">
+              <Search size={14} className="flex-shrink-0 text-[#5A5B7A]" />
+              <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
+                className="flex-1 bg-transparent text-sm text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
+            </div>
+            <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06] px-3 py-2 scrollbar-none md:px-4 md:py-2.5">
             {categories.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={"text-[11px] px-3 py-1 rounded-full border whitespace-nowrap " + (activeTab === tab ? "" : "border-white/[0.08] text-[#5A5B7A]")}
@@ -328,7 +341,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4">
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4">
             {filtered.length === 0 ? (
               <div className="col-span-full">
                 <FnbEmptyState
@@ -347,33 +361,33 @@ export default function KasirClient({ menus, products, employees, userId, busine
               const color = KATEGORI_COLOR[kat] || "#8B8AA0";
               const icon = KATEGORI_ICON[kat] || "ti-dots";
               return (
-                <div key={m.id} className="bg-[#0A0A12] border rounded-2xl overflow-hidden cursor-pointer"
+                <div key={m.id} className="cursor-pointer overflow-hidden rounded-2xl border bg-[#0A0A12] active:scale-[0.98]"
                   style={{ borderColor: qty > 0 ? "rgba(45,212,191,.4)" : "rgba(255,255,255,0.06)" }}
                   onClick={() => addToCart(m)}>
                   {m.foto_url ? (
-                    <div className="h-24 overflow-hidden">
+                    <div className="h-20 overflow-hidden sm:h-24">
                       <img src={m.foto_url} alt={m.nama} className="h-full w-full object-cover" />
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center py-6" style={{ background: color + "10" }}>
-                      <i className={"ti " + icon} style={{ fontSize: "36px", color }} aria-hidden="true"></i>
+                    <div className="flex items-center justify-center py-5 sm:py-6" style={{ background: color + "10" }}>
+                      <i className={"ti " + icon} style={{ fontSize: "32px", color }} aria-hidden="true"></i>
                     </div>
                   )}
-                  <div className="p-3">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full mb-2 inline-block" style={{ background: color + "15", color }}>{kat}</span>
-                    <p className="text-sm font-medium text-[#F0EFF8] mb-1">{m.nama}</p>
-                    <p className="text-[10px] text-[#5A5B7A] mb-2">HPP {fmtRp(Math.round(hpp))} · {itemMargin}%</p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold" style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}>Rp{m.harga_jual.toLocaleString("id-ID")}</p>
+                  <div className="p-2.5 sm:p-3">
+                    <span className="mb-1.5 inline-block rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]" style={{ background: color + "15", color }}>{kat}</span>
+                    <p className="mb-1 truncate text-sm font-medium text-[#F0EFF8]">{m.nama}</p>
+                    <p className="mb-2 text-[9px] text-[#5A5B7A] sm:text-[10px]">HPP {fmtRp(Math.round(hpp))}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-xs font-semibold sm:text-sm" style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}>Rp{m.harga_jual.toLocaleString("id-ID")}</p>
                       <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => removeFromCart(m.id)} className="w-6 h-6 rounded-lg flex items-center justify-center border"
+                        <button onClick={() => removeFromCart(m.id)} className="flex h-8 w-8 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
                           style={qty > 0 ? { borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" } : { borderColor: "rgba(255,255,255,.08)", color: "#5A5B7A" }}>
-                          <Minus size={10} />
+                          <Minus size={12} />
                         </button>
-                        <span className="text-xs font-medium w-5 text-center" style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52", fontFamily: "monospace" }}>{qty}</span>
-                        <button onClick={() => addToCart(m)} className="w-6 h-6 rounded-lg flex items-center justify-center border"
+                        <span className="w-5 text-center text-xs font-medium sm:w-4" style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52", fontFamily: "monospace" }}>{qty}</span>
+                        <button onClick={() => addToCart(m)} className="flex h-8 w-8 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
                           style={{ borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }}>
-                          <Plus size={10} />
+                          <Plus size={12} />
                         </button>
                       </div>
                     </div>
@@ -394,7 +408,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
         <button
           type="button"
           onClick={() => setCartOpen(true)}
-          className="lg:hidden fixed bottom-4 left-4 right-4 z-40 flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-lg active:scale-[0.98]"
+          className="lg:hidden fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom))] left-4 right-4 z-[45] flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-lg active:scale-[0.98]"
           style={BTN_GRAD}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
@@ -408,7 +422,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
       {/* Mobile cart bottom sheet */}
       {cartOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setCartOpen(false)}>
-          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-white/[0.08] bg-[#0D0D1A] p-5" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-white/[0.08] bg-[#0D0D1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15" />
             <div className="mb-4 flex items-center justify-between">
               <div>

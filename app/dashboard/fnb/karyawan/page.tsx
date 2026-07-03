@@ -25,12 +25,12 @@ export default async function KaryawanPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="px-4 sm:px-8 py-4 sm:py-8">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">Karyawan</h1>
-        {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
+    <div className="px-3 py-3 sm:px-8 sm:py-8">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold sm:text-2xl">Karyawan</h1>
+        {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full truncate max-w-[40%]">{business.name}</span>}
       </div>
-      <p className="text-[#8B8AA0] mb-6">Kelola karyawan — bagikan link kasir ke HP mereka.</p>
+      <p className="mb-3 hidden text-sm text-[#8B8AA0] sm:mb-6 sm:block">Kelola karyawan — bagikan link kasir ke HP mereka.</p>
       <KaryawanClient employees={employees || []} userId={user!.id} businessId={business.id} />
     </div>
   );

@@ -10,8 +10,10 @@ type Employee = {
 };
 
 const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50 text-sm";
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 
 import FnbHubNav from "../components/fnb-hub-nav";
+import FnbKpiRow from "../components/fnb-kpi-row";
 
 export default function KaryawanClient({ employees, userId, businessId }: { employees: Employee[]; userId: string; businessId: string }) {
   const router = useRouter();
@@ -56,30 +58,21 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
   const aktif = employees.filter(e => e.aktif);
 
   return (
-    <div>
+    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4">
-          <p className="text-xs text-[#8B8AA0] mb-1">Total karyawan</p>
-          <p className="text-lg font-mono font-semibold text-[#38BDF8]">{employees.length}</p>
-        </div>
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4">
-          <p className="text-xs text-[#8B8AA0] mb-1">Aktif</p>
-          <p className="text-lg font-mono font-semibold text-[#2DD4BF]">{aktif.length}</p>
-        </div>
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4">
-          <p className="text-xs text-[#8B8AA0] mb-1">Link kasir</p>
-          <p className="text-lg font-mono font-semibold text-[#8B5CF6]">{aktif.length}</p>
-        </div>
-      </div>
+      <FnbKpiRow items={[
+        { label: "Total karyawan", value: String(employees.length), color: "#38BDF8" },
+        { label: "Aktif", value: String(aktif.length), color: "#2DD4BF" },
+        { label: "Link kasir", value: String(aktif.length), color: "#8B5CF6" },
+      ]} />
 
-      <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl overflow-hidden mb-4">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-          <span className="font-medium text-sm">Daftar Karyawan</span>
+      <div className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0F0F1A]">
+        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5 md:px-4 md:py-3">
+          <span className="text-sm font-medium">Daftar Karyawan</span>
           <button onClick={() => setShowForm(!showForm)}
-            className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
+            className="hidden items-center gap-1 rounded-lg px-3 py-1.5 text-xs md:flex"
             style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)", color: "#0A0A12" }}>
-            <Plus size={13} /> Tambah Karyawan
+            <Plus size={13} /> Tambah
           </button>
         </div>
 
@@ -113,37 +106,38 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
         ) : (
           <div className="divide-y divide-white/[0.04]">
             {employees.map(emp => (
-              <div key={emp.id} className="px-4 py-4 flex flex-col gap-3">
+              <div key={emp.id} className="px-3 py-3 md:px-4 md:py-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-semibold"
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-semibold md:h-9 md:w-9 md:rounded-xl"
                     style={{ background: emp.aktif ? "rgba(45,212,191,.12)" : "rgba(255,255,255,.04)", color: emp.aktif ? "#2DD4BF" : "#5A5B7A" }}>
                     {emp.nama.slice(0, 2).toUpperCase()}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-[#F0EFF8]">{emp.nama}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[#F0EFF8]">{emp.nama}</p>
                     <p className="text-[11px] text-[#5A5B7A]">{emp.jabatan || "Karyawan"}</p>
                   </div>
-                  <span className={"text-[10px] px-2 py-0.5 rounded-full " + (emp.aktif ? "bg-[#2DD4BF]/10 text-[#2DD4BF]" : "bg-white/5 text-[#8B8AA0]")}>
+                  <span className={"flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] " + (emp.aktif ? "bg-[#2DD4BF]/10 text-[#2DD4BF]" : "bg-white/5 text-[#8B8AA0]")}>
                     {emp.aktif ? "Aktif" : "Nonaktif"}
                   </span>
-                  <button onClick={() => handleDelete(emp.id, emp.nama)} className="text-[#8B8AA0] hover:text-[#EC4899] p-1">
+                  <button onClick={() => handleDelete(emp.id, emp.nama)} className="hidden p-1 text-[#8B8AA0] hover:text-[#EC4899] md:block">
                     <Trash2 size={14} />
                   </button>
                 </div>
-                <div className="bg-[#0A0A12] border border-white/[0.06] rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] text-[#5A5B7A] mb-1.5 uppercase tracking-wide">Link kasir karyawan ini</p>
-                  <p className="text-[11px] font-mono text-[#2DD4BF] mb-2 truncate">{getLink(emp.kasir_token)}</p>
+                <div className="mt-3 rounded-xl border border-white/[0.06] bg-[#0A0A12] px-3 py-2.5">
+                  <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#5A5B7A]">Link kasir</p>
+                  <p className="mb-2 truncate font-mono text-[11px] text-[#2DD4BF]">{getLink(emp.kasir_token)}</p>
                   <div className="flex gap-2">
                     <button onClick={() => copyLink(emp.kasir_token)}
-                      className="flex-1 py-1.5 rounded-lg border text-xs flex items-center justify-center gap-1.5 font-medium"
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-medium md:py-1.5"
                       style={{ borderColor: copied === emp.kasir_token ? "rgba(45,212,191,.4)" : "rgba(255,255,255,.1)", color: copied === emp.kasir_token ? "#2DD4BF" : "#8B8AA0", background: copied === emp.kasir_token ? "rgba(45,212,191,.08)" : "rgba(255,255,255,.03)" }}>
                       <Copy size={11} />
                       {copied === emp.kasir_token ? "Tersalin!" : "Salin link"}
                     </button>
                     <a href={getLink(emp.kasir_token)} target="_blank" rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-[#8B8AA0] flex items-center gap-1.5 hover:text-[#F0EFF8]">
+                      className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2.5 text-xs text-[#8B8AA0] md:py-1.5">
                       <ExternalLink size={11} /> Buka
                     </a>
+                    <button type="button" onClick={() => handleDelete(emp.id, emp.nama)} className="rounded-xl border border-white/10 px-3 py-2.5 text-[#8B8AA0] md:hidden"><Trash2 size={14} /></button>
                   </div>
                 </div>
               </div>
@@ -152,7 +146,7 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
         )}
       </div>
 
-      <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4">
+      <div className="hidden rounded-2xl border border-white/10 bg-[#0F0F1A] p-4 md:block">
         <p className="text-xs font-medium text-[#8B8AA0] mb-2">Cara kerja:</p>
         <div className="flex flex-col gap-2">
           {[
@@ -170,6 +164,34 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
           ))}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowForm(true)}
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95 md:hidden"
+        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
+        aria-label="Tambah karyawan"
+      >
+        <Plus size={24} />
+      </button>
+
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center md:hidden" onClick={() => { setShowForm(false); setNama(""); setJabatan(""); }}>
+          <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0F0F1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15" />
+            <p className="mb-3 text-sm font-semibold text-[#2DD4BF]">Karyawan Baru</p>
+            <div className="flex flex-col gap-2">
+              <input className={inputCls} placeholder="Nama karyawan" value={nama} onChange={e => setNama(e.target.value)} />
+              <input className={inputCls} placeholder="Jabatan (Kasir, Barista...)" value={jabatan} onChange={e => setJabatan(e.target.value)} />
+              <button onClick={handleTambah} disabled={loading}
+                className="mt-2 w-full rounded-xl py-3.5 text-sm font-bold disabled:opacity-50"
+                style={BTN_GRAD}>
+                {loading ? "Menyimpan..." : "Tambah Karyawan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

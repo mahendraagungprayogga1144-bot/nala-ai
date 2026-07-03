@@ -14,6 +14,7 @@ import { getConfig } from "./business-config";
 import LivestockInventory from "./livestock-inventory";
 import HomeIndustryInventory from "./home-industry-inventory";
 import type { HiRecipe } from "./home-industry-calc";
+import { todayWib } from "./home-industry-calc";
 import FnBInventory from "./fnb-inventory";
 import AgricultureInventory from "./agriculture-inventory";
 
@@ -45,7 +46,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
   const { data: products } = await supabase.from("products").select("*").eq("business_id", business?.id || "").order("name", { ascending: true });
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayWib();
   let homeRecipes: HiRecipe[] = [];
   let profitHariIni = 0;
   let penjualanHariIni = 0;
@@ -139,6 +140,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       </div>
       {business?.type === "kuliner" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → buat menu + resep → jual di kasir. Stok otomatis berkurang.</p>
+      ) : business?.type === "homeindustry" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → produksi + resep → jual produk jadi. HPP & profit otomatis.</p>
       ) : (
         <p className="text-[#8B8AA0] mb-8">{config.produkLabel} dan stok kamu.</p>
       )}
@@ -193,7 +196,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      {business?.type !== "kuliner" && (
+      {business?.type !== "kuliner" && business?.type !== "homeindustry" && (
         <>
           <TrendChart history={history || []} />
           <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />

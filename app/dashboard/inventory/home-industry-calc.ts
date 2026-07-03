@@ -50,3 +50,15 @@ export function fmtRp(n: number): string {
   if (n >= 1_000) return "Rp" + Math.round(n / 1_000) + "rb";
   return "Rp" + n.toLocaleString("id-ID");
 }
+
+/** Tanggal hari ini zona WIB (Asia/Jakarta) — format YYYY-MM-DD */
+export function todayWib(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+}
+
+export function stockValue(products: { category: string | null; stock: number; cost: number | null; name: string }[], recipes: HiRecipe[]): number {
+  return products.reduce((s, p) => {
+    const unit = p.category === "Produk Jadi" ? calcProductHpp(p, recipes) : Number(p.cost || 0);
+    return s + unit * p.stock;
+  }, 0);
+}

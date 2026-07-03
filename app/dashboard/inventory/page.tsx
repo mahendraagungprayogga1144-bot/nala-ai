@@ -87,13 +87,28 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
   let harvestMeta: { product_id: string; satuan: string | null }[] = [];
   let saprotanMeta: { product_id: string; satuan: string | null }[] = [];
+  let agriTotalBiaya = 0;
+  let agriProfitHariIni = 0;
+  let agriPenjualanHariIni = 0;
+  let agriHppHariIni = 0;
+  let agriTodaySales: { description: string | null; amount: number }[] = [];
+
   if (business?.type === "pertanian" && business.id) {
-    const [{ data: hm }, { data: sm }] = await Promise.all([
+    const [{ data: hm }, { data: sm }, { data: costs }, { data: spray }, { data: todayTx }, { data: salesData }] = await Promise.all([
       supabase.from("agri_harvest_meta").select("product_id, satuan").eq("business_id", business.id),
       supabase.from("agri_saprotan_meta").select("product_id, satuan").eq("business_id", business.id),
+      supabase.from("agri_production_costs").select("jumlah").eq("business_id", business.id),
+      supabase.from("agri_spraying_records").select("biaya").eq("business_id", business.id),
+      supabase.from("transactions").select("type, category, amount, description").eq("business_id", business.id).eq("transaction_date", today),
+      supabase.from("transactions").select("description, amount").eq("business_id", business.id).eq("transaction_date", today).eq("type", "pemasukan").eq("category", "Penjualan Panen").order("created_at", { ascending: false }).limit(5),
     ]);
     harvestMeta = hm || [];
     saprotanMeta = sm || [];
+    agriTotalBiaya = (costs || []).reduce((s, c) => s + Number(c.jumlah || 0), 0) + (spray || []).reduce((s, r) => s + Number(r.biaya || 0), 0);
+    agriTodaySales = salesData || [];
+    agriPenjualanHariIni = (todayTx || []).filter(t => t.type === "pemasukan" && t.category === "Penjualan Panen").reduce((s, t) => s + Number(t.amount || 0), 0);
+    agriHppHariIni = (todayTx || []).filter(t => t.type === "pengeluaran" && t.category === "HPP").reduce((s, t) => s + Number(t.amount || 0), 0);
+    agriProfitHariIni = agriPenjualanHariIni - agriHppHariIni;
   }
 
   const productIds = products?.map(p => p.id) || [];
@@ -146,13 +161,23 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   return (
     <div className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">{business?.type === "kuliner" ? "Stok Bahan" : business?.type === "homeindustry" ? "Stok & Penjualan" : "Inventory"}</h1>
+        <h1 className="text-2xl font-semibold">
+          {business?.type === "kuliner" ? "Stok Bahan"
+            : business?.type === "homeindustry" ? "Stok & Penjualan"
+            : business?.type === "pertanian" ? "Stok & Jual Panen"
+            : business?.type === "ternak" ? "Stok Ternak"
+            : "Inventory"}
+        </h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
       {business?.type === "kuliner" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → buat menu + resep → jual di kasir. Stok otomatis berkurang.</p>
       ) : business?.type === "homeindustry" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → produksi + resep → jual produk jadi. HPP & profit otomatis.</p>
+      ) : business?.type === "pertanian" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Catat panen & biaya di Modul Pertanian → jual hasil panen di sini.</p>
+      ) : business?.type === "ternak" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Stok hewan & pakan — catat batch & P&L di Manajemen Ternak.</p>
       ) : (
         <p className="text-[#8B8AA0] mb-8">{config.produkLabel} dan stok kamu.</p>
       )}
@@ -197,9 +222,14 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           <AgricultureInventory
             products={products || []}
             harvestMeta={harvestMeta as never}
-            saprotanMeta={saprotanMeta as never}
             userId={user!.id}
             businessId={business?.id}
+            totalBiaya={agriTotalBiaya}
+            profitHariIni={agriProfitHariIni}
+            penjualanHariIni={agriPenjualanHariIni}
+            hppHariIni={agriHppHariIni}
+            todaySales={agriTodaySales}
+            today={today}
           />
         </div>
       ) : (
@@ -209,7 +239,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      {business?.type !== "kuliner" && business?.type !== "homeindustry" && (
+      {business?.type !== "kuliner" && business?.type !== "homeindustry" && business?.type !== "ternak" && business?.type !== "pertanian" && (
         <>
           <TrendChart history={history || []} />
           <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />

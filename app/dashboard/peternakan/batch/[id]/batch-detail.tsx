@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Trash2, Edit2, Check, X, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Edit2, X } from "lucide-react";
+import { todayWib } from "@/lib/date";
+import { syncFarmToKeuangan, deleteFarmKeuangan, type FarmJenis } from "../../lib/farm-sync";
+import PeternakanHubNav from "../../peternakan-hub-nav";
 
 type Batch = { id: string; nama_batch: string; jenis_ternak: string; tanggal_mulai: string; tanggal_selesai: string | null; status: string };
-type Transaction = { id: string; batch_id: string; tanggal: string; jenis_transaksi: string; nama_item: string | null; qty: number | null; satuan: string | null; harga: number | null; total: number; catatan: string | null };
+type Transaction = { id: string; batch_id: string; tanggal: string; jenis_transaksi: string; nama_item: string | null; qty: number | null; satuan: string | null; harga: number | null; total: number; catatan: string | null; keuangan_tx_ids?: string[] | null };
 
 const JENIS_LABELS: Record<string, string> = {
   bibit: "Bibit", pakan: "Pakan", obat: "Obat", vitamin: "Vitamin",
@@ -20,6 +23,8 @@ const JENIS_COLORS: Record<string, string> = {
 
 const OPERASIONAL_ITEMS = ["Solar", "Listrik", "Transport", "Tenaga Kerja", "Perawatan", "Lainnya"];
 
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
+
 export default function BatchDetail({ batch, transactions, userId, businessId }: { batch: Batch; transactions: Transaction[]; userId: string; businessId: string }) {
   const router = useRouter();
   const supabase = createClient();
@@ -28,7 +33,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
   const [loading, setLoading] = useState(false);
 
   // Form state
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split("T")[0]);
+  const [tanggal, setTanggal] = useState(todayWib());
   const [namaItem, setNamaItem] = useState("");
   const [qty, setQty] = useState("");
   const [satuan, setSatuan] = useState("");
@@ -55,7 +60,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
   const populasiHidup = totalBibit - totalMati - totalTerjual;
 
   const resetForm = () => {
-    setTanggal(new Date().toISOString().split("T")[0]);
+    setTanggal(todayWib());
     setNamaItem(""); setQty(""); setSatuan(""); setHarga(""); setCatatan("");
     setEditingId(null);
   };
@@ -75,6 +80,14 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
     if (jenis !== "mortalitas" && total <= 0 && jenis !== "panen") return;
     setLoading(true);
 
+    const otherTx = transactions.filter(t => t.id !== editingId);
+    const oBibit = otherTx.filter(t => t.jenis_transaksi === "bibit").reduce((s, t) => s + Number(t.total), 0);
+    const oPakan = otherTx.filter(t => t.jenis_transaksi === "pakan").reduce((s, t) => s + Number(t.total), 0);
+    const oObat = otherTx.filter(t => ["obat", "vitamin"].includes(t.jenis_transaksi)).reduce((s, t) => s + Number(t.total), 0);
+    const oOps = otherTx.filter(t => t.jenis_transaksi === "operasional").reduce((s, t) => s + Number(t.total), 0);
+    const modalForHpp = oBibit + oPakan + oObat + oOps + (jenis !== "panen" ? total : 0);
+    const bibitEkor = otherTx.filter(t => t.jenis_transaksi === "bibit").reduce((s, t) => s + Number(t.qty || 0), 0)
+      + (jenis === "bibit" ? Number(qty) || 0 : 0);
 
     const payload = {
       batch_id: batch.id, user_id: userId, tanggal, jenis_transaksi: jenis,
@@ -83,10 +96,31 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
       total: total, catatan: catatan || null,
     };
 
+    let farmTxId = editingId;
+    let existingTxIds: string[] | null = null;
+
     if (editingId) {
+      existingTxIds = transactions.find(t => t.id === editingId)?.keuangan_tx_ids || null;
       await supabase.from("farm_transactions").update(payload).eq("id", editingId);
     } else {
-      await supabase.from("farm_transactions").insert(payload);
+      const { data, error } = await supabase.from("farm_transactions").insert(payload).select("id").single();
+      if (error) { setLoading(false); alert("Gagal simpan: " + error.message); return; }
+      farmTxId = data!.id;
+    }
+
+    if (farmTxId && businessId) {
+      await syncFarmToKeuangan(supabase, {
+        userId, businessId, farmTxId,
+        existingTxIds,
+        jenis: jenis as FarmJenis,
+        total, qty: qty ? Number(qty) : null,
+        namaItem: namaItem || null,
+        batchName: batch.nama_batch,
+        jenisTernak: batch.jenis_ternak,
+        tanggal,
+        totalModal: modalForHpp,
+        totalBibit: bibitEkor,
+      });
     }
 
     // SYNC KE INVENTORY
@@ -133,9 +167,10 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
     router.refresh();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (t: Transaction) => {
     if (!confirm("Hapus transaksi ini?")) return;
-    await supabase.from("farm_transactions").delete().eq("id", id);
+    await deleteFarmKeuangan(supabase, t.keuangan_tx_ids);
+    await supabase.from("farm_transactions").delete().eq("id", t.id);
     router.refresh();
   };
 
@@ -152,7 +187,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
 
   const handleSelesaikan = async () => {
     if (!confirm("Selesaikan batch ini? Status akan berubah jadi Selesai.")) return;
-    await supabase.from("farm_batches").update({ status: "selesai", tanggal_selesai: new Date().toISOString().split("T")[0] }).eq("id", batch.id);
+    await supabase.from("farm_batches").update({ status: "selesai", tanggal_selesai: todayWib() }).eq("id", batch.id);
     router.refresh();
   };
 
@@ -171,7 +206,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
       </div>
       <input placeholder="Catatan (opsional)" value={catatan} onChange={e => setCatatan(e.target.value)} className={inputCls + " mb-3"} />
       <div className="flex gap-2">
-        <button onClick={() => handleSave("bibit")} disabled={loading} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{loading ? "Menyimpan..." : "Simpan"}</button>
+        <button onClick={() => handleSave("bibit")} disabled={loading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{loading ? "Menyimpan..." : "Simpan"}</button>
         <button onClick={() => { resetForm(); setActiveForm(null); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
       </div>
     </div>
@@ -198,7 +233,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
         </div>
         <input placeholder="Catatan (opsional)" value={catatan} onChange={e => setCatatan(e.target.value)} className={inputCls + " mb-3"} />
         <div className="flex gap-2">
-          <button onClick={() => handleSave(jenis)} disabled={loading} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{loading ? "Menyimpan..." : "Simpan"}</button>
+          <button onClick={() => handleSave(jenis)} disabled={loading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{loading ? "Menyimpan..." : "Simpan"}</button>
           <button onClick={() => { resetForm(); setActiveForm(null); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
         </div>
       </div>
@@ -224,7 +259,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
       </div>
       <input placeholder="Catatan (opsional)" value={catatan} onChange={e => setCatatan(e.target.value)} className={inputCls + " mb-3"} />
       <div className="flex gap-2">
-        <button onClick={() => handleSave("operasional")} disabled={loading} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{loading ? "Menyimpan..." : "Simpan"}</button>
+        <button onClick={() => handleSave("operasional")} disabled={loading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{loading ? "Menyimpan..." : "Simpan"}</button>
         <button onClick={() => { resetForm(); setActiveForm(null); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
       </div>
     </div>
@@ -239,7 +274,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
       </div>
       <input placeholder="Penyebab / catatan" value={catatan} onChange={e => setCatatan(e.target.value)} className={inputCls + " mb-3"} />
       <div className="flex gap-2">
-        <button onClick={() => handleSave("mortalitas")} disabled={loading} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{loading ? "Menyimpan..." : "Simpan"}</button>
+        <button onClick={() => handleSave("mortalitas")} disabled={loading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{loading ? "Menyimpan..." : "Simpan"}</button>
         <button onClick={() => { resetForm(); setActiveForm(null); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
       </div>
     </div>
@@ -268,7 +303,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
       </div>
       <input placeholder="Catatan (opsional)" value={catatan} onChange={e => setCatatan(e.target.value)} className={inputCls + " mb-3"} />
       <div className="flex gap-2">
-        <button onClick={() => handleSave("panen")} disabled={loading} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{loading ? "Menyimpan..." : "Simpan"}</button>
+        <button onClick={() => handleSave("panen")} disabled={loading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{loading ? "Menyimpan..." : "Simpan"}</button>
         <button onClick={() => { resetForm(); setActiveForm(null); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
       </div>
     </div>
@@ -283,6 +318,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
 
   return (
     <div className="px-4 sm:px-8 py-4 sm:py-8">
+      <PeternakanHubNav />
       <button onClick={() => router.push("/dashboard/peternakan")} className="text-xs text-[#8B8AA0] mb-4 flex items-center gap-1 hover:text-[#F2F1F8]">← Semua Batch</button>
 
       <div className="flex items-start justify-between mb-6">
@@ -402,9 +438,9 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
                             {t.jenis_transaksi === "panen" ? "+" : "-"}Rp{Number(t.total).toLocaleString("id-ID")}
                           </span>
                         )}
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => handleEdit(t, t.jenis_transaksi)} className="p-1 text-[#8B8AA0] hover:text-[#2DD4BF]"><Edit2 size={13} /></button>
-                          <button onClick={() => handleDelete(t.id)} className="p-1 text-[#8B8AA0] hover:text-[#EC4899]"><Trash2 size={13} /></button>
+                        <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleEdit(t, t.jenis_transaksi)} className="p-1.5 text-[#8B8AA0] hover:text-[#2DD4BF]"><Edit2 size={13} /></button>
+                          <button onClick={() => handleDelete(t)} className="p-1.5 text-[#8B8AA0] hover:text-[#EC4899]"><Trash2 size={13} /></button>
                         </div>
                       </div>
                     </div>

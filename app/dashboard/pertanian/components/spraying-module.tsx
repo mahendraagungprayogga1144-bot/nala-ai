@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { Plus, Trash2, Download, FileSpreadsheet, FileText } from "lucide-react";
 import type { SprayingRecord } from "../lib/types";
 import { SPRAYING_TYPES, inputCls, cardCls, fmtRp } from "../lib/constants";
+import { insertKeuanganPengeluaran } from "../lib/agri-sync";
+import { todayWib } from "@/lib/date";
 import { exportSprayingCSV, exportSprayingExcel, exportSprayingPDF } from "../lib/export";
 
 type Props = { records: SprayingRecord[]; userId: string; businessId: string; compact?: boolean };
@@ -17,7 +19,7 @@ export default function SprayingModule({ records, userId, businessId, compact }:
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
 
-  const [fTanggal, setFTanggal] = useState(new Date().toISOString().split("T")[0]);
+  const [fTanggal, setFTanggal] = useState(todayWib());
   const [fNama, setFNama] = useState("");
   const [fJenis, setFJenis] = useState(SPRAYING_TYPES[0]);
   const [fDosis, setFDosis] = useState("");
@@ -41,6 +43,15 @@ export default function SprayingModule({ records, userId, businessId, compact }:
       luas_area: fLuas ? Number(fLuas) : null, biaya: fBiaya ? Number(fBiaya) : 0,
       operator: fOperator || null, catatan: fCatatan || null,
     });
+    if (Number(fBiaya) > 0) {
+      await insertKeuanganPengeluaran(supabase, {
+        userId, businessId,
+        category: "Pestisida",
+        description: `Semprot ${fNama} (${fJenis}) — Pertanian`,
+        amount: Number(fBiaya),
+        tanggal: fTanggal,
+      });
+    }
     setLoading(false);
     setFNama(""); setFDosis(""); setFLuas(""); setFBiaya(""); setFOperator(""); setFCatatan("");
     setShowForm(false);

@@ -41,9 +41,8 @@ export const inputCls =
 export const cardCls = "bg-[#0F0F1A]/80 backdrop-blur-sm border border-white/10 rounded-2xl";
 
 export function isHarvestCategory(cat: string | null) {
-  if (!cat) return true;
-  return HARVEST_CATEGORIES.some(c => cat.toLowerCase().includes(c.toLowerCase()))
-    || !SAPROTAN_CATEGORIES.some(c => cat.toLowerCase().includes(c.toLowerCase()));
+  if (!cat) return false;
+  return HARVEST_CATEGORIES.some(c => cat.toLowerCase().includes(c.toLowerCase()));
 }
 
 export function isSaprotanCategory(cat: string | null) {

@@ -33,7 +33,7 @@ const fnb_modules = [
 ];
 
 const extraModules = [
-  { name: "Smart Profit Calculator", href: "#", icon: Calculator, label: "MODUL LANJUTAN", disabled: true },
+  { name: "Smart Profit Calculator", href: "/dashboard/smart-profit", icon: Calculator, label: "MODUL LANJUTAN" },
   { name: "CRM Pelanggan", href: "#", icon: Users, disabled: true },
   { name: "AI Marketing", href: "#", icon: Megaphone, disabled: true },
   { name: "AI Riset Bisnis", href: "#", icon: BarChart3, disabled: true },

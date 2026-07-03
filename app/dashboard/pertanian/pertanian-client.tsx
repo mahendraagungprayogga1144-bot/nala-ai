@@ -14,6 +14,8 @@ import FieldsModule from "./components/fields-module";
 import SprayingModule from "./components/spraying-module";
 import CostsModule from "./components/costs-module";
 import AiInsightModule from "./components/ai-insight-module";
+import AgriCharts from "./components/agri-charts";
+import AgriHubNav from "./agri-hub-nav";
 import QuickAddSheet, { type QuickAddType } from "./components/quick-add-sheet";
 import SetupWizard from "./components/setup-wizard";
 
@@ -42,7 +44,7 @@ export default function PertanianClient({ data, businessName, userId, businessId
   businessId: string;
 }) {
   const [mobileView, setMobileView] = useState<MobileView>("beranda");
-  const [dataTab, setDataTab] = useState<AgriTabId>("panen");
+  const [dataTab, setDataTab] = useState<AgriTabId>("dashboard");
   const [quickAdd, setQuickAdd] = useState<QuickAddType | null>(null);
   const [showSetup, setShowSetup] = useState(false);
 
@@ -84,6 +86,13 @@ export default function PertanianClient({ data, businessName, userId, businessId
         </div>
         <p className="text-[#8B8AA0] text-sm">{businessName}</p>
       </div>
+
+      <AgriHubNav />
+
+      <p className="mb-5 rounded-xl border border-white/[0.06] px-3 py-2 text-[11px] leading-relaxed text-[#5A5B7A]" style={{ background: "#0D0D1A" }}>
+        <span className="text-[#2DD4BF] font-medium">Alur:</span> Catat lahan & biaya → input panen → jual di{" "}
+        <Link href="/dashboard/inventory" className="text-[#2DD4BF] underline">Stok & Jual Panen</Link>.
+      </p>
 
       {/* Mobile: main views */}
       <div className="md:hidden">
@@ -194,7 +203,12 @@ export default function PertanianClient({ data, businessName, userId, businessId
             </button>
           ))}
         </div>
-        {dataTab === "dashboard" && <AiInsightModule data={data} />}
+        {dataTab === "dashboard" && (
+          <div className="space-y-4">
+            <AgriCharts data={data} />
+            <AiInsightModule data={data} />
+          </div>
+        )}
         {dataTab === "panen" && <HarvestModule products={data.products} harvestMeta={data.harvestMeta} userId={userId} businessId={businessId} />}
         {dataTab === "saprotan" && <SaprotanModule products={data.products} saprotanMeta={data.saprotanMeta} userId={userId} businessId={businessId} />}
         {dataTab === "lahan" && <FieldsModule fields={data.fields} userId={userId} businessId={businessId} />}

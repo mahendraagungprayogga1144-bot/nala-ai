@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Bird } from "lucide-react";
+import PeternakanHubNav from "./peternakan-hub-nav";
+import FnbEmptyState from "../fnb/components/fnb-empty-state";
 
 export default async function PeternakanPage() {
   const supabase = await createClient();
@@ -42,9 +44,11 @@ export default async function PeternakanPage() {
         <h1 className="text-2xl font-semibold">Manajemen Ternak</h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
-      <p className="text-[#8B8AA0] mb-6">Kelola batch, catat transaksi, dan hitung laba/rugi otomatis.</p>
+      <p className="text-[#8B8AA0] mb-4 text-sm">Buat batch → catat bibit, pakan, panen → laba/rugi otomatis + sync Keuangan Bisnis.</p>
 
-      <Link href="/dashboard/peternakan/batch/baru" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm mb-8">
+      <PeternakanHubNav />
+
+      <Link href="/dashboard/peternakan/batch/baru" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm mb-8" style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}>
         <Plus size={16} /> Buat Batch Baru
       </Link>
 
@@ -118,10 +122,13 @@ export default async function PeternakanPage() {
       )}
 
       {(!batches || batches.length === 0) && (
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-12 text-center">
-          <p className="text-[#8B8AA0] mb-2">Belum ada batch ternak.</p>
-          <p className="text-xs text-[#5A5B6A]">Klik "Buat Batch Baru" untuk mulai mencatat.</p>
-        </div>
+        <FnbEmptyState
+          icon={Bird}
+          title="Belum ada batch ternak"
+          subtitle="Satu batch = satu siklus pemeliharaan. Catat bibit, pakan, mortalitas, dan panen di satu tempat."
+          actionLabel="Buat Batch Baru"
+          actionHref="/dashboard/peternakan/batch/baru"
+        />
       )}
     </div>
   );

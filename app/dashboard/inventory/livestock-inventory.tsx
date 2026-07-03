@@ -2,10 +2,17 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Search, ArrowLeftRight, Plus } from "lucide-react";
+import { Search, ArrowLeftRight, Plus, Bird } from "lucide-react";
+import { todayWib } from "@/lib/date";
+import PeternakanHubNav from "../peternakan/peternakan-hub-nav";
+import PeternakanStockAlerts from "../peternakan/peternakan-stock-alerts";
+import FnbEmptyState from "../fnb/components/fnb-empty-state";
 import DeleteTransactionButton from "../delete-transaction-button";
 import EditProductModal from "./edit-product-modal";
+
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 
 type Product = { id: string; name: string; sku: string | null; stock: number; min_stock: number; price: number | null; cost: number | null; category: string | null; photo_url: string | null };
 
@@ -23,7 +30,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
   const [moveType, setMoveType] = useState<"masuk" | "keluar">("masuk");
   const [moveReason, setMoveReason] = useState("dijual");
   const [moveQty, setMoveQty] = useState("");
-  const [moveDate, setMoveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [moveDate, setMoveDate] = useState(todayWib());
   const [moveNote, setMoveNote] = useState("");
   const [moveLoading, setMoveLoading] = useState(false);
   const [name, setName] = useState("");
@@ -127,7 +134,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
         <input className={inputCls} type="number" placeholder={`Harga jual/${satuanHarga}`} value={price} onChange={(e) => setPrice(e.target.value)} />
       </div>
       <div className="flex gap-2">
-        <button onClick={() => handleAdd(defaultCat, cats)} disabled={formLoading} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{formLoading ? "Menyimpan..." : `+ ${label}`}</button>
+        <button onClick={() => handleAdd(defaultCat, cats)} disabled={formLoading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{formLoading ? "Menyimpan..." : `+ ${label}`}</button>
         <button onClick={() => setShowForm(null)} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
       </div>
     </div>
@@ -181,7 +188,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
             </div>
           )}
           <p className="text-[10px] text-[#5A5B6A] mb-3">Otomatis tercatat di Keuangan Bisnis</p>
-          <button onClick={() => handleMove(product)} disabled={moveLoading} className="w-full py-2.5 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold text-sm disabled:opacity-50">{moveLoading ? "Menyimpan..." : "Simpan"}</button>
+          <button onClick={() => handleMove(product)} disabled={moveLoading} className="w-full py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{moveLoading ? "Menyimpan..." : "Simpan"}</button>
         </div>
       </div>
     );
@@ -236,14 +243,49 @@ export default function LivestockInventory({ products, userId, businessId }: { p
         </div>
       )}
       {items.length === 0 ? (
-        <p className="text-xs text-[#5A5B6A] text-center py-4">Belum ada {title.toLowerCase()}. Klik "+ Tambah" untuk menambahkan.</p>
+        <FnbEmptyState
+          icon={Bird}
+          title={"Belum ada " + title.toLowerCase()}
+          subtitle={formKey === "hewan" ? "Buat batch di Manajemen Ternak — stok hewan otomatis masuk." : "Tambah stok atau catat pembelian via batch."}
+          actionLabel={formKey === "hewan" ? "Ke Manajemen Ternak" : "Tambah"}
+          actionHref={formKey === "hewan" ? "/dashboard/peternakan" : undefined}
+          onAction={formKey !== "hewan" ? () => setShowForm(formKey) : undefined}
+        />
       ) : (
         items.map((p) => <ItemRow key={p.id} p={p} />)
       )}
     </div>
   );
 
+  const hewanCount = hewan.reduce((s, p) => s + p.stock, 0);
+  const pakanKritis = pakan.filter(p => p.stock <= p.min_stock).length;
+
   return (
+    <div className="pb-24 md:pb-6">
+      <PeternakanHubNav />
+      <p className="mb-4 rounded-xl border border-white/[0.06] px-3 py-2 text-[11px] leading-relaxed text-[#5A5B7A]" style={{ background: "#0D0D1A" }}>
+        <span className="text-[#2DD4BF] font-medium">Alur:</span> Buat batch → catat bibit/pakan/panen di{" "}
+        <Link href="/dashboard/peternakan" className="text-[#2DD4BF] underline">Manajemen Ternak</Link>
+        {" "}→ otomatis sync stok & Keuangan Bisnis.
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+        <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}>
+          <p className="text-xs text-[#8B8AA0] mb-1">Total hewan</p>
+          <p className="text-lg font-mono font-semibold text-[#2DD4BF]">{hewanCount} ekor</p>
+        </div>
+        <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}>
+          <p className="text-xs text-[#8B8AA0] mb-1">Pakan kritis</p>
+          <p className="text-lg font-mono font-semibold text-[#EC4899]">{pakanKritis}</p>
+        </div>
+        <div className="rounded-2xl border border-white/[0.08] p-4 col-span-2 sm:col-span-1" style={{ background: "#0D0D1A" }}>
+          <p className="text-xs text-[#8B8AA0] mb-1">Item stok</p>
+          <p className="text-lg font-mono font-semibold text-[#8B5CF6]">{products.length}</p>
+        </div>
+      </div>
+
+      <PeternakanStockAlerts products={products} />
+
     <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl overflow-hidden">
       <div className="px-4 py-4 border-b border-white/10 flex items-center gap-3">
         <div className="flex-1 relative">
@@ -258,6 +300,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
       <Section title="Obat & Vitamin" items={obat} color="#8B5CF6" formKey="obat" cats={["Obat", "Vitamin", "Vaksin"]} defaultCat="Obat" satuanHarga="pcs" satuanStok="pcs" />
       <Section title="Peralatan" items={alat} color="#6366F1" formKey="alat" cats={["Peralatan"]} defaultCat="Peralatan" satuanHarga="unit" satuanStok="unit" />
       {lainnya.length > 0 && <Section title="Lainnya" items={lainnya} color="#8B8AA0" formKey="lainnya" cats={["Lainnya"]} defaultCat="Lainnya" satuanHarga="pcs" satuanStok="pcs" />}
+    </div>
     </div>
   );
 }

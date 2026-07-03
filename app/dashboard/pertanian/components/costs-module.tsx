@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { Plus, Trash2 } from "lucide-react";
 import type { ProductionCost } from "../lib/types";
 import { COST_CATEGORIES, inputCls, cardCls, fmtRp } from "../lib/constants";
+import { insertKeuanganPengeluaran } from "../lib/agri-sync";
+import { todayWib } from "@/lib/date";
 import { computeHPP } from "../lib/ai-insights";
 import type { AgriDashboardData } from "../lib/types";
 
@@ -15,7 +17,7 @@ export default function CostsModule({ costs, userId, businessId, dashboardData, 
   const supabase = createClient();
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [fTanggal, setFTanggal] = useState(new Date().toISOString().split("T")[0]);
+  const [fTanggal, setFTanggal] = useState(todayWib());
   const [fKategori, setFKategori] = useState(COST_CATEGORIES[0]);
   const [fDeskripsi, setFDeskripsi] = useState("");
   const [fJumlah, setFJumlah] = useState("");
@@ -28,6 +30,13 @@ export default function CostsModule({ costs, userId, businessId, dashboardData, 
     await supabase.from("agri_production_costs").insert({
       user_id: userId, business_id: businessId, tanggal: fTanggal,
       kategori: fKategori, deskripsi: fDeskripsi || null, jumlah: Number(fJumlah),
+    });
+    await insertKeuanganPengeluaran(supabase, {
+      userId, businessId,
+      category: fKategori,
+      description: `Biaya ${fKategori}${fDeskripsi ? ": " + fDeskripsi : ""} — Pertanian`,
+      amount: Number(fJumlah),
+      tanggal: fTanggal,
     });
     setLoading(false); setFDeskripsi(""); setFJumlah(""); setShowForm(false);
     router.refresh();

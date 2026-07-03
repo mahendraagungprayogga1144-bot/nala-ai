@@ -2,15 +2,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { todayWib } from "@/lib/date";
 
 const JENIS_TERNAK = ["Ayam Broiler", "Ayam Kampung", "Bebek", "Sapi", "Kambing", "Ikan Lele", "Ikan Nila", "Burung Puyuh", "Kelinci", "Lainnya"];
+const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
+
+function getCookie(name: string) {
+  if (typeof document === "undefined") return "";
+  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : "";
+}
 
 export default function BatchBaruPage() {
   const router = useRouter();
   const supabase = createClient();
   const [namaBatch, setNamaBatch] = useState("");
   const [jenisTernak, setJenisTernak] = useState("");
-  const [tanggalMulai, setTanggalMulai] = useState(new Date().toISOString().split("T")[0]);
+  const [tanggalMulai, setTanggalMulai] = useState(todayWib());
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,8 +29,9 @@ export default function BatchBaruPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
 
-    const { data: businesses } = await supabase.from("businesses").select("id").eq("user_id", user.id).eq("type", "ternak").limit(1).single();
-    const businessId = businesses?.id;
+    const activeId = getCookie("active_business_id");
+    const { data: businesses } = await supabase.from("businesses").select("id").eq("user_id", user.id).eq("type", "ternak").order("created_at", { ascending: true });
+    const businessId = (activeId && businesses?.find(b => b.id === activeId)?.id) || businesses?.[0]?.id;
 
     if (!businessId) {
       alert("Tidak ada bisnis ternak ditemukan. Buat bisnis ternak dulu.");
@@ -69,7 +78,7 @@ export default function BatchBaruPage() {
           <input type="date" required value={tanggalMulai} onChange={(e) => setTanggalMulai(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] focus:outline-none focus:border-[#2DD4BF]/50 text-sm" style={{ colorScheme: "dark" }} />
         </div>
 
-        <button type="submit" disabled={loading} className="py-3 rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold disabled:opacity-50 mt-2">
+        <button type="submit" disabled={loading} className="py-3 rounded-xl font-semibold disabled:opacity-50 mt-2" style={BTN_GRAD}>
           {loading ? "Membuat batch..." : "Buat Batch & Mulai Catat"}
         </button>
       </form>

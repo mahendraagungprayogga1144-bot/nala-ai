@@ -11,6 +11,8 @@ import FnbHubNav from "../components/fnb-hub-nav";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
+import ReceiptPrintPreview from "../components/receipt-print-preview";
+import { buildKasirReceiptHtml, shortOrderNo } from "../lib/receipt-thermal";
 import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
@@ -130,8 +132,8 @@ function OrderPanel({
   );
 }
 
-export default function KasirClient({ menus, products, employees, userId, businessId, omzetHariIni, labaHariIni, totalOrder, today }: {
-  menus: FnbMenu[]; products: Product[]; employees: Employee[]; userId: string; businessId: string;
+export default function KasirClient({ menus, products, employees, userId, businessId, businessName, omzetHariIni, labaHariIni, totalOrder, today }: {
+  menus: FnbMenu[]; products: Product[]; employees: Employee[]; userId: string; businessId: string; businessName: string;
   omzetHariIni: number; labaHariIni: number; totalOrder: number; today: string;
 }) {
   const router = useRouter();
@@ -146,8 +148,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   const [checkinLoading, setCheckinLoading] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [lastOrder, setLastOrder] = useState<{ total: number; disc: number; metode: string; laba: number } | null>(null);
+  const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
 
   const todayCheckins = employees.map(e => ({
     ...e,
@@ -245,10 +246,22 @@ export default function KasirClient({ menus, products, employees, userId, busine
       amount: total, transaction_date: today,
     });
 
-    setLastOrder({ total, disc: diskonNum, metode: metodeBayar, laba: Math.round(laba) });
+    const activeKasir = todayCheckins.find(e => e.checkedIn)?.nama;
+    const receipt = buildKasirReceiptHtml({
+      businessName: businessName || "Warung",
+      orderNo: shortOrderNo(order.id),
+      kasirName: activeKasir || "Kasir",
+      items: cart.map(c => ({ nama: c.menu.nama, qty: c.qty, harga: c.menu.harga_jual })),
+      subtotal,
+      diskon: diskonNum,
+      total,
+      metodeBayar,
+      catatan: catatan || null,
+    }, 58);
+
+    setReceiptHtml(receipt);
     resetOrder();
     setLoading(false);
-    setShowSuccess(true);
     router.refresh();
   };
 
@@ -437,31 +450,14 @@ export default function KasirClient({ menus, products, employees, userId, busine
         </div>
       )}
 
-      {/* Success modal */}
-      {showSuccess && lastOrder && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070711]/95 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-[#2DD4BF]/25 bg-[#0D0D1A] p-7 text-center">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-[#2DD4BF]/30 bg-[#2DD4BF]/10">
-              <Check size={24} className="text-[#2DD4BF]" />
-            </div>
-            <p className="mb-1 text-base font-semibold text-[#2DD4BF]">Transaksi berhasil!</p>
-            <p className="mb-5 text-[11px] text-[#5A5B7A]">Stok berkurang otomatis · Keuangan tercatat</p>
-            {[["Total", "Rp" + lastOrder.total.toLocaleString("id-ID"), true], ["Diskon", "Rp" + lastOrder.disc.toLocaleString("id-ID"), false], ["Metode", lastOrder.metode, false], ["Laba", "Rp" + lastOrder.laba.toLocaleString("id-ID"), false]].map(([k, v, highlight]) => (
-              <div key={k as string} className="flex justify-between border-b border-white/[0.04] py-1.5 text-xs">
-                <span className="text-[#5A5B7A]">{k as string}</span>
-                <span className="font-mono" style={{ color: highlight ? "#2DD4BF" : "#F0EFF8", fontWeight: highlight ? 600 : 400 }}>{v as string}</span>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowSuccess(false)}
-              className="mt-5 w-full rounded-xl py-3 text-sm font-semibold"
-              style={BTN_GRAD}
-            >
-              + Order berikutnya
-            </button>
-          </div>
-        </div>
+      {/* Struk thermal setelah transaksi */}
+      {receiptHtml && (
+        <ReceiptPrintPreview
+          html={receiptHtml}
+          title="Transaksi berhasil!"
+          widthMm={58}
+          onClose={() => setReceiptHtml(null)}
+        />
       )}
     </div>
   );

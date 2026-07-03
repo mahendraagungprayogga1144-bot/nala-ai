@@ -64,6 +64,7 @@ export default async function KasirPage() {
         employees={employees || []}
         userId={user!.id}
         businessId={business.id}
+        businessName={business.name}
         omzetHariIni={omzetHariIni}
         labaHariIni={labaHariIni}
         totalOrder={totalOrder}

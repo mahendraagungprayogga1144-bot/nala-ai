@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { calcHpp } from "@/app/dashboard/fnb/lib/calc";
 import type { FnbMenu } from "@/app/dashboard/fnb/lib/calc";
 import { validateCartStock, deductStockForSale } from "@/app/dashboard/fnb/lib/process-order";
+import { buildKasirReceiptHtml, shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
+import ReceiptPrintPreview from "@/app/dashboard/fnb/components/receipt-print-preview";
 
 type Menu = FnbMenu;
 type Employee = { id: string; nama: string; jabatan: string | null; kasir_token: string; webauthn_credential_id: string | null };
@@ -40,11 +42,10 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   const [metodeBayar, setMetodeBayar] = useState("tunai");
   const [catatan, setCatatan] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showSOP, setShowSOP] = useState(false);
   const [stats, setStats] = useState(initialStats);
-  const [lastOrder, setLastOrder] = useState<{total:number;laba:number;disc:number;items:number;metode:string;note:string}|null>(null);
   const [clock, setClock] = useState("");
   const [checkinId, setCheckinId] = useState<string|null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -237,11 +238,22 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       amount: total, transaction_date: today,
     });
 
-    setLastOrder({ total, laba: Math.round(laba), disc: discNum, items: cartItems.length, metode: metodeBayar, note: catatan });
+    const receipt = buildKasirReceiptHtml({
+      businessName: business.name,
+      orderNo: shortOrderNo(order.id),
+      kasirName: employee.nama,
+      items: cartItems.map(c => ({ nama: c.menu.nama, qty: c.qty, harga: c.menu.harga_jual })),
+      subtotal,
+      diskon: discNum,
+      total,
+      metodeBayar,
+      catatan: catatan || null,
+    }, 58);
+
     setStats(prev => ({ ...prev, omzet: prev.omzet + total, laba: prev.laba + Math.round(laba), totalOrders: prev.totalOrders + 1 }));
+    setReceiptHtml(receipt);
     setLoading(false);
     setCartOpen(false);
-    setShowSuccess(true);
     setCart({}); setDiskon(""); setCatatan("");
   };
 
@@ -473,22 +485,13 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
         </div>
       )}
 
-      {showSuccess && lastOrder && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(7,7,17,.96)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}>
-          <div style={{ background: "#0D0D1A", border: "0.5px solid rgba(45,212,191,.25)", borderRadius: "20px", padding: "1.75rem", maxWidth: "320px", width: "100%", textAlign: "center" }}>
-            <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "rgba(45,212,191,.1)", border: "0.5px solid rgba(45,212,191,.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto .75rem", fontSize: "24px", color: "#2DD4BF" }}>✓</div>
-            <div style={{ fontSize: "15px", fontWeight: 600, color: "#2DD4BF", marginBottom: ".25rem" }}>Transaksi berhasil!</div>
-            <div style={{ fontSize: "11px", color: "#5A5B7A", marginBottom: "1.25rem" }}>Stok berkurang otomatis · Keuangan tercatat</div>
-            {[["Total", "Rp" + lastOrder.total.toLocaleString("id-ID")], ["Diskon", "Rp" + lastOrder.disc.toLocaleString("id-ID")], ["Metode", lastOrder.metode], ["Laba", "Rp" + lastOrder.laba.toLocaleString("id-ID")]].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", padding: "4px 0", borderBottom: "0.5px solid rgba(255,255,255,.04)" }}>
-                <span style={{ color: "#5A5B7A" }}>{k}</span>
-                <span style={{ fontFamily: "JetBrains Mono, monospace", color: k === "Total" ? "#2DD4BF" : "#F0EFF8", fontWeight: k === "Total" ? 600 : 400 }}>{v}</span>
-              </div>
-            ))}
-            <div style={{ height: ".5px", background: "rgba(255,255,255,.06)", margin: "10px 0" }} />
-            <button onClick={() => setShowSuccess(false)} style={btnGrad}>+ Order Berikutnya</button>
-          </div>
-        </div>
+      {receiptHtml && (
+        <ReceiptPrintPreview
+          html={receiptHtml}
+          title="Transaksi berhasil!"
+          widthMm={58}
+          onClose={() => setReceiptHtml(null)}
+        />
       )}
 
       {showCheckout && (

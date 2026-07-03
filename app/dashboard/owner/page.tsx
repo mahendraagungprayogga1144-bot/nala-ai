@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import DashboardOwnerClient from "./dashboard-owner-client";
+import type { KasirTodaySummary } from "./owner-kasir-summary";
 
 export type TopProduct = { id: string; name: string; sold: number; revenue: number; emoji: string };
 export type RecentTransaction = {
@@ -304,11 +305,57 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
     }
   }
 
+  let kasirSummary: KasirTodaySummary | null = null;
+  let kasirBusinessName: string | undefined;
+  const activeKuliner = businesses.find(b => b.type === "kuliner");
+
+  if (activeKuliner) {
+    kasirBusinessName = activeKuliner.name;
+    const [{ data: todayOrders }, { data: employees }, { data: ownerProfile }] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("id, total, laba, created_at, user_id, order_items(qty, menus(nama))")
+        .eq("business_id", activeKuliner.id)
+        .eq("order_date", today)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase.from("employees").select("id, nama").eq("business_id", activeKuliner.id),
+      supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
+    ]);
+
+    const nameMap: Record<string, string> = { [user!.id]: ownerProfile?.full_name || "Owner" };
+    employees?.forEach(e => { nameMap[e.id] = e.nama; });
+
+    const orders = todayOrders || [];
+    kasirSummary = {
+      omzetHariIni: orders.reduce((s, o) => s + Number(o.total || 0), 0),
+      labaHariIni: orders.reduce((s, o) => s + Number(o.laba || 0), 0),
+      orderHariIni: orders.length,
+      recentOrders: orders.map(o => {
+        const items = (o.order_items || []) as { qty: number; menus: { nama: string } | { nama: string }[] | null }[];
+        const summary = items.map(i => {
+          const m = i.menus;
+          const nama = Array.isArray(m) ? m[0]?.nama : m?.nama;
+          return `${nama || "Menu"} x${i.qty}`;
+        }).join(", ");
+        return {
+          id: o.id,
+          total: Number(o.total),
+          created_at: o.created_at,
+          kasirName: nameMap[o.user_id] || "Kasir",
+          itemsSummary: summary,
+        };
+      }),
+    };
+  }
+
   return (
     <DashboardOwnerClient
       businesses={businessData}
       topProducts={topProducts}
       recentTransactions={recentTransactions}
+      kasirSummary={kasirSummary}
+      kasirBusinessName={kasirBusinessName}
       bulan={bulan}
       tahun={tahun}
       userId={user!.id}

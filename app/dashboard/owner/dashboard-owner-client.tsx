@@ -14,6 +14,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import type { TopProduct, RecentTransaction } from "./page";
+import OwnerKasirSummary, { type KasirTodaySummary } from "./owner-kasir-summary";
 
 type Business = {
   id: string; name: string; type: string;
@@ -48,11 +49,13 @@ function fmtRp(n: number) {
 function fmtFull(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 
 export default function DashboardOwnerClient({
-  businesses, topProducts, recentTransactions, bulan, tahun, userId, userName,
+  businesses, topProducts, recentTransactions, kasirSummary, kasirBusinessName, bulan, tahun, userId, userName,
 }: {
   businesses: Business[];
   topProducts: TopProduct[];
   recentTransactions: RecentTransaction[];
+  kasirSummary: KasirTodaySummary | null;
+  kasirBusinessName?: string;
   bulan: number; tahun: number; userId: string; userName: string;
 }) {
   const router = useRouter();
@@ -396,6 +399,10 @@ export default function DashboardOwnerClient({
             </div>
           </div>
         </div>
+
+        {kasirSummary && (
+          <OwnerKasirSummary summary={kasirSummary} businessName={kasirBusinessName} />
+        )}
 
         {/* Row bawah */}
         <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-6">

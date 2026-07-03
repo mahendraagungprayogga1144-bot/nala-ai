@@ -8,6 +8,7 @@ import FnbWorkflowSteps from "../fnb/components/fnb-workflow-steps";
 import FnbKpiRow from "../fnb/components/fnb-kpi-row";
 import FnbStockAlerts from "../fnb/components/fnb-stock-alerts";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
+import FnbVividShell, { FNB_VIVID_CARD, FnbGradientLine } from "../fnb/components/fnb-vivid-shell";
 import InventoryExportBar from "./components/inventory-export-bar";
 import { fmtRp } from "../fnb/lib/calc";
 
@@ -169,20 +170,21 @@ export default function FnBInventory({ products, userId, businessId, businessNam
   ].filter(Boolean).join(" · ") || undefined;
 
   return (
-    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
+    <FnbVividShell>
       <FnbHubNav />
       <FnbWorkflowSteps activePath="/dashboard/inventory" />
 
-      <FnbStockAlerts products={products} />
-      <FnbKpiRow items={[
+      <FnbStockAlerts businessName={businessName} products={products} />
+      <FnbKpiRow variant="vivid" items={[
         { label: "Total bahan", value: String(products.length), color: "#38BDF8" },
         { label: "Hampir habis", value: String(hampirHabis), color: "#F59E0B" },
         { label: "Nilai stok", value: fmtRp(nilaiStok), color: "#2DD4BF" },
         { label: "Bahan habis", value: String(habis), color: habis > 0 ? "#EC4899" : "#2DD4BF" },
       ]} />
 
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0F0F1A]/90 backdrop-blur-sm">
-        <div className="sticky top-0 z-10 border-b border-white/10 bg-[#0F0F1A]/95 backdrop-blur-md md:static md:bg-transparent md:backdrop-blur-none">
+      <div className={FNB_VIVID_CARD}>
+        <FnbGradientLine />
+        <div className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#13131F]/95 backdrop-blur-md md:static md:bg-transparent md:backdrop-blur-none">
           <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-4 md:py-3">
             <div className="relative min-w-0 flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
@@ -396,6 +398,6 @@ export default function FnBInventory({ products, userId, businessId, businessNam
           </div>
         </div>
       )}
-    </div>
+    </FnbVividShell>
   );
 }

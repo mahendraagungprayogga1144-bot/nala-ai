@@ -9,6 +9,8 @@ import { buildKasirReceiptHtml, shortOrderNo } from "@/app/dashboard/fnb/lib/rec
 import ReceiptPrintPreview from "@/app/dashboard/fnb/components/receipt-print-preview";
 import KasirPrintSettingsButton from "@/app/dashboard/fnb/components/kasir-print-settings-sheet";
 import KasirPrinterWizard from "@/app/dashboard/fnb/components/kasir-printer-wizard";
+import ShiftReportModal from "@/app/dashboard/fnb/components/shift-report-modal";
+import type { ShiftReportData } from "@/app/dashboard/fnb/lib/shift-report";
 import KasirReprintBar from "@/app/dashboard/fnb/components/kasir-reprint-bar";
 import { executeSilentPrint, planReceiptPrint } from "@/app/dashboard/fnb/lib/trigger-receipt-print";
 import { getKasirPrintSettings } from "@/app/dashboard/fnb/lib/kasir-print-settings";
@@ -63,6 +65,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   const [fpStatus, setFpStatus] = useState("");
   const [showPrinterWizard, setShowPrinterWizard] = useState(false);
   const [receiptVersion, setReceiptVersion] = useState(0);
+  const [shiftReport, setShiftReport] = useState<ShiftReportData | null>(null);
 
   useEffect(() => {
     const update = () => setClock(new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -182,11 +185,51 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
     setScreen("welcome");
   };
 
-  const doCheckout = async () => {
+  const prepareShiftReport = async () => {
+    const jamKeluar = new Date().toTimeString().slice(0, 5);
+    let jamMasuk = "—";
+    if (checkinId) {
+      const { data: ci } = await supabase.from("checkins").select("jam_masuk").eq("id", checkinId).maybeSingle();
+      jamMasuk = ci?.jam_masuk || "—";
+    }
+
+    const { data: orderRows } = await supabase
+      .from("orders")
+      .select("id, total, created_at, order_items(qty, menus(nama))")
+      .eq("business_id", business.id)
+      .eq("user_id", employee.id)
+      .eq("order_date", today)
+      .order("created_at", { ascending: false });
+
+    const orders = (orderRows || []).map(o => {
+      const items = (o.order_items || []) as { qty: number; menus: { nama: string } | { nama: string }[] | null }[];
+      const itemsSummary = items.map(i => {
+        const m = i.menus;
+        const nama = Array.isArray(m) ? m[0]?.nama : m?.nama;
+        return `${nama || "Menu"} x${i.qty}`;
+      }).join(", ");
+      return { id: o.id, total: Number(o.total), created_at: o.created_at, itemsSummary };
+    });
+
+    setShiftReport({
+      businessName: business.name,
+      kasirName: employee.nama,
+      tanggal: today,
+      jamMasuk,
+      jamKeluar,
+      totalOrders: stats.totalOrders,
+      omzet: stats.omzet,
+      laba: stats.laba,
+      orders,
+    });
+    setShowCheckout(false);
+  };
+
+  const finalizeCheckout = async () => {
     if (checkinId) {
       await supabase.from("checkins").update({ jam_keluar: new Date().toTimeString().slice(0, 5) }).eq("id", checkinId);
     }
-    setShowCheckout(false);
+    setShiftReport(null);
     setScreen("auth");
     setCart({});
     setStats(initialStats);
@@ -589,10 +632,18 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
               </div>
             ))}
             <div style={{ height: ".5px", background: "rgba(255,255,255,.06)", margin: "10px 0" }} />
-            <button onClick={doCheckout} style={{ ...btnGrad, background: "linear-gradient(135deg,#EC4899,#8B5CF6)" }}>Konfirmasi Check-out</button>
+            <button onClick={prepareShiftReport} style={{ ...btnGrad, background: "linear-gradient(135deg,#EC4899,#8B5CF6)" }}>Konfirmasi Check-out</button>
             <button onClick={() => setShowCheckout(false)} style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "0.5px solid rgba(255,255,255,.08)", background: "none", color: "#8B8AA0", fontSize: "12px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>Batal</button>
           </div>
         </div>
+      )}
+
+      {shiftReport && (
+        <ShiftReportModal
+          data={shiftReport}
+          onClose={() => setShiftReport(null)}
+          onConfirm={finalizeCheckout}
+        />
       )}
 
       {showSOP && <SOPModal onClose={() => setShowSOP(false)} />}

@@ -11,6 +11,7 @@ import FnbWorkflowSteps from "../components/fnb-workflow-steps";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
+import FnbVividShell, { FNB_VIVID_CARD, FnbGradientLine } from "../components/fnb-vivid-shell";
 
 type Product = { id: string; name: string; cost: number | null; stock: number; min_stock?: number; category: string | null };
 const KATEGORI_MENU = ["Makanan", "Minuman", "Snack", "Paket", "Lainnya"];
@@ -165,7 +166,7 @@ function FormResep({ products, fProductId, setFProductId, fQty, setFQty, fUnit, 
   );
 }
 
-export default function FnbMenuClient({ menus, products, userId, businessId }: { menus: FnbMenu[]; products: Product[]; userId: string; businessId: string }) {
+export default function FnbMenuClient({ menus, products, userId, businessId, businessName }: { menus: FnbMenu[]; products: Product[]; userId: string; businessId: string; businessName?: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState("Semua");
@@ -255,20 +256,21 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   }).length;
 
   return (
-    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
+    <FnbVividShell>
       <FnbHubNav />
       <FnbWorkflowSteps activePath="/dashboard/fnb/menu" />
 
-      <FnbKpiRow items={[
+      <FnbKpiRow variant="vivid" items={[
         { label: "Total menu", value: String(totalMenu), color: "#38BDF8" },
         { label: "Menu aktif", value: String(totalAktif), color: "#2DD4BF" },
         { label: "Margin rata-rata", value: `${Math.round(avgMargin)}%`, color: "#8B5CF6", sub: "Food cost otomatis" },
         { label: "Menu rugi", value: String(menuRugi), color: menuRugi > 0 ? "#EC4899" : "#2DD4BF" },
       ]} />
-      <FnbStockAlerts products={products.map(p => ({ id: p.id, name: p.name, stock: p.stock, min_stock: p.min_stock ?? 5, category: p.category }))} />
+      <FnbStockAlerts businessName={businessName} products={products.map(p => ({ id: p.id, name: p.name, stock: p.stock, min_stock: p.min_stock ?? 5, category: p.category }))} />
 
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0F0F1A]">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5 md:px-4 md:py-3">
+      <div className={FNB_VIVID_CARD}>
+        <FnbGradientLine />
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-3 py-2.5 md:px-4 md:py-3">
           <span className="text-sm font-medium">Daftar Menu</span>
           <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="flex flex-shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold" style={BTN_GRAD}>
             <Plus size={13} /> Tambah
@@ -471,6 +473,6 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
           </div>
         )}
       </div>
-    </div>
+    </FnbVividShell>
   );
 }

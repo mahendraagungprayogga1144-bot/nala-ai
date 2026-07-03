@@ -14,8 +14,9 @@ const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", colo
 
 import FnbHubNav from "../components/fnb-hub-nav";
 import FnbKpiRow from "../components/fnb-kpi-row";
+import FnbVividShell, { FNB_VIVID_CARD, FnbGradientLine } from "../components/fnb-vivid-shell";
 
-export default function KaryawanClient({ employees, userId, businessId }: { employees: Employee[]; userId: string; businessId: string }) {
+export default function KaryawanClient({ employees, userId, businessId, businessName }: { employees: Employee[]; userId: string; businessId: string; businessName?: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [showForm, setShowForm] = useState(false);
@@ -58,16 +59,17 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
   const aktif = employees.filter(e => e.aktif);
 
   return (
-    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
+    <FnbVividShell>
       <FnbHubNav />
-      <FnbKpiRow items={[
+      <FnbKpiRow variant="vivid" items={[
         { label: "Total karyawan", value: String(employees.length), color: "#38BDF8" },
         { label: "Aktif", value: String(aktif.length), color: "#2DD4BF" },
         { label: "Link kasir", value: String(aktif.length), color: "#8B5CF6" },
       ]} />
 
-      <div className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0F0F1A]">
-        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5 md:px-4 md:py-3">
+      <div className={FNB_VIVID_CARD}>
+        <FnbGradientLine />
+        <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-2.5 md:px-4 md:py-3">
           <span className="text-sm font-medium">Daftar Karyawan</span>
           <button onClick={() => setShowForm(!showForm)}
             className="flex flex-shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold"
@@ -182,6 +184,6 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
           </div>
         </div>
       )}
-    </div>
+    </FnbVividShell>
   );
 }

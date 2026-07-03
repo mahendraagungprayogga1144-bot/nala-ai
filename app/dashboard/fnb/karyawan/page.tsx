@@ -31,7 +31,7 @@ export default async function KaryawanPage() {
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full truncate max-w-[40%]">{business.name}</span>}
       </div>
       <p className="mb-3 hidden text-sm text-[#8B8AA0] sm:mb-6 sm:block">Kelola karyawan — bagikan link kasir ke HP mereka.</p>
-      <KaryawanClient employees={employees || []} userId={user!.id} businessId={business.id} />
+      <KaryawanClient employees={employees || []} userId={user!.id} businessId={business.id} businessName={business.name} />
     </div>
   );
 }

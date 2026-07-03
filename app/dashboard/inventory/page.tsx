@@ -217,7 +217,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       ) : business?.type === "kuliner" ? (
         <div className="mb-8">
-          <FnBInventory products={products || []} userId={user!.id} businessId={business?.id} />
+          <FnBInventory products={products || []} userId={user!.id} businessId={business?.id} businessName={business?.name} />
         </div>
       ) : business?.type === "pertanian" ? (
         <div className="mb-8">

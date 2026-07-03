@@ -8,6 +8,7 @@ import FnbWorkflowSteps from "../fnb/components/fnb-workflow-steps";
 import FnbKpiRow from "../fnb/components/fnb-kpi-row";
 import FnbStockAlerts from "../fnb/components/fnb-stock-alerts";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
+import InventoryExportBar from "./components/inventory-export-bar";
 import { fmtRp } from "../fnb/lib/calc";
 
 type Product = { id: string; name: string; sku: string | null; stock: number; min_stock: number; price: number | null; cost: number | null; category: string | null; photo_url: string | null; unit?: string | null };
@@ -77,7 +78,7 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
   );
 }
 
-export default function FnBInventory({ products, userId, businessId }: { products: Product[]; userId: string; businessId?: string }) {
+export default function FnBInventory({ products, userId, businessId, businessName }: { products: Product[]; userId: string; businessId?: string; businessName?: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [search, setSearch] = useState("");
@@ -161,6 +162,11 @@ export default function FnBInventory({ products, userId, businessId }: { product
   const categoriesToShow = activeTab === "Semua"
     ? KATEGORI.filter(kat => byKategori(kat).length > 0 || showForm === kat)
     : [activeTab];
+
+  const exportFilterLabel = [
+    activeTab !== "Semua" ? activeTab : null,
+    search.trim() ? `“${search.trim()}”` : null,
+  ].filter(Boolean).join(" · ") || undefined;
 
   return (
     <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
@@ -322,6 +328,12 @@ export default function FnBInventory({ products, userId, businessId }: { product
           </div>
         ))}
       </div>
+
+      <InventoryExportBar
+        products={filtered}
+        businessName={businessName || "Bisnis F&B"}
+        filterLabel={exportFilterLabel}
+      />
 
       {movingProduct && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setMovingProduct(null)}>

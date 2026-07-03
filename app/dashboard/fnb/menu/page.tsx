@@ -36,7 +36,7 @@ export default async function FnbMenuPage() {
     .order("name");
 
   return (
-    <div className="px-3 py-3 sm:px-8 sm:py-8">
+    <div className="w-full min-w-0 px-3 py-3 sm:px-8 sm:py-8">
       <div className="mb-1 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold sm:text-2xl">Master Menu</h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full truncate max-w-[40%]">{business.name}</span>}

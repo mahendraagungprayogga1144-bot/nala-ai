@@ -13,7 +13,6 @@ const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white
 const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 
 import FnbHubNav from "../components/fnb-hub-nav";
-import FnbMobileActionBar from "../components/fnb-mobile-action-bar";
 import FnbKpiRow from "../components/fnb-kpi-row";
 
 export default function KaryawanClient({ employees, userId, businessId }: { employees: Employee[]; userId: string; businessId: string }) {
@@ -59,7 +58,7 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
   const aktif = employees.filter(e => e.aktif);
 
   return (
-    <div className="max-md:pb-[calc(56px+3.25rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
       <FnbKpiRow items={[
         { label: "Total karyawan", value: String(employees.length), color: "#38BDF8" },
@@ -71,7 +70,7 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5 md:px-4 md:py-3">
           <span className="text-sm font-medium">Daftar Karyawan</span>
           <button onClick={() => setShowForm(!showForm)}
-            className="hidden items-center gap-1 rounded-lg px-3 py-1.5 text-xs md:flex"
+            className="flex flex-shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)", color: "#0A0A12" }}>
             <Plus size={13} /> Tambah
           </button>
@@ -165,10 +164,6 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
           ))}
         </div>
       </div>
-
-      {!showForm && (
-        <FnbMobileActionBar label="Tambah Karyawan" onClick={() => setShowForm(true)} />
-      )}
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center md:hidden" onClick={() => { setShowForm(false); setNama(""); setJabatan(""); }}>

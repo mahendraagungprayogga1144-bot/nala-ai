@@ -161,7 +161,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   ];
 
   return (
-    <div className="px-3 py-3 sm:px-8 sm:py-8">
+    <div className="w-full min-w-0 px-3 py-3 sm:px-8 sm:py-8">
       <div className="mb-1 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold sm:text-2xl">
           {business?.type === "kuliner" ? "Stok Bahan"

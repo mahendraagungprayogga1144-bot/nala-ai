@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const userName = profile?.full_name || user.email?.split("@")[0] || "Owner";
 
   return (
-    <div className="min-h-screen bg-[#070711] text-[#F2F1F8] flex">
+    <div className="min-h-screen bg-[#070711] text-[#F2F1F8] flex w-full min-w-0 overflow-x-hidden">
       <DashboardShell businesses={businesses || []} activeBusiness={activeBusiness} userName={userName}>
         {children}
       </DashboardShell>

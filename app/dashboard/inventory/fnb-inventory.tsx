@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Plus, Search, Trash2, ArrowLeftRight, Edit2, X, Package } from "lucide-react";
 import FnbHubNav from "../fnb/components/fnb-hub-nav";
 import FnbWorkflowSteps from "../fnb/components/fnb-workflow-steps";
-import FnbMobileActionBar from "../fnb/components/fnb-mobile-action-bar";
 import FnbKpiRow from "../fnb/components/fnb-kpi-row";
 import FnbStockAlerts from "../fnb/components/fnb-stock-alerts";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
@@ -164,7 +163,7 @@ export default function FnBInventory({ products, userId, businessId }: { product
     : [activeTab];
 
   return (
-    <div className="max-md:pb-[calc(56px+3.25rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
       <FnbWorkflowSteps activePath="/dashboard/inventory" />
 
@@ -178,11 +177,19 @@ export default function FnBInventory({ products, userId, businessId }: { product
 
       <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0F0F1A]/90 backdrop-blur-sm">
         <div className="sticky top-0 z-10 border-b border-white/10 bg-[#0F0F1A]/95 backdrop-blur-md md:static md:bg-transparent md:backdrop-blur-none">
-          <div className="flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3">
-            <div className="relative flex-1">
+          <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-4 md:py-3">
+            <div className="relative min-w-0 flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
               <input type="text" placeholder="Cari bahan..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0A0A12] py-2.5 pl-9 pr-3 text-sm text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none" />
             </div>
+            <button
+              type="button"
+              onClick={() => { resetForm(); setFKategori("Bahan Baku"); setQuickOpen(true); }}
+              className="flex flex-shrink-0 items-center gap-1 rounded-xl px-3 py-2.5 text-xs font-semibold md:hidden"
+              style={BTN_GRAD}
+            >
+              <Plus size={14} /> Tambah
+            </button>
           </div>
           <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none md:px-4 md:py-2.5">
             {["Semua", ...KATEGORI].map(tab => (
@@ -344,11 +351,6 @@ export default function FnBInventory({ products, userId, businessId }: { product
           </div>
         </div>
       )}
-
-      <FnbMobileActionBar
-        label="Tambah Bahan"
-        onClick={() => { resetForm(); setFKategori("Bahan Baku"); setQuickOpen(true); }}
-      />
 
       {quickOpen && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center" onClick={() => setQuickOpen(false)}>

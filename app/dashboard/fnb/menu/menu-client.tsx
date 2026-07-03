@@ -11,7 +11,6 @@ import FnbWorkflowSteps from "../components/fnb-workflow-steps";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
-import FnbMobileActionBar from "../components/fnb-mobile-action-bar";
 
 type Product = { id: string; name: string; cost: number | null; stock: number; min_stock?: number; category: string | null };
 const KATEGORI_MENU = ["Makanan", "Minuman", "Snack", "Paket", "Lainnya"];
@@ -256,7 +255,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   }).length;
 
   return (
-    <div className="max-md:pb-[calc(56px+3.25rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
       <FnbWorkflowSteps activePath="/dashboard/fnb/menu" />
 
@@ -271,8 +270,8 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0F0F1A]">
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5 md:px-4 md:py-3">
           <span className="text-sm font-medium">Daftar Menu</span>
-          <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="hidden items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold md:flex" style={BTN_GRAD}>
-            <Plus size={13} /> Tambah Menu
+          <button onClick={() => { resetMenuForm(); setShowMenuForm(!showMenuForm); }} className="flex flex-shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold" style={BTN_GRAD}>
+            <Plus size={13} /> Tambah
           </button>
         </div>
 
@@ -472,11 +471,6 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
           </div>
         )}
       </div>
-
-      <FnbMobileActionBar
-        label="Tambah Menu"
-        onClick={() => { resetMenuForm(); setShowMenuForm(true); }}
-      />
     </div>
   );
 }

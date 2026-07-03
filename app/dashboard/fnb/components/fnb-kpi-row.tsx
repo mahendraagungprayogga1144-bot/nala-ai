@@ -4,7 +4,7 @@ type Kpi = { label: string; value: string; color: string; sub?: string };
 
 export default function FnbKpiRow({ items }: { items: Kpi[] }) {
   return (
-    <div className="mb-4 md:mb-6 -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 scrollbar-none md:mx-0 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible md:px-0 md:pb-0">
+    <div className="mb-4 w-full min-w-0 max-w-full md:mb-6 -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 scrollbar-none md:mx-0 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible md:px-0 md:pb-0">
       {items.map(k => (
         <div
           key={k.label}

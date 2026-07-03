@@ -261,7 +261,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   };
 
   return (
-    <div className="max-md:pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
       <FnbHubNav />
       <FnbKpiRow items={[
         { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },

@@ -12,6 +12,9 @@ const baseModules = [
   { name: "Keuangan Bisnis", href: "/dashboard/keuangan-bisnis", icon: Store },
   { name: "Keuangan Pribadi", href: "/dashboard/keuangan-pribadi", icon: Wallet },
   { name: "Inventory", href: "/dashboard/inventory", icon: Package, label: "MANAJEMEN" },
+];
+
+const homeindustry_modules = [
   { name: "Produksi", href: "/dashboard/produksi", icon: Factory },
 ];
 
@@ -54,6 +57,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
 
   const allModules = [
     ...baseModules,
+    ...(bizType === "homeindustry" ? homeindustry_modules : []),
     ...(bizType === "ternak" ? ternak_modules : []),
     ...(bizType === "pertanian" ? pertanian_modules : []),
     ...(bizType === "kuliner" ? fnb_modules : []),

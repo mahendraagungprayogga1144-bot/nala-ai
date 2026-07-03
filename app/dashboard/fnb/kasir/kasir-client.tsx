@@ -12,7 +12,10 @@ import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
 import ReceiptPrintPreview from "../components/receipt-print-preview";
+import KasirPrintSettingsButton from "../components/kasir-print-settings-sheet";
 import { buildKasirReceiptHtml, shortOrderNo } from "../lib/receipt-thermal";
+import { executeSilentPrint, planReceiptPrint } from "../lib/trigger-receipt-print";
+import { getKasirPrintSettings } from "../lib/kasir-print-settings";
 import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
@@ -32,6 +35,8 @@ type OrderPanelProps = {
   setDiskon: (v: string) => void;
   metodeBayar: string;
   setMetodeBayar: (v: string) => void;
+  bayar: string;
+  setBayar: (v: string) => void;
   catatan: string;
   setCatatan: (v: string) => void;
   total: number;
@@ -48,9 +53,11 @@ type OrderPanelProps = {
 
 function OrderPanel({
   cart, subtotal, totalHpp, diskon, setDiskon, metodeBayar, setMetodeBayar,
-  catatan, setCatatan, total, laba, margin, loading, onProses, onReset,
+  bayar, setBayar, catatan, setCatatan, total, laba, margin, loading, onProses, onReset,
   onRemoveItem, onAddItem, onDecItem, compact,
 }: OrderPanelProps) {
+  const bayarNum = Number(bayar) || 0;
+  const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;
   return (
     <>
       <div className={compact ? "px-0 py-0" : "px-4 py-3 border-b border-white/[0.06]"}>
@@ -109,6 +116,25 @@ function OrderPanel({
         </div>
       </div>
 
+      {metodeBayar === "tunai" && cart.length > 0 && (
+        <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
+          <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Bayar tunai</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              placeholder={String(Math.ceil(total / 1000) * 1000) || "0"}
+              value={bayar}
+              onChange={e => setBayar(e.target.value)}
+              className="flex-1 text-sm px-3 py-2.5 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] focus:outline-none font-mono"
+            />
+            <span className="text-[10px] text-[#5A5B7A]">Rp</span>
+          </div>
+          {kembali > 0 && (
+            <p className="mt-1.5 text-xs text-[#2DD4BF]">Kembali <span className="font-mono font-semibold">Rp{kembali.toLocaleString("id-ID")}</span></p>
+          )}
+        </div>
+      )}
+
       <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
         <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Catatan</p>
         <input type="text" placeholder="Meja 3, extra pedas..." value={catatan} onChange={e => setCatatan(e.target.value)}
@@ -144,11 +170,15 @@ export default function KasirClient({ menus, products, employees, userId, busine
   const [diskon, setDiskon] = useState("");
   const [metodeBayar, setMetodeBayar] = useState("tunai");
   const [catatan, setCatatan] = useState("");
+  const [bayar, setBayar] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
-  const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<{
+    html: string; autoPrint: boolean; autoClose: boolean; widthMm: number;
+  } | null>(null);
+  const [printToast, setPrintToast] = useState<string | null>(null);
 
   const todayCheckins = employees.map(e => ({
     ...e,
@@ -193,7 +223,23 @@ export default function KasirClient({ menus, products, employees, userId, busine
   const margin = total > 0 ? Math.round(laba / total * 100) : 0;
   const dayMargin = omzetHariIni > 0 ? Math.round(labaHariIni / omzetHariIni * 100) : 0;
 
-  const resetOrder = () => { setCart([]); setDiskon(""); setCatatan(""); setMetodeBayar("tunai"); setCartOpen(false); };
+  const resetOrder = () => { setCart([]); setDiskon(""); setBayar(""); setCatatan(""); setMetodeBayar("tunai"); setCartOpen(false); };
+
+  const triggerReceiptPrint = (html: string) => {
+    const plan = planReceiptPrint();
+    if (plan.mode === "silent") {
+      executeSilentPrint(html);
+      setPrintToast("Struk dicetak — lanjut order berikutnya");
+      setTimeout(() => setPrintToast(null), 2800);
+      return;
+    }
+    setReceiptPreview({
+      html,
+      autoPrint: plan.mode === "preview" ? plan.autoPrint : false,
+      autoClose: plan.mode === "preview" ? plan.autoClose : false,
+      widthMm: plan.widthMm,
+    });
+  };
 
   const handleCheckin = async (emp: Employee) => {
     setCheckinLoading(emp.id);
@@ -246,6 +292,9 @@ export default function KasirClient({ menus, products, employees, userId, busine
       amount: total, transaction_date: today,
     });
 
+    const bayarNum = Number(bayar) || 0;
+    const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;
+    const widthMm = getKasirPrintSettings().paperWidthMm;
     const activeKasir = todayCheckins.find(e => e.checkedIn)?.nama;
     const receipt = buildKasirReceiptHtml({
       businessName: businessName || "Warung",
@@ -257,9 +306,11 @@ export default function KasirClient({ menus, products, employees, userId, busine
       total,
       metodeBayar,
       catatan: catatan || null,
-    }, 58);
+      bayar: metodeBayar === "tunai" && bayarNum > 0 ? bayarNum : undefined,
+      kembali: kembali > 0 ? kembali : undefined,
+    }, widthMm);
 
-    setReceiptHtml(receipt);
+    triggerReceiptPrint(receipt);
     resetOrder();
     setLoading(false);
     router.refresh();
@@ -267,7 +318,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
 
   const orderPanelProps: OrderPanelProps = {
     cart, subtotal, totalHpp, diskon, setDiskon, metodeBayar, setMetodeBayar,
-    catatan, setCatatan, total, laba, margin, loading,
+    bayar, setBayar, catatan, setCatatan, total, laba, margin, loading,
     onProses: handleProses, onReset: resetOrder,
     onRemoveItem: (id) => setCart(prev => prev.filter(x => x.menu.id !== id)),
     onAddItem: addToCart, onDecItem: removeFromCart,
@@ -288,14 +339,17 @@ export default function KasirClient({ menus, products, employees, userId, busine
       </div>
 
       <div className="mb-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0F0F1A] lg:mb-6">
-        <button
-          type="button"
-          onClick={() => setShiftOpen(v => !v)}
-          className="flex w-full items-center justify-between px-3 py-3 md:cursor-default md:px-4"
-        >
-          <p className="text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">Shift karyawan — {today}</p>
-          <span className="text-[#8B8AA0] md:hidden">{shiftOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
-        </button>
+        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2 md:px-4">
+          <button
+            type="button"
+            onClick={() => setShiftOpen(v => !v)}
+            className="flex min-w-0 flex-1 items-center justify-between md:cursor-default"
+          >
+            <p className="text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">Shift karyawan — {today}</p>
+            <span className="text-[#8B8AA0] md:hidden">{shiftOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
+          </button>
+          <KasirPrintSettingsButton />
+        </div>
         <div className={`border-t border-white/[0.06] px-3 pb-3 md:block md:border-0 md:px-4 md:pb-4 ${shiftOpen ? "block" : "hidden md:block"}`}>
         {employees.length === 0 ? (
           <FnbEmptyState
@@ -451,12 +505,20 @@ export default function KasirClient({ menus, products, employees, userId, busine
       )}
 
       {/* Struk thermal setelah transaksi */}
-      {receiptHtml && (
+      {printToast && (
+        <div className="fixed bottom-24 left-1/2 z-[105] -translate-x-1/2 rounded-full border border-[#2DD4BF]/30 bg-[#0D0D1A] px-4 py-2.5 text-xs font-medium text-[#2DD4BF] shadow-lg max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]">
+          {printToast}
+        </div>
+      )}
+
+      {receiptPreview && (
         <ReceiptPrintPreview
-          html={receiptHtml}
+          html={receiptPreview.html}
           title="Transaksi berhasil!"
-          widthMm={58}
-          onClose={() => setReceiptHtml(null)}
+          widthMm={receiptPreview.widthMm}
+          autoPrint={receiptPreview.autoPrint}
+          autoCloseOnPrint={receiptPreview.autoClose}
+          onClose={() => setReceiptPreview(null)}
         />
       )}
     </div>

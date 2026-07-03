@@ -1,38 +1,63 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Printer, X } from "lucide-react";
 
 export default function ReceiptPrintPreview({
   html,
   title,
   widthMm = 58,
+  autoPrint = false,
+  autoCloseOnPrint = true,
   onClose,
 }: {
   html: string;
   title: string;
   widthMm?: number;
+  autoPrint?: boolean;
+  autoCloseOnPrint?: boolean;
   onClose: () => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const printedRef = useRef(false);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
     win.focus();
     win.print();
-  };
+  }, []);
+
+  const handleIframeLoad = useCallback(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc || !iframeRef.current) return;
+    iframeRef.current.style.height = `${Math.max(doc.documentElement.scrollHeight, 280)}px`;
+
+    if (autoPrint && !printedRef.current) {
+      printedRef.current = true;
+      setTimeout(handlePrint, 400);
+    }
+  }, [autoPrint, handlePrint]);
+
+  useEffect(() => {
+    if (!autoCloseOnPrint) return;
+    const onAfterPrint = () => onClose();
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => window.removeEventListener("afterprint", onAfterPrint);
+  }, [autoCloseOnPrint, onClose]);
 
   return (
     <div className="fixed inset-0 z-[110] flex flex-col bg-[#070711]">
       <div className="flex h-14 flex-shrink-0 items-center justify-between border-b border-white/10 bg-[#0D0D1A] px-4">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-[#2DD4BF]">{title}</p>
-          <p className="text-[10px] text-[#8B8AA0]">Struk thermal {widthMm}mm · tap Cetak</p>
+          <p className="text-[10px] text-[#8B8AA0]">
+            {autoPrint ? "Mencetak otomatis…" : `Struk thermal ${widthMm}mm`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -57,11 +82,7 @@ export default function ReceiptPrintPreview({
             srcDoc={html}
             className="block w-full border-0"
             style={{ minHeight: "320px" }}
-            onLoad={() => {
-              const doc = iframeRef.current?.contentDocument;
-              if (!doc || !iframeRef.current) return;
-              iframeRef.current.style.height = `${Math.max(doc.documentElement.scrollHeight, 280)}px`;
-            }}
+            onLoad={handleIframeLoad}
           />
         </div>
       </div>
@@ -73,7 +94,7 @@ export default function ReceiptPrintPreview({
           className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
           style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
         >
-          <Printer size={16} /> Cetak Struk
+          <Printer size={16} /> Cetak Ulang
         </button>
         <button type="button" onClick={onClose} className="w-full py-2 text-xs text-[#8B8AA0]">
           + Order berikutnya

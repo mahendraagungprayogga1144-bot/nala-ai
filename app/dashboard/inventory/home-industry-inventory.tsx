@@ -3,16 +3,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Search, Trash2, ArrowLeftRight, Edit2, ShoppingBag, AlertTriangle, X, Check, Factory, Package } from "lucide-react";
+import { Plus, Search, Trash2, ArrowLeftRight, Edit2, ShoppingBag, AlertTriangle, X, Check } from "lucide-react";
 import { calcProductHpp, calcMarginPct, calcRecipeHppPerUnit, findRecipeForProduct, fmtRp, stockValue, todayWib, type HiRecipe } from "./home-industry-calc";
+import HomeIndustryHubNav from "./home-industry-hub-nav";
+import HomeIndustryStockAlerts from "./home-industry-stock-alerts";
+import HomeIndustryRecentSales from "./home-industry-recent-sales";
+import FnbEmptyState from "../fnb/components/fnb-empty-state";
 
 type Product = { id: string; name: string; sku: string | null; stock: number; min_stock: number; price: number | null; cost: number | null; category: string | null; photo_url: string | null };
 
 const KATEGORI = ["Bahan Baku", "Bahan Pendukung", "Kemasan", "Produk Jadi", "Alat"];
 const SATUAN_OPTIONS = ["kg", "gram", "liter", "ml", "pcs", "lusin", "loyang", "bungkus", "karung", "botol", "unit"];
-const KATEGORI_COLOR: Record<string, string> = { "Bahan Baku": "#1D9E75", "Bahan Pendukung": "#7F77DD", "Kemasan": "#BA7517", "Produk Jadi": "#2DD4BF", "Alat": "#6366F1" };
-const KATEGORI_BG: Record<string, string> = { "Bahan Baku": "#E1F5EE", "Bahan Pendukung": "#EEEDFE", "Kemasan": "#FAEEDA", "Produk Jadi": "#E1F5EE", "Alat": "#EEEDFE" };
-const KATEGORI_ICON: Record<string, string> = { "Bahan Baku": "🌾", "Bahan Pendukung": "🧂", "Kemasan": "📦", "Produk Jadi": "🍪", "Alat": "🔧" };
+const KATEGORI_COLOR: Record<string, string> = { "Bahan Baku": "#2DD4BF", "Bahan Pendukung": "#8B5CF6", "Kemasan": "#F59E0B", "Produk Jadi": "#EC4899", "Alat": "#6366F1" };
 const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50 text-sm";
 const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 
@@ -72,7 +74,7 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
           </div>
         )}
         <div className="flex gap-2 mt-1">
-          <button onClick={onSave} disabled={formLoading} className="flex-1 py-2 rounded-lg text-[#0A0A12] font-semibold text-sm disabled:opacity-50" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)" }}>
+          <button onClick={onSave} disabled={formLoading} className="flex-1 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>
             {formLoading ? "Menyimpan..." : "Simpan"}
           </button>
           <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
@@ -82,9 +84,11 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
   );
 }
 
-export default function HomeIndustryInventory({ products, recipes, userId, businessId, profitHariIni, penjualanHariIni, hppHariIni }: {
+export default function HomeIndustryInventory({ products, recipes, userId, businessId, profitHariIni, penjualanHariIni, hppHariIni, todaySales, today: todayProp }: {
   products: Product[]; recipes: HiRecipe[]; userId: string; businessId?: string;
   profitHariIni: number; penjualanHariIni: number; hppHariIni: number;
+  todaySales: { description: string | null; amount: number }[];
+  today: string;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -105,7 +109,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
   const [moveType, setMoveType] = useState<"masuk" | "keluar">("masuk");
   const [moveQty, setMoveQty] = useState("");
   const [moveReason, setMoveReason] = useState("terpakai");
-  const [moveDate, setMoveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [moveDate, setMoveDate] = useState(todayProp || todayWib());
   const [moveNote, setMoveNote] = useState("");
   const [moveLoading, setMoveLoading] = useState(false);
   const [sellingProduct, setSellingProduct] = useState<Product | null>(null);
@@ -114,7 +118,8 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
   const [sellLoading, setSellLoading] = useState(false);
   const [sellSuccess, setSellSuccess] = useState<{ nama: string; total: number; laba: number } | null>(null);
   const [formError, setFormError] = useState("");
-  const today = todayWib();
+  const [quickOpen, setQuickOpen] = useState(false);
+  const today = todayProp || todayWib();
 
   const resetForm = () => { setFNama(""); setFStok(""); setFSatuan("kg"); setFHargaBeli(""); setFHargaJual(""); setFMinStok("5"); setFSku(""); setEditProduct(null); };
 
@@ -253,33 +258,46 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
   const nilaiStok = stockValue(products, recipes);
   const produkJadiCount = products.filter(p => p.category === "Produk Jadi").length;
   const kritisCount = products.filter(p => p.stock <= p.min_stock).length;
+  const produkJadi = products.filter(p => p.category === "Produk Jadi");
+  const tanpaResep = produkJadi.filter(p => !findRecipeForProduct(p.name, recipes)).length;
+  const tanpaHarga = produkJadi.filter(p => !p.price || p.price <= 0).length;
+  const rugiCount = produkJadi.filter(p => {
+    const hpp = calcProductHpp(p, recipes);
+    return p.price && hpp > 0 && hpp > p.price;
+  }).length;
 
   return (
-    <div className="pb-6">
-      {/* Panduan 3 langkah */}
-      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] p-3" style={{ background: "#0D0D1A" }}>
-        {[
-          { step: "1", label: "Stok", sub: "Bahan + harga beli", href: "/dashboard/inventory", active: true, icon: Package },
-          { step: "2", label: "Produksi", sub: "Resep + catat produksi", href: "/dashboard/produksi", active: false, icon: Factory },
-          { step: "3", label: "Jual", sub: "Tombol Jual di bawah", href: null, active: false, icon: ShoppingBag },
-        ].map(s => {
-          const inner = (
-            <>
-              <s.icon size={14} className="mx-auto mb-1" style={{ color: s.active ? "#2DD4BF" : "#5A5B7A" }} />
-              <p className="text-[10px] font-bold" style={{ color: s.active ? "#2DD4BF" : "#5A5B7A" }}>{s.step}</p>
-              <p className="text-[11px] font-medium text-[#F0EFF8]">{s.label}</p>
-              <p className="text-[9px] leading-tight text-[#5A5B7A]">{s.sub}</p>
-            </>
-          );
-          return s.href ? (
-            <Link key={s.step} href={s.href} className={"rounded-xl border px-2 py-2 text-center transition-colors hover:border-[#2DD4BF]/30 " + (s.active ? "border-[#2DD4BF]/30 bg-[#2DD4BF]/5" : "border-white/[0.06] bg-white/[0.02]")}>
-              {inner}
-            </Link>
-          ) : (
-            <div key={s.step} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-center">{inner}</div>
-          );
-        })}
-      </div>
+    <div className="pb-24 md:pb-6">
+      <HomeIndustryHubNav />
+
+      <p className="mb-4 rounded-xl border border-white/[0.06] px-3 py-2 text-[11px] leading-relaxed text-[#5A5B7A]" style={{ background: "#0D0D1A" }}>
+        <span className="text-[#2DD4BF] font-medium">Alur:</span> Isi stok bahan → buat resep di Produksi → catat produksi → jual produk jadi di sini (tombol <strong className="text-[#F0EFF8]">Jual</strong>).
+      </p>
+
+      <HomeIndustryStockAlerts products={products} />
+
+      {(tanpaResep > 0 || rugiCount > 0 || tanpaHarga > 0) && (
+        <div className="mb-5 space-y-2">
+          {tanpaResep > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-[#F59E0B]/25 bg-[#F59E0B]/5 px-3 py-2.5">
+              <AlertTriangle size={14} className="text-[#F59E0B] mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] text-[#F59E0B]">{tanpaResep} produk jadi belum punya resep — <Link href="/dashboard/produksi" className="underline text-[#2DD4BF]">buat di Produksi</Link> (nama harus sama persis).</p>
+            </div>
+          )}
+          {tanpaHarga > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+              <AlertTriangle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] text-amber-300">{tanpaHarga} produk jadi belum ada harga jual — edit produk & isi harga jual.</p>
+            </div>
+          )}
+          {rugiCount > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-[#EC4899]/25 bg-[#EC4899]/5 px-3 py-2.5">
+              <AlertTriangle size={14} className="text-[#EC4899] mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] text-[#EC4899]">{rugiCount} produk dijual rugi (HPP &gt; harga jual) — naikkan harga atau kurangi bahan.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}><p className="text-xs text-[#8B8AA0] mb-1">Total item</p><p className="text-lg font-mono font-semibold text-[#38BDF8]">{products.length}</p></div>
@@ -292,7 +310,10 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
           <p className="text-[10px] text-[#5A5B7A] mt-0.5">Jual {fmtRp(penjualanHariIni)} · HPP {fmtRp(hppHariIni)}</p>
         </div>
       </div>
-      <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl overflow-hidden">
+
+      <HomeIndustryRecentSales sales={todaySales} today={today} />
+
+      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0F0F1A]/90 backdrop-blur-sm">
         <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3">
           <div className="flex-1 relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
@@ -324,11 +345,26 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
                   fSku={fSku} setFSku={setFSku} formLoading={formLoading}
                   onSave={handleSave} onCancel={() => { resetForm(); setShowForm(null); }} />
               )}
-              {items.length === 0 && !isShowing
-                ? <p className="text-xs text-[#5A5B6A] text-center py-4">{"Belum ada " + kat.toLowerCase() + "."}</p>
-                : items.map(p => {
-                  const bg = KATEGORI_BG[p.category || ""] || "#F1EFE8";
-                  const icon = KATEGORI_ICON[p.category || ""] || "📦";
+              {items.length === 0 && !isShowing ? (
+                kat === "Produk Jadi" ? (
+                  <FnbEmptyState
+                    icon={ShoppingBag}
+                    title="Belum ada produk jadi"
+                    subtitle="Catat produksi di modul Produksi dulu — produk otomatis masuk stok di sini."
+                    actionLabel="Ke Produksi"
+                    actionHref="/dashboard/produksi"
+                  />
+                ) : (
+                  <FnbEmptyState
+                    icon={Plus}
+                    title={"Belum ada " + kat.toLowerCase()}
+                    subtitle="Tambah bahan biar bisa dipakai di resep produksi."
+                    actionLabel={"Tambah " + kat.split(" ")[0].toLowerCase()}
+                    onAction={() => { resetForm(); setFKategori(kat); setShowForm(kat); }}
+                  />
+                )
+              ) : items.map(p => {
+                  const color = KATEGORI_COLOR[p.category || ""] || "#8B8AA0";
                   const isKritis = p.stock <= p.min_stock;
                   const isProdukJadi = p.category === "Produk Jadi";
                   const hpp = isProdukJadi ? calcProductHpp(p, recipes) : Number(p.cost || 0);
@@ -342,7 +378,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
                       <div key={p.id} className="px-4 py-3 border-b border-white/[0.04] last:border-0">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg" style={{ background: bg }}>{icon}</div>
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ background: color + "18", color }}>{p.name.slice(0, 1).toUpperCase()}</div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <p className="text-sm font-medium">{p.name}</p>
@@ -406,7 +442,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
                   return (
                     <div key={p.id} className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg" style={{ background: bg }}>{icon}</div>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ background: color + "18", color }}>{p.name.slice(0, 1).toUpperCase()}</div>
                         <div>
                           <div className="flex items-center gap-2 mb-0.5">
                             <p className="text-sm font-medium">{p.name}</p>
@@ -469,7 +505,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
             <div className="mb-2"><label className="text-[10px] text-[#8B8AA0] mb-1 block">Tanggal</label><input className={inputCls} type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)} style={{ colorScheme: "dark" }} /></div>
             <input className={inputCls + " mb-3"} placeholder="Catatan (opsional)" value={moveNote} onChange={e => setMoveNote(e.target.value)} />
             <p className="text-[10px] text-[#5A5B6A] mb-3">Otomatis tercatat di Keuangan Bisnis</p>
-            <button onClick={handleMove} disabled={moveLoading} className="w-full py-2.5 rounded-lg text-[#0A0A12] font-semibold text-sm disabled:opacity-50" style={{ background: "linear-gradient(to right, #38BDF8, #8B5CF6)" }}>{moveLoading ? "Menyimpan..." : "Simpan"}</button>
+            <button onClick={handleMove} disabled={moveLoading} className="w-full py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50" style={BTN_GRAD}>{moveLoading ? "Menyimpan..." : "Simpan"}</button>
           </div>
         </div>
       )}
@@ -528,9 +564,50 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
               <div className="flex justify-between"><span className="text-[#5A5B7A]">Total jual</span><span className="font-mono text-[#F0EFF8]">{fmtRp(sellSuccess.total)}</span></div>
               <div className="flex justify-between"><span className="text-[#5A5B7A]">Laba</span><span className="font-mono text-[#2DD4BF]">{fmtRp(sellSuccess.laba)}</span></div>
             </div>
-            <button type="button" onClick={() => setSellSuccess(null)} className="w-full rounded-xl py-3 text-sm font-semibold" style={BTN_GRAD}>
+            <button type="button" onClick={() => setSellSuccess(null)} className="w-full rounded-xl py-3 text-sm font-semibold mb-2" style={BTN_GRAD}>
               + Jual lagi
             </button>
+            <Link href="/dashboard/keuangan-bisnis" className="block w-full rounded-xl border border-white/10 py-2.5 text-xs text-[#8B8AA0] hover:text-[#2DD4BF] transition-colors">
+              Lihat di Keuangan Bisnis →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setQuickOpen(true)}
+        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
+        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
+        aria-label="Tambah bahan"
+      >
+        <Plus size={24} />
+      </button>
+
+      {quickOpen && (
+        <div className="fixed inset-0 z-50 md:hidden bg-black/60" onClick={() => setQuickOpen(false)}>
+          <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl border border-white/10 p-5 pb-8" style={{ background: "#0D0D1A" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-medium text-[#F0EFF8]">Tambah cepat</p>
+              <button type="button" onClick={() => setQuickOpen(false)} className="text-[#8B8AA0]"><X size={18} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {KATEGORI.filter(k => k !== "Produk Jadi").map(kat => {
+                const c = KATEGORI_COLOR[kat] || "#8B8AA0";
+                return (
+                  <button
+                    key={kat}
+                    type="button"
+                    onClick={() => { resetForm(); setFKategori(kat); setShowForm(kat); setActiveTab(kat); setQuickOpen(false); }}
+                    className="rounded-xl border px-3 py-3 text-left text-xs font-medium transition-colors hover:border-white/20"
+                    style={{ borderColor: c + "40", background: c + "10", color: c }}
+                  >
+                    {kat}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-[10px] text-[#5A5B7A] text-center">Produk jadi otomatis dari modul Produksi</p>
           </div>
         </div>
       )}

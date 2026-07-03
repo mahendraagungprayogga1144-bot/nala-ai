@@ -51,20 +51,31 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   let profitHariIni = 0;
   let penjualanHariIni = 0;
   let hppHariIni = 0;
+  let todaySales: { description: string | null; amount: number }[] = [];
 
   if (business?.type === "homeindustry" && business.id) {
-    const [{ data: recipesData }, { data: todayTx }] = await Promise.all([
+    const [{ data: recipesData }, { data: todayTx }, { data: salesData }] = await Promise.all([
       supabase
         .from("recipes")
         .select("id, name, yield_quantity, recipe_ingredients(quantity, products(name, cost))")
         .eq("business_id", business.id),
       supabase
         .from("transactions")
-        .select("type, category, amount")
+        .select("type, category, amount, description")
         .eq("business_id", business.id)
         .eq("transaction_date", today),
+      supabase
+        .from("transactions")
+        .select("description, amount")
+        .eq("business_id", business.id)
+        .eq("transaction_date", today)
+        .eq("type", "pemasukan")
+        .eq("category", "Penjualan")
+        .order("created_at", { ascending: false })
+        .limit(5),
     ]);
     homeRecipes = (recipesData || []) as unknown as HiRecipe[];
+    todaySales = salesData || [];
     penjualanHariIni = (todayTx || [])
       .filter(t => t.type === "pemasukan" && (t.category === "Penjualan" || t.category === "Penjualan Produk"))
       .reduce((s, t) => s + Number(t.amount || 0), 0);
@@ -135,7 +146,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   return (
     <div className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">{business?.type === "kuliner" ? "Stok Bahan" : "Inventory"}</h1>
+        <h1 className="text-2xl font-semibold">{business?.type === "kuliner" ? "Stok Bahan" : business?.type === "homeindustry" ? "Stok & Penjualan" : "Inventory"}</h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
       {business?.type === "kuliner" ? (
@@ -173,6 +184,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             profitHariIni={profitHariIni}
             penjualanHariIni={penjualanHariIni}
             hppHariIni={hppHariIni}
+            todaySales={todaySales}
+            today={today}
           />
         </div>
       ) : business?.type === "kuliner" ? (

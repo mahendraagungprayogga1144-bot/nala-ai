@@ -4,6 +4,8 @@ import { getConfig } from "../inventory/business-config";
 import RecipeList from "./recipe-list";
 import ProductionForm from "./production-form";
 import { Package, Wallet, TrendingUp, BarChart3 } from "lucide-react";
+import HomeIndustryHubNav from "../inventory/home-industry-hub-nav";
+import { todayWib } from "../inventory/home-industry-calc";
 
 export default async function ProduksiPage() {
   const supabase = await createClient();
@@ -42,14 +44,32 @@ export default async function ProduksiPage() {
   const totalProduksi = productionLogs?.length || 0;
   const totalBiayaProduksi = productionLogs?.reduce((s, l) => s + Number(l.total_material_cost || 0), 0) || 0;
   const totalProdukJadi = productionLogs?.filter(l => l.status === "selesai").reduce((s, l) => s + Number(l.quantity_produced || 0), 0) || 0;
-  const totalPendapatan = salesData?.reduce((s, m) => s + Math.abs(Number(m.profit_loss || 0)), 0) || 0;
-  const totalLaba = salesData?.reduce((s, m) => s + Number(m.profit_loss || 0), 0) || 0;
+
+  let totalLaba = salesData?.reduce((s, m) => s + Number(m.profit_loss || 0), 0) || 0;
+  let labaLabel = "Total Laba";
+
+  if (business?.type === "homeindustry" && business.id) {
+    const today = todayWib();
+    const { data: todayTx } = await supabase
+      .from("transactions")
+      .select("type, category, amount")
+      .eq("business_id", business.id)
+      .eq("transaction_date", today);
+    const penjualan = (todayTx || [])
+      .filter(t => t.type === "pemasukan" && (t.category === "Penjualan" || t.category === "Penjualan Produk"))
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    const hpp = (todayTx || [])
+      .filter(t => t.type === "pengeluaran" && t.category === "HPP")
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    totalLaba = penjualan - hpp;
+    labaLabel = "Profit Hari Ini";
+  }
 
   const kpis = [
     { label: "Total Produksi", value: totalProduksi, icon: Package, color: "#38BDF8" },
     { label: "Total Biaya", value: `Rp${totalBiayaProduksi.toLocaleString("id-ID")}`, icon: Wallet, color: "#EC4899" },
     { label: "Produk Jadi", value: totalProdukJadi, icon: BarChart3, color: "#2DD4BF" },
-    { label: "Total Laba", value: `Rp${totalLaba.toLocaleString("id-ID")}`, icon: TrendingUp, color: "#8B5CF6" },
+    { label: labaLabel, value: `Rp${totalLaba.toLocaleString("id-ID")}`, icon: TrendingUp, color: "#8B5CF6" },
   ];
 
   const STATUS_COLOR: Record<string, string> = { draft: "#8B8AA0", diproses: "#F59E0B", selesai: "#2DD4BF" };
@@ -60,7 +80,13 @@ export default async function ProduksiPage() {
         <h1 className="text-2xl font-semibold">Produksi</h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
       </div>
-      <p className="text-[#8B8AA0] mb-6">Kelola resep, produksi, dan hitung HPP otomatis.</p>
+      <p className="text-[#8B8AA0] mb-6">
+        {business?.type === "homeindustry"
+          ? "Buat resep, catat produksi, lalu jual produk jadi di Stok & Penjualan."
+          : "Kelola resep, produksi, dan hitung HPP otomatis."}
+      </p>
+
+      {business?.type === "homeindustry" && <HomeIndustryHubNav />}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {kpis.map((k) => (
@@ -79,7 +105,11 @@ export default async function ProduksiPage() {
           <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#38BDF8]/20 text-[#38BDF8] text-xs flex items-center justify-center flex-shrink-0">1</span>Beli bahan baku → masuk <a href="/dashboard/inventory" className="text-[#38BDF8] underline">Inventory</a></li>
           <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6] text-xs flex items-center justify-center flex-shrink-0">2</span>Buat resep + daftar bahan</li>
           <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#2DD4BF]/20 text-[#2DD4BF] text-xs flex items-center justify-center flex-shrink-0">3</span>Catat produksi → stok bahan berkurang, HPP dihitung otomatis</li>
-          <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#EC4899]/20 text-[#EC4899] text-xs flex items-center justify-center flex-shrink-0">4</span>Set status Selesai → produk jadi otomatis masuk Inventory</li>
+          <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#EC4899]/20 text-[#EC4899] text-xs flex items-center justify-center flex-shrink-0">4</span>
+            {business?.type === "homeindustry"
+              ? <>Set status Selesai → jual di <a href="/dashboard/inventory" className="text-[#2DD4BF] underline">Stok & Penjualan</a> (tombol Jual)</>
+              : <>Set status Selesai → produk jadi otomatis masuk Inventory</>}
+          </li>
         </ol>
       </div>
 

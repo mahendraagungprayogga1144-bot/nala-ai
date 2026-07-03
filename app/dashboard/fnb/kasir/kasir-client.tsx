@@ -21,6 +21,8 @@ import { getKasirPrintSettings } from "../lib/kasir-print-settings";
 import { isPrinterSetupDone, saveLastReceipt } from "../lib/last-receipt-storage";
 import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
 import { KASIR } from "../lib/kasir-theme";
+import KasirTablePicker from "../components/kasir-table-picker";
+import { buildOrderCatatan } from "../lib/kasir-order-meta";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
 type Checkin = { id: string; tanggal: string; jam_masuk: string; jam_keluar: string | null };
@@ -41,6 +43,8 @@ type OrderPanelProps = {
   setMetodeBayar: (v: string) => void;
   bayar: string;
   setBayar: (v: string) => void;
+  meja: string;
+  setMeja: (v: string) => void;
   catatan: string;
   setCatatan: (v: string) => void;
   total: number;
@@ -57,7 +61,7 @@ type OrderPanelProps = {
 
 function OrderPanel({
   cart, subtotal, totalHpp, diskon, setDiskon, metodeBayar, setMetodeBayar,
-  bayar, setBayar, catatan, setCatatan, total, laba, margin, loading, onProses, onReset,
+  bayar, setBayar, meja, setMeja, catatan, setCatatan, total, laba, margin, loading, onProses, onReset,
   onRemoveItem, onAddItem, onDecItem, compact,
 }: OrderPanelProps) {
   const bayarNum = Number(bayar) || 0;
@@ -140,8 +144,8 @@ function OrderPanel({
       )}
 
       <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
-        <p className="text-[10px] text-[#5A5B7A] tracking-widest uppercase mb-2">Catatan</p>
-        <input type="text" placeholder="Meja 3, extra pedas..." value={catatan} onChange={e => setCatatan(e.target.value)}
+        <KasirTablePicker meja={meja} onChange={setMeja} compact={compact} />
+        <input type="text" placeholder="Catatan tambahan (extra pedas...)" value={catatan} onChange={e => setCatatan(e.target.value)}
           className="w-full text-xs px-3 py-2 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
       </div>
 
@@ -173,6 +177,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   const [activeTab, setActiveTab] = useState("Semua");
   const [diskon, setDiskon] = useState("");
   const [metodeBayar, setMetodeBayar] = useState("tunai");
+  const [meja, setMeja] = useState("");
   const [catatan, setCatatan] = useState("");
   const [bayar, setBayar] = useState("");
   const [loading, setLoading] = useState(false);
@@ -233,7 +238,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   const margin = total > 0 ? Math.round(laba / total * 100) : 0;
   const dayMargin = omzetHariIni > 0 ? Math.round(labaHariIni / omzetHariIni * 100) : 0;
 
-  const resetOrder = () => { setCart([]); setDiskon(""); setBayar(""); setCatatan(""); setMetodeBayar("tunai"); setCartOpen(false); };
+  const resetOrder = () => { setCart([]); setDiskon(""); setBayar(""); setMeja(""); setCatatan(""); setMetodeBayar("tunai"); setCartOpen(false); };
 
   const triggerReceiptPrint = (html: string) => {
     const plan = planReceiptPrint();
@@ -276,11 +281,12 @@ export default function KasirClient({ menus, products, employees, userId, busine
     }
 
     setLoading(true);
+    const orderCatatan = buildOrderCatatan(meja, catatan);
 
     const { data: order, error } = await supabase.from("orders").insert({
       user_id: userId, business_id: businessId,
       total, diskon: diskonNum, hpp: totalHpp, laba,
-      metode_bayar: metodeBayar, catatan: catatan || null,
+      metode_bayar: metodeBayar, catatan: orderCatatan,
       order_date: today,
     }).select("id").single();
 
@@ -315,7 +321,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
       diskon: diskonNum,
       total,
       metodeBayar,
-      catatan: catatan || null,
+      catatan: orderCatatan,
       bayar: metodeBayar === "tunai" && bayarNum > 0 ? bayarNum : undefined,
       kembali: kembali > 0 ? kembali : undefined,
     }, widthMm);
@@ -330,7 +336,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
 
   const orderPanelProps: OrderPanelProps = {
     cart, subtotal, totalHpp, diskon, setDiskon, metodeBayar, setMetodeBayar,
-    bayar, setBayar, catatan, setCatatan, total, laba, margin, loading,
+    bayar, setBayar, meja, setMeja, catatan, setCatatan, total, laba, margin, loading,
     onProses: handleProses, onReset: resetOrder,
     onRemoveItem: (id) => setCart(prev => prev.filter(x => x.menu.id !== id)),
     onAddItem: addToCart, onDecItem: removeFromCart,

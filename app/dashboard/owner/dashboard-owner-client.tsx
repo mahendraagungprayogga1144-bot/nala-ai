@@ -15,6 +15,8 @@ import {
 } from "recharts";
 import type { TopProduct, RecentTransaction } from "./page";
 import OwnerKasirSummary, { type KasirTodaySummary } from "./owner-kasir-summary";
+import OwnerKasirLive, { type LiveKasirRow } from "./owner-kasir-live";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
 
 type Business = {
   id: string; name: string; type: string;
@@ -49,13 +51,15 @@ function fmtRp(n: number) {
 function fmtFull(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 
 export default function DashboardOwnerClient({
-  businesses, topProducts, recentTransactions, kasirSummary, kasirBusinessName, bulan, tahun, userId, userName,
+  businesses, topProducts, recentTransactions, kasirSummary, kasirBusinessName, liveKasir, dayCloseData, bulan, tahun, userId, userName,
 }: {
   businesses: Business[];
   topProducts: TopProduct[];
   recentTransactions: RecentTransaction[];
   kasirSummary: KasirTodaySummary | null;
   kasirBusinessName?: string;
+  liveKasir: LiveKasirRow[] | null;
+  dayCloseData: DayCloseData | null;
   bulan: number; tahun: number; userId: string; userName: string;
 }) {
   const router = useRouter();
@@ -400,8 +404,11 @@ export default function DashboardOwnerClient({
           </div>
         </div>
 
+        {liveKasir && liveKasir.length > 0 && (
+          <OwnerKasirLive rows={liveKasir} businessName={kasirBusinessName} />
+        )}
         {kasirSummary && (
-          <OwnerKasirSummary summary={kasirSummary} businessName={kasirBusinessName} />
+          <OwnerKasirSummary summary={kasirSummary} businessName={kasirBusinessName} dayCloseData={dayCloseData} />
         )}
 
         {/* Row bawah */}

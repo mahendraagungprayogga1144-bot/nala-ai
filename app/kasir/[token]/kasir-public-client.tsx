@@ -16,6 +16,8 @@ import { executeSilentPrint, planReceiptPrint } from "@/app/dashboard/fnb/lib/tr
 import { getKasirPrintSettings } from "@/app/dashboard/fnb/lib/kasir-print-settings";
 import { isPrinterSetupDone, saveLastReceipt } from "@/app/dashboard/fnb/lib/last-receipt-storage";
 import { KASIR, kasirBtnGrad, kasirFonts, kasirShell } from "@/app/dashboard/fnb/lib/kasir-theme";
+import KasirTablePicker from "@/app/dashboard/fnb/components/kasir-table-picker";
+import { buildOrderCatatan } from "@/app/dashboard/fnb/lib/kasir-order-meta";
 
 type Menu = FnbMenu;
 type Employee = { id: string; nama: string; jabatan: string | null; kasir_token: string; webauthn_credential_id: string | null };
@@ -49,6 +51,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   const [activeTab, setActiveTab] = useState("Semua");
   const [diskon, setDiskon] = useState("");
   const [metodeBayar, setMetodeBayar] = useState("tunai");
+  const [meja, setMeja] = useState("");
   const [catatan, setCatatan] = useState("");
   const [bayar, setBayar] = useState("");
   const [loading, setLoading] = useState(false);
@@ -282,11 +285,12 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
     }
 
     setLoading(true);
+    const orderCatatan = buildOrderCatatan(meja, catatan);
     const { data: order, error } = await supabase.from("orders").insert({
       user_id: employee.id,
       business_id: business.id,
       total, diskon: discNum, hpp: totalHpp, laba,
-      metode_bayar: metodeBayar, catatan: catatan || null,
+      metode_bayar: metodeBayar, catatan: orderCatatan,
       order_date: today,
     }).select("id").single();
 
@@ -326,7 +330,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       diskon: discNum,
       total,
       metodeBayar,
-      catatan: catatan || null,
+      catatan: orderCatatan,
       bayar: metodeBayar === "tunai" && bayarNum > 0 ? bayarNum : undefined,
       kembali: kembali > 0 ? kembali : undefined,
     }, widthMm);
@@ -337,7 +341,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
     triggerReceiptPrint(receipt);
     setLoading(false);
     setCartOpen(false);
-    setCart({}); setDiskon(""); setBayar(""); setCatatan("");
+    setCart({}); setDiskon(""); setBayar(""); setMeja(""); setCatatan("");
   };
 
   const S = kasirShell;
@@ -574,7 +578,10 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
                   </button>
                 ))}
               </div>
-              <input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Catatan (meja, nama...)" style={{ width: "100%", fontSize: "13px", padding: "10px 12px", borderRadius: "10px", border: "0.5px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#F0EFF8", fontFamily: "'Space Grotesk', sans-serif", outline: "none", marginBottom: "10px" }} />
+              <div style={{ marginBottom: "10px" }}>
+                <KasirTablePicker meja={meja} onChange={setMeja} compact />
+                <input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Catatan tambahan..." style={{ width: "100%", fontSize: "13px", padding: "10px 12px", borderRadius: "10px", border: "0.5px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#F0EFF8", fontFamily: "'Space Grotesk', sans-serif", outline: "none" }} />
+              </div>
               {metodeBayar === "tunai" && (
                 <div style={{ marginBottom: "10px" }}>
                   <div style={{ fontSize: "10px", color: "#5A5B7A", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Bayar tunai</div>
@@ -590,7 +597,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
               <button onClick={handleProses} disabled={loading || !cartItems.length} style={{ ...btnGrad, padding: "15px", fontSize: "14px", opacity: loading || !cartItems.length ? 0.35 : 1, cursor: loading || !cartItems.length ? "not-allowed" : "pointer" }}>
                 {loading ? "Memproses..." : `Proses — Rp${total.toLocaleString("id-ID")}`}
               </button>
-              <button onClick={() => { setCart({}); setDiskon(""); setBayar(""); setCatatan(""); setCartOpen(false); }} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "0.5px solid rgba(236,72,153,.2)", background: "rgba(236,72,153,.04)", color: "#EC4899", fontSize: "12px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>Reset order</button>
+              <button onClick={() => { setCart({}); setDiskon(""); setBayar(""); setMeja(""); setCatatan(""); setCartOpen(false); }} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "0.5px solid rgba(236,72,153,.2)", background: "rgba(236,72,153,.04)", color: "#EC4899", fontSize: "12px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>Reset order</button>
             </div>
           </div>
         </div>

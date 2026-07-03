@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { formatTxTimeWib } from "@/lib/finance/sort-transactions";
 import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
+import OwnerDayCloseBar from "./owner-day-close-bar";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
 
 export type KasirRecentOrder = {
   id: string;
@@ -8,6 +10,8 @@ export type KasirRecentOrder = {
   created_at: string;
   kasirName: string;
   itemsSummary: string;
+  mejaLabel?: string | null;
+  catatan?: string | null;
 };
 
 export type KasirTodaySummary = {
@@ -20,9 +24,11 @@ export type KasirTodaySummary = {
 export default function OwnerKasirSummary({
   summary,
   businessName,
+  dayCloseData,
 }: {
   summary: KasirTodaySummary;
   businessName?: string;
+  dayCloseData?: DayCloseData | null;
 }) {
   return (
     <div className="dashboard-card dashboard-card-hover mb-4 overflow-hidden p-0">
@@ -62,9 +68,17 @@ export default function OwnerKasirSummary({
                   {o.kasirName.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-200">{o.itemsSummary || "Order"}</p>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <p className="truncate text-sm font-medium text-slate-200">{o.itemsSummary || "Order"}</p>
+                    {o.mejaLabel && (
+                      <span className="shrink-0 rounded-md bg-[#F59E0B]/15 px-1.5 py-0.5 text-[9px] font-medium text-[#F59E0B]">
+                        {o.mejaLabel}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-slate-500">
                     {o.kasirName} · {shortOrderNo(o.id)} · {formatTxTimeWib(o.created_at)} WIB
+                    {o.catatan ? ` · ${o.catatan}` : ""}
                   </p>
                 </div>
                 <p className="shrink-0 font-mono text-sm font-semibold text-[#2DD4BF]">
@@ -81,6 +95,8 @@ export default function OwnerKasirSummary({
         >
           Lihat semua transaksi kasir →
         </Link>
+
+        {dayCloseData && <OwnerDayCloseBar data={dayCloseData} />}
       </div>
     </div>
   );

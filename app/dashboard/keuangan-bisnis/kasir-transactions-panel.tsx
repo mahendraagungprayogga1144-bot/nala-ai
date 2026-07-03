@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
 import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import { KASIR } from "@/app/dashboard/fnb/lib/kasir-theme";
+import { parseMejaFromCatatan, mejaLabel } from "@/app/dashboard/fnb/lib/kasir-order-meta";
 import KasirExportBar from "./components/kasir-export-bar";
 import type { KasirExportOrder } from "./lib/kasir-export-types";
 
@@ -132,6 +133,8 @@ export default function KasirTransactionsPanel({
           <div className="flex flex-col gap-3">
             {filtered.map(o => {
               const summary = itemsSummary(o);
+              const parsed = parseMejaFromCatatan(o.catatan);
+              const meja = mejaLabel(parsed.meja);
               return (
                 <div key={o.id} className="rounded-xl border border-white/[0.08] bg-[#0A0A14]/80 px-3 py-3 sm:px-4">
                   <div className="flex items-start justify-between gap-2">
@@ -139,6 +142,9 @@ export default function KasirTransactionsPanel({
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="rounded-md bg-[#2DD4BF]/15 px-1.5 py-0.5 text-[9px] font-medium text-[#2DD4BF]">Kasir</span>
                         <span className="rounded-md bg-[#A78BFA]/15 px-1.5 py-0.5 text-[9px] font-medium text-[#A78BFA]">{o.kasirName}</span>
+                        {meja && (
+                          <span className="rounded-md bg-[#F59E0B]/15 px-1.5 py-0.5 text-[9px] font-medium text-[#F59E0B]">{meja}</span>
+                        )}
                         <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] text-[#8B8AA0]">
                           {METODE[o.metode_bayar || ""] || o.metode_bayar || "—"}
                         </span>
@@ -147,7 +153,7 @@ export default function KasirTransactionsPanel({
                       <p className="mt-1 truncate text-sm text-[#FAFAFE]">{summary || "Order"}</p>
                       <p className="mt-0.5 text-[10px] text-[#8B8AA0]">
                         {formatTxDateLabel(o.order_date)} · {formatTxTimeWib(o.created_at)} WIB
-                        {o.catatan ? ` · ${o.catatan}` : ""}
+                        {parsed.note ? ` · ${parsed.note}` : !meja && o.catatan ? ` · ${o.catatan}` : ""}
                       </p>
                     </div>
                     <div className="flex-shrink-0 text-right">

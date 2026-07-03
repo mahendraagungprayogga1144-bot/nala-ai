@@ -2,6 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import {
+  directKasirAnswer,
+  fetchKasirChatSnapshot,
+  isKasirQuestion,
+  kasirSnapshotToContext,
+} from "@/lib/chat/kasir-snapshot";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -58,6 +64,9 @@ export async function POST(req: Request) {
 
   const business = businesses?.find(b => b.id === activeBusinessId) || businesses?.[0] || null;
   const businessId = business?.id;
+  const kulinerBusiness = businesses?.find(b => b.type === "kuliner") || null;
+  const kasirBusinessId = business?.type === "kuliner" ? businessId : kulinerBusiness?.id;
+  const kasirBusinessName = business?.type === "kuliner" ? business?.name : kulinerBusiness?.name;
   const isPertanian = business?.type === "pertanian" || context === "pertanian";
   const unitLabel = isPertanian ? "kg" : "pcs";
 
@@ -81,6 +90,21 @@ export async function POST(req: Request) {
     ? `Daftar stok/inventory user saat ini: ${JSON.stringify(products)}${agriContext}`
     : `User belum punya produk apapun di sistem.${agriContext}`;
 
+  let kulinerContext = "";
+  let kasirSnapshot = null;
+  if (kasirBusinessId && kasirBusinessName) {
+    kasirSnapshot = await fetchKasirChatSnapshot(supabase, kasirBusinessId, kasirBusinessName);
+    kulinerContext = kasirSnapshotToContext(kasirSnapshot);
+  }
+
+  const lastUserMsg = [...chatHistory].reverse().find((m: { role: string }) => m.role === "user");
+  if (kasirSnapshot && lastUserMsg && isKasirQuestion(chatHistory)) {
+    const quick = directKasirAnswer(kasirSnapshot, lastUserMsg.content);
+    if (quick) {
+      return NextResponse.json({ reply: quick });
+    }
+  }
+
   const pertanianPrompt = isPertanian ? `
 Kamu juga ahli pertanian Indonesia. Bantu hitung estimasi keuntungan panen, kebutuhan pupuk/pestisida, waktu panen, HPP, margin, dan rekomendasi komoditas.
 Satuan default untuk stok pertanian adalah kg/ton/karung, BUKAN pcs.
@@ -103,6 +127,10 @@ Aturan nentuin scope (pribadi vs bisnis):
 
 Kalau user nyebut nambah/kurang stok atau produk baru, gunakan tool kelola_stok.
 Kalau user nanya soal stok yang ada, jawab langsung pakai data berikut, jangan pakai tool: ${productContext}
+${kulinerContext ? `
+PENTING — DATA KASIR (WAJIB DIPAKAI):
+Kamu PUNYA akses real-time ke data kasir F&B user. JANGAN PERNAH bilang "belum punya akses", "nggak bisa lihat kasir", atau suruh user input manual kalau pertanyaannya soal omzet/order/kasir.
+Jawab langsung dari data ini tanpa tool:${kulinerContext}` : ""}
 Kalau user cuma nanya atau ngobrol biasa, jawab singkat dan jelas.`,
     tools: [catatTransaksiTool, kelolaStokTool],
     messages: chatHistory,

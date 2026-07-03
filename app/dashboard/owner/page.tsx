@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import DashboardOwnerClient from "./dashboard-owner-client";
 import type { KasirTodaySummary } from "./owner-kasir-summary";
+import type { LiveKasirRow } from "./owner-kasir-live";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
+import { computeKasirKpis } from "@/app/dashboard/keuangan-bisnis/lib/kasir-export";
+import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
+import { parseMejaFromCatatan, mejaLabel } from "@/app/dashboard/fnb/lib/kasir-order-meta";
 
 export type TopProduct = { id: string; name: string; sold: number; revenue: number; emoji: string };
 export type RecentTransaction = {
@@ -307,45 +312,128 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
 
   let kasirSummary: KasirTodaySummary | null = null;
   let kasirBusinessName: string | undefined;
+  let liveKasir: LiveKasirRow[] | null = null;
+  let dayCloseData: DayCloseData | null = null;
   const activeKuliner = businesses.find(b => b.type === "kuliner");
 
   if (activeKuliner) {
     kasirBusinessName = activeKuliner.name;
-    const [{ data: todayOrders }, { data: employees }, { data: ownerProfile }] = await Promise.all([
+    const [{ data: todayOrders }, { data: employees }, { data: ownerProfile }, { data: todayCheckins }] = await Promise.all([
       supabase
         .from("orders")
-        .select("id, total, laba, created_at, user_id, order_items(qty, menus(nama))")
+        .select("id, total, laba, diskon, metode_bayar, catatan, created_at, user_id, order_date, order_items(qty, menus(nama))")
         .eq("business_id", activeKuliner.id)
         .eq("order_date", today)
-        .order("created_at", { ascending: false })
-        .limit(8),
+        .order("created_at", { ascending: false }),
       supabase.from("employees").select("id, nama").eq("business_id", activeKuliner.id),
       supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
+      supabase
+        .from("checkins")
+        .select("employee_id, jam_masuk, jam_keluar")
+        .eq("business_id", activeKuliner.id)
+        .eq("tanggal", today),
     ]);
 
     const nameMap: Record<string, string> = { [user!.id]: ownerProfile?.full_name || "Owner" };
     employees?.forEach(e => { nameMap[e.id] = e.nama; });
 
     const orders = todayOrders || [];
+    const ordersByUser: Record<string, { count: number; omzet: number }> = {};
+    orders.forEach(o => {
+      const uid = o.user_id;
+      if (!ordersByUser[uid]) ordersByUser[uid] = { count: 0, omzet: 0 };
+      ordersByUser[uid].count++;
+      ordersByUser[uid].omzet += Number(o.total || 0);
+    });
+
+    const checkinByEmp: Record<string, { jamMasuk: string; isActive: boolean }> = {};
+    (todayCheckins || []).forEach(c => {
+      const active = !c.jam_keluar;
+      const prev = checkinByEmp[c.employee_id];
+      if (!prev || active) {
+        checkinByEmp[c.employee_id] = { jamMasuk: c.jam_masuk, isActive: active };
+      }
+    });
+
+    const liveRows: LiveKasirRow[] = [];
+    employees?.forEach(e => {
+      const chk = checkinByEmp[e.id];
+      const stats = ordersByUser[e.id];
+      if (!chk && !stats) return;
+      liveRows.push({
+        employeeId: e.id,
+        nama: e.nama,
+        jamMasuk: chk?.jamMasuk || "—",
+        orderCount: stats?.count || 0,
+        omzet: stats?.omzet || 0,
+        isActive: chk?.isActive || false,
+      });
+    });
+    const ownerStats = ordersByUser[user!.id];
+    if (ownerStats) {
+      liveRows.unshift({
+        employeeId: user!.id,
+        nama: nameMap[user!.id] || "Owner",
+        jamMasuk: "—",
+        orderCount: ownerStats.count,
+        omzet: ownerStats.omzet,
+        isActive: false,
+      });
+    }
+    liveKasir = liveRows.sort((a, b) => Number(b.isActive) - Number(a.isActive) || b.omzet - a.omzet);
+
+    const mapOrderItems = (o: (typeof orders)[0]) => {
+      const items = (o.order_items || []) as { qty: number; menus: { nama: string } | { nama: string }[] | null }[];
+      return items.map(i => {
+        const m = i.menus;
+        const nama = Array.isArray(m) ? m[0]?.nama : m?.nama;
+        return `${nama || "Menu"} x${i.qty}`;
+      }).join(", ");
+    };
+
     kasirSummary = {
       omzetHariIni: orders.reduce((s, o) => s + Number(o.total || 0), 0),
       labaHariIni: orders.reduce((s, o) => s + Number(o.laba || 0), 0),
       orderHariIni: orders.length,
-      recentOrders: orders.map(o => {
-        const items = (o.order_items || []) as { qty: number; menus: { nama: string } | { nama: string }[] | null }[];
-        const summary = items.map(i => {
-          const m = i.menus;
-          const nama = Array.isArray(m) ? m[0]?.nama : m?.nama;
-          return `${nama || "Menu"} x${i.qty}`;
-        }).join(", ");
+      recentOrders: orders.slice(0, 8).map(o => {
+        const parsed = parseMejaFromCatatan(o.catatan);
         return {
           id: o.id,
           total: Number(o.total),
           created_at: o.created_at,
           kasirName: nameMap[o.user_id] || "Kasir",
-          itemsSummary: summary,
+          itemsSummary: mapOrderItems(o),
+          mejaLabel: mejaLabel(parsed.meja),
+          catatan: parsed.note,
         };
       }),
+    };
+
+    const exportOrders = orders.map(o => ({
+      id: o.id,
+      orderNo: shortOrderNo(o.id),
+      kasirName: nameMap[o.user_id] || "Kasir",
+      order_date: o.order_date,
+      created_at: o.created_at,
+      metode_bayar: o.metode_bayar,
+      catatan: o.catatan,
+      diskon: o.diskon,
+      total: Number(o.total),
+      laba: o.laba,
+      itemsSummary: mapOrderItems(o),
+    }));
+
+    dayCloseData = {
+      businessName: activeKuliner.name,
+      tanggal: today,
+      orders: exportOrders,
+      kpis: computeKasirKpis(exportOrders),
+      activeKasir: liveRows.filter(r => r.isActive).map(r => ({
+        nama: r.nama,
+        jamMasuk: r.jamMasuk,
+        orderCount: r.orderCount,
+        omzet: r.omzet,
+      })),
     };
   }
 
@@ -356,6 +444,8 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
       recentTransactions={recentTransactions}
       kasirSummary={kasirSummary}
       kasirBusinessName={kasirBusinessName}
+      liveKasir={liveKasir}
+      dayCloseData={dayCloseData}
       bulan={bulan}
       tahun={tahun}
       userId={user!.id}

@@ -3,8 +3,9 @@ import TransactionForm from "../transaction-form";
 import DeleteTransactionButton from "../delete-transaction-button";
 import CashFlowChart from "../cash-flow-chart";
 import MonthYearFilter from "../month-year-filter";
-import { Suspense } from "react";
+import { Suspense, Fragment } from "react";
 import { cookies } from "next/headers";
+import { sortBisnisTransactions, formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
 
 export default async function KeuanganBisnisPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
@@ -23,18 +24,27 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
   const { data: businessData } = await supabase.from("businesses").select("id, name").eq("user_id", user!.id).order("created_at", { ascending: true });
   const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
 
-  const { data: allTransactions } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("scope", "bisnis");
-
-  const { data: transactions } = await supabase
+  let allQuery = supabase
     .from("transactions")
     .select("*")
     .eq("scope", "bisnis")
+    .eq("user_id", user!.id);
+  if (business?.id) allQuery = allQuery.eq("business_id", business.id);
+  const { data: allTransactions } = await allQuery;
+
+  let monthQuery = supabase
+    .from("transactions")
+    .select("*")
+    .eq("scope", "bisnis")
+    .eq("user_id", user!.id)
     .gte("transaction_date", startDate)
-    .lte("transaction_date", endDate)
-    .order("transaction_date", { ascending: false });
+    .lte("transaction_date", endDate);
+  if (business?.id) monthQuery = monthQuery.eq("business_id", business.id);
+  const { data: monthRows } = await monthQuery
+    .order("transaction_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  const transactions = sortBisnisTransactions(monthRows || []);
 
   const totalIncome = allTransactions?.filter((t) => t.type === "pemasukan").reduce((sum, t) => sum + Number(t.amount), 0) || 0;
   const totalExpense = allTransactions?.filter((t) => t.type === "pengeluaran").reduce((sum, t) => sum + Number(t.amount), 0) || 0;
@@ -48,13 +58,15 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
   return (
     <div className="px-4 sm:px-8 py-4 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Keuangan Bisnis</h1>
-      <p className="text-[#8B8AA0] mb-6">Penjualan, modal, operasional usaha kamu.</p>
+      <p className="text-[#8B8AA0] mb-6">
+        Penjualan, modal, operasional{business?.name ? ` · ${business.name}` : ""}.
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5">
           <p className="text-xs text-[#8B8AA0] mb-1">Total Saldo</p>
           <p className="text-xl font-mono font-semibold">Rp{totalBalance.toLocaleString("id-ID")}</p>
-          <p className="text-[10px] text-[#5A5B6A] mt-1">Semua waktu</p>
+          <p className="text-[10px] text-[#5A5B6A] mt-1">{business?.name || "Bisnis aktif"}</p>
         </div>
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5">
           <p className="text-xs text-[#8B8AA0] mb-1">Pemasukan {months[bulan - 1]}</p>
@@ -75,27 +87,41 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
         <TransactionForm userId={user!.id} scope="bisnis" businessId={business?.id} />
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5">
-          <h2 className="font-medium mb-4">Transaksi {months[bulan - 1]} {tahun}</h2>
+          <h2 className="font-medium mb-1">Transaksi {months[bulan - 1]} {tahun}</h2>
+          <p className="text-[10px] text-[#5A5B7A] mb-4">Terbaru di atas · grup jual & HPP berdampingan</p>
           <div className="flex flex-col gap-3">
-            {transactions && transactions.length > 0 ? (
-              transactions.map((t) => (
-                <div key={t.id} className="flex items-center justify-between border-b border-white/5 pb-3">
-                  <div>
-                    <p className="text-sm font-medium">{t.description || t.category || "Transaksi"}</p>
-                    <p className="text-xs text-[#8B8AA0]">
-                      {t.category}
-                      <span className="mx-1.5">·</span>
-                      {new Date(t.transaction_date || t.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <p className={"font-mono text-sm font-medium " + (t.type === "pemasukan" ? "text-[#2DD4BF]" : "text-[#EC4899]")}>
-                      {t.type === "pemasukan" ? "+" : "-"}Rp{Number(t.amount).toLocaleString("id-ID")}
-                    </p>
-                    <DeleteTransactionButton id={t.id} />
-                  </div>
-                </div>
-              ))
+            {transactions.length > 0 ? (
+              transactions.map((t, i) => {
+                const dateKey = t.transaction_date || t.created_at.slice(0, 10);
+                const prevKey = i > 0
+                  ? (transactions[i - 1].transaction_date || transactions[i - 1].created_at.slice(0, 10))
+                  : null;
+                return (
+                  <Fragment key={t.id}>
+                    {dateKey !== prevKey && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#5A5B7A] pt-1">
+                        {formatTxDateLabel(dateKey)}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <div>
+                        <p className="text-sm font-medium">{t.description || t.category || "Transaksi"}</p>
+                        <p className="text-xs text-[#8B8AA0]">
+                          {t.category}
+                          <span className="mx-1.5">·</span>
+                          {formatTxTimeWib(t.created_at)} WIB
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className={"font-mono text-sm font-medium " + (t.type === "pemasukan" ? "text-[#2DD4BF]" : "text-[#EC4899]")}>
+                          {t.type === "pemasukan" ? "+" : "-"}Rp{Number(t.amount).toLocaleString("id-ID")}
+                        </p>
+                        <DeleteTransactionButton id={t.id} />
+                      </div>
+                    </div>
+                  </Fragment>
+                );
+              })
             ) : (
               <p className="text-sm text-[#8B8AA0]">Belum ada transaksi di {months[bulan - 1]} {tahun}.</p>
             )}

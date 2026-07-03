@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Plus, Search, Trash2, ArrowLeftRight, Edit2, X, Package } from "lucide-react";
 import FnbHubNav from "../fnb/components/fnb-hub-nav";
 import FnbWorkflowSteps from "../fnb/components/fnb-workflow-steps";
+import FnbMobileActionBar from "../fnb/components/fnb-mobile-action-bar";
 import FnbKpiRow from "../fnb/components/fnb-kpi-row";
 import FnbStockAlerts from "../fnb/components/fnb-stock-alerts";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
@@ -158,8 +159,12 @@ export default function FnBInventory({ products, userId, businessId }: { product
   const hampirHabis = products.filter(p => p.stock > 0 && p.stock <= p.min_stock).length;
   const habis = products.filter(p => p.stock <= 0).length;
 
+  const categoriesToShow = activeTab === "Semua"
+    ? KATEGORI.filter(kat => byKategori(kat).length > 0 || showForm === kat)
+    : [activeTab];
+
   return (
-    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="max-md:pb-[calc(56px+3.25rem+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
       <FnbWorkflowSteps activePath="/dashboard/inventory" />
 
@@ -186,7 +191,7 @@ export default function FnBInventory({ products, userId, businessId }: { product
           </div>
         </div>
 
-        {(activeTab === "Semua" ? KATEGORI : [activeTab]).map(kat => {
+        {categoriesToShow.map(kat => {
           const items = byKategori(kat);
           const color = KATEGORI_COLOR[kat] || "#8B8AA0";
           const icon = KATEGORI_ICON[kat] || "ti-package";
@@ -340,16 +345,10 @@ export default function FnBInventory({ products, userId, businessId }: { product
         </div>
       )}
 
-      {/* Mobile FAB — tambah bahan cepat */}
-      <button
-        type="button"
+      <FnbMobileActionBar
+        label="Tambah Bahan"
         onClick={() => { resetForm(); setFKategori("Bahan Baku"); setQuickOpen(true); }}
-        className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
-        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
-        aria-label="Tambah bahan"
-      >
-        <Plus size={24} />
-      </button>
+      />
 
       {quickOpen && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center" onClick={() => setQuickOpen(false)}>

@@ -11,6 +11,7 @@ import FnbWorkflowSteps from "../components/fnb-workflow-steps";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
+import FnbMobileActionBar from "../components/fnb-mobile-action-bar";
 
 type Product = { id: string; name: string; cost: number | null; stock: number; min_stock?: number; category: string | null };
 const KATEGORI_MENU = ["Makanan", "Minuman", "Snack", "Paket", "Lainnya"];
@@ -255,7 +256,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
   }).length;
 
   return (
-    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="max-md:pb-[calc(56px+3.25rem+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
       <FnbWorkflowSteps activePath="/dashboard/fnb/menu" />
 
@@ -472,15 +473,10 @@ export default function FnbMenuClient({ menus, products, userId, businessId }: {
         )}
       </div>
 
-      <button
-        type="button"
+      <FnbMobileActionBar
+        label="Tambah Menu"
         onClick={() => { resetMenuForm(); setShowMenuForm(true); }}
-        className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
-        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
-        aria-label="Tambah menu"
-      >
-        <Plus size={24} />
-      </button>
+      />
     </div>
   );
 }

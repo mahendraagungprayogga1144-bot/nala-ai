@@ -13,6 +13,7 @@ const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white
 const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
 
 import FnbHubNav from "../components/fnb-hub-nav";
+import FnbMobileActionBar from "../components/fnb-mobile-action-bar";
 import FnbKpiRow from "../components/fnb-kpi-row";
 
 export default function KaryawanClient({ employees, userId, businessId }: { employees: Employee[]; userId: string; businessId: string }) {
@@ -58,7 +59,7 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
   const aktif = employees.filter(e => e.aktif);
 
   return (
-    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="max-md:pb-[calc(56px+3.25rem+env(safe-area-inset-bottom))] md:pb-0">
       <FnbHubNav />
       <FnbKpiRow items={[
         { label: "Total karyawan", value: String(employees.length), color: "#38BDF8" },
@@ -165,15 +166,9 @@ export default function KaryawanClient({ employees, userId, businessId }: { empl
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setShowForm(true)}
-        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95 md:hidden"
-        style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
-        aria-label="Tambah karyawan"
-      >
-        <Plus size={24} />
-      </button>
+      {!showForm && (
+        <FnbMobileActionBar label="Tambah Karyawan" onClick={() => setShowForm(true)} />
+      )}
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center md:hidden" onClick={() => { setShowForm(false); setNama(""); setJabatan(""); }}>

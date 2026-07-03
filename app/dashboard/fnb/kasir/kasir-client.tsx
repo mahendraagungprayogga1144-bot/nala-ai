@@ -11,6 +11,7 @@ import FnbHubNav from "../components/fnb-hub-nav";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
+import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
 type Checkin = { id: string; tanggal: string; jam_masuk: string; jam_keluar: string | null };
@@ -260,7 +261,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
   };
 
   return (
-    <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="max-md:pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
       <FnbHubNav />
       <FnbKpiRow items={[
         { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
@@ -408,8 +409,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
         <button
           type="button"
           onClick={() => setCartOpen(true)}
-          className="lg:hidden fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom))] left-4 right-4 z-[45] flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-lg active:scale-[0.98]"
-          style={BTN_GRAD}
+          className="lg:hidden fixed left-4 right-4 z-[45] flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-lg active:scale-[0.98]"
+          style={{ ...BTN_GRAD, bottom: FNB_NAV_BOTTOM_OFFSET }}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#070711]/20 text-xs">{cartCount}</span>

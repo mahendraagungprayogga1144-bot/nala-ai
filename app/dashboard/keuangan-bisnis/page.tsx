@@ -27,14 +27,25 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
   let kasirOrders: KasirOrderRow[] = [];
   if (business?.type === "kuliner" && business.id) {
-    const { data: orderRows } = await supabase
-      .from("orders")
-      .select("id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menus(nama))")
-      .eq("business_id", business.id)
-      .gte("order_date", startDate)
-      .lte("order_date", endDate)
-      .order("created_at", { ascending: false });
-    kasirOrders = (orderRows || []) as KasirOrderRow[];
+    const [{ data: orderRows }, { data: employees }, { data: profile }] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("id, user_id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menus(nama))")
+        .eq("business_id", business.id)
+        .gte("order_date", startDate)
+        .lte("order_date", endDate)
+        .order("created_at", { ascending: false }),
+      supabase.from("employees").select("id, nama").eq("business_id", business.id),
+      supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
+    ]);
+
+    const kasirNames: Record<string, string> = { [user!.id]: profile?.full_name || "Owner" };
+    employees?.forEach(e => { kasirNames[e.id] = e.nama; });
+
+    kasirOrders = (orderRows || []).map(o => ({
+      ...(o as Omit<KasirOrderRow, "kasirName">),
+      kasirName: kasirNames[o.user_id] || "Kasir",
+    }));
   }
 
   let allQuery = supabase
@@ -99,7 +110,11 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
       <CashFlowChart transactions={(transactions as never) || []} />
 
       {business?.type === "kuliner" && (
-        <KasirTransactionsPanel orders={kasirOrders} monthLabel={`${months[bulan - 1]} ${tahun}`} />
+        <KasirTransactionsPanel
+          orders={kasirOrders}
+          monthLabel={`${months[bulan - 1]} ${tahun}`}
+          businessName={business.name}
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">

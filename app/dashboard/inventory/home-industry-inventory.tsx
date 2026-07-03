@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Search, Trash2, ArrowLeftRight, Edit2 } from "lucide-react";
+import { Plus, Search, Trash2, ArrowLeftRight, Edit2, ShoppingBag, AlertTriangle, X } from "lucide-react";
+import { calcProductHpp, calcMarginPct, calcRecipeHppPerUnit, findRecipeForProduct, fmtRp, type HiRecipe } from "./home-industry-calc";
 
 type Product = { id: string; name: string; sku: string | null; stock: number; min_stock: number; price: number | null; cost: number | null; category: string | null; photo_url: string | null };
 
@@ -26,11 +27,13 @@ type FormProps = {
   onSave: () => void; onCancel: () => void;
 };
 
-function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, setFSatuan, fHargaBeli, setFHargaBeli, fHargaJual, setFHargaJual, fMinStok, setFMinStok, fSku, setFSku, formLoading, onSave, onCancel }: FormProps) {
+function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, setFSatuan, fHargaBeli, setFHargaBeli, fHargaJual, setFHargaJual, fMinStok, setFMinStok, fSku, setFSku, formLoading, onSave, onCancel, recipes }: FormProps & { recipes: HiRecipe[] }) {
   const color = KATEGORI_COLOR[kat] || "#8B8AA0";
   const isProdukJadi = kat === "Produk Jadi";
-  const laba = fHargaJual && fHargaBeli ? Number(fHargaJual) - Number(fHargaBeli) : null;
-  const margin = laba && Number(fHargaBeli) > 0 ? Math.round(laba / Number(fHargaBeli) * 100) : null;
+  const recipeHpp = isProdukJadi && fNama ? calcRecipeHppPerUnit(findRecipeForProduct(fNama, recipes) || { id: "", name: "", yield_quantity: 1, recipe_ingredients: [] }) : 0;
+  const hppUsed = isProdukJadi && recipeHpp > 0 ? recipeHpp : (fHargaBeli ? Number(fHargaBeli) : 0);
+  const laba = fHargaJual && hppUsed ? Number(fHargaJual) - hppUsed : null;
+  const margin = laba !== null && hppUsed > 0 ? Math.round(laba / Number(fHargaJual) * 100) : null;
   return (
     <div className="mx-4 mb-3 rounded-xl p-4 bg-[#0A0A12]" style={{ border: "1px solid " + color + "25" }}>
       <p className="text-xs font-medium mb-3" style={{ color }}>{editProduct ? "Edit" : "Tambah"} {kat}</p>
@@ -43,7 +46,14 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
           </select>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <input className={inputCls} type="number" placeholder={isProdukJadi ? "HPP/satuan (Rp)" : "Harga beli/satuan (Rp)"} value={fHargaBeli} onChange={e => setFHargaBeli(e.target.value)} />
+          {!isProdukJadi && (
+            <input className={inputCls} type="number" placeholder="Harga beli/satuan (Rp)" value={fHargaBeli} onChange={e => setFHargaBeli(e.target.value)} />
+          )}
+          {isProdukJadi && (
+            <div className={inputCls + " flex items-center text-xs text-[#8B8AA0]"}>
+              {recipeHpp > 0 ? `HPP otomatis: ${fmtRp(Math.round(recipeHpp))}` : "HPP dari resep Produksi"}
+            </div>
+          )}
           <input className={inputCls} type="number" placeholder="Harga jual/satuan (Rp)" value={fHargaJual} onChange={e => setFHargaJual(e.target.value)} />
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -52,10 +62,10 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
         </div>
         {isProdukJadi && laba !== null && (
           <div className="rounded-lg px-3 py-2 text-xs" style={{ background: laba >= 0 ? "#2DD4BF15" : "#EC489915", border: "1px solid " + (laba >= 0 ? "#2DD4BF" : "#EC4899") + "30" }}>
-            <div className="flex justify-between mb-1"><span style={{ color: "#8B8AA0" }}>HPP</span><span>{"Rp" + Number(fHargaBeli).toLocaleString("id-ID")}</span></div>
-            <div className="flex justify-between mb-1"><span style={{ color: "#8B8AA0" }}>Harga jual</span><span>{"Rp" + Number(fHargaJual).toLocaleString("id-ID")}</span></div>
+            <div className="flex justify-between mb-1"><span style={{ color: "#8B8AA0" }}>HPP/unit</span><span>{fmtRp(Math.round(hppUsed))}</span></div>
+            <div className="flex justify-between mb-1"><span style={{ color: "#8B8AA0" }}>Harga jual</span><span>{fmtRp(Number(fHargaJual))}</span></div>
             <div className="flex justify-between font-medium" style={{ color: laba >= 0 ? "#2DD4BF" : "#EC4899" }}>
-              <span>Laba/unit</span><span>{"Rp" + laba.toLocaleString("id-ID") + " (" + margin + "%)"}</span>
+              <span>{laba >= 0 ? "Margin" : "Jual Rugi!"}</span><span>{fmtRp(Math.abs(laba))}{margin !== null ? ` (${Math.abs(margin)}%)` : ""}</span>
             </div>
           </div>
         )}
@@ -70,7 +80,10 @@ function AddForm({ kat, editProduct, fNama, setFNama, fStok, setFStok, fSatuan, 
   );
 }
 
-export default function HomeIndustryInventory({ products, userId, businessId }: { products: Product[]; userId: string; businessId?: string }) {
+export default function HomeIndustryInventory({ products, recipes, userId, businessId, profitHariIni, penjualanHariIni, hppHariIni }: {
+  products: Product[]; recipes: HiRecipe[]; userId: string; businessId?: string;
+  profitHariIni: number; penjualanHariIni: number; hppHariIni: number;
+}) {
   const router = useRouter();
   const supabase = createClient();
   const [search, setSearch] = useState("");
@@ -93,6 +106,11 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
   const [moveDate, setMoveDate] = useState(new Date().toISOString().split("T")[0]);
   const [moveNote, setMoveNote] = useState("");
   const [moveLoading, setMoveLoading] = useState(false);
+  const [sellingProduct, setSellingProduct] = useState<Product | null>(null);
+  const [sellQty, setSellQty] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
+  const [sellLoading, setSellLoading] = useState(false);
+  const today = new Date().toISOString().split("T")[0];
 
   const resetForm = () => { setFNama(""); setFStok(""); setFSatuan("kg"); setFHargaBeli(""); setFHargaJual(""); setFMinStok("5"); setFSku(""); setEditProduct(null); };
 
@@ -103,7 +121,12 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
   const handleSave = async () => {
     if (!fNama || !fStok) return;
     setFormLoading(true);
-    const payload = { user_id: userId, business_id: businessId, name: fNama, category: fKategori, stock: Number(fStok), min_stock: Number(fMinStok), cost: fHargaBeli ? Number(fHargaBeli) : null, price: fHargaJual ? Number(fHargaJual) : null, sku: fSku || null };
+    const isProdukJadi = fKategori === "Produk Jadi";
+    const recipeHpp = isProdukJadi ? calcRecipeHppPerUnit(findRecipeForProduct(fNama, recipes) || { id: "", name: "", yield_quantity: 1, recipe_ingredients: [] }) : 0;
+    const costValue = isProdukJadi
+      ? (recipeHpp > 0 ? recipeHpp : (fHargaBeli ? Number(fHargaBeli) : null))
+      : (fHargaBeli ? Number(fHargaBeli) : null);
+    const payload = { user_id: userId, business_id: businessId, name: fNama, category: fKategori, stock: Number(fStok), min_stock: Number(fMinStok), cost: costValue, price: fHargaJual ? Number(fHargaJual) : null, sku: fSku || null };
     if (editProduct) { await supabase.from("products").update(payload).eq("id", editProduct.id); }
     else { await supabase.from("products").insert(payload); }
     setFormLoading(false); resetForm(); setShowForm(null); router.refresh();
@@ -139,6 +162,50 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
     setMoveLoading(false); setMovingProduct(null); setMoveQty(""); setMoveNote(""); router.refresh();
   };
 
+  const openSell = (p: Product) => {
+    setSellingProduct(p);
+    setSellQty("1");
+    setSellPrice(p.price?.toString() || "");
+  };
+
+  const handleJual = async () => {
+    if (!sellingProduct || !sellQty || !sellPrice || !businessId) return;
+    const qty = Number(sellQty);
+    const harga = Number(sellPrice);
+    if (qty <= 0 || harga <= 0) return;
+    if (qty > sellingProduct.stock) { alert("Stok tidak cukup! Tersedia: " + sellingProduct.stock); return; }
+
+    setSellLoading(true);
+    const hpp = calcProductHpp(sellingProduct, recipes);
+    const totalJual = qty * harga;
+    const totalHpp = qty * hpp;
+    const newStock = Math.max(0, sellingProduct.stock - qty);
+
+    await supabase.from("products").update({ stock: newStock }).eq("id", sellingProduct.id);
+    await supabase.from("stock_movements").insert({
+      user_id: userId, product_id: sellingProduct.id, type: "keluar", reason: "terjual",
+      quantity: qty, note: "Penjualan " + sellingProduct.name, profit_loss: totalJual - totalHpp, movement_date: today,
+    });
+    await supabase.from("transactions").insert({
+      user_id: userId, business_id: businessId,
+      type: "pemasukan", scope: "bisnis", category: "Penjualan",
+      description: "Jual " + sellingProduct.name + " x" + qty,
+      amount: totalJual, transaction_date: today,
+    });
+    await supabase.from("transactions").insert({
+      user_id: userId, business_id: businessId,
+      type: "pengeluaran", scope: "bisnis", category: "HPP",
+      description: "HPP " + sellingProduct.name + " x" + qty,
+      amount: totalHpp, transaction_date: today,
+    });
+
+    setSellLoading(false);
+    setSellingProduct(null);
+    setSellQty("");
+    setSellPrice("");
+    router.refresh();
+  };
+
   const startEdit = (p: Product) => {
     setEditProduct(p); setFNama(p.name); setFKategori(p.category || "Bahan Baku"); setFStok(p.stock.toString());
     setFSatuan("pcs"); setFHargaBeli(p.cost?.toString() || ""); setFHargaJual(p.price?.toString() || "");
@@ -151,11 +218,16 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
 
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4"><p className="text-xs text-[#8B8AA0] mb-1">Total item</p><p className="text-lg font-mono font-semibold text-[#38BDF8]">{products.length}</p></div>
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4"><p className="text-xs text-[#8B8AA0] mb-1">Stok kritis</p><p className="text-lg font-mono font-semibold text-[#EC4899]">{kritisCount}</p></div>
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4"><p className="text-xs text-[#8B8AA0] mb-1">Nilai stok</p><p className="text-lg font-mono font-semibold text-[#2DD4BF]">{"Rp" + nilaiStok.toLocaleString("id-ID")}</p></div>
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-4"><p className="text-xs text-[#8B8AA0] mb-1">Produk jadi</p><p className="text-lg font-mono font-semibold text-[#8B5CF6]">{produkJadiCount}</p></div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}><p className="text-xs text-[#8B8AA0] mb-1">Total item</p><p className="text-lg font-mono font-semibold text-[#38BDF8]">{products.length}</p></div>
+        <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}><p className="text-xs text-[#8B8AA0] mb-1">Stok kritis</p><p className="text-lg font-mono font-semibold text-[#EC4899]">{kritisCount}</p></div>
+        <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}><p className="text-xs text-[#8B8AA0] mb-1">Nilai stok</p><p className="text-lg font-mono font-semibold text-[#2DD4BF]">{fmtRp(nilaiStok)}</p></div>
+        <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}><p className="text-xs text-[#8B8AA0] mb-1">Produk jadi</p><p className="text-lg font-mono font-semibold text-[#8B5CF6]">{produkJadiCount}</p></div>
+        <div className="rounded-2xl border border-white/[0.08] p-4 col-span-2 sm:col-span-1" style={{ background: "#0D0D1A" }}>
+          <p className="text-xs text-[#8B8AA0] mb-1">Profit hari ini</p>
+          <p className="text-lg font-mono font-semibold" style={{ color: profitHariIni >= 0 ? "#2DD4BF" : "#EC4899" }}>{fmtRp(profitHariIni)}</p>
+          <p className="text-[10px] text-[#5A5B7A] mt-0.5">Jual {fmtRp(penjualanHariIni)} · HPP {fmtRp(hppHariIni)}</p>
+        </div>
       </div>
       <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3">
@@ -182,7 +254,7 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
                 </button>
               </div>
               {isShowing && (
-                <AddForm kat={kat} editProduct={editProduct}
+                <AddForm kat={kat} editProduct={editProduct} recipes={recipes}
                   fNama={fNama} setFNama={setFNama} fStok={fStok} setFStok={setFStok}
                   fSatuan={fSatuan} setFSatuan={setFSatuan} fHargaBeli={fHargaBeli} setFHargaBeli={setFHargaBeli}
                   fHargaJual={fHargaJual} setFHargaJual={setFHargaJual} fMinStok={fMinStok} setFMinStok={setFMinStok}
@@ -196,7 +268,74 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
                   const icon = KATEGORI_ICON[p.category || ""] || "📦";
                   const isKritis = p.stock <= p.min_stock;
                   const isProdukJadi = p.category === "Produk Jadi";
-                  const laba = isProdukJadi && p.price && p.cost ? p.price - p.cost : null;
+                  const hpp = isProdukJadi ? calcProductHpp(p, recipes) : Number(p.cost || 0);
+                  const hargaJual = Number(p.price || 0);
+                  const margin = isProdukJadi ? calcMarginPct(hargaJual, hpp) : null;
+                  const isRugi = isProdukJadi && hpp > 0 && hargaJual > 0 && hpp > hargaJual;
+                  const hasRecipe = isProdukJadi && !!findRecipeForProduct(p.name, recipes);
+
+                  if (isProdukJadi) {
+                    return (
+                      <div key={p.id} className="px-4 py-3 border-b border-white/[0.04] last:border-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg" style={{ background: bg }}>{icon}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <p className="text-sm font-medium">{p.name}</p>
+                                {p.sku && <span className="text-[10px] text-[#8B8AA0] bg-white/5 px-1.5 py-0.5 rounded">{p.sku}</span>}
+                                {isRugi && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EC4899]/15 text-[#EC4899] flex items-center gap-1">
+                                    <AlertTriangle size={10} /> Jual Rugi!
+                                  </span>
+                                )}
+                                {isKritis && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B]">Stok kritis</span>}
+                              </div>
+                              <div className="rounded-xl border border-[#2DD4BF]/20 px-3 py-2 mt-1" style={{ background: "rgba(45,212,191,0.06)" }}>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                  <div>
+                                    <p className="text-[9px] text-[#5A5B7A] uppercase">HPP/unit</p>
+                                    <p className="text-xs font-mono font-semibold text-[#2DD4BF]">{hpp > 0 ? fmtRp(hpp) : "—"}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-[#5A5B7A] uppercase">Harga jual</p>
+                                    <p className="text-xs font-mono font-semibold text-[#F0EFF8]">{hargaJual > 0 ? fmtRp(hargaJual) : "—"}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-[#5A5B7A] uppercase">Margin</p>
+                                    <p className="text-xs font-mono font-semibold" style={{ color: margin !== null && margin >= 0 ? "#2DD4BF" : "#EC4899" }}>
+                                      {margin !== null ? margin + "%" : "—"}
+                                    </p>
+                                  </div>
+                                </div>
+                                {!hasRecipe && hpp <= 0 && (
+                                  <p className="text-[10px] text-[#F59E0B] mt-2 text-center">Buat resep di Produksi biar HPP akurat</p>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-[#8B8AA0] mt-1.5">Stok: <span className={isKritis ? "text-[#EC4899] font-mono" : "font-mono text-[#F0EFF8]"}>{p.stock}</span></p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => openSell(p)}
+                              disabled={p.stock <= 0}
+                              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-40"
+                              style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
+                            >
+                              <ShoppingBag size={12} /> Jual
+                            </button>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => { setMovingProduct(p); setMoveType("masuk"); setMoveReason("terjual"); }} className="text-[#8B8AA0] hover:text-[#2DD4BF] p-1"><ArrowLeftRight size={14} /></button>
+                              <button onClick={() => startEdit(p)} className="text-[#8B8AA0] hover:text-[#38BDF8] p-1"><Edit2 size={14} /></button>
+                              <button onClick={() => handleDelete(p.id)} className="text-[#8B8AA0] hover:text-[#EC4899] p-1"><Trash2 size={14} /></button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const laba = p.price && p.cost ? p.price - p.cost : null;
                   return (
                     <div key={p.id} className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0">
                       <div className="flex items-center gap-3">
@@ -207,7 +346,7 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
                             {p.sku && <span className="text-[10px] text-[#8B8AA0] bg-white/5 px-1.5 py-0.5 rounded">{p.sku}</span>}
                           </div>
                           <p className="text-[11px] text-[#8B8AA0]">
-                            {p.cost ? (isProdukJadi ? "HPP" : "Beli") + " Rp" + Number(p.cost).toLocaleString("id-ID") : ""}
+                            {p.cost ? "Beli Rp" + Number(p.cost).toLocaleString("id-ID") : ""}
                             {p.price ? " · Jual Rp" + Number(p.price).toLocaleString("id-ID") : ""}
                             {laba !== null && <span style={{ color: laba >= 0 ? "#2DD4BF" : "#EC4899" }}>{" · Laba Rp" + laba.toLocaleString("id-ID")}</span>}
                           </p>
@@ -262,6 +401,47 @@ export default function HomeIndustryInventory({ products, userId, businessId }: 
           </div>
         </div>
       )}
+      {sellingProduct && (() => {
+        const hpp = calcProductHpp(sellingProduct, recipes);
+        const qty = Number(sellQty) || 0;
+        const harga = Number(sellPrice) || 0;
+        const total = qty * harga;
+        const totalHpp = qty * hpp;
+        const laba = total - totalHpp;
+        return (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSellingProduct(null)}>
+            <div className="rounded-2xl border border-white/10 p-5 w-full max-w-sm" style={{ background: "#0D0D1A" }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[#2DD4BF]">Catat Penjualan</p>
+                  <h3 className="font-medium text-sm">{sellingProduct.name}</h3>
+                </div>
+                <button onClick={() => setSellingProduct(null)} className="text-[#8B8AA0]"><X size={18} /></button>
+              </div>
+              <p className="text-xs text-[#8B8AA0] mb-3">Stok tersedia: <span className="font-mono text-[#F0EFF8]">{sellingProduct.stock}</span> · HPP/unit: <span className="font-mono text-[#2DD4BF]">{fmtRp(hpp)}</span></p>
+              <div className="flex flex-col gap-2 mb-3">
+                <input className={inputCls} type="number" placeholder="Jumlah terjual" value={sellQty} onChange={e => setSellQty(e.target.value)} min={1} max={sellingProduct.stock} />
+                <input className={inputCls} type="number" placeholder="Harga jual per unit (Rp)" value={sellPrice} onChange={e => setSellPrice(e.target.value)} />
+              </div>
+              {qty > 0 && harga > 0 && (
+                <div className="rounded-xl border border-white/[0.08] px-3 py-2 mb-3 text-xs space-y-1" style={{ background: "#0A0A12" }}>
+                  <div className="flex justify-between"><span className="text-[#8B8AA0]">Total jual</span><span className="font-mono text-[#F0EFF8]">{fmtRp(total)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#8B8AA0]">Total HPP</span><span className="font-mono text-[#EC4899]">{fmtRp(totalHpp)}</span></div>
+                  <div className="flex justify-between font-medium border-t border-white/[0.06] pt-1"><span className="text-[#8B8AA0]">Laba</span><span className="font-mono" style={{ color: laba >= 0 ? "#2DD4BF" : "#EC4899" }}>{fmtRp(laba)}</span></div>
+                </div>
+              )}
+              <button
+                onClick={handleJual}
+                disabled={sellLoading || !sellQty || !sellPrice}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
+              >
+                {sellLoading ? "Menyimpan..." : "Simpan Penjualan"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

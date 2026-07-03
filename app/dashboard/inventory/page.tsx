@@ -13,6 +13,7 @@ import { Suspense } from "react";
 import { getConfig } from "./business-config";
 import LivestockInventory from "./livestock-inventory";
 import HomeIndustryInventory from "./home-industry-inventory";
+import type { HiRecipe } from "./home-industry-calc";
 import FnBInventory from "./fnb-inventory";
 import AgricultureInventory from "./agriculture-inventory";
 
@@ -43,6 +44,34 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const config = getConfig(business?.type);
 
   const { data: products } = await supabase.from("products").select("*").eq("business_id", business?.id || "").order("name", { ascending: true });
+
+  const today = new Date().toISOString().split("T")[0];
+  let homeRecipes: HiRecipe[] = [];
+  let profitHariIni = 0;
+  let penjualanHariIni = 0;
+  let hppHariIni = 0;
+
+  if (business?.type === "homeindustry" && business.id) {
+    const [{ data: recipesData }, { data: todayTx }] = await Promise.all([
+      supabase
+        .from("recipes")
+        .select("id, name, yield_quantity, recipe_ingredients(quantity, products(name, cost))")
+        .eq("business_id", business.id),
+      supabase
+        .from("transactions")
+        .select("type, category, amount")
+        .eq("business_id", business.id)
+        .eq("transaction_date", today),
+    ]);
+    homeRecipes = (recipesData || []) as unknown as HiRecipe[];
+    penjualanHariIni = (todayTx || [])
+      .filter(t => t.type === "pemasukan" && (t.category === "Penjualan" || t.category === "Penjualan Produk"))
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    hppHariIni = (todayTx || [])
+      .filter(t => t.type === "pengeluaran" && t.category === "HPP")
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    profitHariIni = penjualanHariIni - hppHariIni;
+  }
 
   let harvestMeta: { product_id: string; satuan: string | null }[] = [];
   let saprotanMeta: { product_id: string; satuan: string | null }[] = [];
@@ -133,7 +162,15 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       ) : business?.type === "homeindustry" ? (
         <div className="mb-8">
-          <HomeIndustryInventory products={products || []} userId={user!.id} businessId={business?.id} />
+          <HomeIndustryInventory
+            products={products || []}
+            recipes={homeRecipes || []}
+            userId={user!.id}
+            businessId={business?.id}
+            profitHariIni={profitHariIni}
+            penjualanHariIni={penjualanHariIni}
+            hppHariIni={hppHariIni}
+          />
         </div>
       ) : business?.type === "kuliner" ? (
         <div className="mb-8">

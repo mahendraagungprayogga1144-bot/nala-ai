@@ -393,18 +393,25 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');body{margin:0}`}</style>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: "0.5px solid rgba(255,255,255,.06)", background: "#0D0D1A", flexShrink: 0, position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-          <div style={{ fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap" }}>Gercep<span style={{ background: "linear-gradient(135deg,#2DD4BF,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AI</span></div>
-          <div style={{ width: "1px", height: "12px", background: "rgba(255,255,255,.08)", flexShrink: 0 }} />
-          <div style={{ fontSize: "11px", color: "#5A5B7A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><strong style={{ color: "#F0EFF8" }}>{employee.nama}</strong></div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px 12px", borderBottom: "0.5px solid rgba(255,255,255,.06)", background: "#0D0D1A", flexShrink: 0, position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+          <div style={{ fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+            Gercep<span style={{ background: "linear-gradient(135deg,#2DD4BF,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AI</span>
+          </div>
+          <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: "#2DD4BF", flexShrink: 0, fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em" }}>{clock}</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-          <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: "#2DD4BF" }}>{clock}</div>
-          <button onClick={() => setShowSOP(true)} aria-label="SOP" style={{ background: "none", border: "0.5px solid rgba(255,255,255,.1)", color: "#8B8AA0", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><i className="ti ti-book" /></button>
-          <div style={{ transform: "scale(0.85)", transformOrigin: "right center" }}><KasirReprintBar refreshKey={receiptVersion} /></div>
-          <div style={{ transform: "scale(0.85)", transformOrigin: "right center" }}><KasirPrintSettingsButton /></div>
-          <button onClick={() => setShowCheckout(true)} aria-label="Check-out" style={{ background: "rgba(236,72,153,.06)", border: "0.5px solid rgba(236,72,153,.2)", color: "#EC4899", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><i className="ti ti-logout" /></button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", minWidth: 0 }}>
+          <div style={{ fontSize: "11px", color: "#5A5B7A", minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <strong style={{ color: "#F0EFF8" }}>{employee.nama}</strong>
+            <span style={{ color: "#3A3B52" }}> · </span>
+            <span>{business.name}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
+            <button onClick={() => setShowSOP(true)} aria-label="SOP" style={{ background: "none", border: "0.5px solid rgba(255,255,255,.1)", color: "#8B8AA0", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className="ti ti-book" /></button>
+            <KasirReprintBar compact refreshKey={receiptVersion} />
+            <KasirPrintSettingsButton compact />
+            <button onClick={() => setShowCheckout(true)} aria-label="Check-out" style={{ background: "rgba(236,72,153,.06)", border: "0.5px solid rgba(236,72,153,.2)", color: "#EC4899", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className="ti ti-logout" /></button>
+          </div>
         </div>
       </div>
 

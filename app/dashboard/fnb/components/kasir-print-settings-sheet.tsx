@@ -8,7 +8,7 @@ import {
   type KasirPrintSettings,
 } from "../lib/kasir-print-settings";
 
-export default function KasirPrintSettingsButton() {
+export default function KasirPrintSettingsButton({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [s, setS] = useState<KasirPrintSettings>(DEFAULT_KASIR_PRINT_SETTINGS);
 
@@ -45,10 +45,15 @@ export default function KasirPrintSettingsButton() {
       <button
         type="button"
         onClick={openSheet}
-        className="flex items-center gap-1.5 rounded-xl border border-white/10 px-2.5 py-1.5 text-[10px] text-[#8B8AA0] hover:border-[#2DD4BF]/30 hover:text-[#F2F1F8]"
+        className={
+          compact
+            ? "flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-[#8B8AA0] hover:border-[#2DD4BF]/30 hover:text-[#F2F1F8]"
+            : "flex items-center gap-1.5 rounded-xl border border-white/10 px-2.5 py-1.5 text-[10px] text-[#8B8AA0] hover:border-[#2DD4BF]/30 hover:text-[#F2F1F8]"
+        }
         title="Pengaturan printer"
       >
-        <Settings size={13} /> Printer
+        <Settings size={compact ? 14 : 13} />
+        {!compact && " Printer"}
       </button>
 
       {open && (

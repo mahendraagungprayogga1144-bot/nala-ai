@@ -337,10 +337,12 @@ export default function KasirClient({ menus, products, employees, userId, busine
   };
 
   return (
-    <div className="relative w-full min-w-0 max-w-full max-md:pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
-      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70" style={{ background: KASIR.bg.mesh }} aria-hidden />
+    <div
+      className="relative w-full min-w-0 max-w-full max-md:-mx-3 max-md:px-3 max-md:pb-[calc(56px+env(safe-area-inset-bottom))] max-md:pt-1 lg:pb-0"
+      style={{ background: KASIR.bg.mesh }}
+    >
       <FnbHubNav />
-      <FnbKpiRow items={[
+      <FnbKpiRow variant="vivid" items={[
         { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
         { label: "Total order", value: String(totalOrder), color: "#8B5CF6" },
         { label: "Laba hari ini", value: fmtRp(labaHariIni), color: "#F59E0B" },
@@ -351,8 +353,9 @@ export default function KasirClient({ menus, products, employees, userId, busine
         <FnbStockAlerts products={products.map(p => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
       </div>
 
-      <div className="mb-4 overflow-hidden rounded-2xl border border-[#2DD4BF]/15 bg-[#13131F]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-sm lg:mb-6">
-        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2 md:px-4">
+      <div className="mb-4 overflow-hidden rounded-2xl border border-[#2DD4BF]/25 bg-[#13131F]/95 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-md lg:mb-6">
+        <div className="h-[2px] shrink-0" style={{ background: KASIR.gradient.headerLine }} />
+        <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-2 md:px-4">
           <button
             type="button"
             onClick={() => setShiftOpen(v => !v)}
@@ -409,18 +412,18 @@ export default function KasirClient({ menus, products, employees, userId, busine
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px] lg:gap-6">
-        <div className="overflow-hidden rounded-2xl border border-[#2DD4BF]/15 bg-[#13131F]/90 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-sm">
+        <div className="overflow-hidden rounded-2xl border border-[#2DD4BF]/25 bg-[#13131F]/95 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-md">
+          <div className="h-[2px] shrink-0 md:hidden" style={{ background: KASIR.gradient.headerLine }} />
           <div className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#13131F]/95 backdrop-blur-md lg:static lg:bg-transparent">
-            <div className="flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3">
-              <Search size={14} className="flex-shrink-0 text-[#5A5B7A]" />
+            <div className="mx-3 mt-2.5 flex items-center gap-3 rounded-xl border border-white/[0.08] bg-[#0A0A14]/80 px-3 py-2.5 md:mx-4 md:mt-3 md:rounded-none md:border-0 md:bg-transparent md:px-4 md:py-3">
+              <Search size={14} className="flex-shrink-0 text-[#2DD4BF]" />
               <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
+                className="flex-1 bg-transparent text-sm text-[#FAFAFE] placeholder:text-[#5E5D78] focus:outline-none" />
             </div>
-            <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06] px-3 py-2 scrollbar-none md:px-4 md:py-2.5">
+            <div className="flex gap-2 overflow-x-auto px-3 py-2.5 scrollbar-none md:px-4 md:py-2.5">
             {categories.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className={"text-[11px] px-3 py-1 rounded-full border whitespace-nowrap " + (activeTab === tab ? "" : "border-white/[0.08] text-[#5A5B7A]")}
-                style={activeTab === tab ? { borderColor: "rgba(45,212,191,.45)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" } : {}}>
+                className={"text-[11px] px-3.5 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " + (activeTab === tab ? "border-[#2DD4BF]/50 text-[#2DD4BF] bg-[#2DD4BF]/15" : "border-white/[0.08] text-[#5E5D78] bg-white/[0.03]")}>
                 {tab}
               </button>
             ))}
@@ -456,8 +459,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
                       <img src={m.foto_url} alt={m.nama} className="h-full w-full object-cover" />
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center py-5 sm:py-6" style={{ background: color + "10" }}>
-                      <i className={"ti " + icon} style={{ fontSize: "32px", color }} aria-hidden="true"></i>
+                    <div className="flex items-center justify-center py-5 sm:py-6" style={{ background: `linear-gradient(160deg, ${color}30, ${color}08)` }}>
+                      <i className={"ti " + icon} style={{ fontSize: "34px", color, filter: `drop-shadow(0 2px 10px ${color}66)` }} aria-hidden="true"></i>
                     </div>
                   )}
                   <div className="p-2.5 sm:p-3">
@@ -495,11 +498,11 @@ export default function KasirClient({ menus, products, employees, userId, busine
         <button
           type="button"
           onClick={() => setCartOpen(true)}
-          className="lg:hidden fixed left-4 right-4 z-[45] flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-lg active:scale-[0.98]"
-          style={{ ...BTN_GRAD, bottom: FNB_NAV_BOTTOM_OFFSET }}
+          className="lg:hidden fixed left-4 right-4 z-[45] flex items-center justify-between rounded-2xl px-4 py-3.5 active:scale-[0.98]"
+          style={{ ...BTN_GRAD, bottom: FNB_NAV_BOTTOM_OFFSET, boxShadow: KASIR.shadow.fab }}
         >
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#070711]/20 text-xs">{cartCount}</span>
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#050508]/25 text-xs font-bold">{cartCount}</span>
             Lihat order
           </span>
           <span className="font-mono text-sm font-bold">Rp{total.toLocaleString("id-ID")}</span>
@@ -508,9 +511,10 @@ export default function KasirClient({ menus, products, employees, userId, busine
 
       {/* Mobile cart bottom sheet */}
       {cartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setCartOpen(false)}>
-          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-white/[0.08] bg-[#0D0D1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
-            <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15" />
+        <div className="lg:hidden fixed inset-0 z-50 flex items-end bg-[#050508]/80 backdrop-blur-sm" onClick={() => setCartOpen(false)}>
+          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-[#2DD4BF]/30 border-b-0 bg-[#1A1A28] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-16px_48px_rgba(0,0,0,.55)]" onClick={e => e.stopPropagation()}>
+            <div className="mx-auto mb-3 h-[3px] w-12 rounded-full" style={{ background: KASIR.gradient.headerLine }} />
+            <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/20" />
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-wide text-[#2DD4BF]">Order aktif</p>

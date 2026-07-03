@@ -52,12 +52,14 @@ export default async function KasirPage() {
   const totalOrder = todayOrders?.length || 0;
 
   return (
-    <div className="w-full min-w-0 px-3 py-3 sm:px-8 sm:py-8">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold sm:text-2xl">Kasir</h1>
-        {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full truncate max-w-[40%]">{business.name}</span>}
+    <div className="w-full min-w-0 px-0 py-0 sm:px-8 sm:py-8">
+      <div className="mb-1 flex items-center justify-between gap-2 px-3 pt-3 sm:px-0 sm:pt-0">
+        <h1 className="text-xl font-semibold sm:text-2xl">
+          <span className="bg-gradient-to-r from-[#2DD4BF] to-[#A78BFA] bg-clip-text text-transparent">Kasir</span>
+        </h1>
+        {business?.name && <span className="max-w-[40%] truncate rounded-full border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-3 py-1 text-xs text-[#2DD4BF]">{business.name}</span>}
       </div>
-      <p className="mb-3 hidden text-sm text-[#8B8AA0] sm:mb-6 sm:block">Catat transaksi, stok berkurang otomatis.</p>
+      <p className="mb-3 hidden px-3 text-sm text-[#8B8AA0] sm:mb-6 sm:block sm:px-0">Catat transaksi, stok berkurang otomatis.</p>
       <KasirClient
         menus={normalizeMenus(menus || [])}
         products={products || []}

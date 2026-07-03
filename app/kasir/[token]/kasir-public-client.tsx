@@ -8,8 +8,11 @@ import { validateCartStock, deductStockForSale } from "@/app/dashboard/fnb/lib/p
 import { buildKasirReceiptHtml, shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import ReceiptPrintPreview from "@/app/dashboard/fnb/components/receipt-print-preview";
 import KasirPrintSettingsButton from "@/app/dashboard/fnb/components/kasir-print-settings-sheet";
+import KasirPrinterWizard from "@/app/dashboard/fnb/components/kasir-printer-wizard";
+import KasirReprintBar from "@/app/dashboard/fnb/components/kasir-reprint-bar";
 import { executeSilentPrint, planReceiptPrint } from "@/app/dashboard/fnb/lib/trigger-receipt-print";
 import { getKasirPrintSettings } from "@/app/dashboard/fnb/lib/kasir-print-settings";
+import { isPrinterSetupDone, saveLastReceipt } from "@/app/dashboard/fnb/lib/last-receipt-storage";
 
 type Menu = FnbMenu;
 type Employee = { id: string; nama: string; jabatan: string | null; kasir_token: string; webauthn_credential_id: string | null };
@@ -57,6 +60,8 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
   const [checkinId, setCheckinId] = useState<string|null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [fpStatus, setFpStatus] = useState("");
+  const [showPrinterWizard, setShowPrinterWizard] = useState(false);
+  const [receiptVersion, setReceiptVersion] = useState(0);
 
   useEffect(() => {
     const update = () => setClock(new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -64,6 +69,10 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
     const t = setInterval(update, 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (screen === "kasir" && !isPrinterSetupDone()) setShowPrinterWizard(true);
+  }, [screen]);
 
   // ===== WEBAUTHN REGISTER =====
   const doRegister = async () => {
@@ -278,6 +287,8 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       kembali: kembali > 0 ? kembali : undefined,
     }, widthMm);
 
+    saveLastReceipt({ html: receipt, orderNo: shortOrderNo(order.id), total, savedAt: new Date().toISOString() });
+    setReceiptVersion(v => v + 1);
     setStats(prev => ({ ...prev, omzet: prev.omzet + total, laba: prev.laba + Math.round(laba), totalOrders: prev.totalOrders + 1 }));
     triggerReceiptPrint(receipt);
     setLoading(false);
@@ -391,6 +402,7 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: "#2DD4BF" }}>{clock}</div>
           <button onClick={() => setShowSOP(true)} aria-label="SOP" style={{ background: "none", border: "0.5px solid rgba(255,255,255,.1)", color: "#8B8AA0", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><i className="ti ti-book" /></button>
+          <div style={{ transform: "scale(0.85)", transformOrigin: "right center" }}><KasirReprintBar refreshKey={receiptVersion} /></div>
           <div style={{ transform: "scale(0.85)", transformOrigin: "right center" }}><KasirPrintSettingsButton /></div>
           <button onClick={() => setShowCheckout(true)} aria-label="Check-out" style={{ background: "rgba(236,72,153,.06)", border: "0.5px solid rgba(236,72,153,.2)", color: "#EC4899", width: "28px", height: "28px", borderRadius: "8px", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><i className="ti ti-logout" /></button>
         </div>
@@ -540,6 +552,14 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
           autoPrint={receiptPreview.autoPrint}
           autoCloseOnPrint={receiptPreview.autoClose}
           onClose={() => setReceiptPreview(null)}
+        />
+      )}
+
+      {showPrinterWizard && (
+        <KasirPrinterWizard
+          businessName={business.name}
+          kasirName={employee.nama}
+          onDone={() => setShowPrinterWizard(false)}
         />
       )}
 

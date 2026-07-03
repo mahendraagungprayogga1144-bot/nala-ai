@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, Minus, Search, Check, Trash2, X, UtensilsCrossed, Users, ChevronDown, ChevronUp } from "lucide-react";
@@ -13,9 +13,12 @@ import FnbStockAlerts from "../components/fnb-stock-alerts";
 import FnbEmptyState from "../components/fnb-empty-state";
 import ReceiptPrintPreview from "../components/receipt-print-preview";
 import KasirPrintSettingsButton from "../components/kasir-print-settings-sheet";
+import KasirPrinterWizard from "../components/kasir-printer-wizard";
+import KasirReprintBar from "../components/kasir-reprint-bar";
 import { buildKasirReceiptHtml, shortOrderNo } from "../lib/receipt-thermal";
 import { executeSilentPrint, planReceiptPrint } from "../lib/trigger-receipt-print";
 import { getKasirPrintSettings } from "../lib/kasir-print-settings";
+import { isPrinterSetupDone, saveLastReceipt } from "../lib/last-receipt-storage";
 import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
@@ -179,6 +182,12 @@ export default function KasirClient({ menus, products, employees, userId, busine
     html: string; autoPrint: boolean; autoClose: boolean; widthMm: number;
   } | null>(null);
   const [printToast, setPrintToast] = useState<string | null>(null);
+  const [showPrinterWizard, setShowPrinterWizard] = useState(false);
+  const [receiptVersion, setReceiptVersion] = useState(0);
+
+  useEffect(() => {
+    if (!isPrinterSetupDone()) setShowPrinterWizard(true);
+  }, []);
 
   const todayCheckins = employees.map(e => ({
     ...e,
@@ -310,6 +319,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
       kembali: kembali > 0 ? kembali : undefined,
     }, widthMm);
 
+    saveLastReceipt({ html: receipt, orderNo: shortOrderNo(order.id), total, savedAt: new Date().toISOString() });
+    setReceiptVersion(v => v + 1);
     triggerReceiptPrint(receipt);
     resetOrder();
     setLoading(false);
@@ -348,7 +359,10 @@ export default function KasirClient({ menus, products, employees, userId, busine
             <p className="text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">Shift karyawan — {today}</p>
             <span className="text-[#8B8AA0] md:hidden">{shiftOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
           </button>
-          <KasirPrintSettingsButton />
+          <div className="flex items-center gap-2">
+            <KasirReprintBar refreshKey={receiptVersion} />
+            <KasirPrintSettingsButton />
+          </div>
         </div>
         <div className={`border-t border-white/[0.06] px-3 pb-3 md:block md:border-0 md:px-4 md:pb-4 ${shiftOpen ? "block" : "hidden md:block"}`}>
         {employees.length === 0 ? (
@@ -519,6 +533,14 @@ export default function KasirClient({ menus, products, employees, userId, busine
           autoPrint={receiptPreview.autoPrint}
           autoCloseOnPrint={receiptPreview.autoClose}
           onClose={() => setReceiptPreview(null)}
+        />
+      )}
+
+      {showPrinterWizard && (
+        <KasirPrinterWizard
+          businessName={businessName || "Warung"}
+          kasirName={todayCheckins.find(e => e.checkedIn)?.nama}
+          onDone={() => setShowPrinterWizard(false)}
         />
       )}
     </div>

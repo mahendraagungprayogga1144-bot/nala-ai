@@ -6,6 +6,7 @@ import MonthYearFilter from "../month-year-filter";
 import { Suspense, Fragment } from "react";
 import { cookies } from "next/headers";
 import { sortBisnisTransactions, formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
+import KasirTransactionsPanel, { type KasirOrderRow } from "./kasir-transactions-panel";
 
 export default async function KeuanganBisnisPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
@@ -21,8 +22,20 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
-  const { data: businessData } = await supabase.from("businesses").select("id, name").eq("user_id", user!.id).order("created_at", { ascending: true });
+  const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user!.id).order("created_at", { ascending: true });
   const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+
+  let kasirOrders: KasirOrderRow[] = [];
+  if (business?.type === "kuliner" && business.id) {
+    const { data: orderRows } = await supabase
+      .from("orders")
+      .select("id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menus(nama))")
+      .eq("business_id", business.id)
+      .gte("order_date", startDate)
+      .lte("order_date", endDate)
+      .order("created_at", { ascending: false });
+    kasirOrders = (orderRows || []) as KasirOrderRow[];
+  }
 
   let allQuery = supabase
     .from("transactions")
@@ -59,7 +72,8 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
     <div className="px-4 sm:px-8 py-4 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Keuangan Bisnis</h1>
       <p className="text-[#8B8AA0] mb-6">
-        Penjualan, modal, operasional{business?.name ? ` · ${business.name}` : ""}.
+        Penjualan, modal, operasional{business?.name ? ` · ${business.name}` : ""}
+        {business?.type === "kuliner" ? " · termasuk transaksi kasir di bawah" : ""}.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -84,6 +98,10 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
       <CashFlowChart transactions={(transactions as never) || []} />
 
+      {business?.type === "kuliner" && (
+        <KasirTransactionsPanel orders={kasirOrders} monthLabel={`${months[bulan - 1]} ${tahun}`} />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
         <TransactionForm userId={user!.id} scope="bisnis" businessId={business?.id} />
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5">
@@ -105,7 +123,12 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
                     )}
                     <div className="flex items-center justify-between border-b border-white/5 pb-3">
                       <div>
-                        <p className="text-sm font-medium">{t.description || t.category || "Transaksi"}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-sm font-medium">{t.description || t.category || "Transaksi"}</p>
+                          {t.category === "Penjualan F&B" && (
+                            <span className="rounded-md bg-[#2DD4BF]/15 px-1.5 py-0.5 text-[9px] font-medium text-[#2DD4BF]">Kasir</span>
+                          )}
+                        </div>
                         <p className="text-xs text-[#8B8AA0]">
                           {t.category}
                           <span className="mx-1.5">·</span>

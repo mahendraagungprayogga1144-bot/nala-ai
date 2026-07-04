@@ -308,7 +308,9 @@ export default function BgParticles() {
           <CityScape />
           <DataStreams />
           <NetworkNodes />
-          <GercepText />
+          <Suspense fallback={null}>
+            <GercepText />
+          </Suspense>
 
           <FlyingVehicle color="#2DD4BF" speed={0.3} radius={8} height={3} />
           <FlyingVehicle color="#EC4899" speed={-0.2} radius={12} height={5} />

@@ -14,8 +14,8 @@ function stokBadge(stok: number) {
 }
 
 export default function MpProductsTab({
-  stores, products, businessId, userId,
-}: { stores: MpStore[]; products: MpProduct[]; businessId: string; userId: string }) {
+  stores, products, userId,
+}: { stores: MpStore[]; products: MpProduct[]; userId: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function MpProductsTab({
     setLoading(true);
     const store = stores.find(s => s.id === form.store_id);
     const { error } = await supabase.from("module_mp_products").insert({
-      user_id: userId, business_id: businessId,
+      user_id: userId,
       store_id: form.store_id, platform: store?.platform || null,
       nama: form.nama.trim(), sku: form.sku || null,
       harga: Number(form.harga) || 0, stok: Number(form.stok) || 0,

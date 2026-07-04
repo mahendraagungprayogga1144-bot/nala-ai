@@ -15,9 +15,9 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function MarketplaceClient({
-  businessId, businessName, userId, reports, parsedOrders,
+  userId, reports, parsedOrders,
 }: {
-  businessId: string; businessName: string; userId: string;
+  userId: string;
   reports: MpReport[]; parsedOrders: MpParsedOrder[];
 }) {
   const [tab, setTab] = useState<TabId>("upload");
@@ -28,7 +28,7 @@ export default function MarketplaceClient({
         <ShoppingBag size={24} className="text-[#2DD4BF]" />
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Marketplace</h1>
-          <p className="text-xs text-[#8B8AA0]">{businessName} — Upload & Analisis Laporan Marketplace</p>
+          <p className="text-xs text-[#8B8AA0]">Kelola dan analisis semua toko online kamu dalam satu tempat</p>
         </div>
       </div>
 
@@ -52,7 +52,7 @@ export default function MarketplaceClient({
         })}
       </div>
 
-      {tab === "upload" && <MpUploadTab businessId={businessId} userId={userId} reports={reports} />}
+      {tab === "upload" && <MpUploadTab userId={userId} reports={reports} />}
       {tab === "dashboard" && <MpReportDashboard reports={reports} parsedOrders={parsedOrders} />}
       {tab === "kalkulator" && <MpPriceCalculator parsedOrders={parsedOrders} />}
     </div>

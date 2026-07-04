@@ -19,26 +19,24 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function MarketplaceCenterClient({
-  businessId, businessName, userId, stores, products, orders,
+  userId, stores, products, orders,
 }: {
-  businessId: string; businessName: string; userId: string;
+  userId: string;
   stores: MpStore[]; products: MpProduct[]; orders: MpOrder[];
 }) {
   const [tab, setTab] = useState<TabId>("dashboard");
 
   return (
     <div className="w-full min-w-0 px-3 py-3 sm:px-8 sm:py-6 pb-12">
-      {/* Header */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <ShoppingCart size={24} className="text-[#2DD4BF]" />
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">Marketplace Center</h1>
-          <p className="text-xs text-[#8B8AA0]">{businessName} — pusat kontrol penjualan online</p>
+          <p className="text-xs text-[#8B8AA0]">Kelola dan analisis semua toko online kamu dalam satu tempat</p>
         </div>
         <span className="rounded-full border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-2 py-0.5 text-[10px] font-medium text-[#F59E0B]">Beta</span>
       </div>
 
-      {/* Tab navigation */}
       <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#0D0D1A] p-1 scrollbar-none">
         {TABS.map(t => {
           const active = tab === t.id;
@@ -61,11 +59,10 @@ export default function MarketplaceCenterClient({
         })}
       </div>
 
-      {/* Tab content */}
       {tab === "dashboard" && <MpDashboardTab stores={stores} products={products} orders={orders} />}
-      {tab === "toko" && <MpStoresTab stores={stores} businessId={businessId} userId={userId} />}
-      {tab === "produk" && <MpProductsTab stores={stores} products={products} businessId={businessId} userId={userId} />}
-      {tab === "pesanan" && <MpOrdersTab stores={stores} orders={orders} businessId={businessId} userId={userId} />}
+      {tab === "toko" && <MpStoresTab stores={stores} userId={userId} />}
+      {tab === "produk" && <MpProductsTab stores={stores} products={products} userId={userId} />}
+      {tab === "pesanan" && <MpOrdersTab stores={stores} orders={orders} userId={userId} />}
       {tab === "analitik" && <MpAnalyticsTab stores={stores} products={products} orders={orders} />}
     </div>
   );

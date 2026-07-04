@@ -8,26 +8,25 @@ import { PLATFORMS, platformColor } from "../mp-constants";
 import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../../components/module-form-styles";
 
 export default function MpStoresTab({
-  stores, businessId, userId,
-}: { stores: MpStore[]; businessId: string; userId: string }) {
+  stores, userId,
+}: { stores: MpStore[]; userId: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ platform: "Shopee", nama_toko: "", url_toko: "", seller_id: "", catatan: "" });
+  const [form, setForm] = useState({ platform: "Shopee", nama_toko: "" });
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nama_toko.trim()) return;
     setLoading(true);
     const { error } = await supabase.from("module_marketplace_stores").insert({
-      user_id: userId, business_id: businessId,
+      user_id: userId,
       platform: form.platform, nama_toko: form.nama_toko.trim(),
-      url_toko: form.url_toko || null, seller_id: form.seller_id || null, catatan: form.catatan || null,
     });
     setLoading(false);
     if (error) return alert(error.message);
-    setForm({ platform: "Shopee", nama_toko: "", url_toko: "", seller_id: "", catatan: "" });
+    setForm({ platform: "Shopee", nama_toko: "" });
     setOpen(false);
     router.refresh();
   };
@@ -52,10 +51,7 @@ export default function MpStoresTab({
           <select className={MODULE_INPUT} value={form.platform} onChange={e => setForm({ ...form, platform: e.target.value })}>
             {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <input required className={MODULE_INPUT} placeholder="Nama toko *" value={form.nama_toko} onChange={e => setForm({ ...form, nama_toko: e.target.value })} />
-          <input className={MODULE_INPUT + " sm:col-span-2"} placeholder="URL toko (opsional)" value={form.url_toko} onChange={e => setForm({ ...form, url_toko: e.target.value })} />
-          <input className={MODULE_INPUT} placeholder="Seller ID / username" value={form.seller_id} onChange={e => setForm({ ...form, seller_id: e.target.value })} />
-          <input className={MODULE_INPUT} placeholder="Catatan" value={form.catatan} onChange={e => setForm({ ...form, catatan: e.target.value })} />
+          <input required className={MODULE_INPUT} placeholder="Nama toko (contoh: Toko Mahendra Official) *" value={form.nama_toko} onChange={e => setForm({ ...form, nama_toko: e.target.value })} />
           <div className="flex gap-2 sm:col-span-2">
             <button type="submit" disabled={loading} className={MODULE_BTN + " flex-1"}>{loading ? "Menyimpan..." : "Simpan toko"}</button>
             <button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-[#8B8AA0]">Batal</button>

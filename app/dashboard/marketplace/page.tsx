@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import MarketplaceClient from "./marketplace-client";
 
 export type MpReport = {
@@ -30,31 +29,29 @@ export type MpParsedOrder = {
 export default async function MarketplacePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { business } = await getActiveBusiness(supabase, user!.id);
 
-  if (!business?.id) {
-    return <div className="px-8 py-12 text-center text-[#8B8AA0]">Belum ada bisnis aktif.</div>;
+  if (!user) {
+    return <div className="px-8 py-12 text-center text-[#8B8AA0]">Silakan login terlebih dahulu.</div>;
   }
 
-  const [{ data: reports }, { data: orders }] = await Promise.all([
-    supabase.from("marketplace_reports").select("*").eq("business_id", business.id).order("created_at", { ascending: false }),
-    supabase.from("marketplace_orders").select("*").eq("platform", "").or(
-      `report_id.in.(${(await supabase.from("marketplace_reports").select("id").eq("business_id", business.id)).data?.map(r => r.id).join(",") || "00000000-0000-0000-0000-000000000000"})`
-    ).limit(1000),
-  ]);
+  const { data: reports } = await supabase
+    .from("marketplace_reports").select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
   const reportIds = (reports || []).map(r => r.id);
   let allOrders: MpParsedOrder[] = [];
   if (reportIds.length > 0) {
-    const { data } = await supabase.from("marketplace_orders").select("*").in("report_id", reportIds).order("tanggal", { ascending: false });
+    const { data } = await supabase
+      .from("marketplace_orders").select("*")
+      .in("report_id", reportIds)
+      .order("tanggal", { ascending: false });
     allOrders = (data || []) as MpParsedOrder[];
   }
 
   return (
     <MarketplaceClient
-      businessId={business.id}
-      businessName={business.name}
-      userId={user!.id}
+      userId={user.id}
       reports={(reports || []) as MpReport[]}
       parsedOrders={allOrders}
     />

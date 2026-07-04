@@ -14,8 +14,8 @@ function nextStatus(current: string): string | null {
 }
 
 export default function MpOrdersTab({
-  stores, orders, businessId, userId,
-}: { stores: MpStore[]; orders: MpOrder[]; businessId: string; userId: string }) {
+  stores, orders, userId,
+}: { stores: MpStore[]; orders: MpOrder[]; userId: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
@@ -37,7 +37,7 @@ export default function MpOrdersTab({
     setLoading(true);
     const store = stores.find(s => s.id === form.store_id);
     const { error } = await supabase.from("module_mp_orders").insert({
-      user_id: userId, business_id: businessId,
+      user_id: userId,
       store_id: form.store_id, platform: store?.platform || null,
       no_pesanan: form.no_pesanan || null,
       pembeli: form.pembeli.trim(),
@@ -109,7 +109,6 @@ export default function MpOrdersTab({
         </form>
       )}
 
-      {/* Orders table */}
       {filtered.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#0D0D1A]">
           <table className="w-full text-left text-sm">

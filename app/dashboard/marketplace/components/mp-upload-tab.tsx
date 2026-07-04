@@ -15,8 +15,8 @@ const PLATFORM_TABS = [
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 
 export default function MpUploadTab({
-  businessId, userId, reports,
-}: { businessId: string; userId: string; reports: MpReport[] }) {
+  userId, reports,
+}: { userId: string; reports: MpReport[] }) {
   const router = useRouter();
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -54,7 +54,7 @@ export default function MpUploadTab({
     if (!result || result.orders.length === 0) return;
     setLoading(true);
     const { data: report, error: re } = await supabase.from("marketplace_reports").insert({
-      user_id: userId, business_id: businessId,
+      user_id: userId,
       platform: result.platform, periode: result.periode,
       total_omzet: result.totalOmzet, total_fee: result.totalFee,
       dana_diterima: result.danaDiterima,
@@ -92,7 +92,6 @@ export default function MpUploadTab({
 
   return (
     <div>
-      {/* Platform tabs */}
       <div className="mb-5 flex gap-2">
         {PLATFORM_TABS.map(p => (
           <button
@@ -110,7 +109,6 @@ export default function MpUploadTab({
         ))}
       </div>
 
-      {/* Drop zone */}
       <div
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
@@ -130,7 +128,6 @@ export default function MpUploadTab({
 
       {loading && <p className="mt-4 text-center text-sm text-[#8B8AA0] animate-pulse">Memproses file...</p>}
 
-      {/* Parse result */}
       {result && result.orders.length > 0 && (
         <div className="mt-6">
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -147,7 +144,6 @@ export default function MpUploadTab({
             ))}
           </div>
 
-          {/* Margin warning */}
           {result.orders.some(o => o.dana_diterima < o.harga_jual * 0.5) && (
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-3 text-xs text-[#F59E0B]">
               <AlertTriangle size={14} />
@@ -157,7 +153,7 @@ export default function MpUploadTab({
 
           {!saved ? (
             <button type="button" onClick={saveToSupabase} disabled={loading} className="gercep-gradient-btn w-full cursor-pointer rounded-xl py-3 text-sm font-bold transition-opacity hover:opacity-90">
-              {loading ? "Menyimpan..." : "💾 Simpan Laporan ke Database"}
+              {loading ? "Menyimpan..." : "Simpan Laporan ke Database"}
             </button>
           ) : (
             <div className="flex items-center justify-center gap-2 rounded-xl bg-[#4ADE80]/10 border border-[#4ADE80]/30 py-3 text-sm font-semibold text-[#4ADE80]">
@@ -165,7 +161,6 @@ export default function MpUploadTab({
             </div>
           )}
 
-          {/* Preview table */}
           <div className="mt-5 overflow-x-auto rounded-2xl border border-white/[0.08]" style={{ background: "#0D0D1A" }}>
             <table className="w-full text-left text-xs">
               <thead>
@@ -202,7 +197,6 @@ export default function MpUploadTab({
         </div>
       )}
 
-      {/* Upload history */}
       {reports.length > 0 && (
         <div className="mt-8">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8B8AA0]">Riwayat Upload</p>

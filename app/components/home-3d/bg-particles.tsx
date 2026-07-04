@@ -48,13 +48,14 @@ function StarField({ count = 1200 }: { count?: number }) {
 }
 
 export default function BgParticles() {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-      <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, 1.5]}
+      <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, isMobile ? 1 : 1.5]}
         gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
         style={{ background: "transparent", position: "fixed", top: 0, left: 0, width: "100%", height: "100%" }}>
         <Suspense fallback={null}>
-          <StarField count={800} />
+          <StarField count={isMobile ? 300 : 800} />
           <EffectComposer>
             <Bloom intensity={0.6} luminanceThreshold={0.1} mipmapBlur />
           </EffectComposer>

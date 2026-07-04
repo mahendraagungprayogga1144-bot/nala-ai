@@ -146,8 +146,9 @@ export default function PricingPage() {
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06]" style={{ background: "rgba(7,7,17,.85)", backdropFilter: "blur(20px)" }}>
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-5">
-          <Link href="/" className="font-bold text-lg">
-            Gercep<span className="bg-gradient-to-r from-[#2DD4BF] to-[#8B5CF6] bg-clip-text text-transparent">AI</span>
+          <Link href="/" className="flex items-center gap-2 font-bold text-lg">
+            <img src="/logo-gercep.png" alt="Gercep AI" className="h-8 w-8 rounded-lg object-cover" />
+            <span>Gercep<span className="bg-gradient-to-r from-[#2DD4BF] to-[#8B5CF6] bg-clip-text text-transparent">AI</span></span>
           </Link>
           <div className="flex items-center gap-3 sm:gap-5">
             <Link href="/" className="hidden text-sm text-[#8B8AA0] hover:text-[#F0EFF8] transition-colors sm:block">Fitur</Link>

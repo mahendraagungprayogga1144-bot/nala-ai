@@ -16,10 +16,7 @@ export default function AdminSidebar() {
   return (
     <aside className="fixed top-0 left-0 z-50 hidden h-screen w-[220px] flex-col border-r border-white/[0.06] md:flex" style={{ background: "#0D0D1A" }}>
       <div className="flex h-[60px] items-center gap-2.5 border-b border-white/[0.06] px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold"
-          style={{ background: "linear-gradient(135deg, #EC4899, #8B5CF6)", color: "#fff" }}>
-          <Shield size={14} />
-        </div>
+        <img src="/logo-gercep.png" alt="Gercep AI" className="h-7 w-7 rounded-lg object-cover" />
         <span className="text-sm font-bold text-[#F0EFF8]">Admin Panel</span>
       </div>
 

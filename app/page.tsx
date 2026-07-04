@@ -69,8 +69,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50" style={{ background: "rgba(5,5,8,0.6)", backdropFilter: "blur(25px)", borderBottom: "1px solid rgba(45,212,191,0.08)" }}>
         <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold"
-              style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#050508", boxShadow: "0 0 15px rgba(45,212,191,0.3)" }}>G</div>
+            <img src="/logo-gercep.png" alt="Gercep AI" className="h-8 w-8 rounded-lg object-cover" style={{ boxShadow: "0 0 15px rgba(45,212,191,0.3)" }} />
             <span className="text-sm font-bold tracking-wide">GERCEP AI</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-xs text-[#8B8AA0]">
@@ -481,8 +480,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center gap-2 mb-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold"
-                  style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#050508", boxShadow: "0 0 10px rgba(45,212,191,0.3)" }}>G</div>
+                <img src="/logo-gercep.png" alt="Gercep AI" className="h-7 w-7 rounded-lg object-cover" style={{ boxShadow: "0 0 10px rgba(45,212,191,0.3)" }} />
                 <span className="text-sm font-bold">GERCEP AI</span>
               </div>
               <p className="text-[10px] text-[#3A3B52] leading-relaxed max-w-[200px]">Solusi bisnis all-in-one dengan kecerdasan AI untuk UMKM Indonesia.</p>

@@ -66,7 +66,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
         style={{ background: "radial-gradient(circle, #2DD4BF, transparent)" }} />
 
       <div className="flex h-[60px] flex-shrink-0 items-center gap-2.5 border-b border-white/[0.06] px-4">
-        <div className="gercep-gradient-btn flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold">G</div>
+        <img src="/logo-gercep.png" alt="Gercep AI" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover" />
         {expanded && (
           <span className="whitespace-nowrap text-sm font-bold text-[#F0EFF8]">
             GERCEP <span className="holo-text">AI</span>

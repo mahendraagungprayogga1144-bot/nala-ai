@@ -51,7 +51,7 @@ export default function LoginPage() {
     <main className="min-h-screen bg-[#0A0A12] text-[#F2F1F8] flex items-center justify-center px-6">
       <div className="w-full max-w-[400px]">
         <div className="text-center mb-8">
-          <a href="/" className="font-semibold text-lg">Gercep<span className="holo-text">AI</span></a>
+          <a href="/" className="inline-flex items-center gap-2 font-semibold text-lg"><img src="/logo-gercep.png" alt="Gercep AI" className="h-10 w-10 rounded-xl object-cover" /><span>Gercep<span className="holo-text">AI</span></span></a>
           <h1 className="text-2xl font-semibold mt-6 mb-2">Selamat datang lagi</h1>
           <p className="text-sm text-[#8B8AA0]">Masuk buat kelola semua bisnis kamu.</p>
         </div>

@@ -1,27 +1,44 @@
 "use client";
-import { Users, DollarSign, TrendingUp, TrendingDown, UserPlus, BarChart3 } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, UserPlus, BarChart3, UserCheck, Mail } from "lucide-react";
+import type { RecentUser } from "./page";
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
+
+function timeAgo(d: string | null) {
+  if (!d) return "—";
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Baru saja";
+  if (mins < 60) return `${mins} menit lalu`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} hari lalu`;
+  const months = Math.floor(days / 30);
+  return `${months} bulan lalu`;
+}
 
 const PLAN_COLORS: Record<string, string> = { free: "#8B8AA0", starter: "#38BDF8", pro: "#2DD4BF", enterprise: "#A78BFA" };
 
 export default function AdminOverviewClient({
-  totalUsers, newUsersThisMonth, revenueThisMonth, revenueThisYear,
-  churnRate, planCounts, userGrowth, revenueByMonth, totalBusinesses,
+  totalUsers, activeToday, newUsersThisMonth, revenueThisMonth, revenueThisYear,
+  churnRate, planCounts, userGrowth, revenueByMonth, totalBusinesses, recentUsers,
 }: {
-  totalUsers: number; newUsersThisMonth: number;
+  totalUsers: number; activeToday: number; newUsersThisMonth: number;
   revenueThisMonth: number; revenueThisYear: number;
   churnRate: number; planCounts: Record<string, number>;
   userGrowth: { month: string; count: number }[];
   revenueByMonth: { month: string; revenue: number }[];
   totalBusinesses: number;
+  recentUsers: RecentUser[];
 }) {
   const kpis = [
     { label: "Total User", value: String(totalUsers), icon: Users, color: "#2DD4BF" },
+    { label: "Aktif Hari Ini", value: String(activeToday), icon: UserCheck, color: "#4ADE80" },
     { label: "User Baru Bulan Ini", value: String(newUsersThisMonth), icon: UserPlus, color: "#38BDF8" },
-    { label: "Revenue Bulan Ini", value: fmtRp(revenueThisMonth), icon: DollarSign, color: "#4ADE80" },
+    { label: "Revenue Bulan Ini", value: fmtRp(revenueThisMonth), icon: DollarSign, color: "#F59E0B" },
     { label: "Revenue Tahun Ini", value: fmtRp(revenueThisYear), icon: TrendingUp, color: "#A78BFA" },
-    { label: "Total Bisnis", value: String(totalBusinesses), icon: BarChart3, color: "#F59E0B" },
+    { label: "Total Bisnis", value: String(totalBusinesses), icon: BarChart3, color: "#EC4899" },
     { label: "Churn Rate", value: churnRate + "%", icon: TrendingDown, color: churnRate > 10 ? "#EC4899" : "#4ADE80" },
   ];
 
@@ -37,7 +54,7 @@ export default function AdminOverviewClient({
       </div>
 
       {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {kpis.map(k => (
           <div key={k.label} className="rounded-2xl border p-4" style={{ borderColor: k.color + "33", background: "#0D0D1A" }}>
             <div className="mb-2 flex items-center gap-1.5">
@@ -47,6 +64,54 @@ export default function AdminOverviewClient({
             <p className="text-lg font-bold" style={{ color: k.color, fontFamily: "'JetBrains Mono', monospace" }}>{k.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Recent logged in users */}
+      <div className="mb-6 rounded-2xl border border-white/[0.08] p-5" style={{ background: "#0D0D1A" }}>
+        <div className="mb-4 flex items-center gap-2">
+          <Mail size={14} className="text-[#2DD4BF]" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#8B8AA0]">User Login Terbaru</p>
+          <span className="ml-auto rounded-full bg-[#4ADE80]/15 px-2 py-0.5 text-[10px] font-bold text-[#4ADE80]">{activeToday} aktif hari ini</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                {["Email", "Nama", "Paket", "Terakhir Login", "Terdaftar"].map(h => (
+                  <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[#5A5B7A]">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {recentUsers.length === 0 ? (
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-xs text-[#3A3B52]">Belum ada data login</td></tr>
+              ) : recentUsers.map(u => {
+                const isOnline = u.last_sign_in && (Date.now() - new Date(u.last_sign_in).getTime()) < 86_400_000;
+                return (
+                  <tr key={u.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className={"h-2 w-2 rounded-full flex-shrink-0 " + (isOnline ? "bg-[#4ADE80]" : "bg-[#3A3B52]")} />
+                        <span className="text-xs font-medium text-[#F0EFF8]">{u.email}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-[#8B8AA0]">{u.name || "—"}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        style={{ background: (PLAN_COLORS[u.plan] || "#8B8AA0") + "22", color: PLAN_COLORS[u.plan] }}>
+                        {u.plan.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={"text-xs font-mono " + (isOnline ? "text-[#4ADE80]" : "text-[#5A5B7A]")}>{timeAgo(u.last_sign_in)}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-[10px] font-mono text-[#5A5B7A]">{timeAgo(u.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">

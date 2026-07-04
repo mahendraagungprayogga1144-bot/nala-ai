@@ -6,6 +6,19 @@ import { Search, X, Clock, Plus, Ban } from "lucide-react";
 import type { AdminUser } from "./page";
 
 function fmtDate(d: string | null) { return d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
+function timeAgo(d: string | null) {
+  if (!d) return "—";
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Online";
+  if (mins < 60) return `${mins}m lalu`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}j lalu`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}h lalu`;
+  const months = Math.floor(days / 30);
+  return `${months}bln lalu`;
+}
 
 const PLAN_COLORS: Record<string, string> = { free: "#8B8AA0", starter: "#38BDF8", pro: "#2DD4BF", enterprise: "#A78BFA" };
 const STATUS_COLORS: Record<string, string> = { active: "#4ADE80", expired: "#EC4899", trial: "#F59E0B", suspended: "#EF4444" };
@@ -129,7 +142,7 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
         <table className="w-full min-w-[800px] text-sm">
           <thead>
             <tr className="border-b border-white/[0.06]">
-              {["Nama", "Paket", "Status", "Terdaftar", "Expired", "Sisa Hari", "Bisnis", "Aksi"].map(h => (
+              {["User", "Paket", "Status", "Login Terakhir", "Expired", "Sisa Hari", "Bisnis", "Aksi"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[#5A5B7A]">{h}</th>
               ))}
             </tr>
@@ -143,8 +156,13 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
               return (
                 <tr key={u.user_id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                   <td className="px-4 py-3">
-                    <p className="text-xs font-medium text-[#F0EFF8] truncate max-w-[150px]">{u.name || "—"}</p>
-                    <p className="text-[9px] text-[#5A5B7A] truncate max-w-[150px]">{u.email || u.user_id.slice(0, 8)}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={"h-2 w-2 flex-shrink-0 rounded-full " + (u.last_sign_in && (Date.now() - new Date(u.last_sign_in).getTime()) < 86_400_000 ? "bg-[#4ADE80]" : "bg-[#3A3B52]")} />
+                      <div>
+                        <p className="text-xs font-medium text-[#F0EFF8] truncate max-w-[180px]">{u.email || u.user_id.slice(0, 8)}</p>
+                        <p className="text-[9px] text-[#5A5B7A] truncate max-w-[180px]">{u.name || "—"}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: (PLAN_COLORS[u.plan] || "#8B8AA0") + "22", color: PLAN_COLORS[u.plan] }}>
@@ -157,7 +175,11 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
                       {u.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-[#8B8AA0] font-mono">{fmtDate(u.created_at)}</td>
+                  <td className="px-4 py-3">
+                    <span className={"text-xs font-mono " + (u.last_sign_in && (Date.now() - new Date(u.last_sign_in).getTime()) < 86_400_000 ? "text-[#4ADE80]" : "text-[#5A5B7A]")}>
+                      {timeAgo(u.last_sign_in)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-xs text-[#8B8AA0] font-mono">{fmtDate(u.expired_at)}</td>
                   <td className="px-4 py-3">
                     {remaining !== null ? (

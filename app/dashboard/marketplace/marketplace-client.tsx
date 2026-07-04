@@ -1,41 +1,60 @@
 "use client";
-import { ShoppingCart, Link2 } from "lucide-react";
-import ModuleHeader from "../components/module-header";
+import { useState } from "react";
+import { ShoppingBag, Upload, BarChart3, Calculator } from "lucide-react";
+import type { MpReport, MpParsedOrder } from "./page";
+import MpUploadTab from "./components/mp-upload-tab";
+import MpReportDashboard from "./components/mp-report-dashboard";
+import MpPriceCalculator from "./components/mp-price-calculator";
 
-const CHANNELS = [
-  { name: "Shopee", color: "#EE4D2D", status: "Segera" },
-  { name: "Tokopedia", color: "#42B549", status: "Segera" },
-  { name: "TikTok Shop", color: "#F0EFF8", status: "Segera" },
-  { name: "Lazada", color: "#0F146D", status: "Roadmap" },
-];
+const TABS = [
+  { id: "upload", label: "Upload Laporan", icon: Upload },
+  { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+  { id: "kalkulator", label: "Kalkulator Harga", icon: Calculator },
+] as const;
 
-export default function MarketplaceClient({ businessName }: { businessName: string }) {
+type TabId = (typeof TABS)[number]["id"];
+
+export default function MarketplaceClient({
+  businessId, businessName, userId, reports, parsedOrders,
+}: {
+  businessId: string; businessName: string; userId: string;
+  reports: MpReport[]; parsedOrders: MpParsedOrder[];
+}) {
+  const [tab, setTab] = useState<TabId>("upload");
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-      <ModuleHeader icon={ShoppingCart} title="Marketplace Center" subtitle={businessName} status="beta" />
-
-      <p className="mb-6 text-sm text-[#8B8AA0]">
-        Satukan order dari marketplace ke satu dashboard. Stok inventory akan sinkron otomatis (fase berikutnya).
-      </p>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {CHANNELS.map(c => (
-          <div key={c.name} className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-[#0D0D1A] p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold" style={{ background: `${c.color}22`, color: c.color }}>
-                {c.name[0]}
-              </div>
-              <div>
-                <p className="font-medium">{c.name}</p>
-                <p className="text-[10px] text-[#5A5B7A]">{c.status}</p>
-              </div>
-            </div>
-            <button type="button" disabled className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] text-[#5A5B7A] opacity-60">
-              <Link2 size={12} /> Hubungkan
-            </button>
-          </div>
-        ))}
+    <div className="w-full min-w-0 px-3 py-3 sm:px-8 sm:py-6 pb-12" style={{ background: "#070711" }}>
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <ShoppingBag size={24} className="text-[#2DD4BF]" />
+        <div>
+          <h1 className="text-xl font-semibold sm:text-2xl" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Marketplace</h1>
+          <p className="text-xs text-[#8B8AA0]">{businessName} — Upload & Analisis Laporan Marketplace</p>
+        </div>
       </div>
+
+      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] p-1 scrollbar-none" style={{ background: "#0D0D1A" }}>
+        {TABS.map(t => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={
+                "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors " +
+                (active ? "bg-[#2DD4BF]/15 text-[#2DD4BF]" : "text-[#5A5B7A] hover:text-[#8B8AA0]")
+              }
+            >
+              <t.icon size={14} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "upload" && <MpUploadTab businessId={businessId} userId={userId} reports={reports} />}
+      {tab === "dashboard" && <MpReportDashboard reports={reports} parsedOrders={parsedOrders} />}
+      {tab === "kalkulator" && <MpPriceCalculator parsedOrders={parsedOrders} />}
     </div>
   );
 }

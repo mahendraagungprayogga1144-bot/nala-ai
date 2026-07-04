@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera,
-  ShoppingCart, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
+  ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
 } from "lucide-react";
 
@@ -36,6 +36,7 @@ export const GERCEP_MODULES: DashboardModule[] = [
   { id: "ai-jual-beli", name: "AI Jual Beli", desc: "Input listing jual/beli sendiri.", href: "/dashboard/ai-jual-beli", icon: Camera, category: "operasional", status: "beta" },
 
   { id: "marketplace", name: "Marketplace Center", desc: "Daftar toko Shopee/Tokopedia sendiri.", href: "/dashboard/marketplace-center", icon: ShoppingCart, category: "marketing", status: "beta" },
+  { id: "marketplace-laporan", name: "Marketplace", desc: "Upload CSV laporan marketplace, analisis otomatis.", href: "/dashboard/marketplace", icon: ShoppingBag, category: "manajemen", status: "live" },
   { id: "marketing", name: "AI Marketing", desc: "Simpan draft caption & kampanye.", href: "/dashboard/ai-marketing", icon: Megaphone, category: "marketing", status: "beta" },
   { id: "riset", name: "AI Riset Bisnis", desc: "Catat temuan riset sendiri.", href: "/dashboard/ai-riset", icon: BarChart3, category: "marketing", status: "beta" },
   { id: "crm", name: "CRM Pelanggan", desc: "Database pelanggan perusahaan.", href: "/dashboard/crm-pelanggan", icon: Users, category: "marketing", status: "beta" },

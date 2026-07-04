@@ -1,2 +1,2 @@
 import LegacyRedirect from "../components/legacy-redirect";
-export default function Page() { return <LegacyRedirect to="/dashboard/ai-kasir" />; }
+export default function Page() { return <LegacyRedirect to="/dashboard/fnb/kasir" />; }

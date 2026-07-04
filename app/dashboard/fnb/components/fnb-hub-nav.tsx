@@ -7,7 +7,7 @@ import { FNB_NAV_HEIGHT_PX } from "../lib/mobile-layout";
 const LINKS = [
   { href: "/dashboard/inventory", label: "Stok", icon: Package, match: "/inventory" },
   { href: "/dashboard/master-menu", label: "Menu", icon: UtensilsCrossed, match: "/master-menu" },
-  { href: "/dashboard/ai-kasir", label: "Kasir", icon: ShoppingCart, match: "/ai-kasir" },
+  { href: "/dashboard/fnb/kasir", label: "Kasir", icon: ShoppingCart, match: "/fnb/kasir" },
   { href: "/dashboard/karyawan-toko", label: "Tim", icon: Users, match: "/karyawan-toko" },
 ];
 

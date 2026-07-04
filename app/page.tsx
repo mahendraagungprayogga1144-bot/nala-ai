@@ -197,25 +197,22 @@ export default function Home() {
       </section>
 
       {/* ═══ 3D DASHBOARD SHOWCASE ═══ */}
-      <section className="py-20 px-6 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-30" style={{ background: "radial-gradient(ellipse at center, #8B5CF610, transparent 60%)" }} />
-        <div className="max-w-[1100px] mx-auto">
-          <div className="grid lg:grid-cols-2 gap-10 items-center">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+      <section className="py-24 px-6 relative overflow-hidden">
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 30% 50%, rgba(139,92,246,0.06), transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(45,212,191,0.04), transparent 50%)" }} />
+        <div className="max-w-[1200px] mx-auto relative">
+          <div className="grid lg:grid-cols-5 gap-8 items-center">
+            {/* Left text */}
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="lg:col-span-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#8B5CF6] font-bold mb-3">3D INTERACTIVE</p>
               <h2 className="text-3xl sm:text-4xl font-black mb-5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 Dashboard Canggih dalam{" "}
                 <span style={{ background: "linear-gradient(90deg, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>3D</span>
               </h2>
-              <p className="text-sm text-[#8B8AA0] mb-8 max-w-[400px] leading-relaxed">
+              <p className="text-sm text-[#8B8AA0] mb-8 max-w-[380px] leading-relaxed">
                 Semua data bisnismu divisualisasikan secara real-time dengan teknologi 3D interaktif.
               </p>
               <div className="space-y-4">
-                {[
-                  { icon: Eye, text: "Visualisasi data real-time" },
-                  { icon: Brain, text: "Analitik AI prediktif" },
-                  { icon: Layout, text: "Semua dalam satu platform" },
-                ].map(f => (
+                {[{ icon: Eye, text: "Visualisasi data real-time" }, { icon: Brain, text: "Analitik AI prediktif" }, { icon: Layout, text: "Semua dalam satu platform" }].map(f => (
                   <div key={f.text} className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)" }}>
                       <f.icon size={14} className="text-[#8B5CF6]" />
@@ -226,23 +223,92 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
-              transition={{ duration: 1 }} className="relative">
-              {is3D ? (
-                <Suspense fallback={<div className="w-full h-[500px] rounded-2xl" style={{ background: "#0D0D1A" }} />}>
-                  <DashboardScene />
-                </Suspense>
-              ) : (
-                <div className="w-full h-[400px] rounded-2xl border border-white/[0.1] flex items-center justify-center" style={{ background: "#0D0D1A" }}>
-                  <p className="text-xs text-[#3A3B52]">Dashboard Preview</p>
+            {/* Right — Laptop mockup with floating cards */}
+            <motion.div initial={{ opacity: 0, y: 50, rotateX: 10 }} whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+              viewport={{ once: true }} transition={{ duration: 1.2 }} className="lg:col-span-3 relative" style={{ perspective: "1200px" }}>
+
+              {/* Main laptop frame */}
+              <div className="relative rounded-2xl border border-white/[0.1] overflow-hidden"
+                style={{ background: "#0A0A14", boxShadow: "0 0 80px rgba(139,92,246,0.12), 0 20px 60px rgba(0,0,0,0.5)" }}>
+                {/* Browser bar */}
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.06]">
+                  <div className="flex gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#EC4899]/50" /><span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]/50" /><span className="w-2.5 h-2.5 rounded-full bg-[#4ADE80]/50" /></div>
+                  <div className="flex-1 text-center"><span className="text-[9px] text-[#3A3B52] px-4 py-0.5 rounded-md bg-white/[0.03]">dashboard.gercep.ai</span></div>
                 </div>
-              )}
-              <p className="text-center text-[10px] text-[#3A3B52] mt-2 flex items-center justify-center gap-1">
-                <span className="inline-block w-3 h-3 rounded-full border border-[#3A3B52]" style={{ fontSize: 6, lineHeight: "12px", textAlign: "center" }}>↻</span>
-                Drag untuk memutar
-              </p>
+                {/* Dashboard content */}
+                <div className="p-4">
+                  {/* Top KPI row */}
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    {[{ l: "Omzet", v: "Rp 15.430.200", c: "#2DD4BF", ch: "+12%" }, { l: "Profit", v: "Rp 5.430.000", c: "#4ADE80", ch: "+8%" }, { l: "Transaksi", v: "34.500", c: "#38BDF8", ch: "+23%" }, { l: "Produk", v: "847", c: "#A78BFA", ch: "+5" }].map(k => (
+                      <div key={k.l} className="rounded-lg border border-white/[0.06] p-2" style={{ background: "#0D0D1A" }}>
+                        <p className="text-[7px] uppercase text-[#5A5B7A]">{k.l}</p>
+                        <p className="text-[10px] font-bold" style={{ color: k.c, fontFamily: "'JetBrains Mono', monospace" }}>{k.v}</p>
+                        <p className="text-[7px] text-[#4ADE80]">{k.ch}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Chart + sidebar */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2 rounded-lg border border-white/[0.06] p-3" style={{ background: "#0D0D1A" }}>
+                      <p className="text-[8px] uppercase text-[#5A5B7A] mb-2">Revenue Trend</p>
+                      <div className="flex items-end gap-[3px] h-[70px]">
+                        {[30, 45, 35, 55, 48, 65, 58, 72, 68, 80, 75, 85, 78, 92, 88].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: `linear-gradient(180deg, #2DD4BF, #8B5CF6)`, opacity: 0.5 + i / 30 }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-white/[0.06] p-3" style={{ background: "#0D0D1A" }}>
+                      <p className="text-[8px] uppercase text-[#5A5B7A] mb-2">Top Produk</p>
+                      {["Skincare Set", "Masker Wajah", "Serum Vit C"].map((p, i) => (
+                        <div key={p} className="flex items-center justify-between mb-1.5">
+                          <span className="text-[7px] text-[#8B8AA0]">{p}</span>
+                          <div className="w-12 h-1 rounded-full bg-white/[0.06]">
+                            <div className="h-full rounded-full" style={{ width: `${90 - i * 20}%`, background: ["#2DD4BF", "#8B5CF6", "#EC4899"][i] }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating cards around laptop */}
+              <motion.div animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                className="absolute -top-4 -right-4 sm:right-0 rounded-xl border p-3 w-[160px] z-10"
+                style={{ borderColor: "rgba(249,115,22,0.2)", background: "rgba(13,13,26,0.9)", backdropFilter: "blur(15px)", boxShadow: "0 0 25px rgba(249,115,22,0.08)" }}>
+                <p className="text-[8px] uppercase text-[#5A5B7A] mb-1">Marketplace</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[9px] font-bold text-[#F97316]">Shopee</span>
+                  <span className="text-[9px] font-bold text-[#EC4899]">TikTok</span>
+                </div>
+                <span className="text-[9px] font-bold text-[#22C55E]">Tokopedia</span>
+              </motion.div>
+
+              <motion.div animate={{ y: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                className="absolute -bottom-3 -right-2 sm:right-4 rounded-xl border p-3 w-[170px] z-10"
+                style={{ borderColor: "rgba(45,212,191,0.2)", background: "rgba(13,13,26,0.9)", backdropFilter: "blur(15px)", boxShadow: "0 0 25px rgba(45,212,191,0.08)" }}>
+                <p className="text-[8px] uppercase text-[#5A5B7A] mb-1">AI Assistant</p>
+                <p className="text-[8px] text-[#8B8AA0] italic">&quot;Apa yang bisa saya bantu? Mau lihat laporan hari ini?&quot;</p>
+              </motion.div>
+
+              <motion.div animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+                className="absolute top-1/3 -left-4 sm:-left-8 rounded-xl border p-3 w-[140px] z-10"
+                style={{ borderColor: "rgba(139,92,246,0.2)", background: "rgba(13,13,26,0.9)", backdropFilter: "blur(15px)", boxShadow: "0 0 25px rgba(139,92,246,0.08)" }}>
+                <p className="text-[8px] uppercase text-[#5A5B7A] mb-1">Profit Bulan Ini</p>
+                <p className="text-[12px] font-black text-[#4ADE80]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>+18.2%</p>
+                <div className="flex gap-[2px] mt-1">
+                  {[3, 5, 4, 7, 6, 8, 7].map((h, i) => <div key={i} className="flex-1 rounded-sm" style={{ height: h * 3, background: "#4ADE80", opacity: 0.4 + i / 14 }} />)}
+                </div>
+              </motion.div>
+
+              {/* Glow behind laptop */}
+              <div className="absolute -inset-8 rounded-3xl opacity-15 blur-3xl -z-10" style={{ background: "linear-gradient(135deg, #8B5CF6, #2DD4BF, #EC4899)" }} />
             </motion.div>
           </div>
+
+          <p className="text-center text-[10px] text-[#3A3B52] mt-6 flex items-center justify-center gap-1.5">
+            <span className="text-xs">🖱</span> Drag untuk memutar
+          </p>
         </div>
       </section>
 
@@ -273,8 +339,8 @@ export default function Home() {
       {/* ═══ HOW IT WORKS ═══ */}
       <section className="py-24 px-6" style={{ background: "#0A0A14" }}>
         <div className="max-w-[1100px] mx-auto">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+          <div className="grid lg:grid-cols-5 gap-10 items-center">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="lg:col-span-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#EC4899] font-bold mb-3">CARA KERJA</p>
               <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 3 Langkah Mudah<br />Kelola Bisnismu dengan{" "}
@@ -282,19 +348,20 @@ export default function Home() {
               </h2>
             </motion.div>
 
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="space-y-6">
-              {STEPS.map((s, i) => (
-                <motion.div key={s.num} variants={fadeUp} className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black"
-                    style={{ background: s.color + "15", border: `1px solid ${s.color}30`, color: s.color, boxShadow: `0 0 20px ${s.color}15` }}>
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
+              className="lg:col-span-3 grid sm:grid-cols-3 gap-4 relative">
+              {/* Connecting line behind cards */}
+              <div className="hidden sm:block absolute top-[40px] left-[15%] right-[15%] h-[2px] z-0"
+                style={{ background: "linear-gradient(90deg, #38BDF8, #8B5CF6, #2DD4BF)" }} />
+              {STEPS.map((s) => (
+                <motion.div key={s.num} variants={fadeUp} className="relative z-10 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full mx-auto mb-4 text-sm font-black"
+                    style={{ background: s.color, color: "#070711", boxShadow: `0 0 25px ${s.color}40` }}>
                     {s.num}
                   </div>
-                  <div className="flex-1 rounded-2xl border border-white/[0.06] p-5" style={{ background: "#0D0D1A" }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <s.icon size={14} style={{ color: s.color }} />
-                      <h3 className="text-sm font-bold">{s.title}</h3>
-                    </div>
-                    <p className="text-xs text-[#8B8AA0] leading-relaxed">{s.desc}</p>
+                  <div className="rounded-2xl border border-white/[0.06] p-5" style={{ background: "#0D0D1A" }}>
+                    <h3 className="text-xs font-bold mb-2">{s.title}</h3>
+                    <p className="text-[10px] text-[#8B8AA0] leading-relaxed">{s.desc}</p>
                   </div>
                 </motion.div>
               ))}
@@ -394,7 +461,7 @@ export default function Home() {
                   style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}>G</div>
                 <span className="text-sm font-bold">GERCEP AI</span>
               </div>
-              <p className="text-[10px] text-[#3A3B52] leading-relaxed max-w-[200px]">Business OS masa depan untuk UMKM Indonesia. Powered by AI.</p>
+              <p className="text-[10px] text-[#3A3B52] leading-relaxed max-w-[200px]">Solusi bisnis all-in-one dengan kecerdasan AI untuk UMKM Indonesia.</p>
             </div>
             {[
               { title: "Produk", links: ["Fitur", "Harga", "Integrasi", "AI Assistant"] },

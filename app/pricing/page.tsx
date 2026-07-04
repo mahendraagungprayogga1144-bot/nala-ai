@@ -5,6 +5,7 @@ import {
   Check, X, Zap, Crown, Building2, Sparkles,
   ChevronDown, ChevronUp, ArrowRight,
 } from "lucide-react";
+import { PAYMENT_WA } from "@/lib/payment/config";
 
 function fmtRp(n: number) { return "Rp" + n.toLocaleString("id-ID"); }
 
@@ -92,7 +93,7 @@ const PLANS = [
     icon: Building2,
     color: "#A78BFA",
     cta: "Hubungi Kami",
-    ctaHref: "https://wa.me/6281234567890",
+    ctaHref: `https://wa.me/${PAYMENT_WA}`,
     popular: false,
     features: [
       { text: "Unlimited bisnis", ok: true },
@@ -373,7 +374,7 @@ export default function PricingPage() {
           <div className="flex gap-6 text-xs text-[#5A5B7A]">
             <a href="#" className="hover:text-[#8B8AA0] transition-colors">Syarat & Ketentuan</a>
             <a href="#" className="hover:text-[#8B8AA0] transition-colors">Privasi</a>
-            <a href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer" className="hover:text-[#8B8AA0] transition-colors">Kontak</a>
+            <a href={`https://wa.me/${PAYMENT_WA}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#8B8AA0] transition-colors">Kontak</a>
           </div>
         </div>
       </footer>

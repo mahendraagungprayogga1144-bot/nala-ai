@@ -99,9 +99,10 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
         <div className="mx-2 mb-2 rounded-xl border border-[#2DD4BF]/15 bg-gradient-to-br from-[#2DD4BF]/[0.08] to-[#8B5CF6]/[0.06] p-3">
           <p className="mb-0.5 text-xs font-semibold text-[#2DD4BF]">🚀 Upgrade ke Pro</p>
           <p className="mb-2.5 text-[10px] leading-relaxed text-[#5A5B7A]">Akses semua fitur premium tanpa batas</p>
-          <button className="gercep-gradient-btn w-full cursor-pointer rounded-lg py-1.5 text-[11px] font-bold transition-opacity hover:opacity-90">
+          <a href="/dashboard/upgrade" onClick={() => onNavigate?.()}
+            className="gercep-gradient-btn block w-full cursor-pointer rounded-lg py-1.5 text-center text-[11px] font-bold transition-opacity hover:opacity-90">
             Upgrade Sekarang
-          </button>
+          </a>
         </div>
       )}
 

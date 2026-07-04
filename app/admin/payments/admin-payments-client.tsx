@@ -30,16 +30,29 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
   const totalPaid = payments.filter(p => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0);
 
   const handleConfirm = async (p: AdminPayment) => {
-    if (!confirm(`Konfirmasi pembayaran ${fmtRp(p.amount)} dari ${p.user_name || p.user_id.slice(0, 8)}?`)) return;
+    if (!confirm(`ACC pembayaran ${fmtRp(p.amount)} (${p.plan.toUpperCase()}) dari ${p.user_name || p.user_id.slice(0, 8)}? Langganan langsung aktif +30 hari.`)) return;
     setLoading(p.id);
+
+    const now = new Date();
 
     await supabase.from("payments").update({
       status: "paid",
       confirmed_by: "mahendraagungprayogga1144@gmail.com",
-      confirmed_at: new Date().toISOString(),
+      confirmed_at: now.toISOString(),
+      period_start: now.toISOString().slice(0, 10),
     }).eq("id", p.id);
 
-    const expiredAt = new Date();
+    // Perpanjangan menumpuk: kalau masih aktif di paket yang sama, tambah 30 hari dari sisa masa aktif
+    const { data: existing } = await supabase
+      .from("subscriptions")
+      .select("plan, status, expired_at")
+      .eq("user_id", p.user_id)
+      .maybeSingle();
+
+    const base = existing?.expired_at && new Date(existing.expired_at) > now && existing.plan === p.plan
+      ? new Date(existing.expired_at)
+      : now;
+    const expiredAt = new Date(base);
     expiredAt.setDate(expiredAt.getDate() + 30);
 
     await supabase.from("subscriptions").upsert({
@@ -47,12 +60,37 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
       plan: p.plan,
       status: "active",
       expired_at: expiredAt.toISOString(),
-      updated_at: new Date().toISOString(),
+      updated_at: now.toISOString(),
     }, { onConflict: "user_id" });
+
+    await supabase.from("payments").update({
+      period_end: expiredAt.toISOString().slice(0, 10),
+    }).eq("id", p.id);
 
     await supabase.from("admin_logs").insert({
       admin_email: "mahendraagungprayogga1144@gmail.com",
       action: "confirm_payment",
+      target_user_id: p.user_id,
+      detail: { payment_id: p.id, plan: p.plan, amount: p.amount, expired_at: expiredAt.toISOString() },
+    });
+
+    setLoading("");
+    router.refresh();
+  };
+
+  const handleReject = async (p: AdminPayment) => {
+    if (!confirm(`Tolak pembayaran ${fmtRp(p.amount)} dari ${p.user_name || p.user_id.slice(0, 8)}? User bisa mengajukan ulang.`)) return;
+    setLoading(p.id);
+
+    await supabase.from("payments").update({
+      status: "failed",
+      confirmed_by: "mahendraagungprayogga1144@gmail.com",
+      confirmed_at: new Date().toISOString(),
+    }).eq("id", p.id);
+
+    await supabase.from("admin_logs").insert({
+      admin_email: "mahendraagungprayogga1144@gmail.com",
+      action: "reject_payment",
       target_user_id: p.user_id,
       detail: { payment_id: p.id, plan: p.plan, amount: p.amount },
     });
@@ -121,14 +159,24 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
                 <td className="px-4 py-3 text-xs text-[#8B8AA0] font-mono">{fmtDate(p.created_at)}</td>
                 <td className="px-4 py-3">
                   {p.status === "pending" && (
-                    <button type="button" onClick={() => handleConfirm(p)} disabled={loading === p.id}
-                      className="rounded-lg border border-[#4ADE80]/30 bg-[#4ADE80]/10 px-2.5 py-1 text-[10px] font-medium text-[#4ADE80] disabled:opacity-40">
-                      <CheckCircle size={10} className="inline mr-0.5" />
-                      {loading === p.id ? "..." : "Konfirmasi"}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => handleConfirm(p)} disabled={loading === p.id}
+                        className="rounded-lg border border-[#4ADE80]/30 bg-[#4ADE80]/10 px-2.5 py-1 text-[10px] font-medium text-[#4ADE80] disabled:opacity-40">
+                        <CheckCircle size={10} className="inline mr-0.5" />
+                        {loading === p.id ? "..." : "ACC"}
+                      </button>
+                      <button type="button" onClick={() => handleReject(p)} disabled={loading === p.id}
+                        className="rounded-lg border border-[#EC4899]/30 bg-[#EC4899]/10 px-2.5 py-1 text-[10px] font-medium text-[#EC4899] disabled:opacity-40">
+                        <X size={10} className="inline mr-0.5" />
+                        Tolak
+                      </button>
+                    </div>
                   )}
                   {p.status === "paid" && p.confirmed_by && (
                     <span className="text-[9px] text-[#5A5B7A]">by admin</span>
+                  )}
+                  {p.status === "failed" && (
+                    <span className="text-[9px] text-[#EC4899]/60">ditolak</span>
                   )}
                 </td>
               </tr>

@@ -8,6 +8,7 @@ const WaveScene = lazy(() => import("./components/home-3d/wave-scene"));
 const BgParticles = lazy(() => import("./components/home-3d/bg-particles"));
 const LaptopScene = lazy(() => import("./components/home-3d/laptop-scene"));
 import { BootSequence, HudOverlay, AICore, DecodeText } from "./components/home-3d/command-center";
+import { PAYMENT_WA } from "@/lib/payment/config";
 
 const heading3D = {
   textShadow: [
@@ -396,7 +397,7 @@ export default function Home() {
                     </p>
                   ))}
                 </div>
-                <a href={p.name === "Enterprise" ? "https://wa.me/6281234567890" : `/signup?plan=${p.name.toLowerCase()}`}
+                <a href={p.name === "Enterprise" ? `https://wa.me/${PAYMENT_WA}` : `/signup?plan=${p.name.toLowerCase()}`}
                   className="block w-full text-center rounded-xl py-2.5 text-xs font-bold transition-all group relative overflow-hidden"
                   style={{
                     background: p.popular ? "linear-gradient(135deg, #2DD4BF, #8B5CF6)" : "transparent",

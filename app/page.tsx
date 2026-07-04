@@ -7,6 +7,7 @@ const HeroScene = lazy(() => import("./components/home-3d/hero-scene"));
 const WaveScene = lazy(() => import("./components/home-3d/wave-scene"));
 const BgParticles = lazy(() => import("./components/home-3d/bg-particles"));
 const LaptopScene = lazy(() => import("./components/home-3d/laptop-scene"));
+import { BootSequence, HudOverlay, AICore, DecodeText } from "./components/home-3d/command-center";
 
 const heading3D = {
   textShadow: [
@@ -85,6 +86,13 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-x-hidden relative" style={{ background: "#050508", color: "#F2F1F8" }}>
+      {/* ═══ BOOT SEQUENCE — GERCEP OS startup ═══ */}
+      {is3D && <BootSequence />}
+
+      {/* ═══ COMMAND CENTER HUD ═══ */}
+      {is3D && <HudOverlay />}
+      {is3D && <AICore />}
+
       {/* ═══ FULL PAGE PARTICLE BACKGROUND ═══ */}
       {is3D && <Suspense fallback={null}><BgParticles /></Suspense>}
 
@@ -124,7 +132,7 @@ export default function Home() {
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-bold tracking-[0.2em] uppercase text-[#2DD4BF] mb-8"
                 style={{ border: "1px solid rgba(45,212,191,0.3)", background: "rgba(45,212,191,0.06)", boxShadow: "0 0 30px rgba(45,212,191,0.1)" }}>
                 <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2DD4BF] opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-[#2DD4BF]" /></span>
-                AI-Powered Business OS
+                <DecodeText text="AI-Powered Business OS" delay={2900} />
               </span>
             </motion.div>
 
@@ -132,11 +140,11 @@ export default function Home() {
               transition={{ delay: 0.1, duration: 1.2, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
               className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.05] tracking-tight mb-6"
               style={{ fontFamily: "'Space Grotesk', sans-serif", transformPerspective: 900, ...heading3D }}>
-              Business OS{" "}
+              <DecodeText text="Business OS" delay={3000} />{" "}
               <span className="block" style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 25px rgba(139,92,246,0.4))" }}>
-                Masa Depan untuk
+                <DecodeText text="Masa Depan untuk" delay={3350} />
               </span>
-              UMKM Indonesia
+              <DecodeText text="UMKM Indonesia" delay={3700} />
             </motion.h1>
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }}

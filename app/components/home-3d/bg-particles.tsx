@@ -288,6 +288,83 @@ function NetworkNodes() {
   );
 }
 
+/* ── Neural network: nodes + synapses + traveling signal pulses ── */
+function NeuralNet() {
+  const groupRef = useRef<THREE.Group>(null);
+  const pulseRefs = useRef<THREE.Mesh[]>([]);
+
+  const { nodes, edges, lineGeo } = useMemo(() => {
+    let rnd = 7;
+    const rand = () => { rnd = (rnd * 9301 + 49297) % 233280; return rnd / 233280; };
+    const nodes: THREE.Vector3[] = [];
+    for (let i = 0; i < 42; i++) {
+      nodes.push(new THREE.Vector3(
+        (rand() - 0.5) * 44,
+        5 + rand() * 11,
+        -14 + rand() * 12,
+      ));
+    }
+    const edges: [number, number][] = [];
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        if (nodes[i].distanceTo(nodes[j]) < 7.5 && rand() > 0.45) edges.push([i, j]);
+      }
+    }
+    const verts: number[] = [];
+    edges.forEach(([a, b]) => {
+      verts.push(nodes[a].x, nodes[a].y, nodes[a].z, nodes[b].x, nodes[b].y, nodes[b].z);
+    });
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    return { nodes, edges, lineGeo };
+  }, []);
+
+  // Signal pulses travel along random edges
+  const pulses = useMemo(() =>
+    Array.from({ length: 8 }, (_, i) => ({
+      speed: 0.25 + (i % 4) * 0.12,
+      offset: i * 0.37,
+      color: ["#2DD4BF", "#8B5CF6", "#EC4899", "#38BDF8"][i % 4],
+    })), []);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (groupRef.current) groupRef.current.rotation.y = Math.sin(t * 0.04) * 0.06;
+    pulseRefs.current.forEach((mesh, i) => {
+      if (!mesh || edges.length === 0) return;
+      const p = pulses[i];
+      const cycle = (t * p.speed + p.offset) % 1;
+      const edgeIdx = Math.floor(((t * p.speed + p.offset) / 1) + i * 3.1) % edges.length;
+      const [a, b] = edges[edgeIdx];
+      mesh.position.lerpVectors(nodes[a], nodes[b], cycle);
+      (mesh.material as THREE.MeshBasicMaterial).opacity = Math.sin(cycle * Math.PI) * 0.9;
+    });
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Synapses */}
+      <lineSegments geometry={lineGeo}>
+        <lineBasicMaterial color="#2DD4BF" transparent opacity={0.08} blending={THREE.AdditiveBlending} />
+      </lineSegments>
+      {/* Neurons */}
+      {nodes.map((n, i) => (
+        <mesh key={i} position={n}>
+          <sphereGeometry args={[0.045, 6, 6]} />
+          <meshBasicMaterial color={i % 3 === 0 ? "#8B5CF6" : "#2DD4BF"} transparent opacity={0.5} />
+        </mesh>
+      ))}
+      {/* Traveling signals */}
+      {pulses.map((p, i) => (
+        <mesh key={i} ref={el => { if (el) pulseRefs.current[i] = el; }}>
+          <sphereGeometry args={[0.09, 8, 8]} />
+          <meshBasicMaterial color={p.color} transparent opacity={0.8} blending={THREE.AdditiveBlending} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 /* ── Real extruded 3D sign floating above the city ── */
 function GercepText() {
   const ref = useRef<THREE.Group>(null);
@@ -404,6 +481,7 @@ export default function BgParticles() {
           <CityScape />
           <DataStreams />
           <NetworkNodes />
+          <NeuralNet />
           <Suspense fallback={null}>
             <GercepText />
           </Suspense>

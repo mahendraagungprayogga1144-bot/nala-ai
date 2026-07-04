@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useMemo, Suspense, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Sphere, Text, Edges } from "@react-three/drei";
+import { Sphere, Text3D, Center, Edges } from "@react-three/drei";
 import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
 import * as THREE from "three";
 
@@ -288,32 +288,41 @@ function NetworkNodes() {
   );
 }
 
-/* ── Hologram sign, far behind the city ── */
+/* ── Real extruded 3D sign floating above the city ── */
 function GercepText() {
   const ref = useRef<THREE.Group>(null);
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+
   useFrame((state) => {
-    if (!ref.current) return;
     const t = state.clock.elapsedTime;
-    ref.current.position.y = 9 + Math.sin(t * 0.3) * 0.4;
-    const flicker = Math.random() > 0.97 ? 0.6 : 1;
-    ref.current.children.forEach(c => {
-      const m = (c as THREE.Mesh).material as THREE.Material & { opacity?: number };
-      if (m) m.opacity = flicker;
-    });
+    if (ref.current) {
+      ref.current.position.y = 8.5 + Math.sin(t * 0.3) * 0.4;
+      ref.current.rotation.y = Math.sin(t * 0.12) * 0.12;
+    }
+    if (matRef.current) {
+      matRef.current.emissiveIntensity = 0.9 + Math.sin(t * 1.8) * 0.3;
+    }
   });
 
   return (
-    <group ref={ref} position={[0, 9, -28]}>
-      <Text fontSize={4.2} font="/fonts/SpaceGrotesk-Bold.ttf" color="#2DD4BF"
-        anchorX="center" anchorY="middle" fillOpacity={0.06}
-        outlineWidth={0.035} outlineColor="#2DD4BF" outlineOpacity={0.45}>
-        GERCEP AI
-      </Text>
-      <Text fontSize={0.55} font="/fonts/SpaceGrotesk-Bold.ttf" color="#8B5CF6"
-        anchorX="center" anchorY="middle" position={[0, -2.9, 0]} fillOpacity={0.25}
-        outlineWidth={0.012} outlineColor="#8B5CF6" outlineOpacity={0.4} letterSpacing={0.25}>
-        BUSINESS OS MASA DEPAN
-      </Text>
+    <group ref={ref} position={[0, 8.5, -24]}>
+      <Center>
+        <Text3D font="/fonts/helvetiker_bold.typeface.json" size={2.6} height={0.7}
+          bevelEnabled bevelSize={0.06} bevelThickness={0.1} curveSegments={8} letterSpacing={0.08}>
+          GERCEP AI
+          <meshStandardMaterial ref={matRef} color="#062522" emissive="#2DD4BF"
+            emissiveIntensity={0.9} metalness={0.9} roughness={0.15} />
+        </Text3D>
+      </Center>
+      <Center position={[0, -2.6, 0.4]}>
+        <Text3D font="/fonts/helvetiker_bold.typeface.json" size={0.55} height={0.15}
+          bevelEnabled bevelSize={0.012} bevelThickness={0.02} curveSegments={6} letterSpacing={0.06}>
+          BUSINESS OS MASA DEPAN
+          <meshStandardMaterial color="#150a2e" emissive="#8B5CF6"
+            emissiveIntensity={0.8} metalness={0.9} roughness={0.2} />
+        </Text3D>
+      </Center>
+      <pointLight position={[0, 0, 4]} intensity={1.2} distance={20} color="#2DD4BF" />
     </group>
   );
 }

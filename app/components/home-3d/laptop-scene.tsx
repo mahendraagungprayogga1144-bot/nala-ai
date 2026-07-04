@@ -164,6 +164,66 @@ function drawSidePanel(title: string, accent: string, type: "bars" | "spark"): T
   return tex;
 }
 
+/* ── Backlit keyboard: rows of real key meshes ── */
+function Keyboard() {
+  const glowRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!glowRef.current) return;
+    // Breathing backlight
+    const pulse = 0.02 + Math.sin(state.clock.elapsedTime * 1.2) * 0.01;
+    glowRef.current.children.forEach((row) => {
+      row.children.forEach((key) => {
+        const m = (key as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        if (m && m.emissive) m.emissiveIntensity = pulse;
+      });
+    });
+  });
+
+  const rows = useMemo(() => {
+    const out: { x: number; z: number; w: number }[][] = [];
+    const rowZ = [-0.72, -0.52, -0.32, -0.12, 0.08];
+    rowZ.forEach((z, r) => {
+      const keys: { x: number; z: number; w: number }[] = [];
+      const count = r === 0 ? 13 : r === 4 ? 10 : 14;
+      const keyW = r === 0 ? 0.21 : 0.19;
+      const totalW = count * (keyW + 0.035) - 0.035;
+      for (let i = 0; i < count; i++) {
+        keys.push({ x: -totalW / 2 + i * (keyW + 0.035) + keyW / 2, z, w: keyW });
+      }
+      out.push(keys);
+    });
+    return out;
+  }, []);
+
+  return (
+    <group ref={glowRef}>
+      {rows.map((keys, r) => (
+        <group key={r}>
+          {keys.map((k, i) => (
+            <mesh key={i} position={[k.x, 0.085, k.z]}>
+              <boxGeometry args={[k.w, 0.025, 0.16]} />
+              <meshStandardMaterial color="#070910" roughness={0.85} metalness={0.15}
+                emissive="#2DD4BF" emissiveIntensity={0.02} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {/* Spacebar */}
+      <mesh position={[0, 0.085, 0.28]}>
+        <boxGeometry args={[1.35, 0.025, 0.16]} />
+        <meshStandardMaterial color="#070910" roughness={0.85} metalness={0.15}
+          emissive="#8B5CF6" emissiveIntensity={0.04} />
+      </mesh>
+      {/* Keyboard underglow strip */}
+      <mesh position={[0, 0.074, -0.25]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[3.15, 1.15]} />
+        <meshBasicMaterial color="#2DD4BF" transparent opacity={0.02} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ── Laptop model with opening lid ── */
 function Laptop() {
   const groupRef = useRef<THREE.Group>(null);
@@ -212,15 +272,17 @@ function Laptop() {
       <RoundedBox args={[3.6, 0.14, 2.4]} radius={0.04}>
         <meshStandardMaterial color="#0c0f1a" metalness={0.9} roughness={0.25} />
       </RoundedBox>
-      {/* Keyboard deck */}
-      <mesh position={[0, 0.072, -0.15]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[3.2, 1.35]} />
-        <meshStandardMaterial color="#05070d" roughness={0.6} metalness={0.5} />
+      {/* Keyboard well */}
+      <mesh position={[0, 0.072, -0.25]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[3.25, 1.25]} />
+        <meshStandardMaterial color="#04060b" roughness={0.7} metalness={0.4} />
       </mesh>
+      {/* Backlit keys */}
+      <Keyboard />
       {/* Trackpad */}
       <mesh position={[0, 0.073, 0.78]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[1.0, 0.5]} />
-        <meshStandardMaterial color="#0a0e1a" roughness={0.25} metalness={0.7} />
+        <planeGeometry args={[1.0, 0.48]} />
+        <meshStandardMaterial color="#0b0e18" roughness={0.35} metalness={0.5} />
       </mesh>
 
       {/* Lid (hinged at back edge) */}

@@ -9,8 +9,26 @@ const BgParticles = lazy(() => import("./components/home-3d/bg-particles"));
 const LaptopScene = lazy(() => import("./components/home-3d/laptop-scene"));
 
 const heading3D = {
-  textShadow: "0 1px 0 rgba(45,212,191,0.25), 0 2px 0 rgba(45,212,191,0.18), 0 3px 0 rgba(45,212,191,0.12), 0 4px 0 rgba(45,212,191,0.06), 0 8px 24px rgba(0,0,0,0.9), 0 0 60px rgba(45,212,191,0.3)",
+  textShadow: [
+    "0 1px 0 #0f766e", "0 2px 0 #0d6d66", "0 3px 0 #0b645e", "0 4px 0 #0a5b56",
+    "0 5px 0 #08524e", "0 6px 0 rgba(8,82,78,0.7)", "0 7px 0 rgba(8,82,78,0.4)",
+    "0 12px 24px rgba(0,0,0,0.95)", "0 0 70px rgba(45,212,191,0.4)",
+  ].join(", "),
 };
+
+function Heading3D({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <motion.h2
+      initial={{ opacity: 0, rotateX: 55, y: 60, scale: 0.9 }}
+      whileInView={{ opacity: 1, rotateX: 0, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+      className={className}
+      style={{ fontFamily: "'Space Grotesk', sans-serif", transformPerspective: 900, transformStyle: "preserve-3d", ...heading3D }}>
+      {children}
+    </motion.h2>
+  );
+}
 
 function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -110,8 +128,10 @@ export default function Home() {
               </span>
             </motion.div>
 
-            <motion.h1 initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 1 }}
-              className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.05] tracking-tight mb-6" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <motion.h1 initial={{ opacity: 0, y: 60, rotateX: 45 }} animate={{ opacity: 1, y: 0, rotateX: 0 }}
+              transition={{ delay: 0.1, duration: 1.2, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+              className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.05] tracking-tight mb-6"
+              style={{ fontFamily: "'Space Grotesk', sans-serif", transformPerspective: 900, ...heading3D }}>
               Business OS{" "}
               <span className="block" style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 25px rgba(139,92,246,0.4))" }}>
                 Masa Depan untuk
@@ -216,10 +236,10 @@ export default function Home() {
           <div className="grid lg:grid-cols-5 gap-8 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="lg:col-span-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#8B5CF6] font-bold mb-3" style={{ textShadow: "0 0 20px rgba(139,92,246,0.5)" }}>3D INTERACTIVE</p>
-              <h2 className="text-3xl sm:text-4xl font-black mb-5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
+              <Heading3D className="text-3xl sm:text-4xl font-black mb-5 leading-tight">
                 Dashboard Canggih dalam{" "}
                 <span style={{ background: "linear-gradient(90deg, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 15px rgba(139,92,246,0.5))" }}>3D</span>
-              </h2>
+              </Heading3D>
               <p className="text-sm text-[#8B8AA0] mb-8 max-w-[380px] leading-relaxed">Semua data bisnismu divisualisasikan secara real-time dengan teknologi 3D interaktif.</p>
               <div className="space-y-4">
                 {[{ icon: Eye, text: "Visualisasi data real-time", c: "#2DD4BF" }, { icon: Brain, text: "Analitik AI prediktif", c: "#8B5CF6" }, { icon: Layout, text: "Semua dalam satu platform", c: "#EC4899" }].map(f => (
@@ -284,10 +304,10 @@ export default function Home() {
           <div className="grid lg:grid-cols-5 gap-10 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="lg:col-span-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#EC4899] font-bold mb-3" style={{ textShadow: "0 0 15px rgba(236,72,153,0.5)" }}>CARA KERJA</p>
-              <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
+              <Heading3D className="text-3xl sm:text-4xl font-black leading-tight">
                 3 Langkah Mudah<br />Kelola Bisnismu dengan{" "}
                 <span style={{ background: "linear-gradient(90deg, #EC4899, #8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 10px rgba(236,72,153,0.4))" }}>AI</span>
-              </h2>
+              </Heading3D>
             </motion.div>
 
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
@@ -327,9 +347,9 @@ export default function Home() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="mb-16">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#2DD4BF] font-bold mb-3" style={{ textShadow: "0 0 15px rgba(45,212,191,0.5)" }}>PAKET HEMAT</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
+              <Heading3D className="text-3xl sm:text-4xl font-black leading-tight">
                 Pilih Paket yang<br />Sesuai Kebutuhanmu
-              </h2>
+              </Heading3D>
               <a href="/pricing" className="inline-flex items-center gap-2 text-xs text-[#2DD4BF] hover:underline font-medium">Lihat Semua Paket <ArrowRight size={12} /></a>
             </div>
           </motion.div>
@@ -395,12 +415,12 @@ export default function Home() {
         <NebulaBlob color="#EC4899" position="top-right" size={400} />
         <div className="relative z-10 text-center max-w-[700px] mx-auto">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-8 leading-[1.1]" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
+            <Heading3D className="text-3xl sm:text-4xl md:text-5xl font-black mb-8 leading-[1.1]">
               Siap Upgrade Bisnismu ke{" "}
               <span className="block sm:inline" style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 20px rgba(139,92,246,0.5))" }}>
                 Level Berikutnya?
               </span>
-            </h2>
+            </Heading3D>
             <a href="/signup" className="group relative inline-flex items-center gap-3 px-12 py-5 rounded-2xl text-base font-bold overflow-hidden"
               style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#050508", boxShadow: "0 0 80px rgba(45,212,191,0.4), 0 0 160px rgba(139,92,246,0.15), 0 0 240px rgba(236,72,153,0.08)" }}>
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />

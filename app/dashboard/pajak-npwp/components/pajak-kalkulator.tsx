@@ -5,9 +5,11 @@ import type { OmzetBulanan } from "../page";
 
 const BULAN_NAMES = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const BATAS_UMKM = 4_800_000_000;
+const PTKP_UMKM = 500_000_000;
 const PPH_RATE = 0.005;
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
+function hitungPPh(omzetKumulatif: number) { return Math.max(0, omzetKumulatif - PTKP_UMKM) * PPH_RATE; }
 
 export default function PajakKalkulator({
   tahun, omzetPerBulan, omzetTahunIni,
@@ -30,10 +32,12 @@ export default function PajakKalkulator({
   }, [selectedMonth, omzetPerBulan, manualOmzet]);
 
   const finalOmzetKumulatif = omzetKumulatif + omzetBulanIni;
-  const pphBulanIni = omzetBulanIni * PPH_RATE;
-  const pphTahunIni = finalOmzetKumulatif * PPH_RATE;
+  const pphTahunIni = hitungPPh(finalOmzetKumulatif);
+  const pphSebelumBulanIni = hitungPPh(omzetKumulatif);
+  const pphBulanIni = pphTahunIni - pphSebelumBulanIni;
   const sisaBatas = Math.max(0, BATAS_UMKM - finalOmzetKumulatif);
   const masihUmkm = finalOmzetKumulatif < BATAS_UMKM;
+  const masihPtkp = finalOmzetKumulatif <= PTKP_UMKM;
 
   const inputCls = "w-full rounded-xl border border-white/[0.08] bg-[#0A0A12] px-3 py-2.5 text-sm text-[#F0EFF8] outline-none focus:border-[#2DD4BF]/40 transition-colors";
 
@@ -72,17 +76,28 @@ export default function PajakKalkulator({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-[#A78BFA]/20 p-5" style={{ background: "#0D0D1A" }}>
           <p className="mb-1 text-[10px] uppercase tracking-wide text-[#8B8AA0]">PPh Final {BULAN_NAMES[selectedMonth]}</p>
-          <p className="mb-1 text-xs text-[#5A5B7A]">{fmtRp(omzetBulanIni)} × 0,5%</p>
+          {masihPtkp ? (
+            <p className="mb-1 text-xs text-[#4ADE80]">Masih di bawah PTKP Rp500jt — bebas pajak</p>
+          ) : (
+            <p className="mb-1 text-xs text-[#5A5B7A]">PPh kumulatif s.d. bulan ini − bulan lalu</p>
+          )}
           <p className="text-2xl font-bold text-[#A78BFA]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtRp(pphBulanIni)}</p>
         </div>
 
         <div className="rounded-2xl border border-[#2DD4BF]/20 p-5" style={{ background: "#0D0D1A" }}>
           <p className="mb-1 text-[10px] uppercase tracking-wide text-[#8B8AA0]">PPh Final Tahun {tahun} (kumulatif)</p>
-          <p className="mb-1 text-xs text-[#5A5B7A]">{fmtRp(finalOmzetKumulatif)} × 0,5%</p>
+          <p className="mb-1 text-xs text-[#5A5B7A]">({fmtRp(finalOmzetKumulatif)} − {fmtRp(PTKP_UMKM)} PTKP) × 0,5%</p>
           <p className="text-2xl font-bold text-[#2DD4BF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtRp(pphTahunIni)}</p>
         </div>
 
-        <div className="rounded-2xl border p-5 sm:col-span-2" style={{ borderColor: masihUmkm ? "rgba(45,212,191,.2)" : "rgba(236,72,153,.2)", background: "#0D0D1A" }}>
+        {/* PTKP info */}
+        <div className="rounded-2xl border border-[#4ADE80]/20 p-5" style={{ background: "#0D0D1A" }}>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-[#8B8AA0]">PTKP UMKM (Bebas Pajak)</p>
+          <p className="text-xl font-bold text-[#4ADE80]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtRp(PTKP_UMKM)}</p>
+          <p className="mt-1 text-[10px] text-[#5A5B7A]">Omzet s.d. Rp500jt/tahun tidak dikenakan PPh Final</p>
+        </div>
+
+        <div className="rounded-2xl border p-5" style={{ borderColor: masihUmkm ? "rgba(45,212,191,.2)" : "rgba(236,72,153,.2)", background: "#0D0D1A" }}>
           <p className="mb-1 text-[10px] uppercase tracking-wide text-[#8B8AA0]">Sisa Omzet Sebelum Tarif Normal</p>
           <p className="text-xl font-bold" style={{ color: masihUmkm ? "#2DD4BF" : "#EC4899", fontFamily: "'JetBrains Mono', monospace" }}>
             {masihUmkm ? fmtRp(sisaBatas) : "Rp0"}

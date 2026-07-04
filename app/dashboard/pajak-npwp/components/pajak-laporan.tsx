@@ -2,19 +2,24 @@
 import { useCallback } from "react";
 import { ClipboardList, Download } from "lucide-react";
 
+const PTKP_UMKM = 500_000_000;
+
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 
 export default function PajakLaporan({
   tahun, totalPemasukan, totalPengeluaran, omzetTahunIni,
 }: { tahun: number; totalPemasukan: number; totalPengeluaran: number; omzetTahunIni: number }) {
   const labaBersih = totalPemasukan - totalPengeluaran;
-  const pphTerutang = omzetTahunIni * 0.005;
+  const omzetKenaPajak = Math.max(0, omzetTahunIni - PTKP_UMKM);
+  const pphTerutang = omzetKenaPajak * 0.005;
 
   const rows = [
     { label: "Total Pemasukan (Omzet Bruto)", value: totalPemasukan, color: "#2DD4BF" },
+    { label: "PTKP UMKM (Bebas Pajak)", value: -Math.min(omzetTahunIni, PTKP_UMKM), color: "#4ADE80" },
+    { label: "Omzet Kena Pajak", value: omzetKenaPajak, color: "#FBBF24", bold: true },
     { label: "Total Pengeluaran Usaha", value: -totalPengeluaran, color: "#F43F5E" },
     { label: "Laba Bersih Usaha", value: labaBersih, color: labaBersih >= 0 ? "#4ADE80" : "#F43F5E", bold: true },
-    { label: "Estimasi PPh Final Terutang (0,5%)", value: pphTerutang, color: "#A78BFA" },
+    { label: "Estimasi PPh Final Terutang (0,5% dari omzet kena pajak)", value: pphTerutang, color: "#A78BFA" },
   ];
 
   const exportPdf = useCallback(() => {

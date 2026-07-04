@@ -4,10 +4,11 @@ import { DollarSign, TrendingUp, CheckCircle, AlertTriangle, Clock, Shield } fro
 import type { NpwpProfile, OmzetBulanan } from "../page";
 
 const BATAS_UMKM = 4_800_000_000;
-const BATAS_PKP = 500_000_000;
+const PTKP_UMKM = 500_000_000;
 const BULAN = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
+function hitungPPh(omzet: number) { return Math.max(0, omzet - PTKP_UMKM) * 0.005; }
 
 export default function PajakBeranda({
   npwp, tahun, omzetTahunIni, totalPphTerutang, totalPphDibayar, omzetPerBulan,
@@ -15,16 +16,18 @@ export default function PajakBeranda({
   npwp: NpwpProfile | null; tahun: number; omzetTahunIni: number;
   totalPphTerutang: number; totalPphDibayar: number; omzetPerBulan: OmzetBulanan[];
 }) {
-  const pphEstimasi = omzetTahunIni * 0.005;
+  const pphEstimasi = hitungPPh(omzetTahunIni);
   const kurangBayar = Math.max(0, pphEstimasi - totalPphDibayar);
   const pctOmzet = Math.min((omzetTahunIni / BATAS_UMKM) * 100, 100);
 
-  const statusColor = omzetTahunIni >= BATAS_UMKM ? "#EC4899" : omzetTahunIni >= BATAS_PKP ? "#F59E0B" : "#2DD4BF";
+  const statusColor = omzetTahunIni >= BATAS_UMKM ? "#EC4899" : omzetTahunIni >= BATAS_UMKM * 0.8 ? "#F59E0B" : "#2DD4BF";
   const statusLabel = omzetTahunIni >= BATAS_UMKM
-    ? "Lewat batas UMKM — konsultasi akuntan"
-    : omzetTahunIni >= BATAS_PKP
-      ? "Mendekati batas PKP (Rp500jt)"
-      : "Tarif UMKM 0,5% berlaku";
+    ? "Lewat batas UMKM Rp4,8M — konsultasi akuntan, kena tarif normal"
+    : omzetTahunIni >= BATAS_UMKM * 0.8
+      ? "Mendekati batas UMKM Rp4,8M"
+      : omzetTahunIni <= PTKP_UMKM
+        ? "Omzet masih di bawah PTKP Rp500jt — BEBAS PAJAK"
+        : "Tarif UMKM 0,5% (omzet di atas Rp500jt)";
 
   const reminders = useMemo(() => {
     const now = new Date();
@@ -36,12 +39,19 @@ export default function PajakBeranda({
       date: `${nextMonth.getDate()} ${BULAN[nextMonth.getMonth() + 1]} ${nextMonth.getFullYear()}`,
       urgent: daysToSetor <= 7,
     });
-    const sptDate = new Date(tahun + 1, 2, 31);
-    const daysToSpt = Math.ceil((sptDate.getTime() - now.getTime()) / 86_400_000);
+    const sptOP = new Date(tahun + 1, 2, 31);
+    const daysToSptOP = Math.ceil((sptOP.getTime() - now.getTime()) / 86_400_000);
     items.push({
-      label: "Lapor SPT Tahunan",
+      label: "Lapor SPT Tahunan (Orang Pribadi)",
       date: `31 Maret ${tahun + 1}`,
-      urgent: daysToSpt <= 30,
+      urgent: daysToSptOP <= 30,
+    });
+    const sptBadan = new Date(tahun + 1, 3, 30);
+    const daysToSptBadan = Math.ceil((sptBadan.getTime() - now.getTime()) / 86_400_000);
+    items.push({
+      label: "Lapor SPT Tahunan (Badan/PT/CV)",
+      date: `30 April ${tahun + 1}`,
+      urgent: daysToSptBadan <= 30,
     });
     return items;
   }, [tahun]);

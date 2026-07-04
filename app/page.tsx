@@ -53,7 +53,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0A0A12]/80 backdrop-blur-xl">
         <div className="max-w-[1152px] mx-auto px-6 h-16 flex items-center justify-between">
           <span className="font-semibold">Gercep<span className="holo-text">AI</span></span>
-          <div className="flex items-center gap-4"><a href="/login" className="text-sm text-[#8B8AA0]">Masuk</a><a href="/signup" className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-medium">Coba Gratis</a></div>
+          <div className="flex items-center gap-4"><a href="#modul" className="hidden sm:block text-sm text-[#8B8AA0] hover:text-[#F0EFF8] transition-colors">Fitur</a><a href="/pricing" className="hidden sm:block text-sm text-[#8B8AA0] hover:text-[#F0EFF8] transition-colors">Harga</a><a href="/login" className="text-sm text-[#8B8AA0]">Masuk</a><a href="/signup" className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-medium">Coba Gratis</a></div>
         </div>
       </nav>
 
@@ -174,7 +174,17 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="py-8 px-6 border-t border-white/5 text-center text-[#8B8AA0] text-sm">2026 Gercep AI - Dibuat dengan bangga di Indonesia</footer>
+      <footer className="py-8 px-6 border-t border-white/5">
+        <div className="max-w-[1152px] mx-auto flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+          <p className="text-xs text-[#3A3B52]">&copy; 2026 PT Henima Collection Indonesia. All rights reserved.</p>
+          <div className="flex gap-6 text-xs text-[#5A5B7A]">
+            <a href="/pricing" className="hover:text-[#8B8AA0] transition-colors">Harga</a>
+            <a href="#" className="hover:text-[#8B8AA0] transition-colors">Syarat & Ketentuan</a>
+            <a href="#" className="hover:text-[#8B8AA0] transition-colors">Privasi</a>
+            <a href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer" className="hover:text-[#8B8AA0] transition-colors">Kontak</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

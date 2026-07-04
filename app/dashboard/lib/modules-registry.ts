@@ -30,7 +30,7 @@ export const GERCEP_MODULES: DashboardModule[] = [
   { id: "pajak", name: "Pajak NPWP Center", desc: "Input NPWP & lapor omzet sendiri.", href: "/dashboard/pajak-npwp", icon: FileText, category: "keuangan", status: "beta" },
 
   { id: "inventory", name: "Inventory", desc: "Stok berkurang otomatis, notif kalau habis.", href: "/dashboard/inventory", icon: Package, category: "operasional", status: "live" },
-  { id: "kasir", name: "AI Kasir", desc: "Struk, rekap kas, tutup shift otomatis.", href: "/dashboard/ai-kasir", icon: Receipt, category: "operasional", status: "live", bizTypes: ["kuliner"] },
+  { id: "kasir", name: "AI Kasir", desc: "Struk, rekap kas, tutup shift otomatis.", href: "/dashboard/ai-kasir", icon: Receipt, category: "operasional", status: "live" },
   { id: "master-menu", name: "Master Menu", desc: "Kelola menu & resep sendiri.", href: "/dashboard/master-menu", icon: UtensilsCrossed, category: "operasional", status: "live", bizTypes: ["kuliner"] },
   { id: "barcode", name: "Barcode QR Analyzer", desc: "Daftar barcode & SKU sendiri.", href: "/dashboard/barcode-qr", icon: QrCode, category: "operasional", status: "beta" },
   { id: "ai-jual-beli", name: "AI Jual Beli", desc: "Input listing jual/beli sendiri.", href: "/dashboard/ai-jual-beli", icon: Camera, category: "operasional", status: "beta" },

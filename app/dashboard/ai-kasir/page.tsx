@@ -1,25 +1,46 @@
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import KasirClient from "../fnb/kasir/kasir-client";
-import { normalizeMenus } from "../fnb/lib/calc";
+import AiKasirClient from "./ai-kasir-client";
+
+export type Product = {
+  id: string; name: string; price: number; cost: number;
+  stock: number; min_stock: number; category: string | null;
+  sku: string | null; barcode: string | null;
+};
+
+export type KasirShift = {
+  id: string; modal_awal: number; total_transaksi: number;
+  total_order: number; kas_akhir: number;
+  opened_at: string; closed_at: string | null; status: string;
+};
+
+export type TodayTx = {
+  id: string; amount: number; description: string | null;
+  category: string | null; created_at: string;
+};
 
 export default async function AiKasirPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  if (!user) {
+    return <div className="px-8 py-12 text-center text-[#8B8AA0]">Silakan login terlebih dahulu.</div>;
+  }
+
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
 
   const { data: businessData } = await supabase
-    .from("businesses").select("id, type, name").eq("user_id", user!.id).order("created_at", { ascending: true });
+    .from("businesses").select("id, type, name")
+    .eq("user_id", user.id).order("created_at", { ascending: true });
 
   const business = businessData?.find(b => b.id === activeBusinessId) || businessData?.[0] || null;
 
-  if (business?.type !== "kuliner") {
+  if (!business) {
     return (
       <div className="mx-auto max-w-lg px-8 py-12 text-center">
         <h1 className="mb-2 text-xl font-semibold">AI Kasir</h1>
-        <p className="text-sm text-[#8B8AA0]">Modul kasir untuk bisnis tipe Kuliner / F&B. Ganti bisnis aktif di Multi Bisnis.</p>
+        <p className="text-sm text-[#8B8AA0]">Buat bisnis dulu di Multi Bisnis sebelum menggunakan kasir.</p>
         <a href="/dashboard/multi-bisnis" className="mt-4 inline-block text-sm text-[#2DD4BF]">Kelola bisnis →</a>
       </div>
     );
@@ -27,57 +48,43 @@ export default async function AiKasirPage() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const { data: menus } = await supabase
-    .from("menus")
-    .select("*, menu_recipes(*, products(id, name, cost, stock))")
-    .eq("business_id", business.id)
-    .eq("status", "aktif")
-    .order("kategori");
-
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("*, checkins(id, tanggal, jam_masuk, jam_keluar)")
-    .eq("business_id", business.id)
-    .eq("aktif", true)
-    .order("nama");
-
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, name, stock, min_stock, category")
-    .eq("business_id", business.id)
-    .order("name");
-
-  const { data: todayOrders } = await supabase
-    .from("orders")
-    .select("id, total, hpp, laba")
-    .eq("business_id", business.id)
-    .eq("order_date", today);
-
-  const omzetHariIni = todayOrders?.reduce((s, o) => s + Number(o.total || 0), 0) || 0;
-  const labaHariIni = todayOrders?.reduce((s, o) => s + Number(o.laba || 0), 0) || 0;
-  const totalOrder = todayOrders?.length || 0;
+  const [{ data: products }, { data: activeShift }, { data: todayTxs }, { data: todayShifts }] = await Promise.all([
+    supabase.from("products")
+      .select("id, name, price, cost, stock, min_stock, category, sku, barcode")
+      .eq("business_id", business.id)
+      .order("category").order("name"),
+    supabase.from("kasir_shifts")
+      .select("*")
+      .eq("business_id", business.id)
+      .eq("user_id", user.id)
+      .eq("status", "open")
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("transactions")
+      .select("id, amount, description, category, created_at")
+      .eq("business_id", business.id)
+      .eq("type", "pemasukan")
+      .eq("scope", "bisnis")
+      .gte("transaction_date", today)
+      .order("created_at", { ascending: false }),
+    supabase.from("kasir_shifts")
+      .select("*")
+      .eq("business_id", business.id)
+      .gte("opened_at", today + "T00:00:00")
+      .order("opened_at", { ascending: false }),
+  ]);
 
   return (
-    <div className="w-full min-w-0 px-0 py-0 sm:px-8 sm:py-8">
-      <div className="mb-1 flex items-center justify-between gap-2 px-3 pt-3 sm:px-0 sm:pt-0">
-        <h1 className="text-xl font-semibold sm:text-2xl">
-          <span className="bg-gradient-to-r from-[#2DD4BF] to-[#A78BFA] bg-clip-text text-transparent">AI Kasir</span>
-        </h1>
-        {business?.name && <span className="max-w-[40%] truncate rounded-full border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-3 py-1 text-xs text-[#2DD4BF]">{business.name}</span>}
-      </div>
-      <p className="mb-3 hidden px-3 text-sm text-[#8B8AA0] sm:mb-6 sm:block sm:px-0">Modul kasir mandiri — catat transaksi, struk, tutup shift.</p>
-      <KasirClient
-        menus={normalizeMenus(menus || [])}
-        products={products || []}
-        employees={employees || []}
-        userId={user!.id}
-        businessId={business.id}
-        businessName={business.name}
-        omzetHariIni={omzetHariIni}
-        labaHariIni={labaHariIni}
-        totalOrder={totalOrder}
-        today={today}
-      />
-    </div>
+    <AiKasirClient
+      userId={user.id}
+      businessId={business.id}
+      businessName={business.name}
+      products={(products || []) as Product[]}
+      activeShift={(activeShift || null) as KasirShift | null}
+      todayTransactions={(todayTxs || []) as TodayTx[]}
+      todayShifts={(todayShifts || []) as KasirShift[]}
+      today={today}
+    />
   );
 }

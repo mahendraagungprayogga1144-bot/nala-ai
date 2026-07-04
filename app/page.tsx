@@ -42,10 +42,10 @@ const STATS = [
 ];
 
 const PLANS = [
-  { name: "Gratis", price: "0", period: "/bulan", color: "#8B8AA0", features: ["Fitur dasar", "1 User", "Laporan dasar"], cta: "Mulai Gratis" },
-  { name: "Starter", price: "79.000", period: "/bulan", color: "#38BDF8", features: ["Fitur lengkap", "5 User", "Laporan lengkap"], cta: "Pilih Paket" },
-  { name: "Pro", price: "199.000", period: "/bulan", color: "#2DD4BF", popular: true, features: ["Fitur premium", "Unlimited User", "AI Insight"], cta: "Pilih Paket" },
-  { name: "Enterprise", price: "Custom", period: "", color: "#A78BFA", features: ["Solusi khusus", "Integrasi API", "Dedicated Support"], cta: "Hubungi Kami" },
+  { name: "Gratis", price: "0", period: "/bulan", color: "#8B8AA0", features: ["1 bisnis", "Keuangan basic", "Dashboard Owner basic"], cta: "Mulai Gratis" },
+  { name: "Starter", price: "40.000", period: "/bulan", color: "#38BDF8", features: ["2 bisnis", "Inventory 50 produk", "Export Excel/PDF"], cta: "Pilih Starter" },
+  { name: "Pro", price: "75.000", period: "/bulan", color: "#2DD4BF", popular: true, features: ["5 bisnis", "AI Kasir universal", "Marketplace Center"], cta: "Coba 7 Hari Gratis" },
+  { name: "Enterprise", price: "150.000", period: "/bulan", color: "#A78BFA", features: ["Unlimited bisnis", "API access", "Dedicated support"], cta: "Hubungi Kami" },
 ];
 
 function GlowDivider() {

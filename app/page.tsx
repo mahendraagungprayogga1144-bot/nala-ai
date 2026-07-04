@@ -58,7 +58,7 @@ function NebulaBlob({ color, position, size = 500 }: { color: string; position: 
 
 export default function Home() {
   const [is3D, setIs3D] = useState(false);
-  useEffect(() => { setIs3D((navigator.hardwareConcurrency || 4) >= 2); }, []);
+  useEffect(() => { setIs3D(true); }, []);
 
   return (
     <main className="min-h-screen overflow-x-hidden relative" style={{ background: "#050508", color: "#F2F1F8" }}>

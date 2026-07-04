@@ -6,10 +6,9 @@ import * as THREE from "three";
 
 function StarField({ count = 1200 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null);
-  const { positions, colors, sizes } = useMemo(() => {
+  const { positions, colors } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
-    const sz = new Float32Array(count);
     const palette = [[0.18, 0.83, 0.75], [0.55, 0.36, 0.96], [0.93, 0.29, 0.6], [0.22, 0.74, 0.97], [1, 1, 1]];
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 60;
@@ -20,9 +19,8 @@ function StarField({ count = 1200 }: { count?: number }) {
       col[i * 3] = c[0] * brightness;
       col[i * 3 + 1] = c[1] * brightness;
       col[i * 3 + 2] = c[2] * brightness;
-      sz[i] = 0.02 + Math.random() * 0.06;
     }
-    return { positions: pos, colors: col, sizes: sz };
+    return { positions: pos, colors: col };
   }, [count]);
 
   useFrame((state) => {
@@ -48,14 +46,13 @@ function StarField({ count = 1200 }: { count?: number }) {
 }
 
 export default function BgParticles() {
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-      <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, isMobile ? 1 : 1.5]}
+      <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, 2]}
         gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
         style={{ background: "transparent", position: "fixed", top: 0, left: 0, width: "100%", height: "100%" }}>
         <Suspense fallback={null}>
-          <StarField count={isMobile ? 300 : 800} />
+          <StarField count={1200} />
           <EffectComposer>
             <Bloom intensity={0.6} luminanceThreshold={0.1} mipmapBlur />
           </EffectComposer>

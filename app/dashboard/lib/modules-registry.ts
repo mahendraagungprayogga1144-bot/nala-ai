@@ -19,7 +19,27 @@ export type DashboardModule = {
   bizTypes?: string[];
 };
 
-/** Setiap modul punya route & data sendiri — tidak digabung */
+const BIZ_TYPE_LABELS: Record<string, string> = {
+  kuliner: "FITUR KULINER / F&B",
+  homeindustry: "FITUR HOME INDUSTRY",
+  ternak: "FITUR PETERNAKAN",
+  pertanian: "FITUR PERTANIAN",
+  retail: "FITUR RETAIL",
+  fashion: "FITUR FASHION",
+  jasa: "FITUR JASA",
+};
+
+/** Modul khusus per jenis bisnis — tampil di group terpisah di atas */
+const BIZ_MODULES: DashboardModule[] = [
+  { id: "fnb-kasir", name: "Kasir F&B", desc: "Kasir kuliner — menu, order meja, struk.", href: "/dashboard/fnb/kasir", icon: Receipt, category: "operasional", status: "live", bizTypes: ["kuliner"] },
+  { id: "master-menu", name: "Master Menu", desc: "Kelola menu & resep sendiri.", href: "/dashboard/master-menu", icon: UtensilsCrossed, category: "operasional", status: "live", bizTypes: ["kuliner"] },
+  { id: "karyawan", name: "Karyawan Toko", desc: "Kelola tim & link kasir karyawan.", href: "/dashboard/karyawan-toko", icon: Users, category: "platform", status: "live", bizTypes: ["kuliner"] },
+  { id: "produksi", name: "Produksi", desc: "Resep dan produksi home industry.", href: "/dashboard/produksi", icon: Factory, category: "manajemen", status: "live", bizTypes: ["homeindustry"] },
+  { id: "ternak", name: "Manajemen Ternak", desc: "Batch, pakan, panen ternak.", href: "/dashboard/peternakan", icon: Bird, category: "manajemen", status: "live", bizTypes: ["ternak"] },
+  { id: "pertanian", name: "Modul Pertanian", desc: "Lahan, panen, saprotan.", href: "/dashboard/pertanian", icon: Sprout, category: "manajemen", status: "live", bizTypes: ["pertanian"] },
+];
+
+/** Modul universal — tampil untuk semua jenis bisnis */
 export const GERCEP_MODULES: DashboardModule[] = [
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },
   { id: "chat", name: "Gercep Chat", desc: "Pusat kendali semua modul lewat chat.", href: "/dashboard/chat", icon: MessageCircle, category: "utama", status: "live" },
@@ -31,7 +51,6 @@ export const GERCEP_MODULES: DashboardModule[] = [
 
   { id: "inventory", name: "Inventory", desc: "Stok berkurang otomatis, notif kalau habis.", href: "/dashboard/inventory", icon: Package, category: "operasional", status: "live" },
   { id: "kasir", name: "AI Kasir", desc: "Struk, rekap kas, tutup shift otomatis.", href: "/dashboard/ai-kasir", icon: Receipt, category: "operasional", status: "live" },
-  { id: "master-menu", name: "Master Menu", desc: "Kelola menu & resep sendiri.", href: "/dashboard/master-menu", icon: UtensilsCrossed, category: "operasional", status: "live", bizTypes: ["kuliner"] },
   { id: "barcode", name: "Barcode QR Analyzer", desc: "Daftar barcode & SKU sendiri.", href: "/dashboard/barcode-qr", icon: QrCode, category: "operasional", status: "beta" },
   { id: "ai-jual-beli", name: "AI Jual Beli", desc: "Input listing jual/beli sendiri.", href: "/dashboard/ai-jual-beli", icon: Camera, category: "operasional", status: "beta" },
 
@@ -42,13 +61,8 @@ export const GERCEP_MODULES: DashboardModule[] = [
   { id: "crm", name: "CRM Pelanggan", desc: "Database pelanggan perusahaan.", href: "/dashboard/crm-pelanggan", icon: Users, category: "marketing", status: "beta" },
 
   { id: "bisnis", name: "Multi Bisnis", desc: "Skincare, fashion, kuliner satu akun.", href: "/dashboard/multi-bisnis", icon: Layers, category: "platform", status: "live" },
-  { id: "karyawan", name: "Karyawan Toko", desc: "Kelola tim & link kasir karyawan.", href: "/dashboard/karyawan-toko", icon: Users, category: "platform", status: "live", bizTypes: ["kuliner"] },
   { id: "tim-komisi", name: "Tim dan Komisi Karyawan", desc: "Input sales & hitung komisi sendiri.", href: "/dashboard/tim-komisi", icon: Percent, category: "platform", status: "beta" },
   { id: "multi-platform", name: "Multi Platform", desc: "Atur WA, Telegram, website sendiri.", href: "/dashboard/multi-platform", icon: Smartphone, category: "platform", status: "beta" },
-
-  { id: "produksi", name: "Produksi", desc: "Resep dan produksi home industry.", href: "/dashboard/produksi", icon: Factory, category: "manajemen", status: "live", bizTypes: ["homeindustry"] },
-  { id: "ternak", name: "Manajemen Ternak", desc: "Batch, pakan, panen ternak.", href: "/dashboard/peternakan", icon: Bird, category: "manajemen", status: "live", bizTypes: ["ternak"] },
-  { id: "pertanian", name: "Modul Pertanian", desc: "Lahan, panen, saprotan.", href: "/dashboard/pertanian", icon: Sprout, category: "manajemen", status: "live", bizTypes: ["pertanian"] },
 ];
 
 const CATEGORY_LABELS: Record<ModuleCategory, string> = {
@@ -61,16 +75,26 @@ const CATEGORY_LABELS: Record<ModuleCategory, string> = {
 };
 
 export function getSidebarModules(bizType: string | null | undefined): { label: string; modules: DashboardModule[] }[] {
-  const visible = GERCEP_MODULES.filter(m => {
-    if (!m.bizTypes) return true;
-    return bizType && m.bizTypes.includes(bizType);
-  });
+  const result: { label: string; modules: DashboardModule[] }[] = [];
 
-  const order: ModuleCategory[] = ["utama", "keuangan", "operasional", "marketing", "platform", "manajemen"];
-  return order
-    .map(cat => ({
-      label: CATEGORY_LABELS[cat],
-      modules: visible.filter(m => m.category === cat),
-    }))
-    .filter(g => g.modules.length > 0);
+  // 1. MENU UTAMA selalu di atas
+  const utama = GERCEP_MODULES.filter(m => m.category === "utama");
+  if (utama.length > 0) result.push({ label: CATEGORY_LABELS.utama, modules: utama });
+
+  // 2. Modul khusus bisnis — muncul langsung setelah menu utama
+  if (bizType) {
+    const bizSpecific = BIZ_MODULES.filter(m => m.bizTypes?.includes(bizType));
+    if (bizSpecific.length > 0) {
+      result.push({ label: BIZ_TYPE_LABELS[bizType] || `FITUR ${bizType.toUpperCase()}`, modules: bizSpecific });
+    }
+  }
+
+  // 3. Modul universal sisanya
+  const order: ModuleCategory[] = ["keuangan", "operasional", "marketing", "platform", "manajemen"];
+  for (const cat of order) {
+    const mods = GERCEP_MODULES.filter(m => m.category === cat);
+    if (mods.length > 0) result.push({ label: CATEGORY_LABELS[cat], modules: mods });
+  }
+
+  return result;
 }

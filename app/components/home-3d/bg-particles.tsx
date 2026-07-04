@@ -62,7 +62,7 @@ function Building({ position, height, width, color, emissive }: {
     <group position={position}>
       <mesh position={[0, height / 2, 0]}>
         <boxGeometry args={[width, height, width * 0.8]} />
-        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.15} roughness={0.2} metalness={0.9} transparent opacity={0.7} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.6} roughness={0.2} metalness={0.9} transparent opacity={0.85} />
       </mesh>
       {Array.from({ length: Math.floor(height / 0.8) }, (_, i) => (
         <mesh key={i} ref={i === 0 ? windowRef : undefined} position={[0, i * 0.8 + 0.5, width * 0.41]}>
@@ -82,18 +82,20 @@ function Building({ position, height, width, color, emissive }: {
 /* ── City Skyline ── */
 function CityScape() {
   const buildings = useMemo(() => [
-    { pos: [-12, -4, -15] as [number, number, number], h: 6, w: 1.2, c: "#0a1520", e: "#2DD4BF" },
-    { pos: [-9, -4, -18] as [number, number, number], h: 9, w: 1.5, c: "#0a1225", e: "#8B5CF6" },
-    { pos: [-6, -4, -12] as [number, number, number], h: 4, w: 1, c: "#0a1520", e: "#2DD4BF" },
-    { pos: [-3, -4, -20] as [number, number, number], h: 12, w: 1.8, c: "#0a0f25", e: "#EC4899" },
-    { pos: [0, -4, -16] as [number, number, number], h: 7, w: 1.3, c: "#0a1520", e: "#38BDF8" },
-    { pos: [3, -4, -22] as [number, number, number], h: 10, w: 1.6, c: "#0a1225", e: "#8B5CF6" },
-    { pos: [6, -4, -14] as [number, number, number], h: 5, w: 1.1, c: "#0a1520", e: "#2DD4BF" },
-    { pos: [9, -4, -19] as [number, number, number], h: 8, w: 1.4, c: "#0a0f25", e: "#EC4899" },
-    { pos: [12, -4, -16] as [number, number, number], h: 6, w: 1.2, c: "#0a1520", e: "#38BDF8" },
-    { pos: [15, -4, -21] as [number, number, number], h: 11, w: 1.7, c: "#0a1225", e: "#A78BFA" },
-    { pos: [-15, -4, -20] as [number, number, number], h: 8, w: 1.3, c: "#0a0f25", e: "#F59E0B" },
-    { pos: [18, -4, -17] as [number, number, number], h: 5, w: 1, c: "#0a1520", e: "#2DD4BF" },
+    { pos: [-10, -4, 5] as [number, number, number], h: 6, w: 1.2, c: "#0a1520", e: "#2DD4BF" },
+    { pos: [-7, -4, 2] as [number, number, number], h: 9, w: 1.5, c: "#0a1225", e: "#8B5CF6" },
+    { pos: [-4, -4, 7] as [number, number, number], h: 4, w: 1, c: "#0a1520", e: "#2DD4BF" },
+    { pos: [-1, -4, 0] as [number, number, number], h: 12, w: 1.8, c: "#0a0f25", e: "#EC4899" },
+    { pos: [2, -4, 4] as [number, number, number], h: 7, w: 1.3, c: "#0a1520", e: "#38BDF8" },
+    { pos: [5, -4, -1] as [number, number, number], h: 10, w: 1.6, c: "#0a1225", e: "#8B5CF6" },
+    { pos: [8, -4, 6] as [number, number, number], h: 5, w: 1.1, c: "#0a1520", e: "#2DD4BF" },
+    { pos: [11, -4, 1] as [number, number, number], h: 8, w: 1.4, c: "#0a0f25", e: "#EC4899" },
+    { pos: [-13, -4, 0] as [number, number, number], h: 7, w: 1.2, c: "#0a1520", e: "#38BDF8" },
+    { pos: [14, -4, -2] as [number, number, number], h: 11, w: 1.7, c: "#0a1225", e: "#A78BFA" },
+    { pos: [-16, -4, 3] as [number, number, number], h: 8, w: 1.3, c: "#0a0f25", e: "#F59E0B" },
+    { pos: [17, -4, 5] as [number, number, number], h: 5, w: 1, c: "#0a1520", e: "#2DD4BF" },
+    { pos: [-2, -4, -4] as [number, number, number], h: 14, w: 2, c: "#0a0f20", e: "#8B5CF6" },
+    { pos: [6, -4, -3] as [number, number, number], h: 13, w: 1.9, c: "#0a0f20", e: "#2DD4BF" },
   ], []);
 
   return (
@@ -111,7 +113,7 @@ function DataStreams() {
   const streams = useMemo(() =>
     Array.from({ length: 8 }, (_, i) => ({
       x: (Math.random() - 0.5) * 30,
-      z: -10 - Math.random() * 15,
+      z: -2 + Math.random() * 10,
       speed: 1 + Math.random() * 2,
       color: ["#2DD4BF", "#8B5CF6", "#EC4899", "#38BDF8"][i % 4],
       height: 3 + Math.random() * 5,
@@ -143,7 +145,7 @@ function NetworkNodes() {
   const groupRef = useRef<THREE.Group>(null);
   const nodes = useMemo(() =>
     Array.from({ length: 15 }, () => ({
-      pos: [(Math.random() - 0.5) * 25, (Math.random() - 0.5) * 8 + 2, -5 - Math.random() * 15] as [number, number, number],
+      pos: [(Math.random() - 0.5) * 25, (Math.random() - 0.5) * 8 + 2, Math.random() * 10] as [number, number, number],
       color: ["#2DD4BF", "#8B5CF6", "#EC4899", "#38BDF8"][Math.floor(Math.random() * 4)],
     })), []);
 
@@ -183,7 +185,7 @@ function FlyingVehicle({ color, speed, radius, height }: {
     if (!ref.current) return;
     const t = state.clock.elapsedTime * speed;
     ref.current.position.x = Math.cos(t) * radius;
-    ref.current.position.z = Math.sin(t) * radius - 10;
+    ref.current.position.z = Math.sin(t) * radius + 2;
     ref.current.position.y = height + Math.sin(t * 2) * 0.3;
     ref.current.rotation.y = -t + Math.PI / 2;
     if (trailRef.current) trailRef.current.scale.x = 0.5 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
@@ -214,15 +216,15 @@ function GercepText() {
   });
 
   return (
-    <group ref={ref} position={[0, 4, -18]}>
-      <Text fontSize={2.5} font="/fonts/SpaceGrotesk-Bold.ttf" color="#2DD4BF"
-        anchorX="center" anchorY="middle" fillOpacity={0.15}
-        outlineWidth={0.02} outlineColor="#2DD4BF" outlineOpacity={0.6}>
+    <group ref={ref} position={[0, 6, 3]}>
+      <Text fontSize={3} font="/fonts/SpaceGrotesk-Bold.ttf" color="#2DD4BF"
+        anchorX="center" anchorY="middle" fillOpacity={0.2}
+        outlineWidth={0.03} outlineColor="#2DD4BF" outlineOpacity={0.8}>
         GERCEP AI
       </Text>
-      <Text fontSize={0.4} font="/fonts/SpaceGrotesk-Bold.ttf" color="#8B5CF6"
-        anchorX="center" anchorY="middle" position={[0, -1.8, 0]} fillOpacity={0.3}
-        outlineWidth={0.01} outlineColor="#8B5CF6" outlineOpacity={0.5}>
+      <Text fontSize={0.5} font="/fonts/SpaceGrotesk-Bold.ttf" color="#8B5CF6"
+        anchorX="center" anchorY="middle" position={[0, -2, 0]} fillOpacity={0.4}
+        outlineWidth={0.015} outlineColor="#8B5CF6" outlineOpacity={0.7}>
         BUSINESS OS MASA DEPAN
       </Text>
     </group>
@@ -240,7 +242,7 @@ function StarField() {
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 80;
       pos[i * 3 + 1] = (Math.random() - 0.5) * 60;
-      pos[i * 3 + 2] = -10 - Math.random() * 40;
+      pos[i * 3 + 2] = -5 - Math.random() * 30;
       const c = palette[Math.floor(Math.random() * palette.length)];
       const b = 0.3 + Math.random() * 0.7;
       col[i * 3] = c[0] * b; col[i * 3 + 1] = c[1] * b; col[i * 3 + 2] = c[2] * b;
@@ -266,11 +268,11 @@ function StarField() {
 /* ── Scroll Camera ── */
 function ScrollCamera() {
   const { camera } = useThree();
-  const targetY = useRef(3);
+  const targetY = useRef(5);
   useFrame(() => {
-    targetY.current = 3 - globalScroll * 6;
+    targetY.current = 5 - globalScroll * 8;
     camera.position.y += (targetY.current - camera.position.y) * 0.02;
-    camera.lookAt(0, targetY.current - 2, -15);
+    camera.lookAt(0, targetY.current - 3, 0);
   });
   return null;
 }
@@ -295,8 +297,10 @@ export default function BgParticles() {
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         style={{ background: "transparent" }}>
         <Suspense fallback={null}>
-          <ambientLight intensity={0.08} />
-          <fog attach="fog" args={["#050508", 15, 50]} />
+          <ambientLight intensity={0.3} />
+          <directionalLight position={[5, 10, 10]} intensity={0.4} color="#8B5CF6" />
+          <directionalLight position={[-5, 8, 5]} intensity={0.3} color="#2DD4BF" />
+          <fog attach="fog" args={["#050508", 30, 80]} />
 
           <ScrollCamera />
           <StarField />

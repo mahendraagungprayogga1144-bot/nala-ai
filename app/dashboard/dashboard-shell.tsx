@@ -5,11 +5,12 @@ import { Menu, X } from "lucide-react";
 
 type Business = { id: string; name: string; type: string | null };
 
-export default function DashboardShell({ children, businesses, activeBusiness, userName }: {
+export default function DashboardShell({ children, businesses, activeBusiness, userName, userEmail }: {
   children: React.ReactNode;
   businesses: Business[];
   activeBusiness: Business | null;
   userName?: string;
+  userEmail?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -37,7 +38,7 @@ export default function DashboardShell({ children, businesses, activeBusiness, u
             <div className="fixed top-14 left-0 bottom-0 z-50 w-64 overflow-y-auto border-r border-white/[0.06] bg-[#0D0D1A]"
               onClick={(e) => e.stopPropagation()}>
               <Sidebar embedded expanded={true} setExpanded={() => {}} businesses={businesses}
-                activeBusiness={activeBusiness} userName={userName} onNavigate={() => setMobileOpen(false)} />
+                activeBusiness={activeBusiness} userName={userName} userEmail={userEmail} onNavigate={() => setMobileOpen(false)} />
             </div>
           </div>
         )}
@@ -49,7 +50,7 @@ export default function DashboardShell({ children, businesses, activeBusiness, u
 
   return (
     <>
-      <Sidebar expanded={expanded} setExpanded={setExpanded} businesses={businesses} activeBusiness={activeBusiness} userName={userName} />
+      <Sidebar expanded={expanded} setExpanded={setExpanded} businesses={businesses} activeBusiness={activeBusiness} userName={userName} userEmail={userEmail} />
       <main
         className="flex-1 overflow-x-hidden overflow-y-auto bg-[#070711] transition-[margin-left] duration-[220ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
         style={{ marginLeft: expanded ? 220 : 64 }}

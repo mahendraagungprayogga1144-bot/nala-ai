@@ -26,10 +26,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .maybeSingle();
 
   const userName = profile?.full_name || user.email?.split("@")[0] || "Owner";
+  const userEmail = user.email || "";
 
   return (
     <div className="min-h-screen bg-[#070711] text-[#F2F1F8] flex w-full min-w-0 overflow-x-hidden">
-      <DashboardShell businesses={businesses || []} activeBusiness={activeBusiness} userName={userName}>
+      <DashboardShell businesses={businesses || []} activeBusiness={activeBusiness} userName={userName} userEmail={userEmail}>
         {children}
       </DashboardShell>
     </div>

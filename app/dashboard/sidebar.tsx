@@ -2,15 +2,19 @@
 import { usePathname } from "next/navigation";
 import BusinessSwitcher from "./business-switcher";
 import { getSidebarModules, type DashboardModule } from "./lib/modules-registry";
+import { Shield } from "lucide-react";
 
 type Business = { id: string; name: string; type: string | null };
 
-export default function Sidebar({ expanded, setExpanded, businesses, activeBusiness, userName, onNavigate, embedded }: {
+const ADMIN_EMAIL = "mahendraagungprayogga1144@gmail.com";
+
+export default function Sidebar({ expanded, setExpanded, businesses, activeBusiness, userName, userEmail, onNavigate, embedded }: {
   expanded: boolean;
   setExpanded: (v: boolean) => void;
   businesses: Business[];
   activeBusiness: Business | null;
   userName?: string;
+  userEmail?: string;
   onNavigate?: () => void;
   embedded?: boolean;
 }) {
@@ -82,6 +86,14 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
           </div>
         ))}
       </nav>
+
+      {expanded && userEmail === ADMIN_EMAIL && (
+        <a href="/admin" onClick={() => onNavigate?.()}
+          className="mx-2 mb-2 flex items-center gap-2 rounded-xl border border-[#EC4899]/20 bg-gradient-to-r from-[#EC4899]/[0.08] to-[#8B5CF6]/[0.06] px-3 py-2.5 text-xs font-bold text-[#EC4899] transition-all hover:from-[#EC4899]/[0.15]">
+          <Shield size={14} />
+          Admin Panel
+        </a>
+      )}
 
       {expanded && (
         <div className="mx-2 mb-2 rounded-xl border border-[#2DD4BF]/15 bg-gradient-to-br from-[#2DD4BF]/[0.08] to-[#8B5CF6]/[0.06] p-3">

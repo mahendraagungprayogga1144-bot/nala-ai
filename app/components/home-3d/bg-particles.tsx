@@ -1,13 +1,13 @@
 "use client";
 import { useRef, useMemo, Suspense, useEffect, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Float, Sphere, Text, MeshTransmissionMaterial } from "@react-three/drei";
+import { Canvas, useFrame, useThree, extend } from "@react-three/fiber";
+import { Float, Sphere, Text } from "@react-three/drei";
 import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 let globalScroll = 0;
 
-function useScroll() {
+function useScrollTracker() {
   useEffect(() => {
     const onScroll = () => { globalScroll = window.scrollY / (document.body.scrollHeight - window.innerHeight); };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -15,35 +15,30 @@ function useScroll() {
   }, []);
 }
 
-/* ── Holographic Grid Floor ── */
+/* ── Holographic Grid Floor (using lineSegments to avoid SVG conflict) ── */
 function HoloGrid() {
-  const ref = useRef<THREE.Group>(null);
+  const ref = useRef<THREE.LineSegments>(null);
+
+  const geometry = useMemo(() => {
+    const points: number[] = [];
+    for (let i = -30; i <= 30; i += 2) {
+      points.push(i, 0, -40, i, 0, 40);
+      points.push(-30, 0, i * 2, 30, 0, i * 2);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    return geo;
+  }, []);
 
   useFrame((state) => {
     if (!ref.current) return;
     ref.current.position.z = ((state.clock.elapsedTime * 0.5) % 2);
   });
 
-  const lines = useMemo(() => {
-    const arr: { start: [number, number, number]; end: [number, number, number]; color: string }[] = [];
-    for (let i = -30; i <= 30; i += 2) {
-      arr.push({ start: [i, 0, -40], end: [i, 0, 40], color: i % 10 === 0 ? "#2DD4BF" : "#1a3a4a" });
-      arr.push({ start: [-30, 0, i * 2], end: [30, 0, i * 2], color: i % 5 === 0 ? "#8B5CF6" : "#1a2a4a" });
-    }
-    return arr;
-  }, []);
-
   return (
-    <group ref={ref} position={[0, -4, 0]} rotation={[0, 0, 0]}>
-      {lines.map((l, i) => (
-        <line key={i}>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[new Float32Array([...l.start, ...l.end]), 3]} />
-          </bufferGeometry>
-          <lineBasicMaterial color={l.color} transparent opacity={0.15} />
-        </line>
-      ))}
-    </group>
+    <lineSegments ref={ref} geometry={geometry} position={[0, -4, 0]}>
+      <lineBasicMaterial color="#1a3a5a" transparent opacity={0.12} />
+    </lineSegments>
   );
 }
 
@@ -51,7 +46,6 @@ function HoloGrid() {
 function Building({ position, height, width, color, emissive }: {
   position: [number, number, number]; height: number; width: number; color: string; emissive: string;
 }) {
-  const ref = useRef<THREE.Mesh>(null);
   const windowRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
@@ -62,18 +56,16 @@ function Building({ position, height, width, color, emissive }: {
 
   return (
     <group position={position}>
-      <mesh ref={ref} position={[0, height / 2, 0]}>
+      <mesh position={[0, height / 2, 0]}>
         <boxGeometry args={[width, height, width * 0.8]} />
         <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.15} roughness={0.2} metalness={0.9} transparent opacity={0.7} />
       </mesh>
-      {/* Window glow lines */}
       {Array.from({ length: Math.floor(height / 0.8) }, (_, i) => (
         <mesh key={i} ref={i === 0 ? windowRef : undefined} position={[0, i * 0.8 + 0.5, width * 0.41]}>
           <planeGeometry args={[width * 0.7, 0.12]} />
           <meshBasicMaterial color={emissive} transparent opacity={0.3} />
         </mesh>
       ))}
-      {/* Rooftop beacon */}
       <pointLight position={[0, height + 0.5, 0]} color={emissive} intensity={0.5} distance={5} />
       <mesh position={[0, height + 0.2, 0]}>
         <sphereGeometry args={[0.08, 8, 8]} />
@@ -154,7 +146,7 @@ function NetworkNodes() {
   useFrame((state) => {
     if (groupRef.current) {
       groupRef.current.children.forEach((child, i) => {
-        child.position.y = nodes[i].pos[1] + Math.sin(state.clock.elapsedTime * 0.5 + i * 0.8) * 0.3;
+        if (nodes[i]) child.position.y = nodes[i].pos[1] + Math.sin(state.clock.elapsedTime * 0.5 + i * 0.8) * 0.3;
       });
     }
   });
@@ -176,9 +168,9 @@ function NetworkNodes() {
   );
 }
 
-/* ── Flying Vehicles / Drones ── */
-function FlyingVehicle({ color, speed, radius, height, tilt }: {
-  color: string; speed: number; radius: number; height: number; tilt: number;
+/* ── Flying Vehicles ── */
+function FlyingVehicle({ color, speed, radius, height }: {
+  color: string; speed: number; radius: number; height: number;
 }) {
   const ref = useRef<THREE.Group>(null);
   const trailRef = useRef<THREE.Mesh>(null);
@@ -201,7 +193,6 @@ function FlyingVehicle({ color, speed, radius, height, tilt }: {
         <boxGeometry />
         <meshStandardMaterial color="#0a1520" emissive={color} emissiveIntensity={0.5} metalness={0.9} roughness={0.1} />
       </mesh>
-      {/* Engine trail */}
       <mesh ref={trailRef} position={[-0.2, 0, 0]} scale={[0.3, 0.02, 0.02]}>
         <boxGeometry />
         <meshBasicMaterial color={color} transparent opacity={0.4} />
@@ -223,14 +214,16 @@ function GercepText() {
 
   return (
     <group ref={ref} position={[0, 4, -18]}>
-      <Text fontSize={2.5} font="/fonts/SpaceGrotesk-Bold.ttf" color="#2DD4BF"
+      <Text fontSize={2.5} color="#2DD4BF"
         anchorX="center" anchorY="middle" fillOpacity={0.15}
-        outlineWidth={0.02} outlineColor="#2DD4BF" outlineOpacity={0.6}>
+        outlineWidth={0.02} outlineColor="#2DD4BF" outlineOpacity={0.6}
+        font="https://fonts.gstatic.com/s/spacegrotest/v16/V8mDoQDjQSkFtoMM3T6r8E7mPb54C_k3HqU.woff2">
         GERCEP AI
       </Text>
-      <Text fontSize={0.4} font="/fonts/SpaceGrotesk-Bold.ttf" color="#8B5CF6"
+      <Text fontSize={0.4} color="#8B5CF6"
         anchorX="center" anchorY="middle" position={[0, -1.8, 0]} fillOpacity={0.3}
-        outlineWidth={0.01} outlineColor="#8B5CF6" outlineOpacity={0.5}>
+        outlineWidth={0.01} outlineColor="#8B5CF6" outlineOpacity={0.5}
+        font="https://fonts.gstatic.com/s/spacegrotest/v16/V8mDoQDjQSkFtoMM3T6r8E7mPb54C_k3HqU.woff2">
         BUSINESS OS MASA DEPAN
       </Text>
     </group>
@@ -272,6 +265,28 @@ function StarField() {
   );
 }
 
+/* ── Floating Asteroids ── */
+function FloatingAsteroid({ position, size, color, speed }: {
+  position: [number, number, number]; size: number; color: string; speed: number;
+}) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame((state) => {
+    if (!ref.current) return;
+    ref.current.rotation.x = state.clock.elapsedTime * speed * 0.3;
+    ref.current.rotation.y = state.clock.elapsedTime * speed * 0.5;
+    ref.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * speed * 0.2) * 0.5;
+  });
+
+  return (
+    <Float speed={speed} rotationIntensity={0.8} floatIntensity={0.5}>
+      <mesh ref={ref} position={position} scale={size}>
+        <icosahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} roughness={0.6} wireframe />
+      </mesh>
+    </Float>
+  );
+}
+
 /* ── Scroll Camera Controller ── */
 function ScrollCamera() {
   const { camera } = useThree();
@@ -290,11 +305,11 @@ function ScrollCamera() {
 export default function BgParticles() {
   const [visible, setVisible] = useState(false);
 
-  useScroll();
+  useScrollTracker();
 
   useEffect(() => {
     const onScroll = () => {
-      setVisible(window.scrollY > window.innerHeight * 0.3);
+      setVisible(window.scrollY > window.innerHeight * 0.25);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -319,11 +334,14 @@ export default function BgParticles() {
           <NetworkNodes />
           <GercepText />
 
-          {/* Flying vehicles */}
-          <FlyingVehicle color="#2DD4BF" speed={0.3} radius={8} height={3} tilt={0} />
-          <FlyingVehicle color="#EC4899" speed={-0.2} radius={12} height={5} tilt={0.5} />
-          <FlyingVehicle color="#8B5CF6" speed={0.25} radius={6} height={1} tilt={-0.3} />
-          <FlyingVehicle color="#38BDF8" speed={-0.15} radius={15} height={4} tilt={0.2} />
+          <FlyingVehicle color="#2DD4BF" speed={0.3} radius={8} height={3} />
+          <FlyingVehicle color="#EC4899" speed={-0.2} radius={12} height={5} />
+          <FlyingVehicle color="#8B5CF6" speed={0.25} radius={6} height={1} />
+          <FlyingVehicle color="#38BDF8" speed={-0.15} radius={15} height={4} />
+
+          <FloatingAsteroid position={[-12, 8, 3]} size={0.2} color="#2DD4BF" speed={1.2} />
+          <FloatingAsteroid position={[15, -5, 5]} size={0.15} color="#8B5CF6" speed={0.8} />
+          <FloatingAsteroid position={[-8, -10, 8]} size={0.25} color="#EC4899" speed={1.5} />
 
           <EffectComposer>
             <Bloom intensity={1.5} luminanceThreshold={0.1} mipmapBlur radius={0.8} />

@@ -6,6 +6,11 @@ import { Wallet, ShoppingCart, Receipt, FileText, TrendingUp, Brain, Sparkles, C
 const HeroScene = lazy(() => import("./components/home-3d/hero-scene"));
 const WaveScene = lazy(() => import("./components/home-3d/wave-scene"));
 const BgParticles = lazy(() => import("./components/home-3d/bg-particles"));
+const LaptopScene = lazy(() => import("./components/home-3d/laptop-scene"));
+
+const heading3D = {
+  textShadow: "0 1px 0 rgba(45,212,191,0.25), 0 2px 0 rgba(45,212,191,0.18), 0 3px 0 rgba(45,212,191,0.12), 0 4px 0 rgba(45,212,191,0.06), 0 8px 24px rgba(0,0,0,0.9), 0 0 60px rgba(45,212,191,0.3)",
+};
 
 function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -184,7 +189,7 @@ export default function Home() {
             {FEATURES.map(f => (
               <motion.div key={f.title} variants={fadeUp}
                 className="group rounded-2xl p-5 text-center cursor-default overflow-hidden relative"
-                style={{ background: "rgba(10,10,20,0.5)", border: `1px solid ${f.color}15`, backdropFilter: "blur(10px)", transition: "all 0.4s" }}
+                style={{ background: "rgba(6,6,12,0.88)", border: `1px solid ${f.color}20`, backdropFilter: "blur(20px)", transition: "all 0.4s" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = f.color + "50"; e.currentTarget.style.boxShadow = `0 0 40px ${f.color}20, inset 0 0 40px ${f.color}05`; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = f.color + "15"; e.currentTarget.style.boxShadow = "none"; }}>
                 <div className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
@@ -211,7 +216,7 @@ export default function Home() {
           <div className="grid lg:grid-cols-5 gap-8 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="lg:col-span-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#8B5CF6] font-bold mb-3" style={{ textShadow: "0 0 20px rgba(139,92,246,0.5)" }}>3D INTERACTIVE</p>
-              <h2 className="text-3xl sm:text-4xl font-black mb-5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h2 className="text-3xl sm:text-4xl font-black mb-5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
                 Dashboard Canggih dalam{" "}
                 <span style={{ background: "linear-gradient(90deg, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 15px rgba(139,92,246,0.5))" }}>3D</span>
               </h2>
@@ -228,83 +233,17 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 50, rotateX: 10 }} whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
-              viewport={{ once: true }} transition={{ duration: 1.2 }} className="lg:col-span-3 relative" style={{ perspective: "1200px" }}>
-
-              <div className="relative rounded-2xl overflow-hidden"
-                style={{ border: "1px solid rgba(139,92,246,0.2)", background: "rgba(8,8,16,0.8)", backdropFilter: "blur(10px)", boxShadow: "0 0 80px rgba(139,92,246,0.15), 0 0 40px rgba(45,212,191,0.08), 0 20px 60px rgba(0,0,0,0.6)" }}>
-                <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid rgba(139,92,246,0.1)" }}>
-                  <div className="flex gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: "#EC4899", boxShadow: "0 0 6px #EC4899" }} /><span className="w-2.5 h-2.5 rounded-full" style={{ background: "#F59E0B", boxShadow: "0 0 6px #F59E0B" }} /><span className="w-2.5 h-2.5 rounded-full" style={{ background: "#4ADE80", boxShadow: "0 0 6px #4ADE80" }} /></div>
-                  <div className="flex-1 text-center"><span className="text-[9px] text-[#3A3B52] px-4 py-0.5 rounded-md" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>dashboard.gercep.ai</span></div>
-                </div>
-                <div className="p-4">
-                  <div className="grid grid-cols-4 gap-2 mb-3">
-                    {[{ l: "Omzet", v: "Rp 15.430.200", c: "#2DD4BF", ch: "+12%" }, { l: "Profit", v: "Rp 5.430.000", c: "#4ADE80", ch: "+8%" }, { l: "Transaksi", v: "34.500", c: "#38BDF8", ch: "+23%" }, { l: "Produk", v: "847", c: "#A78BFA", ch: "+5" }].map(k => (
-                      <div key={k.l} className="rounded-lg p-2" style={{ background: k.c + "08", border: `1px solid ${k.c}15` }}>
-                        <p className="text-[7px] uppercase text-[#5A5B7A]">{k.l}</p>
-                        <p className="text-[10px] font-bold" style={{ color: k.c, fontFamily: "'JetBrains Mono', monospace", textShadow: `0 0 10px ${k.c}60` }}>{k.v}</p>
-                        <p className="text-[7px] text-[#4ADE80]">{k.ch}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-2 rounded-lg p-3" style={{ background: "rgba(10,10,18,0.8)", border: "1px solid rgba(45,212,191,0.1)" }}>
-                      <p className="text-[8px] uppercase text-[#5A5B7A] mb-2">Revenue Trend</p>
-                      <div className="flex items-end gap-[3px] h-[70px]">
-                        {[30, 45, 35, 55, 48, 65, 58, 72, 68, 80, 75, 85, 78, 92, 88].map((h, i) => (
-                          <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: `linear-gradient(180deg, #2DD4BF, #8B5CF6)`, opacity: 0.4 + i / 25, boxShadow: i > 10 ? "0 0 6px rgba(45,212,191,0.3)" : undefined }} />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="rounded-lg p-3" style={{ background: "rgba(10,10,18,0.8)", border: "1px solid rgba(139,92,246,0.1)" }}>
-                      <p className="text-[8px] uppercase text-[#5A5B7A] mb-2">Top Produk</p>
-                      {["Skincare Set", "Masker Wajah", "Serum Vit C"].map((p, i) => (
-                        <div key={p} className="flex items-center justify-between mb-1.5">
-                          <span className="text-[7px] text-[#8B8AA0]">{p}</span>
-                          <div className="w-12 h-1.5 rounded-full bg-white/[0.06]">
-                            <div className="h-full rounded-full" style={{ width: `${90 - i * 20}%`, background: ["#2DD4BF", "#8B5CF6", "#EC4899"][i], boxShadow: `0 0 6px ${["#2DD4BF", "#8B5CF6", "#EC4899"][i]}40` }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }} transition={{ duration: 1.2 }} className="lg:col-span-3 relative">
+              <div className="relative w-full h-[420px] sm:h-[520px]" style={{ pointerEvents: "auto" }}>
+                {is3D && <Suspense fallback={
+                  <div className="flex items-center justify-center h-full text-xs text-[#3A3B52]">Loading 3D...</div>
+                }><LaptopScene /></Suspense>}
               </div>
-
-              {/* Floating cards with glow */}
-              <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                className="absolute -top-6 -right-4 sm:right-0 rounded-xl p-3 w-[160px] z-10"
-                style={{ border: "1px solid rgba(249,115,22,0.25)", background: "rgba(8,8,16,0.85)", backdropFilter: "blur(20px)", boxShadow: "0 0 30px rgba(249,115,22,0.1), inset 0 0 20px rgba(249,115,22,0.03)" }}>
-                <p className="text-[8px] uppercase text-[#5A5B7A] mb-1.5">Marketplace</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[{ n: "Shopee", c: "#F97316" }, { n: "TikTok", c: "#EC4899" }, { n: "Tokopedia", c: "#22C55E" }].map(m => (
-                    <span key={m.n} className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ color: m.c, background: m.c + "15", boxShadow: `0 0 8px ${m.c}20` }}>{m.n}</span>
-                  ))}
-                </div>
-              </motion.div>
-
-              <motion.div animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                className="absolute -bottom-4 -right-2 sm:right-4 rounded-xl p-3 w-[180px] z-10"
-                style={{ border: "1px solid rgba(45,212,191,0.25)", background: "rgba(8,8,16,0.85)", backdropFilter: "blur(20px)", boxShadow: "0 0 30px rgba(45,212,191,0.1), inset 0 0 20px rgba(45,212,191,0.03)" }}>
-                <p className="text-[8px] uppercase text-[#5A5B7A] mb-1">AI Assistant</p>
-                <p className="text-[8px] text-[#8B8AA0] italic leading-relaxed">&quot;Apa yang bisa saya bantu? Mau lihat laporan hari ini?&quot;</p>
-                <div className="mt-1 h-[3px] rounded-full w-3/4" style={{ background: "linear-gradient(90deg, #2DD4BF, #8B5CF6)", boxShadow: "0 0 8px rgba(45,212,191,0.4)" }} />
-              </motion.div>
-
-              <motion.div animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
-                className="absolute top-1/3 -left-4 sm:-left-10 rounded-xl p-3 w-[145px] z-10"
-                style={{ border: "1px solid rgba(74,222,128,0.25)", background: "rgba(8,8,16,0.85)", backdropFilter: "blur(20px)", boxShadow: "0 0 30px rgba(74,222,128,0.1), inset 0 0 20px rgba(74,222,128,0.03)" }}>
-                <p className="text-[8px] uppercase text-[#5A5B7A] mb-1">Profit Bulan Ini</p>
-                <p className="text-[14px] font-black" style={{ color: "#4ADE80", fontFamily: "'JetBrains Mono', monospace", textShadow: "0 0 15px rgba(74,222,128,0.5)" }}>+18.2%</p>
-                <div className="flex gap-[2px] mt-1.5">
-                  {[3, 5, 4, 7, 6, 8, 7, 9].map((h, i) => <div key={i} className="flex-1 rounded-sm" style={{ height: h * 3, background: "#4ADE80", opacity: 0.3 + i / 16, boxShadow: "0 0 4px rgba(74,222,128,0.3)" }} />)}
-                </div>
-              </motion.div>
-
-              <div className="absolute -inset-10 rounded-3xl -z-10" style={{ background: "radial-gradient(ellipse, rgba(139,92,246,0.1), transparent 60%)", filter: "blur(40px)" }} />
+              <div className="absolute -inset-10 rounded-3xl -z-10" style={{ background: "radial-gradient(ellipse, rgba(139,92,246,0.12), transparent 60%)", filter: "blur(40px)" }} />
             </motion.div>
           </div>
-          <p className="text-center text-[10px] text-[#3A3B52] mt-6 flex items-center justify-center gap-1.5"><span>🖱</span> Drag untuk memutar</p>
+          <p className="text-center text-[10px] text-[#5A5B7A] mt-4 flex items-center justify-center gap-1.5"><span>🖱</span> Drag untuk memutar laptop</p>
         </div>
       </section>
 
@@ -319,7 +258,7 @@ export default function Home() {
             {STATS.map(s => (
               <motion.div key={s.label} variants={fadeUp}
                 className="text-center rounded-2xl p-6 relative overflow-hidden"
-                style={{ background: "rgba(10,10,20,0.5)", border: `1px solid ${s.color}20`, backdropFilter: "blur(15px)", boxShadow: `0 0 40px ${s.color}08, inset 0 0 30px ${s.color}03` }}>
+                style={{ background: "rgba(6,6,12,0.9)", border: `1px solid ${s.color}25`, backdropFilter: "blur(20px)", boxShadow: `0 0 40px ${s.color}10, inset 0 0 30px ${s.color}04` }}>
                 <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${s.color}60, transparent)`, boxShadow: `0 0 10px ${s.color}40` }} />
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl mx-auto mb-3"
                   style={{ background: s.color + "12", border: `1px solid ${s.color}25`, boxShadow: `0 0 20px ${s.color}15` }}>
@@ -345,7 +284,7 @@ export default function Home() {
           <div className="grid lg:grid-cols-5 gap-10 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="lg:col-span-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#EC4899] font-bold mb-3" style={{ textShadow: "0 0 15px rgba(236,72,153,0.5)" }}>CARA KERJA</p>
-              <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
                 3 Langkah Mudah<br />Kelola Bisnismu dengan{" "}
                 <span style={{ background: "linear-gradient(90deg, #EC4899, #8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 10px rgba(236,72,153,0.4))" }}>AI</span>
               </h2>
@@ -366,7 +305,7 @@ export default function Home() {
                     {s.num}
                   </div>
                   <div className="rounded-2xl p-5 relative overflow-hidden"
-                    style={{ background: "rgba(10,10,20,0.6)", border: `1px solid ${s.color}15`, backdropFilter: "blur(10px)" }}>
+                    style={{ background: "rgba(6,6,12,0.9)", border: `1px solid ${s.color}20`, backdropFilter: "blur(20px)" }}>
                     <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${s.color}40, transparent)` }} />
                     <h3 className="text-xs font-bold mb-2">{s.title}</h3>
                     <p className="text-[10px] text-[#8B8AA0] leading-relaxed">{s.desc}</p>
@@ -388,7 +327,7 @@ export default function Home() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="mb-16">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#2DD4BF] font-bold mb-3" style={{ textShadow: "0 0 15px rgba(45,212,191,0.5)" }}>PAKET HEMAT</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h2 className="text-3xl sm:text-4xl font-black leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
                 Pilih Paket yang<br />Sesuai Kebutuhanmu
               </h2>
               <a href="/pricing" className="inline-flex items-center gap-2 text-xs text-[#2DD4BF] hover:underline font-medium">Lihat Semua Paket <ArrowRight size={12} /></a>
@@ -401,7 +340,7 @@ export default function Home() {
               <motion.div key={p.name} variants={fadeUp}
                 className="relative rounded-2xl p-6 overflow-hidden"
                 style={{
-                  background: p.popular ? "linear-gradient(180deg, rgba(10,30,30,0.8), rgba(10,10,20,0.8))" : "rgba(10,10,20,0.5)",
+                  background: p.popular ? "linear-gradient(180deg, rgba(8,26,26,0.92), rgba(6,6,12,0.92))" : "rgba(6,6,12,0.88)",
                   border: `1px solid ${p.popular ? "rgba(45,212,191,0.3)" : p.color + "15"}`,
                   backdropFilter: "blur(15px)",
                   boxShadow: p.popular ? "0 0 60px rgba(45,212,191,0.12), inset 0 0 40px rgba(45,212,191,0.03)" : undefined,
@@ -456,7 +395,7 @@ export default function Home() {
         <NebulaBlob color="#EC4899" position="top-right" size={400} />
         <div className="relative z-10 text-center max-w-[700px] mx-auto">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-8 leading-[1.1]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-8 leading-[1.1]" style={{ fontFamily: "'Space Grotesk', sans-serif", ...heading3D }}>
               Siap Upgrade Bisnismu ke{" "}
               <span className="block sm:inline" style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 20px rgba(139,92,246,0.5))" }}>
                 Level Berikutnya?

@@ -10,7 +10,11 @@ function daysAgo(n: number) {
 async function ensureDemoUser() {
   const admin = createAdminClient();
   if (!admin) {
-    return { ok: false as const, error: "SUPABASE_SERVICE_ROLE_KEY belum diset di server (Vercel env)." };
+    return {
+      ok: false as const,
+      error:
+        "Akun demo belum siap di server ini. Isi SUPABASE_SERVICE_ROLE_KEY di Vercel (Settings → Environment Variables), redeploy, lalu coba lagi — atau masuk manual pakai email/password demo.",
+    };
   }
 
   const { data: listed } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });

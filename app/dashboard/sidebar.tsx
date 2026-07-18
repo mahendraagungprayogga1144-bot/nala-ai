@@ -3,6 +3,7 @@ import { usePathname } from "next/navigation";
 import BusinessSwitcher from "./business-switcher";
 import { getSidebarModules, type DashboardModule } from "./lib/modules-registry";
 import { Shield } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Business = { id: string; name: string; type: string | null };
 
@@ -20,6 +21,17 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
 }) {
   const pathname = usePathname();
   const groups = getSidebarModules(activeBusiness?.type);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    const expire = "path=/; max-age=0; samesite=lax";
+    document.cookie = `ob_done=; ${expire}`;
+    document.cookie = `sub_checked=; ${expire}`;
+    document.cookie = `sub_expired=; ${expire}`;
+    document.cookie = `active_business_id=; ${expire}`;
+    window.location.assign("/login");
+  };
 
   const isActive = (m: DashboardModule) =>
     pathname === m.href || (m.href !== "/dashboard/chat" && pathname.startsWith(m.href + "/"));
@@ -118,11 +130,11 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
               <p className="truncate text-xs font-semibold text-[#F0EFF8]">{userName || "Owner"}</p>
               <p className="text-[10px] text-[#5A5B7A]">{businesses.length} bisnis</p>
             </div>
-            <a href="/login" className="ml-auto text-[10px] text-[#5A5B7A] transition-colors hover:text-[#EC4899]">Keluar</a>
+            <button type="button" onClick={handleLogout} className="ml-auto text-[10px] text-[#5A5B7A] transition-colors hover:text-[#EC4899]">Keluar</button>
           </div>
         ) : (
           <div className="flex justify-center">
-            <a href="/login" title="Keluar" className="text-xs text-[#5A5B7A] transition-colors hover:text-[#EC4899]">↩</a>
+            <button type="button" onClick={handleLogout} title="Keluar" className="text-xs text-[#5A5B7A] transition-colors hover:text-[#EC4899]">↩</button>
           </div>
         )}
       </div>

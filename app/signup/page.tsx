@@ -1,13 +1,11 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo/config";
 import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { registerAccount } from "@/lib/auth/register-client";
 
 export default function SignupPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,28 +19,25 @@ export default function SignupPage() {
     setLoading(true);
 
     const result = await registerAccount(supabase, { name, email, password });
-    setLoading(false);
-
     if (!result.ok) {
       setError(result.error);
+      setLoading(false);
       return;
     }
 
-    router.push("/onboarding");
-    router.refresh();
+    window.location.assign("/onboarding");
   };
 
   const handleDemoSignup = async () => {
     setError("");
     setLoading(true);
     const result = await signInDemoAccount(supabase);
-    setLoading(false);
     if (!result.ok) {
       setError(result.error);
+      setLoading(false);
       return;
     }
-    router.push("/dashboard/owner");
-    router.refresh();
+    window.location.assign("/dashboard/owner");
   };
 
   return (

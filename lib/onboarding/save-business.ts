@@ -45,5 +45,8 @@ export async function saveOnboardingBusiness(
 }
 
 export function setActiveBusinessCookie(businessId: string) {
-  document.cookie = `active_business_id=${businessId}; path=/; max-age=${60 * 60 * 24 * 30}`;
+  const maxAge = 60 * 60 * 24 * 30;
+  document.cookie = `active_business_id=${businessId}; path=/; max-age=${maxAge}; samesite=lax`;
+  // Skip repeated onboarding DB checks in middleware
+  document.cookie = `ob_done=1; path=/; max-age=${maxAge}; samesite=lax`;
 }

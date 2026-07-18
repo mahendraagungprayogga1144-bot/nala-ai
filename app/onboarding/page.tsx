@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { saveOnboardingBusiness, setActiveBusinessCookie } from "@/lib/onboarding/save-business";
 import { Store, Bird, UtensilsCrossed, Factory, Briefcase, ShoppingBag, Truck, Heart, Leaf, Wrench, PenLine } from "lucide-react";
@@ -20,7 +19,6 @@ const businessTypes = [
 ];
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [selectedType, setSelectedType] = useState("");
   const [customType, setCustomType] = useState("");
@@ -33,7 +31,10 @@ export default function OnboardingPage() {
     setLoading(true);
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.push("/login"); return; }
+    if (!user) {
+      window.location.assign("/login");
+      return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     const isNew = params.get("mode") === "new";
@@ -53,7 +54,7 @@ export default function OnboardingPage() {
     }
 
     setLoading(false);
-    router.push("/dashboard/owner");
+    window.location.assign("/dashboard/owner");
   };
 
   const selected = businessTypes.find((b) => b.type === selectedType);

@@ -322,8 +322,12 @@ export default function AgricultureInventory({
       </div>
 
       {moveProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setMoveProduct(null)}>
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 p-5" style={{ background: "#0D0D1A" }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => setMoveProduct(null)}>
+          <div
+            className="w-full max-w-sm overflow-y-auto rounded-t-2xl border border-white/10 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl"
+            style={{ background: "#0D0D1A" }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase text-[#5A5B7A]">{moveMode === "masuk" ? "Masuk stok" : "Keluar stok"}</p>
@@ -366,8 +370,8 @@ export default function AgricultureInventory({
         const totalHpp = qty * unitHpp;
         const laba = total - totalHpp;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setSellingProduct(null)}>
-            <div className="w-full max-w-sm rounded-2xl border border-white/10 p-5" style={{ background: "#0D0D1A" }} onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => setSellingProduct(null)}>
+            <div className="w-full max-w-sm rounded-t-2xl border border-white/10 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl" style={{ background: "#0D0D1A" }} onClick={(e) => e.stopPropagation()}>
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-sm font-medium">{sellingProduct.name}</h3>
                 <button type="button" onClick={() => setSellingProduct(null)} className="text-[#8B8AA0]"><X size={18} /></button>

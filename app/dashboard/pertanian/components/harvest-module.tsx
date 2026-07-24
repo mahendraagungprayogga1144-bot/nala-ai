@@ -91,9 +91,11 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
     };
     let productId = editId;
     if (editId) {
-      await supabase.from("products").update(productPayload).eq("id", editId);
+      const { error } = await supabase.from("products").update(productPayload).eq("id", editId);
+      if (error) { setLoading(false); alert("Gagal simpan: " + error.message); return; }
     } else {
-      const { data } = await supabase.from("products").insert(productPayload).select("id").single();
+      const { data, error } = await supabase.from("products").insert(productPayload).select("id").single();
+      if (error) { setLoading(false); alert("Gagal tambah: " + error.message); return; }
       productId = data?.id;
     }
     if (productId) {
@@ -106,8 +108,13 @@ export default function HarvestModule({ products, harvestMeta, userId, businessI
         grade_kualitas: fGrade, lokasi_penyimpanan: fLokasi || null, catatan: fCatatan || null,
       };
       const existing = harvestMeta.find(m => m.product_id === productId);
-      if (existing) await supabase.from("agri_harvest_meta").update(metaPayload).eq("id", existing.id);
-      else await supabase.from("agri_harvest_meta").insert(metaPayload);
+      if (existing) {
+        const { error } = await supabase.from("agri_harvest_meta").update(metaPayload).eq("id", existing.id);
+        if (error) alert("Produk ok, meta gagal: " + error.message);
+      } else {
+        const { error } = await supabase.from("agri_harvest_meta").insert(metaPayload);
+        if (error) alert("Produk ok, meta gagal: " + error.message);
+      }
     }
     setLoading(false);
     reset();

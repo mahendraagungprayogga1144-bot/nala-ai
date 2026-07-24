@@ -174,7 +174,7 @@ export default function KaryawanClient({ employees, userId, businessId, business
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center md:hidden" onClick={() => { setShowForm(false); setNama(""); setJabatan(""); }}>
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/60 md:items-center md:justify-center md:hidden" onClick={() => { setShowForm(false); setNama(""); setJabatan(""); }}>
           <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0F0F1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15" />
             <p className="mb-3 text-sm font-semibold text-[#2DD4BF]">Karyawan Baru</p>

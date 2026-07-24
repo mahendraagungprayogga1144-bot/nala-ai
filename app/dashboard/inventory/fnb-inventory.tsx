@@ -148,7 +148,12 @@ export default function FnBInventory({ products, userId, businessId, businessNam
     const isSell = moveReason === "terjual";
     const profitLoss = moveType === "keluar" && isSell && movingProduct.price && movingProduct.cost ? (movingProduct.price - movingProduct.cost) * qty : 0;
     await supabase.from("products").update({ stock: newStock }).eq("id", movingProduct.id);
-    await supabase.from("stock_movements").insert({ user_id: userId, product_id: movingProduct.id, type: moveType, reason: moveType === "keluar" ? moveReason : null, quantity: qty, note: moveNote || null, profit_loss: profitLoss, movement_date: moveDate });
+    const { error: moveErr } = await supabase.from("stock_movements").insert({ user_id: userId, product_id: movingProduct.id, type: moveType, reason: moveType === "keluar" ? moveReason : null, quantity: qty, note: moveNote || null, profit_loss: profitLoss, movement_date: moveDate });
+    if (moveErr) {
+      setMoveLoading(false);
+      alert("Gagal catat pergerakan: " + moveErr.message);
+      return;
+    }
     if (moveType === "keluar" && isSell && movingProduct.price) {
       await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pemasukan", scope: "bisnis", category: "Penjualan", description: "Jual " + movingProduct.name + " (" + qty + ")", amount: movingProduct.price * qty, transaction_date: moveDate });
     } else if (moveType === "masuk" && movingProduct.cost) {

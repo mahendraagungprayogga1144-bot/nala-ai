@@ -86,8 +86,12 @@ export default function StockMovementModal({ productId, userId, businessId, curr
       </button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setOpen(false)}>
-          <form onSubmit={handleSubmit} onClick={(e) => e.stopPropagation()} className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" onClick={() => setOpen(false)}>
+          <form
+            onSubmit={handleSubmit}
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[min(92dvh,560px)] w-full max-w-sm flex-col gap-3 overflow-y-auto overscroll-contain rounded-t-2xl border border-white/10 bg-[#0F0F1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl"
+          >
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-medium">Catat Pergerakan {config.stokLabel}</h3>
               <button type="button" onClick={() => setOpen(false)} className="text-[#8B8AA0]"><X size={16} /></button>

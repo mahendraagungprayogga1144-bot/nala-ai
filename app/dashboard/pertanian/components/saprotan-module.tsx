@@ -70,8 +70,14 @@ export default function SaprotanModule({ products, saprotanMeta, userId, busines
       cost: fBeli ? Number(fBeli) : null, price: fHarga ? Number(fHarga) : null,
     };
     let productId = editId;
-    if (editId) await supabase.from("products").update(payload).eq("id", editId);
-    else { const { data } = await supabase.from("products").insert(payload).select("id").single(); productId = data?.id; }
+    if (editId) {
+      const { error } = await supabase.from("products").update(payload).eq("id", editId);
+      if (error) { setLoading(false); alert("Gagal simpan: " + error.message); return; }
+    } else {
+      const { data, error } = await supabase.from("products").insert(payload).select("id").single();
+      if (error) { setLoading(false); alert("Gagal tambah: " + error.message); return; }
+      productId = data?.id;
+    }
     if (productId) {
       const meta = {
         product_id: productId, user_id: userId, business_id: businessId,
@@ -80,8 +86,13 @@ export default function SaprotanModule({ products, saprotanMeta, userId, busines
         satuan: fSatuan, lokasi_penyimpanan: fLokasi || null,
       };
       const ex = saprotanMeta.find(m => m.product_id === productId);
-      if (ex) await supabase.from("agri_saprotan_meta").update(meta).eq("id", ex.id);
-      else await supabase.from("agri_saprotan_meta").insert(meta);
+      if (ex) {
+        const { error } = await supabase.from("agri_saprotan_meta").update(meta).eq("id", ex.id);
+        if (error) alert("Produk ok, meta gagal: " + error.message);
+      } else {
+        const { error } = await supabase.from("agri_saprotan_meta").insert(meta);
+        if (error) alert("Produk ok, meta gagal: " + error.message);
+      }
     }
     setLoading(false); reset(); router.refresh();
   };

@@ -124,11 +124,11 @@ export default function EditProductModal({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-[#0F0F1A] p-6"
+            className="max-h-[min(92dvh,640px)] w-full max-w-[420px] overflow-y-auto overscroll-contain rounded-t-2xl border border-white/10 bg-[#0F0F1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">

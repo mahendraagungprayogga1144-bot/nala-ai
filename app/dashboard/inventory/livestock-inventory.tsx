@@ -81,13 +81,23 @@ export default function LivestockInventory({ products, userId, businessId }: { p
       ? (product.price - product.cost) * qty
       : moveType === "keluar" && isLoss && product.cost ? -product.cost * qty : 0;
 
-    await supabase.from("products").update({ stock: newStock }).eq("id", product.id);
-    await supabase.from("stock_movements").insert({
+    const { error: stockErr } = await supabase.from("products").update({ stock: newStock }).eq("id", product.id);
+    if (stockErr) {
+      setMoveLoading(false);
+      alert("Gagal update stok: " + stockErr.message);
+      return;
+    }
+    const { error: moveErr } = await supabase.from("stock_movements").insert({
       user_id: userId, product_id: product.id, type: moveType,
       reason: moveType === "keluar" ? moveReason : null,
       quantity: qty, note: moveNote || null,
       profit_loss: profitLoss, movement_date: moveDate,
     });
+    if (moveErr) {
+      setMoveLoading(false);
+      alert("Gagal catat pergerakan: " + moveErr.message);
+      return;
+    }
 
     if (moveType === "masuk" && product.cost) {
       await supabase.from("transactions").insert({

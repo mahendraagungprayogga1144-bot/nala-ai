@@ -339,7 +339,7 @@ export default function KasirPOS({
 
       {/* Mobile cart sheet */}
       {cartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex items-end bg-[#050508]/80 backdrop-blur-sm" onClick={() => setCartOpen(false)}>
+        <div className="fixed inset-0 z-[80] flex items-end bg-[#050508]/80 backdrop-blur-sm lg:hidden" onClick={() => setCartOpen(false)}>
           <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-[#2DD4BF]/30 border-b-0 bg-[#1A1A28] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={e => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />

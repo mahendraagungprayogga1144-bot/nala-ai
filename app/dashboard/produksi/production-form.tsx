@@ -130,14 +130,16 @@ export default function ProductionForm({ recipes, userId, businessId }: { recipe
     const { data: existingProduct } = await supabase.from("products")
       .select("id, stock").eq("name", selectedRecipe.name).eq("business_id", businessId).maybeSingle();
     if (existingProduct) {
-      await supabase.from("products").update({ stock: existingProduct.stock + qty, cost: hpp, category: "Produk Jadi" }).eq("id", existingProduct.id);
+      const { error } = await supabase.from("products").update({ stock: existingProduct.stock + qty, cost: hpp, category: "Produk Jadi" }).eq("id", existingProduct.id);
+      if (error) { setLoading(false); alert("Gagal update produk jadi: " + error.message); return; }
     } else {
-      await supabase.from("products").insert({
+      const { error } = await supabase.from("products").insert({
         user_id: userId, business_id: businessId,
         name: selectedRecipe.name,
         category: "Produk Jadi",
         stock: qty, min_stock: 5, cost: hpp,
       });
+      if (error) { setLoading(false); alert("Gagal buat produk jadi: " + error.message); return; }
     }
 
     const { error: logError } = await supabase.from("production_logs").insert({

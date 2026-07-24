@@ -20,6 +20,13 @@ import OlshopInventory from "./olshop-inventory";
 import KesehatanInventory from "./kesehatan-inventory";
 import BengkelInventory from "./bengkel-inventory";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import {
+  InventoryChartsLazy,
+  TrendChartLazy,
+  RecentMovementsLazy,
+  MovementsChartLazy,
+  LossBreakdownChartLazy,
+} from "./inventory-charts-lazy";
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
@@ -223,12 +230,19 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
     DISTINCT_INVENTORY_TYPES.includes(business?.type || "");
   const isDistinct = DISTINCT_INVENTORY_TYPES.includes(business?.type || "");
 
-  // Snapshot only — chart history UI temporarily disabled (Recharts RSC crashes).
+  let history: { snapshot_date: string; total_value: number }[] | null = null;
   if (!specialized) {
     await supabase.from("inventory_history").upsert(
       { user_id: user.id, business_id: business?.id, snapshot_date: todayWib(), total_value: totalValue },
       { onConflict: "user_id,snapshot_date" }
     );
+    const { data: hist } = await supabase
+      .from("inventory_history")
+      .select("snapshot_date, total_value")
+      .eq("user_id", user.id)
+      .order("snapshot_date", { ascending: true })
+      .limit(30);
+    history = hist;
   }
 
   const kpis = [
@@ -365,7 +379,10 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
 
       {!specialized && (
         <>
+          <TrendChartLazy history={history || []} />
           <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />
+          <LossBreakdownChartLazy movements={(allMovements as never) || []} />
+          <InventoryChartsLazy products={products || []} />
 
           <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl px-5 pt-4 pb-2 mb-4">
             <div className="flex items-center justify-between">
@@ -374,38 +391,8 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
             </div>
           </div>
 
-          <div className="mb-4 overflow-x-auto rounded-2xl border border-white/10 bg-[#0F0F1A]">
-            <table className="w-full min-w-[480px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-xs text-[#8B8AA0]">
-                  <th className="px-4 py-3 font-medium">Tanggal</th>
-                  <th className="px-4 py-3 font-medium">Produk</th>
-                  <th className="px-4 py-3 font-medium">Tipe</th>
-                  <th className="px-4 py-3 font-medium">Qty</th>
-                  <th className="px-4 py-3 font-medium">Alasan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(movements || []).length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-[#8B8AA0]">
-                      Belum ada pergerakan stok bulan ini.
-                    </td>
-                  </tr>
-                ) : (
-                  (movements as { id: string; movement_date: string; type: string; quantity: number; reason: string | null; products: { name: string } | null }[]).map((m) => (
-                    <tr key={m.id} className="border-b border-white/[0.06]">
-                      <td className="px-4 py-2.5 font-mono text-xs text-[#8B8AA0]">{m.movement_date}</td>
-                      <td className="px-4 py-2.5">{m.products?.name || "—"}</td>
-                      <td className="px-4 py-2.5 capitalize">{m.type}</td>
-                      <td className="px-4 py-2.5 font-mono">{m.quantity}</td>
-                      <td className="px-4 py-2.5 text-[#8B8AA0]">{m.reason || "—"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <MovementsChartLazy movements={(movements as never) || []} />
+          <RecentMovementsLazy movements={(movements as never) || []} />
         </>
       )}
     </div>

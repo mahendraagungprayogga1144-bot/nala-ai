@@ -45,7 +45,7 @@ export default function PrivacyPage() {
       <H>4. Penyimpanan & keamanan</H>
       <P>
         Data disimpan pada infrastruktur cloud tepercaya (termasuk database dan autentikasi). Kami menerapkan kontrol akses,
-        enkripsi pada jalur komunikasi (HTTPS), dan pembatasan akses admin. Tidak ada sistem yang 100% aman; kami berupaya
+        enkripsi pada jalur komunikasi, dan pembatasan akses admin. Tidak ada sistem yang 100% aman; kami berupaya
         menjaga standar keamanan yang wajar.
       </P>
 

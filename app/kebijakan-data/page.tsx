@@ -21,7 +21,7 @@ export default function KebijakanDataPage() {
         items={[
           "Minimalisasi: hanya mengumpulkan data yang relevan untuk layanan.",
           "Tujuan jelas: data dipakai untuk operasional produk, keamanan, dan dukungan.",
-          "Keamanan: akses dibatasi, komunikasi dienkripsi (HTTPS).",
+          "Keamanan: akses dibatasi, komunikasi dienkripsi.",
           "Transparansi: Anda dapat meninjau kebijakan ini kapan saja.",
           "Akuntabilitas: permintaan terkait data dapat diajukan ke kontak resmi.",
         ]}

@@ -89,6 +89,13 @@ export default function ProductionForm({ recipes, userId, businessId }: { recipe
 
     const totalModal = totalModalCalc();
     const hpp = hppPerUnit();
+    const applied: { productId: string; prevStock: number }[] = [];
+
+    const restoreMaterials = async () => {
+      for (const a of applied) {
+        await supabase.from("products").update({ stock: a.prevStock }).eq("id", a.productId);
+      }
+    };
 
     // Deduct by material_id (fallback name) — only when finishing production
     for (const ing of selectedRecipe.recipe_ingredients) {
@@ -106,24 +113,45 @@ export default function ProductionForm({ recipes, userId, businessId }: { recipe
         productRow = data;
       }
       if (!productRow) {
+        await restoreMaterials();
         setLoading(false);
         alert("Bahan tidak ditemukan di inventory: " + (prod?.name || materialId));
         return;
       }
-      if (Number(productRow.stock) < needed) {
+      const prev = Number(productRow.stock);
+      if (prev < needed) {
+        await restoreMaterials();
         setLoading(false);
         alert(`Stok ${prod?.name} kurang (live).`);
         return;
       }
-      const { error: upErr } = await supabase.from("products").update({ stock: Number(productRow.stock) - needed }).eq("id", productRow.id);
-      if (upErr) { setLoading(false); alert(upErr.message); return; }
-      await supabase.from("stock_movements").insert({
+      const { data: updated, error: upErr } = await supabase
+        .from("products")
+        .update({ stock: prev - needed })
+        .eq("id", productRow.id)
+        .eq("stock", prev)
+        .select("id")
+        .maybeSingle();
+      if (upErr || !updated) {
+        await restoreMaterials();
+        setLoading(false);
+        alert(upErr?.message || `Stok ${prod?.name} berubah — coba lagi`);
+        return;
+      }
+      applied.push({ productId: productRow.id, prevStock: prev });
+      const { error: movErr } = await supabase.from("stock_movements").insert({
         user_id: userId, product_id: productRow.id, type: "keluar", reason: "terpakai",
         quantity: needed,
         note: `Produksi ${qty} ${selectedRecipe.yield_unit} ${selectedRecipe.name}`,
         profit_loss: -(prod?.cost || 0) * needed,
         movement_date: date,
       });
+      if (movErr) {
+        await restoreMaterials();
+        setLoading(false);
+        alert("Gagal catat mutasi bahan: " + movErr.message);
+        return;
+      }
     }
 
     // Finished goods masuk inventory
@@ -131,7 +159,12 @@ export default function ProductionForm({ recipes, userId, businessId }: { recipe
       .select("id, stock").eq("name", selectedRecipe.name).eq("business_id", businessId).maybeSingle();
     if (existingProduct) {
       const { error } = await supabase.from("products").update({ stock: existingProduct.stock + qty, cost: hpp, category: "Produk Jadi" }).eq("id", existingProduct.id);
-      if (error) { setLoading(false); alert("Gagal update produk jadi: " + error.message); return; }
+      if (error) {
+        await restoreMaterials();
+        setLoading(false);
+        alert("Gagal update produk jadi: " + error.message);
+        return;
+      }
     } else {
       const { error } = await supabase.from("products").insert({
         user_id: userId, business_id: businessId,
@@ -139,7 +172,12 @@ export default function ProductionForm({ recipes, userId, businessId }: { recipe
         category: "Produk Jadi",
         stock: qty, min_stock: 5, cost: hpp,
       });
-      if (error) { setLoading(false); alert("Gagal buat produk jadi: " + error.message); return; }
+      if (error) {
+        await restoreMaterials();
+        setLoading(false);
+        alert("Gagal buat produk jadi: " + error.message);
+        return;
+      }
     }
 
     const { error: logError } = await supabase.from("production_logs").insert({

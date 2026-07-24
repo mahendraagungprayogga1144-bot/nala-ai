@@ -144,20 +144,45 @@ export default function FnBInventory({ products, userId, businessId, businessNam
     if (!movingProduct || !moveQty) return;
     setMoveLoading(true);
     const qty = Number(moveQty);
-    const newStock = moveType === "masuk" ? movingProduct.stock + qty : Math.max(0, movingProduct.stock - qty);
+    const prevStock = movingProduct.stock;
+    const newStock = moveType === "masuk" ? prevStock + qty : Math.max(0, prevStock - qty);
     const isSell = moveReason === "terjual";
     const profitLoss = moveType === "keluar" && isSell && movingProduct.price && movingProduct.cost ? (movingProduct.price - movingProduct.cost) * qty : 0;
-    await supabase.from("products").update({ stock: newStock }).eq("id", movingProduct.id);
+    const { data: stockRow, error: stockErr } = await supabase
+      .from("products")
+      .update({ stock: newStock })
+      .eq("id", movingProduct.id)
+      .eq("stock", prevStock)
+      .select("id")
+      .maybeSingle();
+    if (stockErr || !stockRow) {
+      setMoveLoading(false);
+      alert(stockErr?.message || "Stok berubah — muat ulang lalu coba lagi");
+      return;
+    }
     const { error: moveErr } = await supabase.from("stock_movements").insert({ user_id: userId, product_id: movingProduct.id, type: moveType, reason: moveType === "keluar" ? moveReason : null, quantity: qty, note: moveNote || null, profit_loss: profitLoss, movement_date: moveDate });
     if (moveErr) {
+      await supabase.from("products").update({ stock: prevStock }).eq("id", movingProduct.id);
       setMoveLoading(false);
       alert("Gagal catat pergerakan: " + moveErr.message);
       return;
     }
     if (moveType === "keluar" && isSell && movingProduct.price) {
-      await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pemasukan", scope: "bisnis", category: "Penjualan", description: "Jual " + movingProduct.name + " (" + qty + ")", amount: movingProduct.price * qty, transaction_date: moveDate });
+      const { error: txErr } = await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pemasukan", scope: "bisnis", category: "Penjualan", description: "Jual " + movingProduct.name + " (" + qty + ")", amount: movingProduct.price * qty, transaction_date: moveDate });
+      if (txErr) {
+        await supabase.from("products").update({ stock: prevStock }).eq("id", movingProduct.id);
+        setMoveLoading(false);
+        alert("Stok dibatalkan — keuangan gagal: " + txErr.message);
+        return;
+      }
     } else if (moveType === "masuk" && movingProduct.cost) {
-      await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pengeluaran", scope: "bisnis", category: "Pembelian Bahan", description: "Beli " + movingProduct.name + " (" + qty + ")", amount: movingProduct.cost * qty, transaction_date: moveDate });
+      const { error: txErr } = await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pengeluaran", scope: "bisnis", category: "Pembelian Bahan", description: "Beli " + movingProduct.name + " (" + qty + ")", amount: movingProduct.cost * qty, transaction_date: moveDate });
+      if (txErr) {
+        await supabase.from("products").update({ stock: prevStock }).eq("id", movingProduct.id);
+        setMoveLoading(false);
+        alert("Stok dibatalkan — keuangan gagal: " + txErr.message);
+        return;
+      }
     }
     setMoveLoading(false); setMovingProduct(null); setMoveQty(""); setMoveNote(""); router.refresh();
   };

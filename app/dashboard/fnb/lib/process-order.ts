@@ -3,21 +3,32 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CartLine } from "./calc";
 import { getStockShortages } from "./calc";
 
+export type StockApply = { productId: string; prevStock: number; qty: number };
+
+export async function restoreStockApplies(
+  supabase: SupabaseClient,
+  applied: StockApply[],
+) {
+  for (const a of applied) {
+    await supabase.from("products").update({ stock: a.prevStock }).eq("id", a.productId);
+  }
+}
+
 /**
  * Deduct recipe BOM stock with optimistic concurrency.
  * On any failure, returns ok:false — caller must NOT print receipt / claim success.
- * Movements are inserted only after successful stock update.
+ * On later finance failure, caller should restoreStockApplies(result.applied).
  */
 export async function deductStockForSale(
   supabase: SupabaseClient,
   cart: CartLine[],
   userId: string,
   opts?: { today?: string; notePrefix?: string },
-) {
+): Promise<{ ok: boolean; errors: string[]; applied: StockApply[] }> {
   const today = opts?.today || todayWib();
   const prefix = opts?.notePrefix || "Kasir";
   const errors: string[] = [];
-  const applied: { productId: string; prevStock: number; qty: number }[] = [];
+  const applied: StockApply[] = [];
 
   for (const item of cart) {
     for (const r of item.menu.menu_recipes) {
@@ -68,14 +79,12 @@ export async function deductStockForSale(
     }
   }
 
-  if (errors.length > 0 && applied.length > 0) {
-    // Best-effort restore on partial failure
-    for (const a of applied) {
-      await supabase.from("products").update({ stock: a.prevStock }).eq("id", a.productId);
-    }
+  if (errors.length > 0) {
+    if (applied.length > 0) await restoreStockApplies(supabase, applied);
+    return { ok: false, errors, applied: [] };
   }
 
-  return { ok: errors.length === 0, errors };
+  return { ok: true, errors: [], applied };
 }
 
 export function validateCartStock(cart: CartLine[]) {

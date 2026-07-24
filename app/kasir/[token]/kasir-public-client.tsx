@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 
 import { calcHpp } from "@/app/dashboard/fnb/lib/calc";
 import type { FnbMenu } from "@/app/dashboard/fnb/lib/calc";
-import { validateCartStock, deductStockForSale } from "@/app/dashboard/fnb/lib/process-order";
+import { validateCartStock, deductStockForSale, restoreStockApplies } from "@/app/dashboard/fnb/lib/process-order";
 import { buildKasirReceiptHtml, shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import ReceiptPrintPreview from "@/app/dashboard/fnb/components/receipt-print-preview";
 import KasirPrintSettingsButton from "@/app/dashboard/fnb/components/kasir-print-settings-sheet";
@@ -333,6 +333,7 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
       amount: total, transaction_date: today,
     });
     if (txErr) {
+      await restoreStockApplies(supabase, stockResult.applied);
       await supabase.from("order_items").delete().eq("order_id", order.id);
       await supabase.from("orders").delete().eq("id", order.id);
       alert("Penjualan dibatalkan — keuangan gagal: " + txErr.message);

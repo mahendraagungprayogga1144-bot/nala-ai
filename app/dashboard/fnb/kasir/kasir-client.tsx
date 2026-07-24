@@ -6,7 +6,7 @@ import { Plus, Minus, Search, Check, Trash2, X, UtensilsCrossed, Users, ChevronD
 
 import { calcHpp, fmtRp } from "../lib/calc";
 import type { FnbMenu } from "../lib/calc";
-import { validateCartStock, deductStockForSale } from "../lib/process-order";
+import { validateCartStock, deductStockForSale, restoreStockApplies } from "../lib/process-order";
 import FnbHubNav from "../components/fnb-hub-nav";
 import FnbKpiRow from "../components/fnb-kpi-row";
 import FnbStockAlerts from "../components/fnb-stock-alerts";
@@ -322,6 +322,7 @@ export default function KasirClient({ menus, products, employees, userId, busine
       amount: total, transaction_date: today,
     });
     if (txErr) {
+      await restoreStockApplies(supabase, stockResult.applied);
       await supabase.from("order_items").delete().eq("order_id", order.id);
       await supabase.from("orders").delete().eq("id", order.id);
       alert("Penjualan dibatalkan — keuangan gagal: " + txErr.message);

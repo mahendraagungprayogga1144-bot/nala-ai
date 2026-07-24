@@ -55,7 +55,11 @@ export default function FeedTracker({ feeds, animals, userId, businessId }: { fe
           profit_loss: -(feed.cost || 0) * pakai,
           movement_date: date,
         });
-        if (movErr) errors.push(feed.name + " mutasi: " + movErr.message);
+        if (movErr) {
+          await supabase.from("products").update({ stock: feed.stock }).eq("id", feed.id);
+          errors.push(feed.name + " mutasi: " + movErr.message);
+          continue;
+        }
 
         if (feed.cost) {
           const { error: txErr } = await supabase.from("transactions").insert({
@@ -68,7 +72,10 @@ export default function FeedTracker({ feeds, animals, userId, businessId }: { fe
             amount: (feed.cost || 0) * pakai,
             transaction_date: date,
           });
-          if (txErr) errors.push(feed.name + " biaya: " + txErr.message);
+          if (txErr) {
+            await supabase.from("products").update({ stock: feed.stock }).eq("id", feed.id);
+            errors.push(feed.name + " biaya: " + txErr.message);
+          }
         }
       }
     }

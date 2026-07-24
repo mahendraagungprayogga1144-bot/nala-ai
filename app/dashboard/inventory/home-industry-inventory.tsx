@@ -174,13 +174,26 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
     const hppUnit = isProdukJadi ? calcProductHpp(movingProduct, recipes) : Number(movingProduct.cost || 0);
     const profitLoss = moveType === "keluar" && isSell && movingProduct.price ? (movingProduct.price - hppUnit) * qty : 0;
 
-    const { error: stockErr } = await supabase.from("products").update({ stock: newStock }).eq("id", movingProduct.id);
+    const prevStock = movingProduct.stock;
+    const { error: stockErr } = await supabase.from("products").update({ stock: newStock }).eq("id", movingProduct.id).eq("stock", prevStock);
     if (stockErr) { alert("Gagal update stok: " + stockErr.message); setMoveLoading(false); return; }
 
-    await supabase.from("stock_movements").insert({ user_id: userId, product_id: movingProduct.id, type: moveType, reason: moveType === "keluar" ? moveReason : null, quantity: qty, note: moveNote || null, profit_loss: profitLoss, movement_date: moveDate });
+    const { error: movErr } = await supabase.from("stock_movements").insert({ user_id: userId, product_id: movingProduct.id, type: moveType, reason: moveType === "keluar" ? moveReason : null, quantity: qty, note: moveNote || null, profit_loss: profitLoss, movement_date: moveDate });
+    if (movErr) {
+      await supabase.from("products").update({ stock: prevStock }).eq("id", movingProduct.id);
+      alert("Gagal catat mutasi: " + movErr.message);
+      setMoveLoading(false);
+      return;
+    }
 
     if (moveType === "masuk" && movingProduct.cost) {
-      await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pengeluaran", scope: "bisnis", category: "Pembelian Bahan", description: "Beli " + movingProduct.name + " (" + qty + ")", amount: movingProduct.cost * qty, transaction_date: moveDate });
+      const { error: txErr } = await supabase.from("transactions").insert({ user_id: userId, business_id: businessId, type: "pengeluaran", scope: "bisnis", category: "Pembelian Bahan", description: "Beli " + movingProduct.name + " (" + qty + ")", amount: movingProduct.cost * qty, transaction_date: moveDate });
+      if (txErr) {
+        await supabase.from("products").update({ stock: prevStock }).eq("id", movingProduct.id);
+        alert("Stok dibatalkan — keuangan gagal: " + txErr.message);
+        setMoveLoading(false);
+        return;
+      }
     }
     setMoveLoading(false); setMovingProduct(null); setMoveQty(""); setMoveNote(""); router.refresh();
   };
@@ -220,14 +233,34 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
     const laba = totalJual - totalHpp;
     const newStock = Math.max(0, sellingProduct.stock - qty);
 
-    const { error: stockErr } = await supabase.from("products").update({ stock: newStock }).eq("id", sellingProduct.id);
-    if (stockErr) { setFormError("Gagal update stok: " + stockErr.message); setSellLoading(false); return; }
+    const prevStock = sellingProduct.stock;
+    const { data: stockRow, error: stockErr } = await supabase
+      .from("products")
+      .update({ stock: newStock })
+      .eq("id", sellingProduct.id)
+      .eq("stock", prevStock)
+      .select("id")
+      .maybeSingle();
+    if (stockErr || !stockRow) {
+      setFormError(stockErr?.message || "Stok berubah — muat ulang lalu coba lagi");
+      setSellLoading(false);
+      return;
+    }
+
+    const restoreStock = async () => {
+      await supabase.from("products").update({ stock: prevStock }).eq("id", sellingProduct.id);
+    };
 
     const { error: moveErr } = await supabase.from("stock_movements").insert({
       user_id: userId, product_id: sellingProduct.id, type: "keluar", reason: "terjual",
       quantity: qty, note: "Penjualan " + sellingProduct.name, profit_loss: laba, movement_date: today,
     });
-    if (moveErr) { setFormError("Gagal catat stok: " + moveErr.message); setSellLoading(false); return; }
+    if (moveErr) {
+      await restoreStock();
+      setFormError("Gagal catat stok: " + moveErr.message);
+      setSellLoading(false);
+      return;
+    }
 
     const { error: incErr } = await supabase.from("transactions").insert({
       user_id: userId, business_id: businessId,
@@ -235,7 +268,12 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
       description: "Jual " + sellingProduct.name + " x" + qty,
       amount: totalJual, transaction_date: today,
     });
-    if (incErr) { setFormError("Gagal catat penjualan: " + incErr.message); setSellLoading(false); return; }
+    if (incErr) {
+      await restoreStock();
+      setFormError("Gagal catat penjualan: " + incErr.message);
+      setSellLoading(false);
+      return;
+    }
 
     if (totalHpp > 0) {
       const { error: hppErr } = await supabase.from("transactions").insert({
@@ -244,7 +282,11 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
         description: "HPP " + sellingProduct.name + " x" + qty,
         amount: totalHpp, transaction_date: today,
       });
-      if (hppErr) { setFormError("Penjualan tersimpan tapi HPP gagal: " + hppErr.message); setSellLoading(false); return; }
+      if (hppErr) {
+        setFormError("Penjualan tersimpan tapi HPP gagal: " + hppErr.message);
+        setSellLoading(false);
+        return;
+      }
     }
 
     setSellLoading(false);

@@ -2,11 +2,14 @@ import { Briefcase } from "lucide-react";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import BizHubShell, { fmtRp } from "../components/biz-hub-shell";
 import JasaClient from "./jasa-client";
+import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function JasaPage() {
+  return guardPage("Order Jasa", async () => {
   const { supabase, user, business } = await getActiveBusiness("jasa");
   if (!user) return null;
-  if (!business || business.type !== "jasa") return <WrongBizType label="Jasa / Freelance" />;
+  if (!business || normalizeBizType(business.type) !== "jasa") return <WrongBizType label="Jasa / Freelance" />;
 
   const { data: jobs } = await supabase
     .from("module_service_jobs")
@@ -35,4 +38,5 @@ export default async function JasaPage() {
       <JasaClient businessId={business.id} userId={user.id} jobs={jobs || []} />
     </BizHubShell>
   );
+  });
 }

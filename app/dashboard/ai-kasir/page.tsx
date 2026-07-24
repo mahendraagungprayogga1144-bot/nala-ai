@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import AiKasirClient from "./ai-kasir-client";
+import { guardPage } from "../lib/page-guard";
 
 export type Product = {
   id: string; name: string; price: number; cost: number;
@@ -20,6 +21,7 @@ export type TodayTx = {
 };
 
 export default async function AiKasirPage() {
+  return guardPage("AI Kasir", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -87,4 +89,5 @@ export default async function AiKasirPage() {
       today={today}
     />
   );
+  });
 }

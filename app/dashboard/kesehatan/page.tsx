@@ -2,6 +2,8 @@ import { HeartPulse } from "lucide-react";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import BizHubShell, { fmtRp } from "../components/biz-hub-shell";
 import KesehatanClient from "./kesehatan-client";
+import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 function daysUntil(dateStr: string | null) {
   if (!dateStr) return null;
@@ -12,9 +14,10 @@ function daysUntil(dateStr: string | null) {
 }
 
 export default async function KesehatanPage() {
+  return guardPage("Pusat Kesehatan", async () => {
   const { supabase, user, business } = await getActiveBusiness("kesehatan");
   if (!user) return null;
-  if (!business || business.type !== "kesehatan") return <WrongBizType label="Kesehatan / Apotek" />;
+  if (!business || normalizeBizType(business.type) !== "kesehatan") return <WrongBizType label="Kesehatan / Apotek" />;
 
   const [{ data: products }, { data: attrs }] = await Promise.all([
     supabase.from("products").select("id, name, stock, min_stock, price, unit").eq("business_id", business.id).order("name"),
@@ -57,4 +60,5 @@ export default async function KesehatanPage() {
       <KesehatanClient businessId={business.id} userId={user.id} rows={rows} />
     </BizHubShell>
   );
+  });
 }

@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import CrmPelangganClient from "./crm-pelanggan-client";
+import { guardPage } from "../lib/page-guard";
 
 export default async function CrmPelangganPage() {
+  return guardPage("CRM Pelanggan", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -20,4 +22,5 @@ export default async function CrmPelangganPage() {
       customers={customers || []}
     />
   );
+  });
 }

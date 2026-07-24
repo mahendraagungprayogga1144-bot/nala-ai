@@ -30,7 +30,7 @@ export default function DashboardError({
   const raw = error?.message || "";
   const isGeneric = /omitted in production|Server Components render/i.test(raw);
   const hint = isGeneric
-    ? "Sesi/auth atau data chart gagal di server. Coba hard-refresh (Ctrl+Shift+R) atau ganti bisnis aktif."
+    ? "Error server (lihat digest di bawah). Hard-refresh, ganti bisnis aktif, atau buka Owner / Inventory."
     : raw.slice(0, 180);
 
   return (

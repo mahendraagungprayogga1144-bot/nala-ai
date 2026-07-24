@@ -7,8 +7,10 @@ import { cookies } from "next/headers";
 import { sortBisnisTransactions, formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
 import KasirTransactionsPanel, { type KasirOrderRow } from "./kasir-transactions-panel";
 import CashFlowChartLazy from "../cash-flow-chart-lazy";
+import { guardPage } from "../lib/page-guard";
 
 export default async function KeuanganBisnisPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
+  return guardPage("Keuangan Bisnis", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -30,25 +32,31 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
   let kasirOrders: KasirOrderRow[] = [];
   if (business?.type === "kuliner" && business.id) {
-    const [{ data: orderRows }, { data: employees }, { data: profile }] = await Promise.all([
-      supabase
-        .from("orders")
-        .select("id, user_id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menus(nama))")
-        .eq("business_id", business.id)
-        .gte("order_date", startDate)
-        .lte("order_date", endDate)
-        .order("created_at", { ascending: false }),
-      supabase.from("employees").select("id, nama").eq("business_id", business.id),
-      supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    ]);
-
-    const kasirNames: Record<string, string> = { [user.id]: profile?.full_name || "Owner" };
-    employees?.forEach(e => { kasirNames[e.id] = e.nama; });
-
-    kasirOrders = (orderRows || []).map(o => ({
-      ...(o as Omit<KasirOrderRow, "kasirName">),
-      kasirName: kasirNames[o.user_id] || "Kasir",
-    }));
+    try {
+      const [{ data: orderRows, error: orderErr }, { data: employees }, { data: profile }] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("id, user_id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menus(nama))")
+          .eq("business_id", business.id)
+          .gte("order_date", startDate)
+          .lte("order_date", endDate)
+          .order("created_at", { ascending: false }),
+        supabase.from("employees").select("id, nama").eq("business_id", business.id),
+        supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+      ]);
+      if (orderErr) {
+        console.error("[keuangan-bisnis/orders]", orderErr.message);
+      } else {
+        const kasirNames: Record<string, string> = { [user.id]: profile?.full_name || "Owner" };
+        employees?.forEach(e => { kasirNames[e.id] = e.nama; });
+        kasirOrders = (orderRows || []).map(o => ({
+          ...(o as Omit<KasirOrderRow, "kasirName">),
+          kasirName: kasirNames[o.user_id] || "Kasir",
+        }));
+      }
+    } catch (err) {
+      console.error("[keuangan-bisnis/orders]", err);
+    }
   }
 
   const yearStart = `${tahun}-01-01`;
@@ -175,4 +183,5 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
       </div>
     </div>
   );
+  });
 }

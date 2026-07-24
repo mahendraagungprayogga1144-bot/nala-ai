@@ -1,10 +1,13 @@
 import { ShoppingBag } from "lucide-react";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import BizHubShell, { fmtRp } from "../components/biz-hub-shell";
+import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function OlshopHubPage() {
+  return guardPage("Pusat Online Shop", async () => {
   const { supabase, business } = await getActiveBusiness("olshop");
-  if (!business || business.type !== "olshop") return <WrongBizType label="Online Shop" />;
+  if (!business || normalizeBizType(business.type) !== "olshop") return <WrongBizType label="Online Shop" />;
 
   const [{ data: products }, { data: stores }, { data: reports }] = await Promise.all([
     supabase.from("products").select("id, stock, min_stock, price").eq("business_id", business.id),
@@ -41,4 +44,5 @@ export default async function OlshopHubPage() {
       </div>
     </BizHubShell>
   );
+  });
 }

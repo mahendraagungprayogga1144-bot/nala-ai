@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import BarcodeQrClient from "./barcode-qr-client";
+import { guardPage } from "../lib/page-guard";
 
 export default async function BarcodeQrPage() {
+  return guardPage("Barcode QR", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -15,4 +17,5 @@ export default async function BarcodeQrPage() {
   return (
     <BarcodeQrClient businessId={business?.id || ""} businessName={business?.name || "Bisnis"} userId={user.id} items={items || []} />
   );
+  });
 }

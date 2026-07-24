@@ -52,6 +52,8 @@ export async function getActiveBusiness(expectedType?: string) {
     return { supabase, user, business };
   } catch (err) {
     console.error("[getActiveBusiness]", err);
+    // Prefer soft failure so hub pages can render WrongBizType / empty states.
+    // If createClient itself is broken, let that throw for page-level guardPage.
     const supabase = await createClient();
     return { supabase, user: null, business: null as ActiveBusiness | null };
   }

@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import MultiPlatformClient from "./multi-platform-client";
+import { guardPage } from "../lib/page-guard";
 
 export default async function MultiPlatformPage() {
+  return guardPage("Multi Platform", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -11,4 +13,5 @@ export default async function MultiPlatformPage() {
     ? await supabase.from("module_platform_channels").select("*").eq("business_id", business.id).order("channel")
     : { data: [] };
   return <MultiPlatformClient businessId={business?.id || ""} businessName={business?.name || "Bisnis"} userId={user.id} channels={channels || []} />;
+  });
 }

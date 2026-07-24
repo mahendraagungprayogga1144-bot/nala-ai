@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import TimKomisiClient from "./tim-komisi-client";
+import { guardPage } from "../lib/page-guard";
 
 export default async function TimKomisiPage() {
+  return guardPage("Tim Komisi", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -24,4 +26,5 @@ export default async function TimKomisiPage() {
       sales={sales || []}
     />
   );
+  });
 }

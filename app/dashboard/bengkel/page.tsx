@@ -2,11 +2,14 @@ import { Wrench } from "lucide-react";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import BizHubShell, { fmtRp } from "../components/biz-hub-shell";
 import BengkelClient from "./bengkel-client";
+import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function BengkelPage() {
+  return guardPage("Antrian Bengkel", async () => {
   const { supabase, user, business } = await getActiveBusiness("bengkel");
   if (!user) return null;
-  if (!business || business.type !== "bengkel") return <WrongBizType label="Bengkel" />;
+  if (!business || normalizeBizType(business.type) !== "bengkel") return <WrongBizType label="Bengkel" />;
 
   const { data: orders } = await supabase
     .from("module_workshop_orders")
@@ -40,4 +43,5 @@ export default async function BengkelPage() {
       <BengkelClient businessId={business.id} userId={user.id} orders={orders || []} />
     </BizHubShell>
   );
+  });
 }

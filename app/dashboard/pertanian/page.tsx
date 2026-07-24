@@ -2,8 +2,10 @@ import PertanianClient from "./pertanian-client";
 import type { AgriDashboardData } from "./lib/types";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function PertanianPage() {
+  return guardPage("Modul Pertanian", async () => {
   const { supabase, user, business } = await getActiveBusiness("pertanian");
   if (!user) return null;
 
@@ -58,4 +60,5 @@ export default async function PertanianPage() {
       businessId={businessId}
     />
   );
+  });
 }

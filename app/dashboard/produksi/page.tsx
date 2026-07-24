@@ -7,8 +7,10 @@ import { Package, Wallet, TrendingUp, BarChart3 } from "lucide-react";
 import HomeIndustryHubNav from "../inventory/home-industry-hub-nav";
 import { todayWib } from "@/lib/date";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function ProduksiPage() {
+  return guardPage("Produksi", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -136,4 +138,5 @@ export default async function ProduksiPage() {
       )}
     </div>
   );
+  });
 }

@@ -4,10 +4,12 @@ import PeternakanHubNav from "./peternakan-hub-nav";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 type FarmTx = { jenis_transaksi: string; total: number; qty: number | null; batch_id: string };
 
 export default async function PeternakanPage() {
+  return guardPage("Manajemen Ternak", async () => {
   let supabase;
   let user;
   let business;
@@ -184,4 +186,5 @@ export default async function PeternakanPage() {
       )}
     </div>
   );
+  });
 }

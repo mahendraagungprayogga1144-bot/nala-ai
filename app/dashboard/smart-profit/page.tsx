@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import SmartProfitClient from "./smart-profit-client";
+import { guardPage } from "../lib/page-guard";
 
 export default async function SmartProfitPage() {
+  return guardPage("Smart Profit", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -23,4 +25,5 @@ export default async function SmartProfitPage() {
       businessType={business?.type || null}
     />
   );
+  });
 }

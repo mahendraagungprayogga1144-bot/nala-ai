@@ -1,10 +1,13 @@
 import { Store } from "lucide-react";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import BizHubShell, { fmtRp } from "../components/biz-hub-shell";
+import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function RetailHubPage() {
+  return guardPage("Pusat Retail", async () => {
   const { supabase, business } = await getActiveBusiness("retail");
-  if (!business || business.type !== "retail") return <WrongBizType label="Toko Retail" />;
+  if (!business || normalizeBizType(business.type) !== "retail") return <WrongBizType label="Toko Retail" />;
 
   const { data: products } = await supabase
     .from("products")
@@ -38,4 +41,5 @@ export default async function RetailHubPage() {
       </div>
     </BizHubShell>
   );
+  });
 }

@@ -91,78 +91,89 @@ export default function BengkelInventory({
         <input className={`${inputCls} pl-9`} placeholder="Cari spare part..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {products.length === 0 ? (
-        <FnbEmptyState icon={Wrench} title="Rak part kosong" subtitle="Isi oli, ban, filter, dll. Saat pasang ke kendaraan → tombol Dipasang." actionLabel="Tambah part" onAction={() => { setFCat("Oli"); setShowAdd("oli"); }} />
-      ) : (
-        <div className="space-y-4">
-          {RACKS.map((rack) => {
-            const items = filtered.filter((p) => rack.cats.includes(p.category || ""));
-            if (items.length === 0 && search) return null;
-            return (
-              <section key={rack.key} className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#100808]">
-                <div className="flex items-center justify-between px-4 py-3" style={{ borderLeft: `4px solid ${rack.color}`, background: `${rack.color}12` }}>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: rack.color }}>{rack.label}</p>
-                    <p className="text-[10px] text-[#5A5B7A]">{items.length} part</p>
-                  </div>
-                  <button type="button" onClick={() => { setFCat(rack.cats[0]); setShowAdd(rack.key); }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[#070711]"
-                    style={{ background: rack.color }}>
-                    <Plus size={12} /> Part
-                  </button>
-                </div>
-
-                {showAdd === rack.key && (
-                  <div className="space-y-2 border-b border-white/[0.06] p-4">
-                    <input className={inputCls} placeholder="Nama part *" value={fName} onChange={(e) => setFName(e.target.value)} />
-                    <select className={inputCls} value={fCat} onChange={(e) => setFCat(e.target.value)}>
-                      {rack.cats.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <input className={inputCls} type="number" placeholder="Stok *" value={fStock} onChange={(e) => setFStock(e.target.value)} />
-                      <input className={inputCls} type="number" placeholder="Min" value={fMin} onChange={(e) => setFMin(e.target.value)} />
-                      <input className={inputCls} type="number" placeholder="Modal" value={fCost} onChange={(e) => setFCost(e.target.value)} />
-                      <input className={inputCls} type="number" placeholder="Harga" value={fPrice} onChange={(e) => setFPrice(e.target.value)} />
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" disabled={loading} onClick={() => handleAdd(rack.cats[0])} className="flex-1 rounded-xl py-2.5 text-sm font-semibold" style={BTN}>{loading ? "..." : "Simpan part"}</button>
-                      <button type="button" onClick={() => setShowAdd(null)} className="rounded-xl border border-white/10 px-3 text-[#8B8AA0]"><X size={16} /></button>
-                    </div>
-                  </div>
-                )}
-
-                {items.length === 0 ? (
-                  <p className="px-4 py-5 text-center text-xs text-[#5A5B7A]">Kosong</p>
-                ) : (
-                  <div className="divide-y divide-white/[0.04]">
-                    {items.map((p) => {
-                      const low = Number(p.stock) <= Number(p.min_stock);
-                      return (
-                        <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                          <div className="min-w-0">
-                            <p className="font-medium text-[#F0EFF8]">{p.name}</p>
-                            <p className="text-[11px] text-[#8B8AA0]">
-                              Stok <span className={low ? "text-[#F59E0B]" : "text-[#EF4444]"}>{p.stock}</span>
-                              {p.price != null ? ` · ${fmtRp(Number(p.price))}` : ""}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            <button type="button" onClick={() => { setActive(p); setSheet("masuk"); }} className="rounded-lg bg-[#2DD4BF]/10 px-2 py-1 text-[10px] text-[#2DD4BF]"><ArrowDownToLine size={11} className="inline" /> Masuk</button>
-                            <button type="button" onClick={() => { setActive(p); setSheet("keluar"); }} className="rounded-lg bg-[#EF4444]/15 px-2 py-1 text-[10px] font-semibold text-[#EF4444]"><Wrench size={11} className="inline" /> Dipasang</button>
-                            <button type="button" onClick={() => { setActive(p); setSheet("jual"); }} className="rounded-lg bg-[#F59E0B]/10 px-2 py-1 text-[10px] text-[#F59E0B]"><ShoppingCart size={11} className="inline" /> Jual</button>
-                            <EditProductModal product={p as never} />
-                            <DeleteTransactionButton id={p.id} table="products" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-        </div>
+      {products.length === 0 && !showAdd && (
+        <FnbEmptyState
+          icon={Wrench}
+          title="Rak part kosong"
+          subtitle="Isi oli, ban, filter, dll. Saat pasang ke kendaraan → tombol Dipasang."
+          actionLabel="Tambah part"
+          onAction={() => {
+            setFCat("Oli");
+            setShowAdd("oli");
+          }}
+        />
       )}
+
+      <div className="space-y-4">
+        {RACKS.map((rack) => {
+          const items = filtered.filter((p) => rack.cats.includes(p.category || ""));
+          if (items.length === 0 && search && showAdd !== rack.key) return null;
+          if (products.length === 0 && showAdd !== rack.key && showAdd !== null) return null;
+          if (products.length === 0 && showAdd === null) return null;
+          return (
+            <section key={rack.key} className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#100808]">
+              <div className="flex items-center justify-between px-4 py-3" style={{ borderLeft: `4px solid ${rack.color}`, background: `${rack.color}12` }}>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: rack.color }}>{rack.label}</p>
+                  <p className="text-[10px] text-[#5A5B7A]">{items.length} part</p>
+                </div>
+                <button type="button" onClick={() => { setFCat(rack.cats[0]); setShowAdd(rack.key); }}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[#070711]"
+                  style={{ background: rack.color }}>
+                  <Plus size={12} /> Part
+                </button>
+              </div>
+
+              {showAdd === rack.key && (
+                <div className="space-y-2 border-b border-white/[0.06] p-4">
+                  <input className={inputCls} placeholder="Nama part *" value={fName} onChange={(e) => setFName(e.target.value)} autoFocus />
+                  <select className={inputCls} value={fCat} onChange={(e) => setFCat(e.target.value)}>
+                    {rack.cats.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <input className={inputCls} type="number" placeholder="Stok *" value={fStock} onChange={(e) => setFStock(e.target.value)} />
+                    <input className={inputCls} type="number" placeholder="Min" value={fMin} onChange={(e) => setFMin(e.target.value)} />
+                    <input className={inputCls} type="number" placeholder="Modal" value={fCost} onChange={(e) => setFCost(e.target.value)} />
+                    <input className={inputCls} type="number" placeholder="Harga" value={fPrice} onChange={(e) => setFPrice(e.target.value)} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={loading} onClick={() => handleAdd(rack.cats[0])} className="flex-1 rounded-xl py-2.5 text-sm font-semibold" style={BTN}>{loading ? "..." : "Simpan part"}</button>
+                    <button type="button" onClick={() => setShowAdd(null)} className="rounded-xl border border-white/10 px-3 text-[#8B8AA0]"><X size={16} /></button>
+                  </div>
+                </div>
+              )}
+
+              {items.length === 0 ? (
+                <p className="px-4 py-5 text-center text-xs text-[#5A5B7A]">Kosong</p>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {items.map((p) => {
+                    const low = Number(p.stock) <= Number(p.min_stock);
+                    return (
+                      <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-[#F0EFF8]">{p.name}</p>
+                          <p className="text-[11px] text-[#8B8AA0]">
+                            Stok <span className={low ? "text-[#F59E0B]" : "text-[#EF4444]"}>{p.stock}</span>
+                            {p.price != null ? ` · ${fmtRp(Number(p.price))}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <button type="button" onClick={() => { setActive(p); setSheet("masuk"); }} className="rounded-lg bg-[#2DD4BF]/10 px-2 py-1 text-[10px] text-[#2DD4BF]"><ArrowDownToLine size={11} className="inline" /> Masuk</button>
+                          <button type="button" onClick={() => { setActive(p); setSheet("keluar"); }} className="rounded-lg bg-[#EF4444]/15 px-2 py-1 text-[10px] font-semibold text-[#EF4444]"><Wrench size={11} className="inline" /> Dipasang</button>
+                          <button type="button" onClick={() => { setActive(p); setSheet("jual"); }} className="rounded-lg bg-[#F59E0B]/10 px-2 py-1 text-[10px] text-[#F59E0B]"><ShoppingCart size={11} className="inline" /> Jual</button>
+                          <EditProductModal product={p as never} />
+                          <DeleteTransactionButton id={p.id} table="products" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
 
       {sheet && active && (
         <StockActionSheet

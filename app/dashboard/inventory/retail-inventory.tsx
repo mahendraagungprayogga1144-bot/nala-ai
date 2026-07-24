@@ -63,6 +63,10 @@ export default function RetailInventory({
 
   const handleAdd = async (defaultCat: string) => {
     if (!fName.trim() || !fStock) return;
+    if (!businessId) {
+      alert("Bisnis aktif belum terpilih. Ganti bisnis di switcher sidebar, lalu coba lagi.");
+      return;
+    }
     setLoading(true);
     const { error } = await addProduct(supabase, {
       userId, businessId, name: fName, sku: fSku || null,
@@ -71,7 +75,7 @@ export default function RetailInventory({
       unit: "pcs", buyCategory: "Pembelian Barang",
     });
     setLoading(false);
-    if (error) { alert(error.message); return; }
+    if (error) { alert("Gagal tambah produk: " + error.message); return; }
     setFName(""); setFSku(""); setFStock(""); setFMin("5"); setFPrice(""); setFCost("");
     setShowAdd(null);
     router.refresh();
@@ -106,96 +110,109 @@ export default function RetailInventory({
         <input className={`${inputCls} pl-9`} placeholder="Cari nama / SKU di rak..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {products.length === 0 ? (
-        <FnbEmptyState icon={Store} title="Rak masih kosong" subtitle="Tambah produk per rak kategori — seperti etalase toko." actionLabel="Tambah produk" onAction={() => { setFCat("Fashion"); setShowAdd("fashion"); }} />
-      ) : (
-        <div className="space-y-5">
-          {RACKS.map((rack) => {
-            const items = filtered.filter((p) => rack.cats.includes(p.category || ""));
-            if (items.length === 0 && search) return null;
-            return (
-              <section key={rack.key} className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0A1018]">
-                <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3" style={{ background: `${rack.color}10` }}>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: rack.color }}>{rack.label}</p>
-                    <p className="text-[10px] text-[#5A5B7A]">{items.length} item di rak</p>
-                  </div>
-                  <button type="button" onClick={() => { setFCat(rack.cats[0]); setShowAdd(rack.key); }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[#070711]"
-                    style={{ background: rack.color }}>
-                    <Plus size={12} /> Tambah
-                  </button>
-                </div>
-
-                {showAdd === rack.key && (
-                  <div className="space-y-2 border-b border-white/[0.06] p-4">
-                    <input className={inputCls} placeholder="Nama produk *" value={fName} onChange={(e) => setFName(e.target.value)} />
-                    <input className={inputCls} placeholder="SKU / barcode" value={fSku} onChange={(e) => setFSku(e.target.value)} />
-                    <div className="grid grid-cols-3 gap-2">
-                      <input className={inputCls} type="number" placeholder="Stok *" value={fStock} onChange={(e) => setFStock(e.target.value)} />
-                      <input className={inputCls} type="number" placeholder="Modal" value={fCost} onChange={(e) => setFCost(e.target.value)} />
-                      <input className={inputCls} type="number" placeholder="Harga jual" value={fPrice} onChange={(e) => setFPrice(e.target.value)} />
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" disabled={loading} onClick={() => handleAdd(rack.cats[0])} className="flex-1 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40" style={BTN}>
-                        {loading ? "..." : "Simpan ke rak"}
-                      </button>
-                      <button type="button" onClick={() => setShowAdd(null)} className="rounded-xl border border-white/10 px-3 text-[#8B8AA0]"><X size={16} /></button>
-                    </div>
-                  </div>
-                )}
-
-                {items.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-xs text-[#5A5B7A]">Belum ada di rak ini</p>
-                ) : (
-                  <div className="divide-y divide-white/[0.04]">
-                    {items.map((p) => {
-                      const low = Number(p.stock) <= Number(p.min_stock);
-                      return (
-                        <div key={p.id} className="px-4 py-3">
-                          <div className="mb-2 flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate font-medium text-[#F0EFF8]">{p.name}</p>
-                              <p className="text-[11px] text-[#8B8AA0]">
-                                {p.sku ? `SKU ${p.sku} · ` : ""}Stok <span className={low ? "text-[#F59E0B]" : "text-[#38BDF8]"}>{p.stock}</span>
-                                {p.price != null ? ` · ${fmtRp(Number(p.price))}` : ""}
-                              </p>
-                            </div>
-                            {low && <span className="rounded-full bg-[#F59E0B]/15 px-2 py-0.5 text-[10px] text-[#F59E0B]">Kritis</span>}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            <button type="button" onClick={() => open("masuk", p)} className="inline-flex items-center gap-1 rounded-lg bg-[#38BDF8]/10 px-2 py-1 text-[10px] text-[#38BDF8]"><ArrowDownToLine size={11} /> Masuk</button>
-                            <button type="button" onClick={() => open("keluar", p)} className="inline-flex items-center gap-1 rounded-lg bg-[#F59E0B]/10 px-2 py-1 text-[10px] text-[#F59E0B]"><ArrowUpFromLine size={11} /> Keluar</button>
-                            <button type="button" onClick={() => open("jual", p)} className="inline-flex items-center gap-1 rounded-lg bg-[#6366F1]/10 px-2 py-1 text-[10px] text-[#6366F1]"><ShoppingCart size={11} /> Jual</button>
-                            <EditProductModal product={p as never} />
-                            <DeleteTransactionButton id={p.id} table="products" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-          {/* uncategorized */}
-          {filtered.filter((p) => !RACKS.some((r) => r.cats.includes(p.category || ""))).length > 0 && (
-            <section className="rounded-2xl border border-white/[0.08] bg-[#0A1018] p-4">
-              <p className="mb-2 text-xs text-[#8B8AA0]">Lainnya</p>
-              {filtered.filter((p) => !RACKS.some((r) => r.cats.includes(p.category || ""))).map((p) => (
-                <div key={p.id} className="mb-2 flex items-center justify-between gap-2 border-b border-white/[0.04] py-2 last:border-0">
-                  <span className="text-sm">{p.name}</span>
-                  <div className="flex gap-1">
-                    <button type="button" onClick={() => open("jual", p)} className="rounded-lg bg-[#6366F1]/10 px-2 py-1 text-[10px] text-[#6366F1]">Jual</button>
-                    <EditProductModal product={p as never} />
-                    <DeleteTransactionButton id={p.id} table="products" />
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
-        </div>
+      {products.length === 0 && !showAdd && (
+        <FnbEmptyState
+          icon={Store}
+          title="Rak masih kosong"
+          subtitle="Tambah produk per rak kategori — seperti etalase toko."
+          actionLabel="Tambah produk"
+          onAction={() => {
+            setFCat("Fashion");
+            setShowAdd("fashion");
+          }}
+        />
       )}
+
+      <div className="space-y-5">
+        {RACKS.map((rack) => {
+          const items = filtered.filter((p) => rack.cats.includes(p.category || ""));
+          if (items.length === 0 && search && showAdd !== rack.key) return null;
+          // Saat stok kosong, tetap tampilkan rak yang sedang diisi biar form "Tambah" kelihatan
+          if (products.length === 0 && showAdd !== rack.key && showAdd !== null) return null;
+          if (products.length === 0 && showAdd === null) return null;
+
+          return (
+            <section key={rack.key} className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0A1018]">
+              <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3" style={{ background: `${rack.color}10` }}>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: rack.color }}>{rack.label}</p>
+                  <p className="text-[10px] text-[#5A5B7A]">{items.length} item di rak</p>
+                </div>
+                <button type="button" onClick={() => { setFCat(rack.cats[0]); setShowAdd(rack.key); }}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[#070711]"
+                  style={{ background: rack.color }}>
+                  <Plus size={12} /> Tambah
+                </button>
+              </div>
+
+              {showAdd === rack.key && (
+                <div className="space-y-2 border-b border-white/[0.06] p-4">
+                  <input className={inputCls} placeholder="Nama produk *" value={fName} onChange={(e) => setFName(e.target.value)} autoFocus />
+                  <input className={inputCls} placeholder="SKU / barcode" value={fSku} onChange={(e) => setFSku(e.target.value)} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <input className={inputCls} type="number" placeholder="Stok *" value={fStock} onChange={(e) => setFStock(e.target.value)} />
+                    <input className={inputCls} type="number" placeholder="Modal" value={fCost} onChange={(e) => setFCost(e.target.value)} />
+                    <input className={inputCls} type="number" placeholder="Harga jual" value={fPrice} onChange={(e) => setFPrice(e.target.value)} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={loading} onClick={() => handleAdd(rack.cats[0])} className="flex-1 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40" style={BTN}>
+                      {loading ? "..." : "Simpan ke rak"}
+                    </button>
+                    <button type="button" onClick={() => setShowAdd(null)} className="rounded-xl border border-white/10 px-3 text-[#8B8AA0]"><X size={16} /></button>
+                  </div>
+                </div>
+              )}
+
+              {items.length === 0 ? (
+                <p className="px-4 py-6 text-center text-xs text-[#5A5B7A]">Belum ada di rak ini</p>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {items.map((p) => {
+                    const low = Number(p.stock) <= Number(p.min_stock);
+                    return (
+                      <div key={p.id} className="px-4 py-3">
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-[#F0EFF8]">{p.name}</p>
+                            <p className="text-[11px] text-[#8B8AA0]">
+                              {p.sku ? `SKU ${p.sku} · ` : ""}Stok <span className={low ? "text-[#F59E0B]" : "text-[#38BDF8]"}>{p.stock}</span>
+                              {p.price != null ? ` · ${fmtRp(Number(p.price))}` : ""}
+                            </p>
+                          </div>
+                          {low && <span className="rounded-full bg-[#F59E0B]/15 px-2 py-0.5 text-[10px] text-[#F59E0B]">Kritis</span>}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button type="button" onClick={() => open("masuk", p)} className="inline-flex items-center gap-1 rounded-lg bg-[#38BDF8]/10 px-2 py-1 text-[10px] text-[#38BDF8]"><ArrowDownToLine size={11} /> Masuk</button>
+                          <button type="button" onClick={() => open("keluar", p)} className="inline-flex items-center gap-1 rounded-lg bg-[#F59E0B]/10 px-2 py-1 text-[10px] text-[#F59E0B]"><ArrowUpFromLine size={11} /> Keluar</button>
+                          <button type="button" onClick={() => open("jual", p)} className="inline-flex items-center gap-1 rounded-lg bg-[#6366F1]/10 px-2 py-1 text-[10px] text-[#6366F1]"><ShoppingCart size={11} /> Jual</button>
+                          <EditProductModal product={p as never} />
+                          <DeleteTransactionButton id={p.id} table="products" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          );
+        })}
+        {/* uncategorized */}
+        {filtered.filter((p) => !RACKS.some((r) => r.cats.includes(p.category || ""))).length > 0 && (
+          <section className="rounded-2xl border border-white/[0.08] bg-[#0A1018] p-4">
+            <p className="mb-2 text-xs text-[#8B8AA0]">Lainnya</p>
+            {filtered.filter((p) => !RACKS.some((r) => r.cats.includes(p.category || ""))).map((p) => (
+              <div key={p.id} className="mb-2 flex items-center justify-between gap-2 border-b border-white/[0.04] py-2 last:border-0">
+                <span className="text-sm">{p.name}</span>
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => open("jual", p)} className="rounded-lg bg-[#6366F1]/10 px-2 py-1 text-[10px] text-[#6366F1]">Jual</button>
+                  <EditProductModal product={p as never} />
+                  <DeleteTransactionButton id={p.id} table="products" />
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+      </div>
 
       {sheet && active && (
         <StockActionSheet

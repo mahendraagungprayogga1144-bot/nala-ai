@@ -29,6 +29,8 @@ const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kese
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const params = await searchParams;
 
   const now = new Date();
@@ -46,13 +48,26 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const { data: businessData } = await supabase
     .from("businesses")
     .select("id, type, name")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: true });
 
   const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
   const config = getConfig(business?.type);
 
-  const { data: products } = await supabase.from("products").select("*").eq("business_id", business?.id || "").order("name", { ascending: true });
+  const { data: products, error: productsErr } = await supabase
+    .from("products")
+    .select("*")
+    .eq("business_id", business?.id || "")
+    .order("name", { ascending: true });
+
+  if (productsErr) {
+    return (
+      <div className="px-4 py-10 text-center sm:px-8">
+        <p className="mb-2 text-[#EC4899]">Gagal memuat inventory.</p>
+        <p className="text-xs text-[#8B8AA0]">{productsErr.message}</p>
+      </div>
+    );
+  }
 
   const today = todayWib();
   let homeRecipes: HiRecipe[] = [];
@@ -170,13 +185,13 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   let history: { snapshot_date: string; total_value: number }[] | null = null;
   if (!specialized) {
     await supabase.from("inventory_history").upsert(
-      { user_id: user!.id, business_id: business?.id, snapshot_date: todayWib(), total_value: totalValue },
+      { user_id: user.id, business_id: business?.id, snapshot_date: todayWib(), total_value: totalValue },
       { onConflict: "user_id,snapshot_date" }
     );
     const { data: hist } = await supabase
       .from("inventory_history")
       .select("snapshot_date, total_value")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .order("snapshot_date", { ascending: true })
       .limit(30);
     history = hist;
@@ -246,14 +261,14 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       {business?.type === "ternak" ? (
         <div className="mb-8">
-          <LivestockInventory products={products || []} userId={user!.id} businessId={business?.id} />
+          <LivestockInventory products={products || []} userId={user.id} businessId={business?.id} />
         </div>
       ) : business?.type === "homeindustry" ? (
         <div className="mb-8">
           <HomeIndustryInventory
             products={products || []}
             recipes={homeRecipes || []}
-            userId={user!.id}
+            userId={user.id}
             businessId={business?.id}
             profitHariIni={profitHariIni}
             penjualanHariIni={penjualanHariIni}
@@ -264,14 +279,14 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       ) : business?.type === "kuliner" ? (
         <div className="mb-8">
-          <FnBInventory products={products || []} userId={user!.id} businessId={business?.id} businessName={business?.name} />
+          <FnBInventory products={products || []} userId={user.id} businessId={business?.id} businessName={business?.name} />
         </div>
       ) : business?.type === "pertanian" ? (
         <div className="mb-8">
           <AgricultureInventory
             products={products || []}
             harvestMeta={harvestMeta as never}
-            userId={user!.id}
+            userId={user.id}
             businessId={business?.id}
             totalBiayaProduksi={agriBiayaProduksi}
             totalBiayaSemprot={agriBiayaSemprot}
@@ -285,32 +300,32 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       ) : business?.type === "retail" ? (
         <div className="mb-8">
-          <RetailInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+          <RetailInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "jasa" ? (
         <div className="mb-8">
-          <JasaInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+          <JasaInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "wholesale" ? (
         <div className="mb-8">
-          <WholesaleInventory products={products || []} userId={user!.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
+          <WholesaleInventory products={products || []} userId={user.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "olshop" ? (
         <div className="mb-8">
-          <OlshopInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+          <OlshopInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "kesehatan" ? (
         <div className="mb-8">
-          <KesehatanInventory products={products || []} userId={user!.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
+          <KesehatanInventory products={products || []} userId={user.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "bengkel" ? (
         <div className="mb-8">
-          <BengkelInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+          <BengkelInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 mb-8">
-          <ProductForm userId={user!.id} businessId={business?.id} nextSkuNumber={totalProducts + 1} config={config} />
-          <ProductList products={products || []} userId={user!.id} businessId={business?.id} config={config} />
+          <ProductForm userId={user.id} businessId={business?.id} nextSkuNumber={totalProducts + 1} config={config} />
+          <ProductList products={products || []} userId={user.id} businessId={business?.id} config={config} />
         </div>
       )}
 

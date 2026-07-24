@@ -12,6 +12,7 @@ export async function GET() {
     support_email: s.support_email,
     app_url: s.app_url,
     bank_accounts: s.bank_accounts,
+    qris_image_url: s.qris_image_url || "",
     plan_prices: s.plan_prices,
     announcement_enabled: s.announcement_enabled,
     announcement_message: s.announcement_message,

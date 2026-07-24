@@ -70,6 +70,7 @@ export async function GET(
     customerName,
     customerEmail,
     bankAccounts: settings.bank_accounts,
+    qrisImageUrl: settings.qris_image_url || undefined,
     companyName: "Gercep AI",
     supportEmail: settings.support_email,
     appUrl: settings.app_url,

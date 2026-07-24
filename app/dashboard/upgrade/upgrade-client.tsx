@@ -31,6 +31,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   const [invoice, setInvoice] = useState("");
   const [paymentWa, setPaymentWa] = useState(PAYMENT_WA);
   const [bankAccounts, setBankAccounts] = useState(BANK_ACCOUNTS);
+  const [qrisImageUrl, setQrisImageUrl] = useState("");
   const [plans, setPlans] = useState(() => plansWithPrices());
 
   useEffect(() => {
@@ -47,6 +48,9 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
               holder: String(a.holder || ""),
             })),
           );
+        }
+        if (typeof d.qris_image_url === "string" && d.qris_image_url.trim()) {
+          setQrisImageUrl(d.qris_image_url.trim());
         }
         if (d.plan_prices) setPlans(plansWithPrices(d.plan_prices));
       })
@@ -212,25 +216,61 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
             <p className="mt-2 text-[10px] font-mono text-[#5A5B7A]">Invoice: {invoice}</p>
           </div>
 
-          {/* Rekening tujuan */}
+          {/* QRIS + rekening */}
           <div className="rounded-2xl border border-white/[0.07] bg-[#0A0A12] p-5 mb-4">
-            <p className="text-xs font-bold mb-3 flex items-center gap-1.5"><ShieldCheck size={13} className="text-[#2DD4BF]" /> Transfer ke salah satu rekening:</p>
+            {qrisImageUrl ? (
+              <div className="mb-5">
+                <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
+                  <ShieldCheck size={13} className="text-[#2DD4BF]" /> Scan QRIS
+                </p>
+                <div className="mx-auto flex max-w-[240px] flex-col items-center">
+                  <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-white p-3 shadow-[0_0_0_1px_rgba(45,212,191,0.12)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={qrisImageUrl}
+                      alt="QRIS Gercep AI"
+                      className="aspect-square w-full object-contain"
+                    />
+                  </div>
+                  <p className="mt-3 text-center text-[11px] leading-relaxed text-[#8B8AA0]">
+                    Scan dengan aplikasi bank / e-wallet. Bayar tepat{" "}
+                    <span className="font-bold text-[#F0EFF8]">{fmtRupiah(plan.price)}</span>
+                  </p>
+                </div>
+                <div className="my-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-white/[0.06]" />
+                  <span className="text-[10px] uppercase tracking-wider text-[#5A5B7A]">atau transfer</span>
+                  <div className="h-px flex-1 bg-white/[0.06]" />
+                </div>
+              </div>
+            ) : null}
+
+            <p className="text-xs font-bold mb-3 flex items-center gap-1.5">
+              <ShieldCheck size={13} className="text-[#2DD4BF]" />
+              {qrisImageUrl ? "Transfer ke rekening:" : "Transfer ke salah satu rekening:"}
+            </p>
             <div className="space-y-2.5">
               {bankAccounts.map(acc => (
-                <div key={`${acc.bank}-${acc.number}`} className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
+                <div key={`${acc.bank}-${acc.number}-${acc.holder}`} className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-[#5A5B7A]">{acc.bank} · a.n. {acc.holder}</p>
-                    <p className="text-sm font-bold font-mono text-[#F0EFF8]">{acc.number}</p>
+                    <p className="text-[10px] text-[#5A5B7A]">{acc.bank}{acc.holder ? ` · a.n. ${acc.holder}` : ""}</p>
+                    {acc.number ? (
+                      <p className="text-sm font-bold font-mono text-[#F0EFF8]">{acc.number}</p>
+                    ) : (
+                      <p className="text-[11px] text-[#5A5B7A]">Scan QRIS di atas</p>
+                    )}
                   </div>
-                  <button type="button" onClick={() => copy(acc.number, acc.bank)}
-                    className="flex items-center gap-1 rounded-lg border border-[#2DD4BF]/25 bg-[#2DD4BF]/[0.06] px-2.5 py-1.5 text-[10px] font-medium text-[#2DD4BF]">
-                    {copied === acc.bank ? <><Check size={11} /> Tersalin</> : <><Copy size={11} /> Salin</>}
-                  </button>
+                  {acc.number ? (
+                    <button type="button" onClick={() => copy(acc.number, acc.bank)}
+                      className="flex items-center gap-1 rounded-lg border border-[#2DD4BF]/25 bg-[#2DD4BF]/[0.06] px-2.5 py-1.5 text-[10px] font-medium text-[#2DD4BF]">
+                      {copied === acc.bank ? <><Check size={11} /> Tersalin</> : <><Copy size={11} /> Salin</>}
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
             <p className="mt-3 text-[10px] text-[#5A5B7A] leading-relaxed">
-              Transfer tepat sebesar <span className="font-bold text-[#F0EFF8]">{fmtRupiah(plan.price)}</span>, lalu klik tombol di bawah untuk kirim bukti transfer via WhatsApp.
+              Bayar tepat <span className="font-bold text-[#F0EFF8]">{fmtRupiah(plan.price)}</span>, lalu klik tombol di bawah untuk kirim bukti via WhatsApp.
             </p>
           </div>
 

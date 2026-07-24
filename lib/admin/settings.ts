@@ -23,6 +23,7 @@ export type PlatformSettingsMap = {
   signup_open: boolean;
   demo_enabled: boolean;
   payment_wa: string;
+  qris_image_url: string;
   support_email: string;
   app_url: string;
   admin_emails: string[];
@@ -43,6 +44,7 @@ const DEFAULTS: PlatformSettingsMap = {
   signup_open: true,
   demo_enabled: true,
   payment_wa: PAYMENT_WA,
+  qris_image_url: "",
   support_email: "hellogercepai@gmail.com",
   app_url: "https://www.gercepos.id",
   admin_emails: [FALLBACK_ADMIN_EMAIL],
@@ -82,6 +84,15 @@ function asStr(v: unknown, fallback: string) {
   return typeof v === "string" && v.length ? v : fallback;
 }
 
+/** Empty string allowed (no QRIS image yet). Accepts absolute URL or site-relative path. */
+function asOptionalUrl(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  if (!s) return "";
+  if (s.startsWith("/") || /^https?:\/\//i.test(s)) return s;
+  return "";
+}
+
 function asEmails(v: unknown): string[] {
   if (Array.isArray(v)) {
     return v.map(String).map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -108,10 +119,11 @@ function asBankAccounts(v: unknown): BankAccount[] {
     .map((row) => {
       if (!row || typeof row !== "object") return null;
       const o = row as Record<string, unknown>;
-      const bank = asStr(o.bank, "");
-      const number = asStr(o.number, "");
-      const holder = asStr(o.holder, "");
-      if (!bank || !number) return null;
+      const bank = typeof o.bank === "string" ? o.bank.trim() : "";
+      const number = typeof o.number === "string" ? o.number.trim() : "";
+      const holder = typeof o.holder === "string" ? o.holder.trim() : "";
+      // Keep bank row even if nomor masih kosong (mis. DANA/QRIS + gambar QRIS terpisah)
+      if (!bank) return null;
       return { bank, number, holder };
     })
     .filter(Boolean) as BankAccount[];
@@ -170,6 +182,7 @@ function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSett
     signup_open: asBool(map.get("signup_open"), DEFAULTS.signup_open),
     demo_enabled: asBool(map.get("demo_enabled"), DEFAULTS.demo_enabled),
     payment_wa: asStr(map.get("payment_wa"), DEFAULTS.payment_wa),
+    qris_image_url: asOptionalUrl(map.get("qris_image_url")),
     support_email: asStr(map.get("support_email"), DEFAULTS.support_email),
     app_url: asStr(map.get("app_url"), DEFAULTS.app_url).replace(/\/$/, ""),
     admin_emails,

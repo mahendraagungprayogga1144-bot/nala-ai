@@ -14,6 +14,7 @@ export type InvoiceData = {
   customerName: string;
   customerEmail: string;
   bankAccounts: BankAccount[];
+  qrisImageUrl?: string;
   companyName?: string;
   supportEmail?: string;
   appUrl?: string;
@@ -118,6 +119,16 @@ export function buildInvoiceHtml(data: InvoiceData) {
         </tbody>
       </table>
     </div>
+
+    ${
+      data.qrisImageUrl
+        ? `<div class="box" style="margin-top:16px;text-align:center">
+      <p class="muted" style="margin:0 0 10px">Scan QRIS</p>
+      <img src="${esc(data.qrisImageUrl)}" alt="QRIS" style="width:180px;height:180px;object-fit:contain;border:1px solid #eee;border-radius:12px;padding:8px;background:#fff" />
+      <p class="muted" style="margin:10px 0 0">Bayar tepat ${esc(fmtRupiah(Number(data.amount)))}</p>
+    </div>`
+        : ""
+    }
 
     ${
       banks

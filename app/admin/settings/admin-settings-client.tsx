@@ -12,15 +12,35 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [emailsText, setEmailsText] = useState(initial.admin_emails.join("\n"));
+  const [uploadingQris, setUploadingQris] = useState(false);
 
   useEffect(() => {
     setS({
       ...initial,
       plan_prices: initial.plan_prices || { ...DEFAULT_PLAN_PRICES },
       bank_accounts: initial.bank_accounts?.length ? initial.bank_accounts : [],
+      qris_image_url: initial.qris_image_url || "",
     });
     setEmailsText(initial.admin_emails.join("\n"));
   }, [initial]);
+
+  const uploadQris = async (file: File) => {
+    setUploadingQris(true);
+    setMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/qris-upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload gagal");
+      setS((prev) => ({ ...prev, qris_image_url: String(data.url || "") }));
+      setMsg("Barcode QRIS tersimpan.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Upload gagal");
+    } finally {
+      setUploadingQris(false);
+    }
+  };
 
   const setFlag = (key: keyof FeatureFlags, v: boolean) => {
     setS((prev) => ({ ...prev, feature_flags: { ...prev.feature_flags, [key]: v } }));
@@ -77,11 +97,11 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
         number: a.number.trim(),
         holder: a.holder.trim(),
       }))
-      .filter((a) => a.bank && a.number);
+      .filter((a) => a.bank);
 
     if (bank_accounts.length === 0) {
       setSaving(false);
-      setMsg("Minimal 1 rekening (bank + nomor).");
+      setMsg("Minimal 1 rekening (nama bank).");
       return;
     }
 
@@ -104,6 +124,7 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
         admin_roles,
         bank_accounts,
         plan_prices,
+        qris_image_url: (s.qris_image_url || "").trim(),
         trial_days: Number(s.trial_days),
         event_retention_days: Number(s.event_retention_days),
       }),
@@ -200,6 +221,59 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
               onChange={(e) => setS({ ...s, payment_wa: e.target.value })}
             />
           </label>
+
+          <div className="rounded-xl border border-white/[0.06] p-3">
+            <p className="mb-2 text-xs font-semibold tracking-wide text-[#8B8AA0] uppercase">Foto QRIS</p>
+            <p className="mb-3 text-[11px] leading-relaxed text-[#5A5B7A]">
+              Tambah foto barcode QRIS di sini. Rekening transfer di bawah tetap dipakai — tidak diganti.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white">
+                {s.qris_image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.qris_image_url} alt="QRIS" className="h-full w-full object-contain p-2" />
+                ) : (
+                  <span className="px-2 text-center text-[10px] text-[#5A5B7A]">Belum ada gambar</span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs text-[#8B8AA0]">URL gambar (opsional)</span>
+                  <input
+                    className={inputClass}
+                    placeholder="https://… atau /qris.png"
+                    value={s.qris_image_url || ""}
+                    onChange={(e) => setS({ ...s, qris_image_url: e.target.value })}
+                  />
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer rounded-lg border border-[#2DD4BF]/30 bg-[#2DD4BF]/[0.08] px-3 py-2 text-[11px] font-medium text-[#2DD4BF] hover:bg-[#2DD4BF]/15">
+                    {uploadingQris ? "Mengunggah…" : "Upload barcode"}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      disabled={uploadingQris}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) void uploadQris(f);
+                      }}
+                    />
+                  </label>
+                  {s.qris_image_url ? (
+                    <button
+                      type="button"
+                      onClick={() => setS({ ...s, qris_image_url: "" })}
+                      className="rounded-lg border border-[#EC4899]/30 px-3 py-2 text-[11px] text-[#EC4899]"
+                    >
+                      Hapus
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div>
             <div className="mb-3 flex items-center justify-between gap-2">

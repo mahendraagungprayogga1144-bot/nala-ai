@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo/config";
 import { signInDemoAccount } from "@/lib/demo/auth-client";
-import { homeForBizType, setFastGateCookies } from "@/lib/auth/post-login";
+import { homeForBizType, setFastGateCookies, clearFastGateCookies } from "@/lib/auth/post-login";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
 
@@ -59,6 +59,7 @@ async function resolvePostLoginPath(
   const hasReal = list.some((b) => !(b.type === "retail" && b.name === "Bisnis Utama") && b.type);
 
   if (!hasReal && list.length === 0) {
+    clearFastGateCookies();
     return "/onboarding";
   }
 
@@ -239,7 +240,7 @@ function LoginForm() {
               {loading ? "Menyiapkan demo..." : "Masuk Akun Demo"}
             </button>
             <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-              Demo trial {trialDays} hari · {DEMO_EMAIL}
+              Akun demo bersama (bukan akun pribadi) · data contoh · trial {trialDays} hari
             </p>
           </>
         )}

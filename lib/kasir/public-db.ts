@@ -1,17 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Prefer service role so share-link kasir works despite owner-only RLS. */
+/**
+ * Service role only — share-link kasir scopes by kasir_token in app code.
+ * Never fall back to anon: broad anon policies caused cross-tenant data bleed.
+ */
 export function createPublicKasirDb(): SupabaseClient | null {
-  const admin = createAdminClient();
-  if (admin) return admin;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createAdminClient();
 }
 
 export async function resolveEmployeeByToken(db: SupabaseClient, token: string) {

@@ -7,6 +7,7 @@ import { Shield, Sparkles, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { FALLBACK_ADMIN_EMAIL, isAdminEmail } from "@/lib/auth/admin";
 import { trackClientEvent } from "@/lib/admin/track-event";
+import { clearFastGateCookies } from "@/lib/auth/post-login";
 
 type Business = { id: string; name: string; type: string | null };
 
@@ -38,12 +39,7 @@ export default function Sidebar({
     trackClientEvent({ event: "logout", module: "auth" });
     const supabase = createClient();
     await supabase.auth.signOut();
-    const expire = "path=/; max-age=0; samesite=lax";
-    document.cookie = `ob_done=; ${expire}`;
-    document.cookie = `sub_checked=; ${expire}`;
-    document.cookie = `sub_expired=; ${expire}`;
-    document.cookie = `role_checked=; ${expire}`;
-    document.cookie = `active_business_id=; ${expire}`;
+    clearFastGateCookies();
     window.location.assign("/login");
   };
 

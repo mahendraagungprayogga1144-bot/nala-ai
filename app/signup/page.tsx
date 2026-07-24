@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { DEMO_EMAIL } from "@/lib/demo/config";
 import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { registerAccount } from "@/lib/auth/register-client";
-import { homeForBizType, setFastGateCookies } from "@/lib/auth/post-login";
+import { homeForBizType, setFastGateCookies, clearFastGateCookies } from "@/lib/auth/post-login";
 import { TRIAL_DAYS } from "@/lib/auth/trial";
 import { Check, Eye, EyeOff } from "lucide-react";
 
@@ -60,6 +60,7 @@ export default function SignupPage() {
       return;
     }
 
+    clearFastGateCookies();
     window.location.assign("/onboarding");
   };
 
@@ -225,7 +226,7 @@ export default function SignupPage() {
           Masuk akun demo ({DEMO_EMAIL})
         </button>
         <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-          Demo juga terbatas trial {trialDays} hari — data contoh untuk eksplorasi.
+          Akun demo bersama (bukan akun pribadi) — semua orang melihat data contoh yang sama.
         </p>
         <p className="mt-3 text-center text-[10px] text-[#5A5B7A]">
           Bantuan:{" "}

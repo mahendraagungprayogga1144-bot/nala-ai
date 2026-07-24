@@ -13,7 +13,7 @@ const UUID_RE =
 /**
  * Public printable invoice. Payment UUID acts as an unguessable share token so
  * WhatsApp / email recipients can open the link without a session cookie.
- * (Auth-gated /api/invoice redirects to /login, which WA in-app browsers reject.)
+ * Auth is intentionally not required — see proxy.ts needsAuth (excludes /invoice).
  */
 export async function GET(
   _req: NextRequest,
@@ -26,14 +26,47 @@ export async function GET(
 
   const settings = await getPlatformSettings();
   const adminClient = createAdminClient();
+
+  // Public reads must use service role: payments RLS is owner-only (no anon SELECT).
+  if (adminClient) {
+    const { data: payment, error } = await adminClient
+      .from("payments")
+      .select(
+        "id, user_id, plan, amount, method, status, invoice_id, created_at, confirmed_at, period_start, period_end",
+      )
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error || !payment) {
+      return new NextResponse("Invoice tidak ditemukan", { status: 404 });
+    }
+
+    const [{ data: profile }, { data: authUser }] = await Promise.all([
+      adminClient.from("profiles").select("full_name").eq("id", payment.user_id).maybeSingle(),
+      adminClient.auth.admin.getUserById(payment.user_id),
+    ]);
+    const customerEmail = authUser.user?.email || "";
+    const customerName =
+      profile?.full_name || customerEmail.split("@")[0] || "Pelanggan";
+
+    return renderInvoice({
+      payment,
+      customerName,
+      customerEmail,
+      settings,
+    });
+  }
+
+  // Local/dev fallback when service role is missing: owner/admin session only.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user?.email) {
+    return NextResponse.redirect(new URL("/login", _req.url));
+  }
 
-  // Prefer service role so unauthenticated WA browsers can load the invoice.
-  const db = adminClient || supabase;
-  const { data: payment, error } = await db
+  const { data: payment, error } = await supabase
     .from("payments")
     .select(
       "id, user_id, plan, amount, method, status, invoice_id, created_at, confirmed_at, period_start, period_end",
@@ -45,38 +78,46 @@ export async function GET(
     return new NextResponse("Invoice tidak ditemukan", { status: 404 });
   }
 
-  // Without service role, fall back to owner/admin session (local/dev).
-  if (!adminClient) {
-    if (!user?.email) {
-      return NextResponse.redirect(new URL("/login", _req.url));
-    }
-    const admin = isAdminEmail(user.email, settings.admin_emails);
-    if (!admin && payment.user_id !== user.id) {
-      return new NextResponse("Forbidden", { status: 403 });
-    }
+  const admin = isAdminEmail(user.email, settings.admin_emails);
+  if (!admin && payment.user_id !== user.id) {
+    return new NextResponse("Forbidden", { status: 403 });
   }
 
-  let customerName = "Pelanggan";
-  let customerEmail = "";
-  if (adminClient) {
-    const [{ data: profile }, { data: authUser }] = await Promise.all([
-      adminClient.from("profiles").select("full_name").eq("id", payment.user_id).maybeSingle(),
-      adminClient.auth.admin.getUserById(payment.user_id),
-    ]);
-    customerEmail = authUser.user?.email || "";
-    customerName =
-      profile?.full_name || customerEmail.split("@")[0] || customerName;
-  } else if (user) {
-    customerEmail = user.email || "";
-    customerName = customerEmail.split("@")[0] || customerName;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (profile?.full_name) customerName = profile.full_name;
-  }
+  let customerName = user.email.split("@")[0] || "Pelanggan";
+  const customerEmail = user.email || "";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.full_name) customerName = profile.full_name;
 
+  return renderInvoice({
+    payment,
+    customerName,
+    customerEmail,
+    settings,
+  });
+}
+
+function renderInvoice(opts: {
+  payment: {
+    id: string;
+    plan: string;
+    amount: number | string;
+    method: string | null;
+    status: string;
+    invoice_id: string | null;
+    created_at: string;
+    confirmed_at: string | null;
+    period_start: string | null;
+    period_end: string | null;
+  };
+  customerName: string;
+  customerEmail: string;
+  settings: Awaited<ReturnType<typeof getPlatformSettings>>;
+}) {
+  const { payment, customerName, customerEmail, settings } = opts;
   const invoiceId = payment.invoice_id || payment.id.slice(0, 8).toUpperCase();
   const appUrl = getPublicShareOrigin(settings.app_url);
   const invoiceUrl = publicInvoiceUrl(payment.id, settings.app_url);
@@ -115,6 +156,8 @@ export async function GET(
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "private, no-store",
+      // Helpful for WA in-app browser / link unfurlers
+      "X-Robots-Tag": "noindex",
     },
   });
 }

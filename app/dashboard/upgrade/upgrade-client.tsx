@@ -85,13 +85,24 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   const isActive = currentSub?.status === "active" && currentPlan !== "free";
   const paymentBlocked = isPlaceholderPaymentConfig(paymentWa, bankAccounts) && !qrisImageUrl;
 
-  const waLink = (opts: { plan: string; amount: number; invoice: string }) =>
+  const shareOrigin =
+    appUrl || (typeof window !== "undefined" ? window.location.origin : undefined);
+
+  const waLink = (opts: {
+    plan: string;
+    amount: number;
+    invoice: string;
+    paymentId?: string;
+  }) =>
     buildWaMessage({
       name: userName,
       email: userEmail,
       plan: opts.plan,
       amount: opts.amount,
       invoice: opts.invoice,
+      invoiceUrl: opts.paymentId
+        ? publicInvoiceUrl(opts.paymentId, shareOrigin)
+        : undefined,
       wa: paymentWa,
     });
 
@@ -102,8 +113,6 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
     paymentId: string;
     status: string;
   }) => {
-    const fallback =
-      appUrl || (typeof window !== "undefined" ? window.location.origin : undefined);
     return buildInvoiceShareWaMessage({
       name: userName,
       email: userEmail,
@@ -112,7 +121,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       invoice: opts.invoice,
       status: opts.status,
       // Public /invoice/{uuid} — no login redirect (WA rejects auth-gated /api/invoice links)
-      invoiceUrl: publicInvoiceUrl(opts.paymentId, fallback),
+      invoiceUrl: publicInvoiceUrl(opts.paymentId, shareOrigin),
       wa: paymentWa,
     });
   };
@@ -141,33 +150,42 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
     setLoading(true);
     // Open blank tab in the same user gesture — window.open after await is popup-blocked,
     // which made "kirim ke WA" fail even though payment was already saved.
-    const waUrl = waLink({ plan: selected, amount: plan.price, invoice });
     const waWin = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
 
-    const { error } = await supabase.from("payments").insert({
-      user_id: userId,
-      plan: selected,
-      amount: plan.price,
-      method: "transfer_manual",
-      status: "pending",
-      invoice_id: invoice,
-    });
-    if (error) {
+    const { data: created, error } = await supabase
+      .from("payments")
+      .insert({
+        user_id: userId,
+        plan: selected,
+        amount: plan.price,
+        method: "transfer_manual",
+        status: "pending",
+        invoice_id: invoice,
+      })
+      .select("id")
+      .single();
+    if (error || !created?.id) {
       setLoading(false);
       try {
         waWin?.close();
       } catch {
         /* ignore */
       }
-      alert("Gagal buat invoice: " + error.message);
+      alert("Gagal buat invoice: " + (error?.message || "tidak ada id pembayaran"));
       return;
     }
     trackClientEvent({
       event: "payment_submit",
       module: "billing",
-      meta: { plan: selected, amount: plan.price, invoice },
+      meta: { plan: selected, amount: plan.price, invoice, paymentId: created.id },
     });
     setLoading(false);
+    const waUrl = waLink({
+      plan: selected,
+      amount: plan.price,
+      invoice,
+      paymentId: created.id,
+    });
     if (waWin) {
       waWin.location.href = waUrl;
     } else if (isPlaceholderWa(paymentWa)) {
@@ -195,7 +213,12 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
           </p>
           <p className="text-[10px] font-mono text-[#5A5B7A] mb-6">Invoice: {pendingPayment.invoice_id} · {fmtDate(pendingPayment.created_at)}</p>
           <div className="flex flex-col items-center gap-2">
-            <a href={waLink({ plan: pendingPayment.plan, amount: Number(pendingPayment.amount), invoice: pendingPayment.invoice_id || "-" })}
+            <a href={waLink({
+              plan: pendingPayment.plan,
+              amount: Number(pendingPayment.amount),
+              invoice: pendingPayment.invoice_id || "-",
+              paymentId: pendingPayment.id,
+            })}
               target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-xl bg-[#4ADE80]/10 border border-[#4ADE80]/30 px-5 py-2.5 text-xs font-bold text-[#4ADE80] hover:bg-[#4ADE80]/20 transition-all">
               <MessageCircle size={14} /> Kirim Bukti Transfer via WA

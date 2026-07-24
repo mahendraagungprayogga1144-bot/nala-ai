@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Search, X, CheckCircle, Download } from "lucide-react";
 import { trackClientEvent } from "@/lib/admin/track-event";
+import { waMeUrl } from "@/lib/payment/config";
 import type { AdminPayment } from "./page";
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
@@ -49,7 +50,6 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
   });
 
   const reminderWa = () => {
-    const wa = paymentWa || "6281234567890";
     const lines = [
       `Reminder Gercep Admin: ${stalePending.length} pembayaran pending > 6 jam.`,
       "",
@@ -60,7 +60,7 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
       "",
       "ACC di https://www.gercepos.id/admin/payments",
     ];
-    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+    window.open(waMeUrl(lines.join("\n"), paymentWa), "_blank");
   };
 
   const handleConfirm = async (p: AdminPayment) => {

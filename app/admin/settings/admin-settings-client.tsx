@@ -215,7 +215,7 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
 
         <Section title="Pembayaran">
           <label className="block">
-            <span className="mb-1.5 block text-xs text-[#8B8AA0]">Payment WA (628…)</span>
+            <span className="mb-1.5 block text-xs text-[#8B8AA0]">Payment WA (628… atau 08… — otomatis dinormalisasi)</span>
             <input
               className={inputClass}
               value={s.payment_wa}

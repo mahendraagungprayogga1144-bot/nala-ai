@@ -6,8 +6,24 @@ export const PAYMENT_WA = "6281234567890"; // placeholder — block in upgrade U
 export const PLACEHOLDER_WA = "6281234567890";
 export const PLACEHOLDER_BANK_NUMBERS = new Set(["1234567890", "081234567890"]);
 
+/**
+ * Digits for wa.me / api.whatsapp.com `phone=` — must be international, no leading 0.
+ * Admin often saves local ID numbers (`0822…`); WA rejects those (“tautan tidak dapat dibuka”).
+ */
+export function toWaMeDigits(wa: string) {
+  let d = (wa || "").replace(/\D/g, "");
+  if (!d) return "";
+  // 00<cc>… → drop international trunk prefix
+  if (d.startsWith("00")) d = d.slice(2);
+  // Local Indonesia mobile: 08xxxx → 628xxxx
+  if (d.startsWith("0")) d = `62${d.slice(1)}`;
+  // Bare mobile without trunk/country (8xxxx, length typical for ID)
+  if (/^8[1-9]\d{7,11}$/.test(d)) d = `62${d}`;
+  return d;
+}
+
 export function isPlaceholderWa(wa: string) {
-  const waDigits = (wa || "").replace(/\D/g, "");
+  const waDigits = toWaMeDigits(wa);
   return !waDigits || waDigits === PLACEHOLDER_WA || waDigits === "6281234567890";
 }
 
@@ -68,7 +84,7 @@ export function fmtRupiah(n: number) {
 /** Build wa.me URL. Placeholder/missing WA → chooser (`wa.me/?text=`) so we never open the fake number. */
 export function waMeUrl(text: string, wa?: string) {
   const encoded = encodeURIComponent(text);
-  const digits = (wa || "").replace(/\D/g, "");
+  const digits = toWaMeDigits(wa || "");
   if (isPlaceholderWa(digits)) return `https://wa.me/?text=${encoded}`;
   return `https://wa.me/${digits}?text=${encoded}`;
 }
@@ -79,6 +95,7 @@ export function buildWaMessage(opts: {
   plan: string;
   amount: number;
   invoice: string;
+  invoiceUrl?: string;
   wa?: string;
 }) {
   const lines = [
@@ -91,6 +108,9 @@ export function buildWaMessage(opts: {
     "",
     "Saya sudah transfer, berikut bukti transfernya. Mohon di-ACC ya, terima kasih!",
   ];
+  if (opts.invoiceUrl) {
+    lines.push("", "Invoice:", opts.invoiceUrl);
+  }
   return waMeUrl(lines.join("\n"), opts.wa);
 }
 
@@ -107,6 +127,7 @@ export function buildInvoiceShareWaMessage(opts: {
 }) {
   const statusLabel =
     opts.status === "paid" ? "LUNAS" : opts.status === "pending" ? "MENUNGGU KONFIRMASI" : opts.status.toUpperCase();
+  // Keep a single bare HTTPS URL on its own line — WA link detection is unreliable mid-sentence.
   const lines = [
     "Halo! Invoice langganan Gercep AI:",
     "",
@@ -116,7 +137,8 @@ export function buildInvoiceShareWaMessage(opts: {
     `Invoice: ${opts.invoice}`,
     `Status: ${statusLabel}`,
     "",
-    `Link invoice: ${opts.invoiceUrl}`,
+    "Buka invoice:",
+    opts.invoiceUrl,
   ];
   return waMeUrl(lines.join("\n"), opts.wa);
 }

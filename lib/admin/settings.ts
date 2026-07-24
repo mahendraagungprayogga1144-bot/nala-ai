@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FALLBACK_ADMIN_EMAIL, normalizeEmail } from "@/lib/auth/admin";
-import { BANK_ACCOUNTS, PAYMENT_WA, type BankAccount } from "@/lib/payment/config";
+import { BANK_ACCOUNTS, PAYMENT_WA, toWaMeDigits, type BankAccount } from "@/lib/payment/config";
 import { DEFAULT_PLAN_PRICES, mergePlanPrices, type PlanPrices } from "@/lib/payment/plans";
 
 export type FeatureFlags = {
@@ -181,7 +181,7 @@ function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSett
     maintenance_message: asStr(map.get("maintenance_message"), DEFAULTS.maintenance_message),
     signup_open: asBool(map.get("signup_open"), DEFAULTS.signup_open),
     demo_enabled: asBool(map.get("demo_enabled"), DEFAULTS.demo_enabled),
-    payment_wa: asStr(map.get("payment_wa"), DEFAULTS.payment_wa),
+    payment_wa: toWaMeDigits(asStr(map.get("payment_wa"), DEFAULTS.payment_wa)) || DEFAULTS.payment_wa,
     qris_image_url: asOptionalUrl(map.get("qris_image_url")),
     support_email: asStr(map.get("support_email"), DEFAULTS.support_email),
     app_url: asStr(map.get("app_url"), DEFAULTS.app_url).replace(/\/$/, ""),
@@ -244,12 +244,18 @@ export async function upsertPlatformSettings(
   const admin = createAdminClient();
   if (!admin) throw new Error("Service role tidak tersedia");
 
-  const rows = Object.entries(patch).map(([key, value]) => ({
-    key,
-    value: value as unknown,
-    updated_at: new Date().toISOString(),
-    updated_by: updatedBy,
-  }));
+  const rows = Object.entries(patch).map(([key, value]) => {
+    let v: unknown = value;
+    if (key === "payment_wa" && typeof value === "string") {
+      v = toWaMeDigits(value) || value;
+    }
+    return {
+      key,
+      value: v as unknown,
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy,
+    };
+  });
 
   const { error } = await admin.from("platform_settings").upsert(rows, { onConflict: "key" });
   if (error) throw error;

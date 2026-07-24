@@ -13,6 +13,8 @@ import { getPlatformSettings } from "@/lib/admin/settings";
 import { homeForBizType } from "@/lib/auth/post-login";
 
 function needsAuth(pathname: string) {
+  // Public share surfaces (invoice printable for WA) must stay outside this list.
+  if (pathname.startsWith("/invoice")) return false;
   return (
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/admin") ||

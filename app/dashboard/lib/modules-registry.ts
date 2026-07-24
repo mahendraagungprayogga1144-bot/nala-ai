@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 export type ModuleStatus = "live" | "beta";
-export type ModuleCategory = "utama" | "keuangan" | "operasional" | "marketing" | "platform" | "manajemen";
+export type ModuleCategory = "utama" | "keuangan" | "operasional" | "marketing" | "platform" | "manajemen" | "aplikasi";
 
 export type DashboardModule = {
   id: string;
@@ -42,7 +42,7 @@ const BIZ_MODULES: DashboardModule[] = [
   { id: "produksi", name: "Produksi", desc: "Resep dan produksi home industry.", href: "/dashboard/produksi", icon: Factory, category: "manajemen", status: "live", bizTypes: ["homeindustry"] },
   { id: "ternak", name: "Manajemen Ternak", desc: "Batch, pakan, panen ternak.", href: "/dashboard/peternakan", icon: Bird, category: "manajemen", status: "live", bizTypes: ["ternak"] },
   { id: "pertanian", name: "Modul Pertanian", desc: "Lahan, panen, saprotan.", href: "/dashboard/pertanian", icon: Sprout, category: "manajemen", status: "live", bizTypes: ["pertanian"] },
-  { id: "retail-hub", name: "Pusat Retail", desc: "Stok, kasir, barcode untuk toko fisik.", href: "/dashboard/retail", icon: Store, category: "manajemen", status: "live", bizTypes: ["retail"] },
+  { id: "retail-hub", name: "Pusat Retail", desc: "Stok & barcode untuk toko fisik.", href: "/dashboard/retail", icon: Store, category: "manajemen", status: "live", bizTypes: ["retail"] },
   { id: "jasa-orders", name: "Order Jasa", desc: "Catat order klien, fee, dan status.", href: "/dashboard/jasa", icon: Briefcase, category: "manajemen", status: "live", bizTypes: ["jasa"] },
   { id: "wholesale-hub", name: "Pusat Grosir", desc: "Harga grosir & minimal order (MOQ).", href: "/dashboard/wholesale", icon: Boxes, category: "manajemen", status: "live", bizTypes: ["wholesale"] },
   { id: "olshop-hub", name: "Pusat Online Shop", desc: "Stok + marketplace + laporan CSV.", href: "/dashboard/olshop", icon: ShoppingBag, category: "manajemen", status: "live", bizTypes: ["olshop"] },
@@ -60,9 +60,11 @@ export const GERCEP_MODULES: DashboardModule[] = [
   { id: "pajak", name: "Pajak NPWP Center", desc: "Input NPWP & lapor omzet sendiri.", href: "/dashboard/pajak-npwp", icon: FileText, category: "keuangan", status: "beta" },
 
   { id: "inventory", name: "Inventory", desc: "Stok berkurang otomatis, notif kalau habis.", href: "/dashboard/inventory", icon: Package, category: "operasional", status: "live" },
-  { id: "kasir", name: "AI Kasir", desc: "Struk, rekap kas, tutup shift otomatis.", href: "/dashboard/ai-kasir", icon: Receipt, category: "operasional", status: "live" },
   { id: "barcode", name: "Barcode QR Analyzer", desc: "Daftar barcode & SKU sendiri.", href: "/dashboard/barcode-qr", icon: QrCode, category: "operasional", status: "beta" },
-  { id: "ai-jual-beli", name: "AI Jual Beli", desc: "Input listing jual/beli sendiri.", href: "/dashboard/ai-jual-beli", icon: Camera, category: "operasional", status: "beta" },
+
+  // Modul aplikasi sendiri — bukan bagian OPERASIONAL TOKO / fitur jenis bisnis
+  { id: "kasir", name: "AI Kasir", desc: "Aplikasi kasir mandiri — struk, rekap, tutup shift.", href: "/dashboard/ai-kasir", icon: Receipt, category: "aplikasi", status: "live" },
+  { id: "ai-jual-beli", name: "AI Jual Beli", desc: "Aplikasi listing jual/beli mandiri.", href: "/dashboard/ai-jual-beli", icon: Camera, category: "aplikasi", status: "beta" },
 
   { id: "marketplace", name: "Marketplace Center", desc: "Daftar toko Shopee/Tokopedia sendiri.", href: "/dashboard/marketplace-center", icon: ShoppingCart, category: "marketing", status: "beta" },
   { id: "marketplace-laporan", name: "Marketplace", desc: "Upload CSV laporan marketplace, analisis otomatis.", href: "/dashboard/marketplace", icon: ShoppingBag, category: "manajemen", status: "live" },
@@ -82,6 +84,7 @@ const CATEGORY_LABELS: Record<ModuleCategory, string> = {
   marketing: "MARKETPLACE DAN MARKETING",
   platform: "PLATFORM DAN TIM",
   manajemen: "MANAJEMEN",
+  aplikasi: "APLIKASI MODUL",
 };
 
 export function getSidebarModules(bizType: string | null | undefined): { label: string; modules: DashboardModule[] }[] {
@@ -99,12 +102,16 @@ export function getSidebarModules(bizType: string | null | undefined): { label: 
     }
   }
 
-  // 3. Modul universal sisanya
+  // 3. Modul universal toko / keuangan / platform (tanpa AI Kasir & AI Jual Beli)
   const order: ModuleCategory[] = ["keuangan", "operasional", "marketing", "platform", "manajemen"];
   for (const cat of order) {
     const mods = GERCEP_MODULES.filter(m => m.category === cat);
     if (mods.length > 0) result.push({ label: CATEGORY_LABELS[cat], modules: mods });
   }
+
+  // 4. Aplikasi modul mandiri — terpisah dari navbar toko & jenis bisnis
+  const apps = GERCEP_MODULES.filter(m => m.category === "aplikasi");
+  if (apps.length > 0) result.push({ label: CATEGORY_LABELS.aplikasi, modules: apps });
 
   return result;
 }

@@ -33,7 +33,7 @@ export default async function BengkelPage() {
       ]}
       links={[
         { href: "/dashboard/inventory", label: "Spare Part", desc: "Stok oli, ban, filter, dll." },
-        { href: "/dashboard/ai-kasir", label: "Kasir", desc: "Tagihkan jasa + spare part." },
+        { href: "/dashboard/keuangan-bisnis", label: "Keuangan Bisnis", desc: "Omzet jasa & spare part." },
         { href: "/dashboard/crm-pelanggan", label: "CRM", desc: "Riwayat pelanggan bengkel." },
       ]}
     >

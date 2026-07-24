@@ -282,9 +282,6 @@ export default function TypedInventory({
         <Link href={hubHref} className="rounded-full border border-[#2DD4BF]/30 bg-[#2DD4BF]/10 px-3 py-1.5 text-xs font-medium text-[#2DD4BF]">
           {hubLabel} →
         </Link>
-        <Link href="/dashboard/ai-kasir" className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-[#8B8AA0] hover:text-[#F0EFF8]">
-          Kasir →
-        </Link>
         <Link href="/dashboard/keuangan-bisnis" className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-[#8B8AA0] hover:text-[#F0EFF8]">
           Keuangan →
         </Link>

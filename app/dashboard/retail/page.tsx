@@ -19,7 +19,7 @@ export default async function RetailHubPage() {
     <BizHubShell
       icon={Store}
       title="Pusat Retail"
-      subtitle="Stok, kasir, dan barcode dalam satu alur sederhana untuk toko fisik."
+      subtitle="Stok dan barcode dalam satu alur sederhana untuk toko fisik."
       businessName={business.name}
       kpis={[
         { label: "Total produk", value: String(total) },
@@ -28,13 +28,12 @@ export default async function RetailHubPage() {
       ]}
       links={[
         { href: "/dashboard/inventory", label: "Inventory", desc: "Tambah produk, cek stok, catat keluar masuk." },
-        { href: "/dashboard/ai-kasir", label: "AI Kasir", desc: "Jualan cepat, struk, dan rekap harian." },
-        { href: "/dashboard/barcode-qr", label: "Barcode / SKU", desc: "Daftarkan kode barcode biar kasir lebih cepat." },
+        { href: "/dashboard/barcode-qr", label: "Barcode / SKU", desc: "Daftarkan kode barcode produk." },
         { href: "/dashboard/keuangan-bisnis", label: "Keuangan Bisnis", desc: "Pantau omzet & pengeluaran toko." },
       ]}
     >
       <div className="rounded-2xl border border-[#2DD4BF]/20 bg-[#2DD4BF]/[0.06] p-4 text-sm text-[#8B8AA0]">
-        Tip retail: isi <span className="text-[#F0EFF8]">SKU/barcode</span> di tiap produk, set min. stok, lalu jual lewat Kasir.
+        Tip retail: isi <span className="text-[#F0EFF8]">SKU/barcode</span> di tiap produk, set min. stok, lalu kelola keluar-masuk di Inventory.
         Stok kritis otomatis kelihatan di Inventory.
       </div>
     </BizHubShell>

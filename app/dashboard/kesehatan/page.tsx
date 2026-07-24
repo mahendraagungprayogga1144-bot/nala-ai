@@ -50,7 +50,7 @@ export default async function KesehatanPage() {
       ]}
       links={[
         { href: "/dashboard/inventory", label: "Inventory", desc: "Kelola stok obat & alkes." },
-        { href: "/dashboard/ai-kasir", label: "Kasir", desc: "Jual cepat dengan barcode." },
+        { href: "/dashboard/keuangan-bisnis", label: "Keuangan Bisnis", desc: "Omzet & pengeluaran apotek." },
         { href: "/dashboard/crm-pelanggan", label: "CRM", desc: "Catat pasien / pelanggan rutin." },
       ]}
     >

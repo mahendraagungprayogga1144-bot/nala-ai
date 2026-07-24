@@ -51,7 +51,7 @@ export const INVENTORY_PRESETS: Record<string, Preset> = {
     sellCategory: "Penjualan",
     showSku: true,
     attrsMode: "none",
-    workflow: ["Tambah + SKU", "Stok masuk/keluar", "Jual (kasir/qty)"],
+    workflow: ["Tambah + SKU", "Stok masuk/keluar", "Jual qty"],
   },
   jasa: {
     tip: "Catat aset/peralatan. Pinjam/rusak lewat Keluar. Order klien tetap di modul Order Jasa.",

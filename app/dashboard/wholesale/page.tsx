@@ -39,7 +39,7 @@ export default async function WholesalePage() {
       ]}
       links={[
         { href: "/dashboard/inventory", label: "Inventory", desc: "Tambah / update stok produk." },
-        { href: "/dashboard/ai-kasir", label: "Kasir Grosir", desc: "Jual dengan qty besar." },
+        { href: "/dashboard/keuangan-bisnis", label: "Keuangan Bisnis", desc: "Omzet & pengeluaran grosir." },
         { href: "/dashboard/crm-pelanggan", label: "CRM Pelanggan", desc: "Catat buyer toko / outlet." },
       ]}
     >

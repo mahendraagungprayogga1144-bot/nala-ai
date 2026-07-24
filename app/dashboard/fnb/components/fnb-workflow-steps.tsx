@@ -4,7 +4,7 @@ import Link from "next/link";
 const STEPS = [
   { step: "1", label: "Stok", sub: "Isi bahan + harga beli", href: "/dashboard/inventory", activeMatch: "/inventory" },
   { step: "2", label: "Menu", sub: "Resep + HPP otomatis", href: "/dashboard/master-menu", activeMatch: "/master-menu" },
-  { step: "3", label: "Kasir", sub: "Jual, stok turun sendiri", href: "/dashboard/ai-kasir", activeMatch: "/ai-kasir" },
+  { step: "3", label: "Kasir F&B", sub: "Jual, stok turun sendiri", href: "/dashboard/fnb/kasir", activeMatch: "/fnb/kasir" },
 ];
 
 export default function FnbWorkflowSteps({ activePath }: { activePath: string }) {

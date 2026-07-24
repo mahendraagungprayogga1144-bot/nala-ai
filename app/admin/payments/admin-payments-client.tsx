@@ -19,11 +19,18 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
   const [filterStatus, setFilterStatus] = useState("all");
   const [loading, setLoading] = useState("");
   const [adminEmail, setAdminEmail] = useState("admin");
+  const [paymentWa, setPaymentWa] = useState("");
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setAdminEmail(data.user.email);
     });
+    fetch("/api/public/platform")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.payment_wa) setPaymentWa(String(d.payment_wa).replace(/\D/g, ""));
+      })
+      .catch(() => {});
   }, [supabase]);
 
   const filtered = useMemo(() => {
@@ -36,6 +43,25 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
 
   const totalPending = payments.filter(p => p.status === "pending").length;
   const totalPaid = payments.filter(p => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0);
+  const stalePending = payments.filter((p) => {
+    if (p.status !== "pending") return false;
+    return Date.now() - new Date(p.created_at).getTime() > 6 * 3600_000;
+  });
+
+  const reminderWa = () => {
+    const wa = paymentWa || "6281234567890";
+    const lines = [
+      `Reminder Gercep Admin: ${stalePending.length} pembayaran pending > 6 jam.`,
+      "",
+      ...stalePending.slice(0, 8).map(
+        (p) =>
+          `- ${p.user_name || p.user_id.slice(0, 8)} · ${p.plan.toUpperCase()} · ${fmtRp(p.amount)} · ${p.invoice_id || p.id.slice(0, 8)}`,
+      ),
+      "",
+      "ACC di https://www.gercepos.id/admin/payments",
+    ];
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+  };
 
   const handleConfirm = async (p: AdminPayment) => {
     if (!confirm(`ACC pembayaran ${fmtRp(p.amount)} (${p.plan.toUpperCase()}) dari ${p.user_name || p.user_id.slice(0, 8)}? Langganan langsung aktif +30 hari.`)) return;
@@ -89,6 +115,7 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
     });
 
     setLoading("");
+    window.open(`/api/invoice/${p.id}`, "_blank");
     router.refresh();
   };
 
@@ -119,13 +146,29 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Manajemen Pembayaran</h1>
           <p className="text-xs text-[#5A5B7A]">{payments.length} total · {totalPending} pending · Total paid: {fmtRp(totalPaid)}</p>
+          {stalePending.length > 0 && (
+            <p className="mt-1 text-xs font-semibold text-[#F59E0B]">
+              {stalePending.length} pending &gt; 6 jam — perlu ACC
+            </p>
+          )}
         </div>
-        <a
-          href="/api/admin/export?type=payments"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-xs text-[#8B8AA0] hover:text-[#F2F1F8]"
-        >
-          <Download size={12} /> Export CSV
-        </a>
+        <div className="flex flex-wrap gap-2">
+          {stalePending.length > 0 && (
+            <button
+              type="button"
+              onClick={reminderWa}
+              className="rounded-xl border border-[#F59E0B]/40 bg-[#F59E0B]/10 px-3 py-2 text-xs font-medium text-[#F59E0B]"
+            >
+              Reminder WA tim
+            </button>
+          )}
+          <a
+            href="/api/admin/export?type=payments"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-xs text-[#8B8AA0] hover:text-[#F2F1F8]"
+          >
+            <Download size={12} /> Export CSV
+          </a>
+        </div>
       </div>
 
       {/* Filters */}
@@ -194,8 +237,18 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
                       </button>
                     </div>
                   )}
-                  {p.status === "paid" && p.confirmed_by && (
-                    <span className="text-[9px] text-[#5A5B7A]">by admin</span>
+                  {p.status === "paid" && (
+                    <div className="flex flex-col gap-1">
+                      {p.confirmed_by && <span className="text-[9px] text-[#5A5B7A]">by admin</span>}
+                      <a
+                        href={`/api/invoice/${p.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] font-medium text-[#38BDF8] hover:underline"
+                      >
+                        Invoice
+                      </a>
+                    </div>
                   )}
                   {p.status === "failed" && (
                     <span className="text-[9px] text-[#EC4899]/60">ditolak</span>

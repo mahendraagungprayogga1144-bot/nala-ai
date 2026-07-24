@@ -56,6 +56,16 @@ export async function GET() {
   });
 
   let recentErrors: unknown[] = [];
+  let stalePayments: {
+    id: string;
+    user_id: string;
+    plan: string;
+    amount: number;
+    invoice_id: string | null;
+    created_at: string;
+    hours: number;
+  }[] = [];
+
   if (admin) {
     const { data } = await admin
       .from("app_errors")
@@ -63,6 +73,26 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(20);
     recentErrors = data || [];
+
+    const cutoff = new Date(Date.now() - 6 * 3600_000).toISOString();
+    const { data: pending } = await admin
+      .from("payments")
+      .select("id, user_id, plan, amount, invoice_id, created_at")
+      .eq("status", "pending")
+      .lt("created_at", cutoff)
+      .order("created_at", { ascending: true })
+      .limit(20);
+    stalePayments = (pending || []).map((p: {
+      id: string;
+      user_id: string;
+      plan: string;
+      amount: number;
+      invoice_id: string | null;
+      created_at: string;
+    }) => ({
+      ...p,
+      hours: Math.floor((Date.now() - new Date(p.created_at).getTime()) / 3600_000),
+    }));
   }
 
   const allOk = checks.every((c) => c.ok || c.name === "Maintenance mode");
@@ -75,6 +105,12 @@ export async function GET() {
       signup_open: settings.signup_open,
       demo_enabled: settings.demo_enabled,
       admin_emails: settings.admin_emails,
+      payment_wa: settings.payment_wa,
+    },
+    attention: {
+      stalePendingCount: stalePayments.length,
+      stalePayments,
+      errorCount: recentErrors.length,
     },
     externalChecklist: [
       {

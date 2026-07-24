@@ -25,6 +25,7 @@ export default function AdminOverviewClient({
   newUsersThisMonth, revenueThisMonth, revenueThisYear,
   churnRate, planCounts, userGrowth, revenueByMonth, totalBusinesses, recentUsers,
   topModules = [],
+  stalePendingCount = 0,
 }: {
   totalUsers: number; activeToday: number; wau?: number; mau?: number; trialActive?: number;
   funnel?: { signup: number; business: number; first_action: number };
@@ -36,6 +37,7 @@ export default function AdminOverviewClient({
   totalBusinesses: number;
   recentUsers: RecentUser[];
   topModules?: { module: string; count: number }[];
+  stalePendingCount?: number;
 }) {
   const kpis = [
     { label: "Total User", value: String(totalUsers), icon: Users, color: "#2DD4BF" },
@@ -61,6 +63,14 @@ export default function AdminOverviewClient({
       <div className="mb-6">
         <h1 className="text-xl font-bold sm:text-2xl">Admin Overview</h1>
         <p className="text-xs text-[#5A5B7A]">Statistik platform Gercep AI</p>
+        {stalePendingCount > 0 && (
+          <a
+            href="/admin/payments"
+            className="mt-3 inline-flex rounded-xl border border-[#F59E0B]/40 bg-[#F59E0B]/10 px-3 py-2 text-xs font-semibold text-[#F59E0B]"
+          >
+            {stalePendingCount} payment pending &gt; 6 jam — ACC sekarang
+          </a>
+        )}
       </div>
 
       {/* KPIs */}

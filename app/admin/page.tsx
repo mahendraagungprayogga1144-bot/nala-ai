@@ -83,11 +83,13 @@ export default async function AdminOverviewPage() {
   let mau = 0;
   let funnel = { signup: 0, business: 0, first_action: 0 };
   let topModules: { module: string; count: number }[] = [];
+  let stalePendingCount = 0;
   if (admin) {
     const dayAgo = new Date(Date.now() - 86400000).toISOString();
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-    const [{ data: dayEvents }, { data: weekEvents }, { data: monthEvents }, { data: funnelEvents }] =
+    const cutoff6h = new Date(Date.now() - 6 * 3600_000).toISOString();
+    const [{ data: dayEvents }, { data: weekEvents }, { data: monthEvents }, { data: funnelEvents }, { count: staleCount }] =
       await Promise.all([
         admin.from("app_events").select("user_id, module").gte("created_at", dayAgo).limit(5000),
         admin.from("app_events").select("user_id").gte("created_at", weekAgo).limit(8000),
@@ -104,7 +106,13 @@ export default async function AdminOverviewPage() {
             "payment_submit",
           ])
           .limit(8000),
+        admin
+          .from("payments")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending")
+          .lt("created_at", cutoff6h),
       ]);
+    stalePendingCount = staleCount || 0;
 
     if (dayEvents?.length) {
       dau = new Set(dayEvents.map((e: { user_id: string | null }) => e.user_id).filter(Boolean)).size;
@@ -198,6 +206,7 @@ export default async function AdminOverviewPage() {
       totalBusinesses={businesses.length}
       recentUsers={recentUsers}
       topModules={topModules}
+      stalePendingCount={stalePendingCount}
     />
   );
 }

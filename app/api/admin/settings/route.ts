@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin/require-admin";
-import { getPlatformSettings, upsertPlatformSettings, type PlatformSettingsMap } from "@/lib/admin/settings";
+import { requireAdmin, requireOwner } from "@/lib/admin/require-admin";
+import { upsertPlatformSettings, type PlatformSettingsMap } from "@/lib/admin/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeEmail } from "@/lib/auth/admin";
 
 export async function GET() {
   const gate = await requireAdmin();
   if ("error" in gate && gate.error) return gate.error;
-  const settings = await getPlatformSettings({ force: true });
-  return NextResponse.json({ settings });
+  return NextResponse.json({ settings: gate.settings, role: gate.role });
 }
 
 export async function PATCH(request: Request) {
-  const gate = await requireAdmin();
+  const gate = await requireOwner();
   if ("error" in gate && gate.error) return gate.error;
   const { user } = gate;
 
@@ -32,6 +32,7 @@ export async function PATCH(request: Request) {
     "support_email",
     "app_url",
     "admin_emails",
+    "admin_roles",
     "bank_accounts",
     "plan_prices",
     "announcement_enabled",
@@ -44,6 +45,15 @@ export async function PATCH(request: Request) {
   const patch: Partial<Record<keyof PlatformSettingsMap, unknown>> = {};
   for (const key of allowed) {
     if (key in body) patch[key] = body[key];
+  }
+
+  // Normalize roles to lowercase emails
+  if (patch.admin_roles && typeof patch.admin_roles === "object") {
+    const roles: Record<string, string> = {};
+    for (const [k, v] of Object.entries(patch.admin_roles as Record<string, string>)) {
+      roles[normalizeEmail(k)] = v === "support" ? "support" : "owner";
+    }
+    patch.admin_roles = roles;
   }
 
   if (Object.keys(patch).length === 0) {

@@ -12,6 +12,17 @@ export default function AdminHealthPage() {
     settingsSummary: Record<string, unknown>;
     externalChecklist: External[];
     recentErrors: { id: string; source: string; message: string; created_at: string }[];
+    attention?: {
+      stalePendingCount: number;
+      stalePayments: {
+        id: string;
+        plan: string;
+        amount: number;
+        invoice_id: string | null;
+        hours: number;
+      }[];
+      errorCount: number;
+    };
   } | null>(null);
   const [err, setErr] = useState("");
 
@@ -31,6 +42,22 @@ export default function AdminHealthPage() {
     const t = setInterval(() => void load(), 30000);
     return () => clearInterval(t);
   }, []);
+
+  const reminderWa = () => {
+    const wa = String(data?.settingsSummary?.payment_wa || "").replace(/\D/g, "") || "6281234567890";
+    const stale = data?.attention?.stalePayments || [];
+    const lines = [
+      `Reminder Gercep Admin: ${stale.length} pembayaran pending > 6 jam.`,
+      "",
+      ...stale.slice(0, 8).map(
+        (p) =>
+          `- ${p.plan.toUpperCase()} · Rp${Math.round(p.amount).toLocaleString("id-ID")} · ${p.invoice_id || p.id.slice(0, 8)} · ${p.hours}j`,
+      ),
+      "",
+      "ACC di https://www.gercepos.id/admin/payments",
+    ];
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+  };
 
   return (
     <div className="px-4 py-6 sm:px-8">
@@ -62,6 +89,39 @@ export default function AdminHealthPage() {
           >
             {data.ok ? "Semua check inti OK" : "Ada masalah — cek detail di bawah"}
           </div>
+
+          {(data.attention?.stalePendingCount || 0) > 0 && (
+            <div className="mb-6 rounded-2xl border border-[#F59E0B]/30 bg-[#F59E0B]/[0.06] p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-[#F59E0B]">
+                  Butuh perhatian: {data.attention!.stalePendingCount} payment pending &gt; 6 jam
+                </p>
+                <div className="flex gap-2">
+                  <a
+                    href="/admin/payments"
+                    className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[#8B8AA0] hover:text-white"
+                  >
+                    Ke Payments
+                  </a>
+                  <button
+                    type="button"
+                    onClick={reminderWa}
+                    className="rounded-lg border border-[#F59E0B]/40 bg-[#F59E0B]/10 px-3 py-1.5 text-xs font-medium text-[#F59E0B]"
+                  >
+                    Reminder WA tim
+                  </button>
+                </div>
+              </div>
+              <ul className="space-y-1 text-xs text-[#8B8AA0]">
+                {data.attention!.stalePayments.slice(0, 5).map((p) => (
+                  <li key={p.id}>
+                    {p.plan.toUpperCase()} · Rp{Math.round(p.amount).toLocaleString("id-ID")} · {p.hours}j ·{" "}
+                    {p.invoice_id || p.id.slice(0, 8)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="mb-6 grid gap-3 sm:grid-cols-2">
             {data.checks.map((c) => (
@@ -99,6 +159,10 @@ export default function AdminHealthPage() {
               Retention events dikontrol di Settings (`event_retention_days`). Purge lama: Settings → Purge, atau SQL:
               {" "}
               <code className="text-[#8B8AA0]">delete from app_events where created_at &lt; now() - interval &apos;90 days&apos;;</code>
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-[#5A5B7A]">
+              Staging: uji di Vercel Preview branch, Production hanya dari <code className="text-[#8B8AA0]">main</code>.
+              Runbook: <code className="text-[#8B8AA0]">docs/ops-runbook.md</code>. Pastikan Supabase Backup ON.
             </p>
             <button
               type="button"

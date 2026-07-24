@@ -16,6 +16,15 @@ export type PendingPayment = {
   created_at: string;
 } | null;
 
+export type PaidPayment = {
+  id: string;
+  plan: string;
+  amount: number;
+  invoice_id: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+} | null;
+
 export default async function UpgradePage({ searchParams }: { searchParams: Promise<{ plan?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +53,15 @@ export default async function UpgradePage({ searchParams }: { searchParams: Prom
     .limit(1)
     .maybeSingle();
 
+  const { data: lastPaid } = await supabase
+    .from("payments")
+    .select("id, plan, amount, invoice_id, confirmed_at, created_at")
+    .eq("user_id", user.id)
+    .eq("status", "paid")
+    .order("confirmed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
     <UpgradeClient
       userId={user.id}
@@ -51,6 +69,7 @@ export default async function UpgradePage({ searchParams }: { searchParams: Prom
       userName={profile?.full_name || user.email?.split("@")[0] || "User"}
       currentSub={sub}
       pendingPayment={pending}
+      lastPaidPayment={lastPaid}
       initialPlan={params.plan}
     />
   );

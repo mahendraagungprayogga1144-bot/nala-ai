@@ -6,18 +6,19 @@ import { Check, Copy, MessageCircle, Clock, Crown, ShieldCheck } from "lucide-re
 import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, PAYMENT_WA, type PlanKey } from "@/lib/payment/config";
 import { plansWithPrices } from "@/lib/payment/plans";
 import { trackClientEvent } from "@/lib/admin/track-event";
-import type { CurrentSub, PendingPayment } from "./page";
+import type { CurrentSub, PendingPayment, PaidPayment } from "./page";
 
 function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "—";
 }
 
-export default function UpgradeClient({ userId, userEmail, userName, currentSub, pendingPayment, initialPlan }: {
+export default function UpgradeClient({ userId, userEmail, userName, currentSub, pendingPayment, lastPaidPayment, initialPlan }: {
   userId: string;
   userEmail: string;
   userName: string;
   currentSub: CurrentSub;
   pendingPayment: PendingPayment;
+  lastPaidPayment?: PaidPayment;
   initialPlan?: string;
 }) {
   const router = useRouter();
@@ -112,11 +113,21 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
             Biasanya di-ACC dalam beberapa jam di jam kerja.
           </p>
           <p className="text-[10px] font-mono text-[#5A5B7A] mb-6">Invoice: {pendingPayment.invoice_id} · {fmtDate(pendingPayment.created_at)}</p>
-          <a href={waLink({ plan: pendingPayment.plan, amount: Number(pendingPayment.amount), invoice: pendingPayment.invoice_id || "-" })}
-            target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#4ADE80]/10 border border-[#4ADE80]/30 px-5 py-2.5 text-xs font-bold text-[#4ADE80] hover:bg-[#4ADE80]/20 transition-all">
-            <MessageCircle size={14} /> Kirim Bukti Transfer via WA
-          </a>
+          <div className="flex flex-col items-center gap-2">
+            <a href={waLink({ plan: pendingPayment.plan, amount: Number(pendingPayment.amount), invoice: pendingPayment.invoice_id || "-" })}
+              target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#4ADE80]/10 border border-[#4ADE80]/30 px-5 py-2.5 text-xs font-bold text-[#4ADE80] hover:bg-[#4ADE80]/20 transition-all">
+              <MessageCircle size={14} /> Kirim Bukti Transfer via WA
+            </a>
+            <a
+              href={`/api/invoice/${pendingPayment.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-[#38BDF8] hover:underline"
+            >
+              Lihat / unduh invoice
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -130,6 +141,16 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
           Paket kamu sekarang: <span className="font-bold" style={{ color: isActive ? "#2DD4BF" : "#8B8AA0" }}>{currentPlan.toUpperCase()}</span>
           {isActive && currentSub?.expired_at && <> · aktif sampai {fmtDate(currentSub.expired_at)}</>}
         </p>
+        {lastPaidPayment && (
+          <a
+            href={`/api/invoice/${lastPaidPayment.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex text-xs font-medium text-[#38BDF8] hover:underline"
+          >
+            Unduh invoice terakhir ({lastPaidPayment.invoice_id || lastPaidPayment.id.slice(0, 8)})
+          </a>
+        )}
       </div>
 
       {step === "pilih" && (

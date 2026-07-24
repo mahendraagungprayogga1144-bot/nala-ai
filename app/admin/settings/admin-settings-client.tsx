@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { BankAccount, FeatureFlags, PlatformSettingsMap } from "@/lib/admin/settings";
+import type { AdminRole, BankAccount, FeatureFlags, PlatformSettingsMap } from "@/lib/admin/settings";
 import { DEFAULT_PLAN_PRICES, type PlanPrices } from "@/lib/payment/plans";
 
 const inputClass =
@@ -62,6 +62,15 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
 
+    const admin_roles: Record<string, AdminRole> = {};
+    for (const email of admin_emails) {
+      admin_roles[email] = s.admin_roles?.[email] === "support" ? "support" : "owner";
+    }
+    // Keep at least one owner
+    if (!Object.values(admin_roles).includes("owner") && admin_emails[0]) {
+      admin_roles[admin_emails[0]] = "owner";
+    }
+
     const bank_accounts = s.bank_accounts
       .map((a) => ({
         bank: a.bank.trim(),
@@ -92,6 +101,7 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
       body: JSON.stringify({
         ...s,
         admin_emails,
+        admin_roles,
         bank_accounts,
         plan_prices,
         trial_days: Number(s.trial_days),
@@ -299,6 +309,42 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
               onChange={(e) => setEmailsText(e.target.value)}
             />
           </label>
+          <div>
+            <p className="mb-2 text-xs text-[#8B8AA0]">Role per admin</p>
+            <p className="mb-2 text-[11px] text-[#5A5B7A]">
+              owner = full Settings · support = ACC payment / users, tanpa ubah Settings
+            </p>
+            <div className="space-y-2">
+              {emailsText
+                .split(/[\n,]+/)
+                .map((e) => e.trim().toLowerCase())
+                .filter(Boolean)
+                .map((email) => (
+                  <div
+                    key={email}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] px-3 py-2"
+                  >
+                    <span className="text-xs text-[#F2F1F8]">{email}</span>
+                    <select
+                      className="rounded-lg border border-white/10 bg-[#0A0A12] px-2 py-1 text-xs text-[#8B8AA0]"
+                      value={s.admin_roles?.[email] === "support" ? "support" : "owner"}
+                      onChange={(e) =>
+                        setS((prev) => ({
+                          ...prev,
+                          admin_roles: {
+                            ...(prev.admin_roles || {}),
+                            [email]: e.target.value === "support" ? "support" : "owner",
+                          },
+                        }))
+                      }
+                    >
+                      <option value="owner">owner</option>
+                      <option value="support">support</option>
+                    </select>
+                  </div>
+                ))}
+            </div>
+          </div>
         </Section>
 
         <Section title="Data">

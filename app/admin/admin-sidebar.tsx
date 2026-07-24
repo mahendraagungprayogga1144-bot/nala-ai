@@ -12,6 +12,7 @@ import {
   Building2,
   ScrollText,
 } from "lucide-react";
+import type { AdminRole } from "@/lib/admin/settings";
 
 const LINKS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -22,11 +23,12 @@ const LINKS = [
   { href: "/admin/stats", label: "Statistik", icon: BarChart3 },
   { href: "/admin/health", label: "Health", icon: HeartPulse },
   { href: "/admin/audit", label: "Audit", icon: ScrollText },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/settings", label: "Settings", icon: Settings, ownerOnly: true },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ role = "owner" }: { role?: AdminRole }) {
   const pathname = usePathname();
+  const links = LINKS.filter((l) => !l.ownerOnly || role === "owner");
 
   return (
     <aside
@@ -36,14 +38,17 @@ export default function AdminSidebar() {
       <div className="flex h-[60px] items-center gap-2.5 border-b border-white/[0.06] px-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo-gercep.png" alt="Gercep AI" className="h-7 w-7 rounded-lg object-cover" />
-        <span className="text-sm font-bold text-[#F0EFF8]">Admin Panel</span>
+        <div>
+          <span className="block text-sm font-bold text-[#F0EFF8]">Admin Panel</span>
+          <span className="text-[9px] uppercase tracking-wide text-[#5A5B7A]">{role}</span>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3" style={{ scrollbarWidth: "none" }}>
         <p className="mt-1 mb-1.5 px-2 text-[9px] font-semibold tracking-[0.08em] text-[#3A3B52] uppercase">
           MENU
         </p>
-        {LINKS.map((l) => {
+        {links.map((l) => {
           const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
           return (
             <Link

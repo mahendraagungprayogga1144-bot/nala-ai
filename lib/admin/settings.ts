@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
+import { FALLBACK_ADMIN_EMAIL, normalizeEmail } from "@/lib/auth/admin";
 import { BANK_ACCOUNTS, PAYMENT_WA, type BankAccount } from "@/lib/payment/config";
 import { DEFAULT_PLAN_PRICES, mergePlanPrices, type PlanPrices } from "@/lib/payment/plans";
 
@@ -10,6 +10,9 @@ export type FeatureFlags = {
   marketplace: boolean;
   pajak: boolean;
 };
+
+export type AdminRole = "owner" | "support";
+export type AdminRolesMap = Record<string, AdminRole>;
 
 export type { BankAccount, PlanPrices };
 
@@ -23,6 +26,7 @@ export type PlatformSettingsMap = {
   support_email: string;
   app_url: string;
   admin_emails: string[];
+  admin_roles: AdminRolesMap;
   bank_accounts: BankAccount[];
   plan_prices: PlanPrices;
   announcement_enabled: boolean;
@@ -42,6 +46,7 @@ const DEFAULTS: PlatformSettingsMap = {
   support_email: "hellogercepai@gmail.com",
   app_url: "https://www.gercepos.id",
   admin_emails: [FALLBACK_ADMIN_EMAIL],
+  admin_roles: { [FALLBACK_ADMIN_EMAIL]: "owner" },
   bank_accounts: BANK_ACCOUNTS.map((a) => ({ ...a })),
   plan_prices: { ...DEFAULT_PLAN_PRICES },
   announcement_enabled: false,
@@ -118,8 +123,46 @@ function asPlanPrices(v: unknown): PlanPrices {
   return mergePlanPrices(v as Partial<PlanPrices>);
 }
 
+function asAdminRoles(v: unknown, emails: string[]): AdminRolesMap {
+  const out: AdminRolesMap = {};
+  const raw = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  for (const email of emails) {
+    const e = normalizeEmail(email);
+    const r = String(raw[e] || raw[email] || "owner").toLowerCase();
+    out[e] = r === "support" ? "support" : "owner";
+  }
+  // Ensure at least one owner
+  if (!Object.values(out).includes("owner") && emails.length) {
+    out[normalizeEmail(emails[0])] = "owner";
+  }
+  if (!out[normalizeEmail(FALLBACK_ADMIN_EMAIL)] && emails.map(normalizeEmail).includes(normalizeEmail(FALLBACK_ADMIN_EMAIL))) {
+    out[normalizeEmail(FALLBACK_ADMIN_EMAIL)] = "owner";
+  }
+  return out;
+}
+
+/** Role for an admin email. Non-admins → null. Default owner if listed without role. */
+export function getAdminRole(
+  email: string | null | undefined,
+  settings: Pick<PlatformSettingsMap, "admin_emails" | "admin_roles">,
+): AdminRole | null {
+  const e = normalizeEmail(email);
+  if (!e) return null;
+  const list = settings.admin_emails.map(normalizeEmail);
+  if (!list.includes(e)) return null;
+  return settings.admin_roles[e] === "support" ? "support" : "owner";
+}
+
+export function isOwnerAdmin(
+  email: string | null | undefined,
+  settings: Pick<PlatformSettingsMap, "admin_emails" | "admin_roles">,
+) {
+  return getAdminRole(email, settings) === "owner";
+}
+
 function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSettingsMap {
   const map = new Map((rows || []).map((r) => [r.key, r.value]));
+  const admin_emails = asEmails(map.get("admin_emails"));
   return {
     trial_days: asNum(map.get("trial_days"), DEFAULTS.trial_days),
     maintenance_mode: asBool(map.get("maintenance_mode"), DEFAULTS.maintenance_mode),
@@ -129,7 +172,8 @@ function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSett
     payment_wa: asStr(map.get("payment_wa"), DEFAULTS.payment_wa),
     support_email: asStr(map.get("support_email"), DEFAULTS.support_email),
     app_url: asStr(map.get("app_url"), DEFAULTS.app_url).replace(/\/$/, ""),
-    admin_emails: asEmails(map.get("admin_emails")),
+    admin_emails,
+    admin_roles: asAdminRoles(map.get("admin_roles"), admin_emails),
     bank_accounts: asBankAccounts(map.get("bank_accounts")),
     plan_prices: asPlanPrices(map.get("plan_prices")),
     announcement_enabled: asBool(map.get("announcement_enabled"), DEFAULTS.announcement_enabled),
@@ -144,6 +188,7 @@ export function getDefaultSettings() {
   return {
     ...DEFAULTS,
     admin_emails: [...DEFAULTS.admin_emails],
+    admin_roles: { ...DEFAULTS.admin_roles },
     bank_accounts: DEFAULTS.bank_accounts.map((a) => ({ ...a })),
     plan_prices: { ...DEFAULTS.plan_prices },
     feature_flags: { ...DEFAULTS.feature_flags },

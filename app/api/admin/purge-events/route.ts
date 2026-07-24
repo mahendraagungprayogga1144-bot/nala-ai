@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin/require-admin";
+import { requireOwner } from "@/lib/admin/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlatformSettings } from "@/lib/admin/settings";
 
 export async function POST() {
-  const gate = await requireAdmin();
+  const gate = await requireOwner();
   if ("error" in gate) return gate.error;
 
   const admin = createAdminClient();

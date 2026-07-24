@@ -34,6 +34,9 @@ export async function checkoutProductSale(
     shiftId?: string | null;
     shiftTotal?: number;
     shiftOrders?: number;
+    /** Retail AI Kasir standalone — do not write Keuangan Bisnis. */
+    skipFinance?: boolean;
+    staffName?: string | null;
   },
 ): Promise<CheckoutResult> {
   const today = opts.today || todayWib();
@@ -49,19 +52,29 @@ export async function checkoutProductSale(
     }
   }
 
+  const staffTag = opts.staffName ? ` · kasir ${opts.staffName}` : "";
+  const note =
+    opts.catatan ||
+    `AI Kasir retail${staffTag} — ${opts.metodeBayar}`;
+
+  const orderRow: Record<string, unknown> = {
+    user_id: opts.userId,
+    business_id: opts.businessId,
+    total: opts.total,
+    diskon: opts.diskon,
+    hpp: opts.hpp,
+    laba: opts.laba,
+    metode_bayar: opts.metodeBayar,
+    catatan: note,
+    order_date: today,
+  };
+  if (opts.skipFinance) {
+    orderRow.source = "retail_kasir";
+  }
+
   const { data: order, error: orderErr } = await supabase
     .from("orders")
-    .insert({
-      user_id: opts.userId,
-      business_id: opts.businessId,
-      total: opts.total,
-      diskon: opts.diskon,
-      hpp: opts.hpp,
-      laba: opts.laba,
-      metode_bayar: opts.metodeBayar,
-      catatan: opts.catatan || `AI Kasir — ${opts.metodeBayar}`,
-      order_date: today,
-    })
+    .insert(orderRow)
     .select("id")
     .single();
 
@@ -84,20 +97,22 @@ export async function checkoutProductSale(
     return { ok: false, error: "Gagal simpan item: " + itemsErr.message };
   }
 
-  const { error: txErr } = await supabase.from("transactions").insert({
-    user_id: opts.userId,
-    business_id: opts.businessId,
-    type: "pemasukan",
-    scope: "bisnis",
-    category: "Penjualan",
-    description: opts.lines.map((c) => `${c.name} x${c.qty}`).join(", "),
-    amount: opts.total,
-    transaction_date: today,
-  });
-  if (txErr) {
-    await supabase.from("order_items").delete().eq("order_id", order.id);
-    await supabase.from("orders").delete().eq("id", order.id);
-    return { ok: false, error: "Gagal catat keuangan: " + txErr.message };
+  if (!opts.skipFinance) {
+    const { error: txErr } = await supabase.from("transactions").insert({
+      user_id: opts.userId,
+      business_id: opts.businessId,
+      type: "pemasukan",
+      scope: "bisnis",
+      category: "Penjualan",
+      description: opts.lines.map((c) => `${c.name} x${c.qty}`).join(", "),
+      amount: opts.total,
+      transaction_date: today,
+    });
+    if (txErr) {
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      return { ok: false, error: "Gagal catat keuangan: " + txErr.message };
+    }
   }
 
   for (const c of opts.lines) {
@@ -128,7 +143,7 @@ export async function checkoutProductSale(
       type: "keluar",
       reason: "terjual",
       quantity: c.qty,
-      note: opts.catatan || `AI Kasir — ${opts.metodeBayar}`,
+      note: opts.catatan || note,
       profit_loss: itemLaba,
       movement_date: today,
     });

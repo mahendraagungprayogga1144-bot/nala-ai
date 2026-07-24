@@ -13,11 +13,16 @@ export type KasirShift = {
   id: string; modal_awal: number; total_transaksi: number;
   total_order: number; kas_akhir: number;
   opened_at: string; closed_at: string | null; status: string;
+  staff_id?: string | null; staff_name?: string | null;
 };
 
-export type TodayTx = {
-  id: string; amount: number; description: string | null;
-  category: string | null; created_at: string;
+export type TodaySale = {
+  id: string; total: number; catatan: string | null;
+  metode_bayar: string | null; created_at: string;
+};
+
+export type RetailStaff = {
+  id: string; nama: string; pin: string; aktif: boolean;
 };
 
 export default async function AiKasirPage() {
@@ -26,7 +31,7 @@ export default async function AiKasirPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return <div className="px-8 py-12 text-center text-[#8B8AA0]">Silakan login terlebih dahulu.</div>;
+    return <div className="px-8 py-12 text-center text-[#5C6B63]">Silakan login terlebih dahulu.</div>;
   }
 
   const cookieStore = await cookies();
@@ -42,15 +47,22 @@ export default async function AiKasirPage() {
     return (
       <div className="mx-auto max-w-lg px-8 py-12 text-center">
         <h1 className="mb-2 text-xl font-semibold">AI Kasir</h1>
-        <p className="text-sm text-[#8B8AA0]">Buat bisnis dulu di Multi Bisnis sebelum menggunakan kasir.</p>
-        <a href="/dashboard/multi-bisnis" className="mt-4 inline-block text-sm text-[#2DD4BF]">Kelola bisnis →</a>
+        <p className="text-sm text-[#5C6B63]">Buat bisnis dulu di Multi Bisnis sebelum menggunakan kasir.</p>
+        <a href="/dashboard/multi-bisnis" className="mt-4 inline-block text-sm text-[#007A4D]">Kelola bisnis →</a>
       </div>
     );
   }
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [{ data: products }, { data: activeShift }, { data: todayTxs }, { data: todayShifts }] = await Promise.all([
+  const [
+    productsRes,
+    activeShiftRes,
+    todaySalesRes,
+    todayShiftsRes,
+    settingsRes,
+    staffRes,
+  ] = await Promise.all([
     supabase.from("products")
       .select("id, name, price, cost, stock, min_stock, category, sku")
       .eq("business_id", business.id)
@@ -63,30 +75,51 @@ export default async function AiKasirPage() {
       .order("opened_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("transactions")
-      .select("id, amount, description, category, created_at")
+    supabase.from("orders")
+      .select("id, total, catatan, metode_bayar, created_at")
       .eq("business_id", business.id)
-      .eq("type", "pemasukan")
-      .eq("scope", "bisnis")
-      .eq("category", "Penjualan")
-      .gte("transaction_date", today)
+      .eq("order_date", today)
+      .eq("source", "retail_kasir")
       .order("created_at", { ascending: false }),
     supabase.from("kasir_shifts")
       .select("*")
       .eq("business_id", business.id)
       .gte("opened_at", today + "T00:00:00")
       .order("opened_at", { ascending: false }),
+    supabase.from("retail_kasir_settings")
+      .select("store_name")
+      .eq("business_id", business.id)
+      .maybeSingle(),
+    supabase.from("retail_kasir_staff")
+      .select("id, nama, pin, aktif")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: true }),
   ]);
+
+  // Fallback if source column belum ada: filter catatan AI Kasir
+  let todaySales = (todaySalesRes.data || []) as TodaySale[];
+  if (todaySalesRes.error) {
+    const { data: fallback } = await supabase
+      .from("orders")
+      .select("id, total, catatan, metode_bayar, created_at")
+      .eq("business_id", business.id)
+      .eq("order_date", today)
+      .ilike("catatan", "%AI Kasir%")
+      .order("created_at", { ascending: false });
+    todaySales = (fallback || []) as TodaySale[];
+  }
 
   return (
     <AiKasirClient
       userId={user.id}
       businessId={business.id}
       businessName={business.name}
-      products={(products || []) as Product[]}
-      activeShift={(activeShift || null) as KasirShift | null}
-      todayTransactions={(todayTxs || []) as TodayTx[]}
-      todayShifts={(todayShifts || []) as KasirShift[]}
+      storeName={settingsRes.error ? "" : (settingsRes.data?.store_name || "")}
+      products={(productsRes.data || []) as Product[]}
+      activeShift={(activeShiftRes.data || null) as KasirShift | null}
+      todaySales={todaySales}
+      todayShifts={(todayShiftsRes.data || []) as KasirShift[]}
+      staff={(staffRes.error ? [] : staffRes.data || []) as RetailStaff[]}
       today={today}
     />
   );

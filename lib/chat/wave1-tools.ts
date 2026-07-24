@@ -326,10 +326,11 @@ async function jualProduk(ctx: ChatSession, input: Record<string, unknown>) {
     hpp,
     laba: total - hpp,
     metodeBayar: metode,
-    catatan: `Gercep Chat — ${metode}`,
+    catatan: `AI Kasir retail · chat — ${metode}`,
+    skipFinance: true,
   });
   if (!result.ok) return `Gagal jual: ${result.error}`;
-  return `Terjual ${product.name} x${qty} = ${fmtRp(total)} (${metode}) di ${ctx.business.name}. Stok sisa ~${stock - qty}.`;
+  return `Terjual ${product.name} x${qty} = ${fmtRp(total)} (${metode}) di AI Kasir ${ctx.business.name}. Stok sisa ~${stock - qty}. Tidak masuk Keuangan Bisnis.`;
 }
 
 async function listKaryawan(ctx: ChatSession) {

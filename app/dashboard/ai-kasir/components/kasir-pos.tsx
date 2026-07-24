@@ -22,14 +22,15 @@ const METODE_BAYAR = [
   { val: "debit", lbl: "Debit" },
 ];
 
-const BTN_GRAD = { background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" } as const;
+const BTN_GRAD = { background: "#007A4D", color: "#FFFFFF" } as const;
 
 export default function KasirPOS({
-  userId, businessId, businessName, products, activeShift, today, omzetHariIni, totalOrder,
+  userId, businessId, businessName, products, activeShift, today, omzetHariIni, totalOrder, staffName,
 }: {
   userId: string; businessId: string; businessName: string;
   products: Product[]; activeShift: KasirShift | null;
   today: string; omzetHariIni: number; totalOrder: number;
+  staffName?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -150,6 +151,8 @@ export default function KasirPOS({
       shiftId: activeShift?.id || null,
       shiftTotal: activeShift ? Number(activeShift.total_transaksi) : 0,
       shiftOrders: activeShift ? Number(activeShift.total_order) : 0,
+      skipFinance: true,
+      staffName: staffName || null,
     });
 
     if (!result.ok) {
@@ -177,8 +180,8 @@ export default function KasirPOS({
           .join("");
         w.document.write(`<!DOCTYPE html><html><head><title>Struk</title>
 <style>body{font-family:monospace;font-size:12px;padding:12px;max-width:280px}table{width:100%}td{padding:2px 0}h1{font-size:14px;margin:0 0 8px}</style></head><body>
-<h1>${businessName || "Gercep Kasir"}</h1>
-<p>${today} · ${metodeBayar}</p>
+<h1>${businessName || "AI Kasir"}</h1>
+<p>${today} · ${metodeBayar}${staffName ? ` · ${staffName}` : ""}</p>
 <table>${rows}</table>
 <hr/>
 <p><strong>Total ${fmtRp(total)}</strong>${diskonNum ? ` (diskon ${fmtRp(diskonNum)})` : ""}</p>
@@ -197,35 +200,35 @@ export default function KasirPOS({
     router.refresh();
   };
 
-  const inputCls = "w-full rounded-xl border border-white/[0.08] bg-[#0A0A12] px-3 py-2.5 text-sm text-[#F0EFF8] outline-none focus:border-[#2DD4BF]/40 transition-colors";
+  const inputCls = "w-full rounded-xl border border-[#C5D4CB] bg-white px-3 py-2.5 text-sm text-[#0F1F17] outline-none focus:ring-2 focus:ring-[#007A4D]/25 transition-colors";
 
   return (
     <div>
       {/* KPI bar */}
       <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
         {[
-          { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF", icon: DollarSign },
-          { label: "Total order", value: String(totalOrder), color: "#8B5CF6", icon: ShoppingCart },
-          { label: "Margin rata²", value: margin > 0 ? margin + "%" : "—", color: "#F59E0B", icon: Package },
+          { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#007A4D", icon: DollarSign },
+          { label: "Total order", value: String(totalOrder), color: "#0F1F17", icon: ShoppingCart },
+          { label: "Margin rata²", value: margin > 0 ? margin + "%" : "—", color: "#B45309", icon: Package },
         ].map(k => (
-          <div key={k.label} className="rounded-2xl border p-3 sm:p-4" style={{ borderColor: k.color + "33", background: "#0D0D1A" }}>
+          <div key={k.label} className="rounded-2xl border p-3 sm:p-4" style={{ borderColor: k.color + "33", background: "#FFFFFF" }}>
             <div className="mb-1 flex items-center gap-1.5">
               <k.icon size={12} style={{ color: k.color }} />
-              <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-[#8B8AA0]">{k.label}</p>
+              <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-[#5C6B63]">{k.label}</p>
             </div>
-            <p className="text-sm sm:text-lg font-bold" style={{ color: k.color, fontFamily: "'JetBrains Mono', monospace" }}>{k.value}</p>
+            <p className="text-sm sm:text-lg font-bold" style={{ color: k.color, fontFamily: "ui-monospace, monospace" }}>{k.value}</p>
           </div>
         ))}
       </div>
 
       {/* Low stock alert */}
       {lowStockProducts.length > 0 && (
-        <div className="mb-4 rounded-xl border border-[#F59E0B]/20 bg-[#F59E0B]/5 p-3">
+        <div className="mb-4 rounded-xl border border-[#B45309]/25 bg-[#B45309]/8 p-3">
           <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle size={14} className="text-[#F59E0B]" />
-            <p className="text-xs font-semibold text-[#F59E0B]">Stok Hampir Habis</p>
+            <AlertTriangle size={14} className="text-[#B45309]" />
+            <p className="text-xs font-semibold text-[#B45309]">Stok Hampir Habis</p>
           </div>
-          <p className="text-[10px] text-[#8B8AA0]">
+          <p className="text-[10px] text-[#5C6B63]">
             {lowStockProducts.slice(0, 5).map(p => `${p.name} (${p.stock})`).join(" · ")}
             {lowStockProducts.length > 5 && ` +${lowStockProducts.length - 5} lainnya`}
           </p>
@@ -234,7 +237,7 @@ export default function KasirPOS({
 
       {/* Shift warning */}
       {!activeShift && (
-        <div className="mb-4 rounded-xl border border-dashed border-[#F59E0B]/30 bg-[#F59E0B]/5 p-3 text-center text-xs text-[#F59E0B]">
+        <div className="mb-4 rounded-xl border border-dashed border-[#B45309]/35 bg-[#B45309]/8 p-3 text-center text-xs text-[#B45309]">
           Belum buka shift. Buka shift dulu di tab Shift untuk tracking kas.
         </div>
       )}
@@ -242,14 +245,14 @@ export default function KasirPOS({
       {/* Main layout: Grid + Cart */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         {/* Product grid */}
-        <div className="overflow-hidden rounded-2xl border border-white/[0.08]" style={{ background: "#0D0D1A" }}>
-          <div className="border-b border-white/[0.06] p-3 sm:p-4">
-            <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-[#0A0A12] px-3 py-2.5">
-              <Search size={14} className="flex-shrink-0 text-[#2DD4BF]" />
+        <div className="overflow-hidden rounded-2xl border border-[#C5D4CB]" style={{ background: "#FFFFFF" }}>
+          <div className="border-b border-[#E3EBE6] p-3 sm:p-4">
+            <div className="flex items-center gap-3 rounded-xl border border-[#C5D4CB] bg-white px-3 py-2.5">
+              <Search size={14} className="flex-shrink-0 text-[#007A4D]" />
               <input type="text" placeholder="Cari produk, SKU, atau scan barcode..."
                 value={search} onChange={e => setSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-[#F0EFF8] placeholder:text-[#3A3B52] focus:outline-none" />
-              {search && <button type="button" onClick={() => setSearch("")} className="text-[#5A5B7A]"><X size={14} /></button>}
+                className="flex-1 bg-transparent text-sm text-[#0F1F17] placeholder:text-[#8A9A90] focus:outline-none" />
+              {search && <button type="button" onClick={() => setSearch("")} className="text-[#5C6B63]"><X size={14} /></button>}
             </div>
             <div className="mt-2 flex gap-1.5 overflow-x-auto scrollbar-none">
               {categories.map((cat) => (
@@ -259,8 +262,8 @@ export default function KasirPOS({
                   className={
                     "text-[11px] px-3 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " +
                     (activeCat === cat
-                      ? "border-[#2DD4BF]/50 text-[#2DD4BF] bg-[#2DD4BF]/15"
-                      : "border-white/[0.06] text-[#5A5B7A] hover:text-[#8B8AA0]")
+                      ? "border-[#007A4D]/50 text-[#007A4D] bg-[#007A4D]/12"
+                      : "border-[#E3EBE6] text-[#5C6B63] hover:text-[#5C6B63]")
                   }
                 >
                   {cat}
@@ -275,15 +278,15 @@ export default function KasirPOS({
                 className={
                   "text-[11px] px-3 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " +
                   (showAllStock
-                    ? "border-[#F59E0B]/50 text-[#F59E0B] bg-[#F59E0B]/10"
-                    : "border-white/[0.06] text-[#5A5B7A] hover:text-[#8B8AA0]")
+                    ? "border-[#B45309]/50 text-[#B45309] bg-[#B45309]/10"
+                    : "border-[#E3EBE6] text-[#5C6B63] hover:text-[#5C6B63]")
                 }
               >
                 {showAllStock ? "Mode: semua stok" : "Mode: siap jual"}
               </button>
             </div>
             {!showAllStock && (
-              <p className="mt-2 text-[10px] text-[#5A5B7A]">
+              <p className="mt-2 text-[10px] text-[#5C6B63]">
                 Menampilkan SKU siap jual (harga &gt; 0, bukan bahan baku). Set harga di Inventory untuk muncul di kasir.
               </p>
             )}
@@ -291,7 +294,7 @@ export default function KasirPOS({
 
           <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4 max-h-[60vh] overflow-y-auto scrollbar-none">
             {filtered.length === 0 ? (
-              <div className="col-span-full py-10 text-center text-sm text-[#3A3B52]">
+              <div className="col-span-full py-10 text-center text-sm text-[#8A9A90]">
                 {products.length === 0
                   ? "Belum ada produk. Tambah di Inventory."
                   : showAllStock
@@ -307,43 +310,43 @@ export default function KasirPOS({
                   className={"cursor-pointer overflow-hidden rounded-2xl border transition-shadow active:scale-[0.98] " +
                     (outOfStock || noPrice ? "opacity-50" : "")}
                   style={{
-                    borderColor: qty > 0 ? "rgba(45,212,191,.45)" : "rgba(255,255,255,0.06)",
-                    boxShadow: qty > 0 ? "0 0 0 1px rgba(45,212,191,.3), 0 8px 24px rgba(45,212,191,.1)" : "none",
-                    background: "#0A0A14",
+                    borderColor: qty > 0 ? "rgba(0,122,77,.45)" : "rgba(255,255,255,0.06)",
+                    boxShadow: qty > 0 ? "0 0 0 1px rgba(0,122,77,.3), 0 8px 24px rgba(0,122,77,.1)" : "none",
+                    background: "#F7FAF8",
                   }}
                   onClick={() => !outOfStock && addToCart(p)}>
                   <div className="flex items-center justify-center py-5"
-                    style={{ background: qty > 0 ? "rgba(45,212,191,.08)" : "rgba(255,255,255,.02)" }}>
-                    <Package size={28} style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52" }} />
+                    style={{ background: qty > 0 ? "rgba(0,122,77,.08)" : "rgba(255,255,255,.02)" }}>
+                    <Package size={28} style={{ color: qty > 0 ? "#007A4D" : "#8A9A90" }} />
                   </div>
                   <div className="p-2.5 sm:p-3">
                     {p.category && (
-                      <span className="mb-1 inline-block rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] text-[#5A5B7A]">
+                      <span className="mb-1 inline-block rounded-full bg-[#E3EBE6] px-2 py-0.5 text-[9px] text-[#5C6B63]">
                         {p.category}
                       </span>
                     )}
-                    <p className="mb-0.5 truncate text-sm font-medium text-[#F0EFF8]">{p.name}</p>
-                    <p className="mb-2 text-[9px] text-[#5A5B7A]">
+                    <p className="mb-0.5 truncate text-sm font-medium text-[#0F1F17]">{p.name}</p>
+                    <p className="mb-2 text-[9px] text-[#5C6B63]">
                       Stok: {p.stock}{p.sku ? ` · ${p.sku}` : ""}{noPrice ? " · tanpa harga" : ""}
                     </p>
                     <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-semibold sm:text-sm" style={{ color: "#2DD4BF", fontFamily: "'JetBrains Mono', monospace" }}>
+                      <p className="text-xs font-semibold sm:text-sm" style={{ color: "#007A4D", fontFamily: "ui-monospace, monospace" }}>
                         {fmtRp(p.price || 0)}
                       </p>
                       <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                         <button type="button" onClick={() => decFromCart(p.id)}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
                           style={qty > 0
-                            ? { borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }
-                            : { borderColor: "rgba(255,255,255,.06)", color: "#3A3B52" }}>
+                            ? { borderColor: "rgba(0,122,77,.4)", color: "#007A4D", background: "rgba(0,122,77,.08)" }
+                            : { borderColor: "rgba(255,255,255,.06)", color: "#8A9A90" }}>
                           <Minus size={11} />
                         </button>
                         <span className="w-5 text-center text-xs font-medium"
-                          style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52", fontFamily: "monospace" }}>{qty}</span>
+                          style={{ color: qty > 0 ? "#007A4D" : "#8A9A90", fontFamily: "monospace" }}>{qty}</span>
                         <button type="button" onClick={() => addToCart(p)}
                           disabled={outOfStock || noPrice || qty >= p.stock}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border sm:h-6 sm:w-6 disabled:opacity-30"
-                          style={{ borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }}>
+                          style={{ borderColor: "rgba(0,122,77,.4)", color: "#007A4D", background: "rgba(0,122,77,.08)" }}>
                           <Plus size={11} />
                         </button>
                       </div>
@@ -356,9 +359,9 @@ export default function KasirPOS({
         </div>
 
         {/* Desktop cart panel */}
-        <div className="hidden lg:block rounded-2xl border border-white/[0.08] overflow-hidden h-fit" style={{ background: "#0D0D1A" }}>
-          <div className="border-b border-white/[0.06] px-4 py-3">
-            <p className="text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">Keranjang ({cartCount})</p>
+        <div className="hidden lg:block rounded-2xl border border-[#C5D4CB] overflow-hidden h-fit" style={{ background: "#FFFFFF" }}>
+          <div className="border-b border-[#E3EBE6] px-4 py-3">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-[#007A4D]">Keranjang ({cartCount})</p>
           </div>
 
           <CartPanel
@@ -377,9 +380,9 @@ export default function KasirPOS({
       {cart.length > 0 && !cartOpen && (
         <button type="button" onClick={() => setCartOpen(true)}
           className="lg:hidden fixed left-4 right-4 bottom-20 z-[45] flex items-center justify-between rounded-2xl px-4 py-3.5 active:scale-[0.98]"
-          style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,.3)" }}>
+          style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(0,122,77,.3)" }}>
           <span className="flex items-center gap-2 text-sm font-bold">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#050508]/25 text-xs font-bold">{cartCount}</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/20 text-xs font-bold">{cartCount}</span>
             Lihat order
           </span>
           <span className="font-mono text-sm font-bold">{fmtRp(total)}</span>
@@ -388,13 +391,13 @@ export default function KasirPOS({
 
       {/* Mobile cart sheet */}
       {cartOpen && (
-        <div className="fixed inset-0 z-[80] flex items-end bg-[#050508]/80 backdrop-blur-sm lg:hidden" onClick={() => setCartOpen(false)}>
-          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-[#2DD4BF]/30 border-b-0 bg-[#1A1A28] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        <div className="fixed inset-0 z-[80] flex items-end bg-[#0F1F17]/50 backdrop-blur-sm lg:hidden" onClick={() => setCartOpen(false)}>
+          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-[#007A4D]/30 border-b-0 bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={e => e.stopPropagation()}>
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C5D4CB]" />
             <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#2DD4BF]">Keranjang ({cartCount})</p>
-              <button type="button" onClick={() => setCartOpen(false)} className="rounded-full bg-white/5 p-2 text-[#8B8AA0]">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#007A4D]">Keranjang ({cartCount})</p>
+              <button type="button" onClick={() => setCartOpen(false)} className="rounded-full bg-[#F2F6F4] p-2 text-[#5C6B63]">
                 <X size={16} />
               </button>
             </div>
@@ -413,7 +416,7 @@ export default function KasirPOS({
 
       {/* Success toast */}
       {successMsg && (
-        <div className="fixed bottom-24 left-1/2 z-[105] -translate-x-1/2 rounded-full border border-[#2DD4BF]/30 bg-[#0D0D1A] px-5 py-2.5 text-xs font-medium text-[#2DD4BF] shadow-lg">
+        <div className="fixed bottom-24 left-1/2 z-[105] -translate-x-1/2 rounded-full border border-[#007A4D]/30 bg-white px-5 py-2.5 text-xs font-medium text-[#007A4D] shadow-lg">
           <Check size={12} className="inline mr-1.5" />{successMsg}
         </div>
       )}
@@ -439,27 +442,27 @@ function CartPanel({
   return (
     <div>
       {/* Items */}
-      <div className={pad + (compact ? "" : " border-b border-white/[0.06]")}>
+      <div className={pad + (compact ? "" : " border-b border-[#E3EBE6]")}>
         {cart.length === 0 ? (
-          <p className="py-6 text-center text-xs text-[#3A3B52]">Pilih produk dulu</p>
+          <p className="py-6 text-center text-xs text-[#8A9A90]">Pilih produk dulu</p>
         ) : (
           <div className="flex flex-col gap-2 mb-3">
             {cart.map(c => (
               <div key={c.product.id} className="flex items-center gap-2 text-xs">
-                <span className="flex-1 min-w-0 truncate text-[#8B8AA0]">{c.product.name}</span>
+                <span className="flex-1 min-w-0 truncate text-[#5C6B63]">{c.product.name}</span>
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={() => onDec(c.product.id)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center border border-white/[0.08] text-[#8B8AA0]">
+                    className="w-6 h-6 rounded-lg flex items-center justify-center border border-[#C5D4CB] text-[#5C6B63]">
                     <Minus size={10} />
                   </button>
-                  <span className="w-5 text-center font-mono text-[#F0EFF8]">{c.qty}</span>
+                  <span className="w-5 text-center font-mono text-[#0F1F17]">{c.qty}</span>
                   <button type="button" onClick={() => onAdd(c.product)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center border border-[#2DD4BF]/40 text-[#2DD4BF] bg-[#2DD4BF]/[0.08]">
+                    className="w-6 h-6 rounded-lg flex items-center justify-center border border-[#007A4D]/40 text-[#007A4D] bg-[#007A4D]/10">
                     <Plus size={10} />
                   </button>
                 </div>
-                <span className="font-mono text-[#C4C3D4] w-20 text-right">{fmtRp((c.product.price || 0) * c.qty)}</span>
-                <button type="button" onClick={() => onRemove(c.product.id)} className="text-[#5A5B7A] hover:text-[#EC4899]">
+                <span className="font-mono text-[#3D4F45] w-20 text-right">{fmtRp((c.product.price || 0) * c.qty)}</span>
+                <button type="button" onClick={() => onRemove(c.product.id)} className="text-[#5C6B63] hover:text-[#B42318]">
                   <Trash2 size={11} />
                 </button>
               </div>
@@ -468,29 +471,29 @@ function CartPanel({
         )}
 
         <div className="h-px bg-white/[0.06] mb-2" />
-        <div className="flex justify-between text-xs mb-1"><span className="text-[#5A5B7A]">Subtotal</span><span className="font-mono text-[#C4C3D4]">{fmtRp(subtotal)}</span></div>
+        <div className="flex justify-between text-xs mb-1"><span className="text-[#5C6B63]">Subtotal</span><span className="font-mono text-[#3D4F45]">{fmtRp(subtotal)}</span></div>
         <div className="flex justify-between items-center text-xs mb-2">
-          <span className="text-[#5A5B7A]">Diskon</span>
+          <span className="text-[#5C6B63]">Diskon</span>
           <input type="number" placeholder="0" value={diskon} onChange={e => setDiskon(e.target.value)}
-            className="w-24 text-right text-xs px-2 py-1 rounded-lg border border-white/[0.08] bg-[#0A0A12] text-[#F0EFF8] focus:outline-none font-mono" />
+            className="w-24 text-right text-xs px-2 py-1 rounded-lg border border-[#C5D4CB] bg-white text-[#0F1F17] focus:outline-none font-mono" />
         </div>
         <div className="h-px bg-white/[0.06] mb-2" />
         <div className="flex justify-between items-baseline mb-1">
-          <span className="text-sm font-medium text-[#F0EFF8]">Total</span>
-          <span className="text-base font-semibold text-[#2DD4BF]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmtRp(total)}</span>
+          <span className="text-sm font-medium text-[#0F1F17]">Total</span>
+          <span className="text-base font-semibold text-[#007A4D]" style={{ fontFamily: "ui-monospace, monospace" }}>{fmtRp(total)}</span>
         </div>
-        <p className="text-[10px] text-[#5A5B7A]">Laba <span className="text-[#2DD4BF]">{fmtRp(laba)}</span> · margin {margin}%</p>
+        <p className="text-[10px] text-[#5C6B63]">Laba <span className="text-[#007A4D]">{fmtRp(laba)}</span> · margin {margin}%</p>
       </div>
 
       {/* Metode bayar */}
-      <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
-        <p className="text-[10px] text-[#5A5B7A] uppercase tracking-widest mb-2">Metode Bayar</p>
+      <div className={compact ? "pt-3" : "px-4 py-3 border-b border-[#E3EBE6]"}>
+        <p className="text-[10px] text-[#5C6B63] uppercase tracking-widest mb-2">Metode Bayar</p>
         <div className="grid grid-cols-4 gap-1.5">
           {METODE_BAYAR.map(m => (
             <button key={m.val} type="button" onClick={() => setMetodeBayar(m.val)}
               className="py-2 rounded-lg border text-center text-[11px] font-medium"
               style={metodeBayar === m.val
-                ? { borderColor: "rgba(45,212,191,.45)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }
+                ? { borderColor: "rgba(0,122,77,.45)", color: "#007A4D", background: "rgba(0,122,77,.08)" }
                 : { borderColor: "rgba(255,255,255,.06)", color: "#5A5B7A" }}>
               {m.lbl}
             </button>
@@ -500,12 +503,12 @@ function CartPanel({
 
       {/* Tunai input */}
       {metodeBayar === "tunai" && cart.length > 0 && (
-        <div className={compact ? "pt-3" : "px-4 py-3 border-b border-white/[0.06]"}>
-          <p className="text-[10px] text-[#5A5B7A] uppercase tracking-widest mb-2">Bayar Tunai (Rp)</p>
+        <div className={compact ? "pt-3" : "px-4 py-3 border-b border-[#E3EBE6]"}>
+          <p className="text-[10px] text-[#5C6B63] uppercase tracking-widest mb-2">Bayar Tunai (Rp)</p>
           <input type="number" placeholder={String(Math.ceil(total / 1000) * 1000)}
             value={bayar} onChange={e => setBayar(e.target.value)} className={inputCls + " font-mono"} />
           {kembali > 0 && (
-            <p className="mt-1.5 text-xs text-[#2DD4BF]">Kembali <span className="font-mono font-semibold">{fmtRp(kembali)}</span></p>
+            <p className="mt-1.5 text-xs text-[#007A4D]">Kembali <span className="font-mono font-semibold">{fmtRp(kembali)}</span></p>
           )}
         </div>
       )}

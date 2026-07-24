@@ -2,27 +2,29 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Clock, Play, Square, DollarSign, ShoppingCart, CheckCircle } from "lucide-react";
+import { Clock, Play, Square, CheckCircle } from "lucide-react";
 import type { KasirShift } from "../page";
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 function fmtTime(iso: string) { return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }); }
 
 export default function KasirShiftPanel({
-  userId, businessId, activeShift, todayShifts, omzetHariIni, totalOrder,
+  userId, businessId, activeShift, todayShifts, omzetHariIni, totalOrder, staffId, staffName,
 }: {
   userId: string; businessId: string;
   activeShift: KasirShift | null; todayShifts: KasirShift[];
   omzetHariIni: number; totalOrder: number;
+  staffId?: string | null; staffName?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
-
   const [modalAwal, setModalAwal] = useState("");
   const [kasAkhir, setKasAkhir] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const inputCls = "w-full rounded-xl border border-white/[0.08] bg-[#0A0A12] px-3 py-2.5 text-sm text-[#F0EFF8] outline-none focus:border-[#2DD4BF]/40 transition-colors font-mono";
+  const inputCls =
+    "w-full rounded-xl border border-[#C5D4CB] bg-white px-3 py-2.5 text-sm text-[#0F1F17] outline-none focus:ring-2 focus:ring-[#007A4D]/25 font-mono";
+  const card = "rounded-2xl border border-[#C5D4CB] bg-white p-5 shadow-sm";
 
   const handleOpenShift = async () => {
     const modal = Number(modalAwal) || 0;
@@ -32,6 +34,8 @@ export default function KasirShiftPanel({
       user_id: userId,
       modal_awal: modal,
       status: "open",
+      staff_id: staffId || null,
+      staff_name: staffName || null,
     });
     setModalAwal("");
     setLoading(false);
@@ -52,64 +56,61 @@ export default function KasirShiftPanel({
     router.refresh();
   };
 
-  const closedShifts = todayShifts.filter(s => s.status === "closed");
+  const closedShifts = todayShifts.filter((s) => s.status === "closed");
 
   return (
     <div>
-      {/* Active shift / Open shift */}
-      <div className="mb-5 rounded-2xl border border-white/[0.08] p-5" style={{ background: "#0D0D1A" }}>
+      <div className={"mb-5 " + card}>
         {activeShift ? (
           <>
-            <div className="mb-4 flex items-center gap-2">
-              <div className="h-2.5 w-2.5 rounded-full bg-[#4ADE80] animate-pulse" />
-              <p className="text-sm font-semibold text-[#4ADE80]">Shift Aktif</p>
-              <span className="ml-auto text-[10px] text-[#5A5B7A] font-mono">Mulai {fmtTime(activeShift.opened_at)}</span>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#007A4D]" />
+              <p className="text-sm font-semibold text-[#007A4D]">Shift aktif</p>
+              {activeShift.staff_name && (
+                <span className="rounded-full bg-[#007A4D]/10 px-2 py-0.5 text-[10px] font-semibold text-[#007A4D]">
+                  {activeShift.staff_name}
+                </span>
+              )}
+              <span className="ml-auto font-mono text-[10px] text-[#5C6B63]">Mulai {fmtTime(activeShift.opened_at)}</span>
             </div>
 
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: "Modal Awal", value: fmtRp(Number(activeShift.modal_awal)), color: "#8B5CF6", icon: DollarSign },
-                { label: "Total Transaksi", value: fmtRp(Number(activeShift.total_transaksi)), color: "#2DD4BF", icon: DollarSign },
-                { label: "Total Order", value: String(Number(activeShift.total_order)), color: "#F59E0B", icon: ShoppingCart },
-                { label: "Estimasi Kas", value: fmtRp(Number(activeShift.modal_awal) + Number(activeShift.total_transaksi)), color: "#38BDF8", icon: DollarSign },
-              ].map(k => (
-                <div key={k.label} className="rounded-xl border p-3" style={{ borderColor: k.color + "22", background: k.color + "08" }}>
-                  <div className="mb-1 flex items-center gap-1">
-                    <k.icon size={10} style={{ color: k.color }} />
-                    <p className="text-[9px] uppercase tracking-wide" style={{ color: k.color + "99" }}>{k.label}</p>
-                  </div>
-                  <p className="text-sm font-bold" style={{ color: k.color, fontFamily: "'JetBrains Mono', monospace" }}>{k.value}</p>
+                { label: "Modal awal", value: fmtRp(Number(activeShift.modal_awal)), color: "#0F1F17" },
+                { label: "Omzet shift", value: fmtRp(Number(activeShift.total_transaksi)), color: "#007A4D" },
+                { label: "Order", value: String(Number(activeShift.total_order)), color: "#B45309" },
+                { label: "Estimasi kas", value: fmtRp(Number(activeShift.modal_awal) + Number(activeShift.total_transaksi)), color: "#1D4ED8" },
+              ].map((k) => (
+                <div key={k.label} className="rounded-xl bg-[#F2F6F4] p-3">
+                  <p className="mb-1 text-[9px] uppercase tracking-wide text-[#5C6B63]">{k.label}</p>
+                  <p className="font-mono text-sm font-bold" style={{ color: k.color }}>{k.value}</p>
                 </div>
               ))}
             </div>
 
             <div className="mb-3">
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-[#8B8AA0]">Kas Akhir (Rp) — hitung uang di laci</label>
-              <input type="number" className={inputCls} placeholder="Hitung uang tunai di laci kas"
-                value={kasAkhir} onChange={e => setKasAkhir(e.target.value)} />
+              <label className="mb-1 block text-[10px] uppercase tracking-wide text-[#5C6B63]">Kas akhir (Rp)</label>
+              <input type="number" className={inputCls} placeholder="Hitung uang di laci"
+                value={kasAkhir} onChange={(e) => setKasAkhir(e.target.value)} />
             </div>
 
             {kasAkhir && (
-              <div className="mb-3 rounded-xl border border-white/[0.06] bg-[#0A0A12]/60 p-3">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[#8B8AA0]">Estimasi Kas</span>
-                  <span className="font-mono text-[#2DD4BF]">{fmtRp(Number(activeShift.modal_awal) + Number(activeShift.total_transaksi))}</span>
+              <div className="mb-3 rounded-xl bg-[#F7FAF8] p-3 text-xs">
+                <div className="mb-1 flex justify-between">
+                  <span className="text-[#5C6B63]">Estimasi</span>
+                  <span className="font-mono text-[#007A4D]">
+                    {fmtRp(Number(activeShift.modal_awal) + Number(activeShift.total_transaksi))}
+                  </span>
                 </div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[#8B8AA0]">Kas Akhir (dihitung)</span>
-                  <span className="font-mono text-[#F0EFF8]">{fmtRp(Number(kasAkhir))}</span>
-                </div>
-                <div className="h-px bg-white/[0.06] my-1.5" />
                 {(() => {
                   const estimasi = Number(activeShift.modal_awal) + Number(activeShift.total_transaksi);
                   const selisih = Number(kasAkhir) - estimasi;
-                  const color = selisih === 0 ? "#4ADE80" : selisih > 0 ? "#F59E0B" : "#EC4899";
+                  const color = selisih === 0 ? "#007A4D" : selisih > 0 ? "#B45309" : "#B42318";
                   return (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-[#8B8AA0]">Selisih</span>
+                    <div className="flex justify-between">
+                      <span className="text-[#5C6B63]">Selisih</span>
                       <span className="font-mono font-semibold" style={{ color }}>
                         {selisih >= 0 ? "+" : ""}{fmtRp(selisih)}
-                        {selisih === 0 && " (pas)"}
                       </span>
                     </div>
                   );
@@ -118,58 +119,58 @@ export default function KasirShiftPanel({
             )}
 
             <button type="button" onClick={handleCloseShift} disabled={loading}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#EC4899]/30 bg-[#EC4899]/10 py-3 text-sm font-semibold text-[#EC4899] disabled:opacity-40">
-              <Square size={14} /> {loading ? "Menutup..." : "Tutup Shift"}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#B42318]/30 bg-[#B42318]/8 py-3 text-sm font-semibold text-[#B42318] disabled:opacity-40">
+              <Square size={14} /> {loading ? "Menutup…" : "Tutup shift"}
             </button>
           </>
         ) : (
           <>
             <div className="mb-4 flex items-center gap-2">
-              <Clock size={18} className="text-[#8B8AA0]" />
-              <p className="text-sm font-semibold">Buka Shift Baru</p>
+              <Clock size={18} className="text-[#5C6B63]" />
+              <p className="text-sm font-semibold text-[#0F1F17]">Buka shift baru</p>
             </div>
-            <p className="mb-3 text-xs text-[#5A5B7A]">
-              Masukkan modal awal kas (uang tunai di laci) untuk memulai shift.
+            <p className="mb-3 text-xs text-[#5C6B63]">
+              Modal awal kas di laci. Kasir: <strong>{staffName || "—"}</strong>
+              {" · "}Omzet hari ini (modul): {fmtRp(omzetHariIni)} / {totalOrder} order
             </p>
             <div className="mb-4">
-              <label className="mb-1 block text-[10px] uppercase tracking-wide text-[#8B8AA0]">Modal Awal (Rp)</label>
+              <label className="mb-1 block text-[10px] uppercase tracking-wide text-[#5C6B63]">Modal awal (Rp)</label>
               <input type="number" className={inputCls} placeholder="Contoh: 200000"
-                value={modalAwal} onChange={e => setModalAwal(e.target.value)} />
+                value={modalAwal} onChange={(e) => setModalAwal(e.target.value)} />
             </div>
             <button type="button" onClick={handleOpenShift} disabled={loading}
-              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}>
-              <Play size={14} /> {loading ? "Membuka..." : "Buka Shift"}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#007A4D] py-3 text-sm font-semibold text-white disabled:opacity-40">
+              <Play size={14} /> {loading ? "Membuka…" : "Buka shift"}
             </button>
           </>
         )}
       </div>
 
-      {/* Riwayat shift hari ini */}
       {closedShifts.length > 0 && (
-        <div className="rounded-2xl border border-white/[0.08] p-5" style={{ background: "#0D0D1A" }}>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8B8AA0]">
-            <CheckCircle size={12} className="inline mr-1" /> Riwayat Shift Hari Ini
+        <div className={card}>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#5C6B63]">
+            <CheckCircle size={12} className="mr-1 inline" /> Riwayat shift hari ini
           </p>
           <div className="space-y-2">
-            {closedShifts.map(s => {
+            {closedShifts.map((s) => {
               const estimasi = Number(s.modal_awal) + Number(s.total_transaksi);
               const selisih = Number(s.kas_akhir) - estimasi;
               return (
-                <div key={s.id} className="rounded-xl border border-white/[0.06] bg-[#0A0A12]/60 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-[#F0EFF8]">
+                <div key={s.id} className="rounded-xl bg-[#F7FAF8] p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-medium text-[#0F1F17]">
                       {fmtTime(s.opened_at)} — {s.closed_at ? fmtTime(s.closed_at) : "—"}
+                      {s.staff_name ? ` · ${s.staff_name}` : ""}
                     </p>
-                    <span className="rounded-full bg-[#4ADE80]/10 px-2 py-0.5 text-[9px] font-semibold text-[#4ADE80]">Selesai</span>
+                    <span className="rounded-full bg-[#007A4D]/10 px-2 py-0.5 text-[9px] font-semibold text-[#007A4D]">Selesai</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
-                    <div><span className="text-[#5A5B7A]">Modal</span><p className="font-mono text-[#8B8AA0]">{fmtRp(Number(s.modal_awal))}</p></div>
-                    <div><span className="text-[#5A5B7A]">Omzet</span><p className="font-mono text-[#2DD4BF]">{fmtRp(Number(s.total_transaksi))}</p></div>
-                    <div><span className="text-[#5A5B7A]">Order</span><p className="font-mono text-[#8B8AA0]">{Number(s.total_order)}</p></div>
+                    <div><span className="text-[#5C6B63]">Modal</span><p className="font-mono">{fmtRp(Number(s.modal_awal))}</p></div>
+                    <div><span className="text-[#5C6B63]">Omzet</span><p className="font-mono text-[#007A4D]">{fmtRp(Number(s.total_transaksi))}</p></div>
+                    <div><span className="text-[#5C6B63]">Order</span><p className="font-mono">{Number(s.total_order)}</p></div>
                     <div>
-                      <span className="text-[#5A5B7A]">Selisih</span>
-                      <p className="font-mono" style={{ color: selisih === 0 ? "#4ADE80" : selisih > 0 ? "#F59E0B" : "#EC4899" }}>
+                      <span className="text-[#5C6B63]">Selisih</span>
+                      <p className="font-mono" style={{ color: selisih === 0 ? "#007A4D" : selisih > 0 ? "#B45309" : "#B42318" }}>
                         {selisih >= 0 ? "+" : ""}{fmtRp(selisih)}
                       </p>
                     </div>

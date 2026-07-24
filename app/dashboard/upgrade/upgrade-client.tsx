@@ -15,6 +15,7 @@ import {
   type PlanKey,
 } from "@/lib/payment/config";
 import { plansWithPrices } from "@/lib/payment/plans";
+import { publicInvoiceUrl } from "@/lib/auth/app-url";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import type { CurrentSub, PendingPayment, PaidPayment } from "./page";
 
@@ -42,6 +43,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   const [paymentWa, setPaymentWa] = useState(PAYMENT_WA);
   const [bankAccounts, setBankAccounts] = useState(BANK_ACCOUNTS);
   const [qrisImageUrl, setQrisImageUrl] = useState("");
+  const [appUrl, setAppUrl] = useState("");
   const [plans, setPlans] = useState(() => plansWithPrices());
   const [billingReady, setBillingReady] = useState(false);
 
@@ -66,6 +68,9 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
         }
         if (typeof d.qris_image_url === "string" && d.qris_image_url.trim()) {
           setQrisImageUrl(d.qris_image_url.trim());
+        }
+        if (typeof d.app_url === "string" && d.app_url.trim()) {
+          setAppUrl(d.app_url.trim());
         }
         if (d.plan_prices) setPlans(plansWithPrices(d.plan_prices));
         setBillingReady(!isPlaceholderPaymentConfig(wa, banks) || !!String(d.qris_image_url || "").trim());
@@ -97,7 +102,8 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
     paymentId: string;
     status: string;
   }) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://www.gercepos.id";
+    const fallback =
+      appUrl || (typeof window !== "undefined" ? window.location.origin : undefined);
     return buildInvoiceShareWaMessage({
       name: userName,
       email: userEmail,
@@ -105,7 +111,8 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       amount: opts.amount,
       invoice: opts.invoice,
       status: opts.status,
-      invoiceUrl: `${origin}/api/invoice/${opts.paymentId}`,
+      // Public /invoice/{uuid} — no login redirect (WA rejects auth-gated /api/invoice links)
+      invoiceUrl: publicInvoiceUrl(opts.paymentId, fallback),
       wa: paymentWa,
     });
   };
@@ -208,7 +215,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
               <MessageCircle size={12} /> Kirim link invoice ke WA
             </a>
             <a
-              href={`/api/invoice/${pendingPayment.id}`}
+              href={`/invoice/${pendingPayment.id}`}
               target="_blank"
               rel="noreferrer"
               className="text-xs text-[#38BDF8] hover:underline"
@@ -237,7 +244,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
         {lastPaidPayment && (
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
             <a
-              href={`/api/invoice/${lastPaidPayment.id}`}
+              href={`/invoice/${lastPaidPayment.id}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex text-xs font-medium text-[#38BDF8] hover:underline"

@@ -115,7 +115,7 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
     });
 
     setLoading("");
-    window.open(`/api/invoice/${p.id}`, "_blank");
+    window.open(`/invoice/${p.id}`, "_blank");
     router.refresh();
   };
 
@@ -241,7 +241,7 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
                     <div className="flex flex-col gap-1">
                       {p.confirmed_by && <span className="text-[9px] text-[#5A5B7A]">by admin</span>}
                       <a
-                        href={`/api/invoice/${p.id}`}
+                        href={`/invoice/${p.id}`}
                         target="_blank"
                         rel="noreferrer"
                         className="text-[10px] font-medium text-[#38BDF8] hover:underline"

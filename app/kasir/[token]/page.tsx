@@ -1,22 +1,24 @@
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { createPublicKasirDb, resolveEmployeeByToken } from "@/lib/kasir/public-db";
 import KasirPublicClient from "./kasir-public-client";
 import { normalizeMenus } from "@/app/dashboard/fnb/lib/calc";
 import { todayWib } from "@/lib/date";
 
 export default async function KasirPublicPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const db = createPublicKasirDb();
 
-  const { data: employee } = await supabase
-    .from("employees")
-    .select("*")
-    .eq("kasir_token", token)
-    .eq("aktif", true)
-    .single();
+  if (!db) {
+    return (
+      <div style={{ background: "#070711", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif", color: "#F0EFF8" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "18px", fontWeight: 600, marginBottom: ".5rem" }}>Kasir belum siap</div>
+          <div style={{ fontSize: "13px", color: "#5A5B7A" }}>Hubungi admin — konfigurasi server belum lengkap.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const employee = await resolveEmployeeByToken(db, token);
 
   if (!employee) {
     return (
@@ -30,11 +32,11 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
     );
   }
 
-  const { data: businessData } = await supabase
+  const { data: businessData } = await db
     .from("businesses")
     .select("id, name, type, user_id")
     .eq("id", employee.business_id)
-    .single();
+    .maybeSingle();
 
   if (!businessData) {
     return (
@@ -52,13 +54,13 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
   const today = todayWib();
 
   const [{ data: menus }, { data: todayOrders }] = await Promise.all([
-    supabase
+    db
       .from("menus")
       .select("*, menu_recipes(*, products(id, name, cost, stock))")
       .eq("business_id", business.id)
       .eq("status", "aktif")
       .order("kategori"),
-    supabase
+    db
       .from("orders")
       .select("total, hpp, laba")
       .eq("business_id", business.id)
@@ -70,11 +72,17 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
   const laba = todayOrders?.reduce((s, o) => s + Number(o.laba || 0), 0) || 0;
   const totalOrders = todayOrders?.length || 0;
   const totalHpp = todayOrders?.reduce((s, o) => s + Number(o.hpp || 0), 0) || 0;
-  const foodCost = omzet > 0 ? Math.round(totalHpp / omzet * 100) : 0;
+  const foodCost = omzet > 0 ? Math.round((totalHpp / omzet) * 100) : 0;
 
   return (
     <KasirPublicClient
-      employee={{ id: employee.id, nama: employee.nama, jabatan: employee.jabatan, kasir_token: token, webauthn_credential_id: employee.webauthn_credential_id }}
+      employee={{
+        id: employee.id,
+        nama: employee.nama,
+        jabatan: employee.jabatan,
+        kasir_token: token,
+        webauthn_credential_id: employee.webauthn_credential_id,
+      }}
       business={business}
       ownerUserId={business.user_id}
       menus={normalizeMenus(menus || [])}

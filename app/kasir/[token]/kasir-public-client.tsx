@@ -1,10 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 import { calcHpp } from "@/app/dashboard/fnb/lib/calc";
 import type { FnbMenu } from "@/app/dashboard/fnb/lib/calc";
-import { validateCartStock, deductStockForSale, restoreStockApplies } from "@/app/dashboard/fnb/lib/process-order";
+import { validateCartStock } from "@/app/dashboard/fnb/lib/process-order";
 import { buildKasirReceiptHtml, shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import ReceiptPrintPreview from "@/app/dashboard/fnb/components/receipt-print-preview";
 import KasirPrintSettingsButton from "@/app/dashboard/fnb/components/kasir-print-settings-sheet";
@@ -18,6 +17,17 @@ import { isPrinterSetupDone, saveLastReceipt } from "@/app/dashboard/fnb/lib/las
 import { KASIR, kasirBtnGrad, kasirFonts, kasirShell } from "@/app/dashboard/fnb/lib/kasir-theme";
 import KasirTablePicker from "@/app/dashboard/fnb/components/kasir-table-picker";
 import { buildOrderCatatan } from "@/app/dashboard/fnb/lib/kasir-order-meta";
+
+async function kasirApi(body: Record<string, unknown>) {
+  const res = await fetch("/api/kasir/public", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Gagal");
+  return data;
+}
 
 type Menu = FnbMenu;
 type Employee = { id: string; nama: string; jabatan: string | null; kasir_token: string; webauthn_credential_id: string | null };
@@ -38,11 +48,10 @@ function b642buf(b64: string): ArrayBuffer {
   return buf.buffer;
 }
 
-export default function KasirPublicClient({ employee: emp, business, ownerUserId, menus, initialStats, today }: {
+export default function KasirPublicClient({ employee: emp, business, ownerUserId: _ownerUserId, menus, initialStats, today }: {
   employee: Employee; business: Business; ownerUserId: string; menus: Menu[];
   initialStats: Stats; today: string;
 }) {
-  const supabase = createClient();
   const [employee, setEmployee] = useState(emp);
   const [screen, setScreen] = useState<"auth"|"scanning"|"welcome"|"kasir">("auth");
   const [authMode, setAuthMode] = useState<"register"|"login">(emp.webauthn_credential_id ? "login" : "register");
@@ -69,6 +78,7 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
   const [showPrinterWizard, setShowPrinterWizard] = useState(false);
   const [receiptVersion, setReceiptVersion] = useState(0);
   const [shiftReport, setShiftReport] = useState<ShiftReportData | null>(null);
+  const token = emp.kasir_token;
 
   useEffect(() => {
     const update = () => setClock(new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -81,15 +91,15 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
     if (screen === "kasir" && !isPrinterSetupDone()) setShowPrinterWizard(true);
   }, [screen]);
 
-  // ===== WEBAUTHN REGISTER =====
+  // WebAuthn optional — if unsupported/cancelled, fall through to check-in (old share-link UX).
   const doRegister = async () => {
-    if (!window.PublicKeyCredential) {
-      setFpStatus("Browser tidak support WebAuthn. Coba Safari atau Chrome terbaru.");
-      return;
-    }
     setScreen("scanning");
     setFpStatus("Mendaftarkan sidik jari...");
     try {
+      if (!window.PublicKeyCredential || location.protocol !== "https:") {
+        await doCheckin();
+        return;
+      }
       const userId = new TextEncoder().encode(employee.id);
       const credential = await navigator.credentials.create({
         publicKey: {
@@ -113,106 +123,74 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
         }
       }) as PublicKeyCredential | null;
 
-      if (!credential) throw new Error("Credential null");
-
-      const credId = buf2b64(credential.rawId);
-      
-      // Simpan credential ID ke database
-      const { error } = await supabase
-        .from("employees")
-        .update({ webauthn_credential_id: credId })
-        .eq("id", employee.id);
-
-      if (error) throw error;
-
-      setEmployee(prev => ({ ...prev, webauthn_credential_id: credId }));
+      if (credential) {
+        const credId = buf2b64(credential.rawId);
+        try {
+          await kasirApi({ action: "webauthn", token, credentialId: credId });
+          setEmployee(prev => ({ ...prev, webauthn_credential_id: credId }));
+        } catch (e) {
+          console.warn("WebAuthn save skipped:", e);
+        }
+      }
       await doCheckin();
     } catch (e: unknown) {
-      console.error("Register error:", e);
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("cancel") || msg.includes("abort") || msg.includes("NotAllowedError")) {
-        setFpStatus("Dibatalkan. Coba lagi.");
-      } else {
-        setFpStatus("Gagal daftar sidik jari: " + msg);
-      }
-      setScreen("auth");
+      console.warn("Register fallback to checkin:", e);
+      setFpStatus("Lanjut tanpa sidik jari...");
+      await doCheckin();
     }
   };
 
-  // ===== WEBAUTHN LOGIN =====
   const doLogin = async () => {
-    if (!window.PublicKeyCredential) {
-      setFpStatus("Browser tidak support WebAuthn.");
-      return;
-    }
     setScreen("scanning");
     setFpStatus("Verifikasi sidik jari...");
     try {
+      if (!window.PublicKeyCredential || location.protocol !== "https:") {
+        await doCheckin();
+        return;
+      }
       const allowCreds = employee.webauthn_credential_id ? [{
         id: b642buf(employee.webauthn_credential_id),
         type: "public-key" as const,
       }] : [];
 
-      const assertion = await navigator.credentials.get({
+      await navigator.credentials.get({
         publicKey: {
           challenge: crypto.getRandomValues(new Uint8Array(32)),
           userVerification: "required",
           timeout: 60000,
           allowCredentials: allowCreds,
         }
-      }) as PublicKeyCredential | null;
-
-      if (!assertion) throw new Error("Assertion null");
+      });
       await doCheckin();
     } catch (e: unknown) {
-      console.error("Login error:", e);
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("cancel") || msg.includes("abort") || msg.includes("NotAllowedError")) {
-        setFpStatus("Dibatalkan. Coba lagi.");
-      } else {
-        setFpStatus("Verifikasi gagal: " + msg);
-      }
-      setScreen("auth");
+      console.warn("Login fallback to checkin:", e);
+      setFpStatus("Lanjut tanpa sidik jari...");
+      await doCheckin();
     }
   };
 
   const doCheckin = async () => {
     const jam = new Date().toTimeString().slice(0, 5);
-    const { data } = await supabase.from("checkins").insert({
-      employee_id: employee.id,
-      business_id: business.id,
-      tanggal: today,
-      jam_masuk: jam,
-    }).select("id").single();
-    if (data) setCheckinId(data.id);
+    try {
+      const data = await kasirApi({ action: "checkin", token, jam });
+      if (data.checkinId) setCheckinId(data.checkinId);
+    } catch (e) {
+      console.warn("Checkin failed (continuing):", e);
+    }
     setScreen("welcome");
   };
 
   const prepareShiftReport = async () => {
     const jamKeluar = new Date().toTimeString().slice(0, 5);
     let jamMasuk = "—";
-    if (checkinId) {
-      const { data: ci } = await supabase.from("checkins").select("jam_masuk").eq("id", checkinId).maybeSingle();
-      jamMasuk = ci?.jam_masuk || "—";
+    let orders: ShiftReportData["orders"] = [];
+    try {
+      const data = await kasirApi({ action: "shiftOrders", token, checkinId });
+      jamMasuk = data.jamMasuk || "—";
+      orders = data.orders || [];
+    } catch (e) {
+      console.warn("Shift report load failed:", e);
     }
-
-    const { data: orderRows } = await supabase
-      .from("orders")
-      .select("id, total, created_at, order_items(qty, menus(nama))")
-      .eq("business_id", business.id)
-      .eq("user_id", employee.id)
-      .eq("order_date", today)
-      .order("created_at", { ascending: false });
-
-    const orders = (orderRows || []).map(o => {
-      const items = (o.order_items || []) as { qty: number; menus: { nama: string } | { nama: string }[] | null }[];
-      const itemsSummary = items.map(i => {
-        const m = i.menus;
-        const nama = Array.isArray(m) ? m[0]?.nama : m?.nama;
-        return `${nama || "Menu"} x${i.qty}`;
-      }).join(", ");
-      return { id: o.id, total: Number(o.total), created_at: o.created_at, itemsSummary };
-    });
 
     setShiftReport({
       businessName: business.name,
@@ -230,7 +208,16 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
 
   const finalizeCheckout = async () => {
     if (checkinId) {
-      await supabase.from("checkins").update({ jam_keluar: new Date().toTimeString().slice(0, 5) }).eq("id", checkinId);
+      try {
+        await kasirApi({
+          action: "checkout",
+          token,
+          checkinId,
+          jam: new Date().toTimeString().slice(0, 5),
+        });
+      } catch (e) {
+        console.warn("Checkout failed:", e);
+      }
     }
     setShiftReport(null);
     setScreen("auth");
@@ -286,85 +273,47 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
 
     setLoading(true);
     const orderCatatan = buildOrderCatatan(meja, catatan);
-    const { data: order, error } = await supabase.from("orders").insert({
-      user_id: employee.id,
-      business_id: business.id,
-      total, diskon: discNum, hpp: totalHpp, laba,
-      metode_bayar: metodeBayar, catatan: orderCatatan,
-      order_date: today,
-    }).select("id").single();
+    try {
+      const result = await kasirApi({
+        action: "sale",
+        token,
+        cartItems: cartItems.map(c => ({ menu: c.menu, qty: c.qty })),
+        diskon: discNum,
+        metodeBayar,
+        catatan: orderCatatan,
+      });
 
-    if (error || !order) { alert("Gagal: " + error?.message); setLoading(false); return; }
+      const orderId = result.orderId as string;
+      const saleTotal = Number(result.total);
+      const saleLaba = Number(result.laba);
 
-    const { error: itemsErr } = await supabase.from("order_items").insert(cartItems.map(c => ({
-      order_id: order.id, menu_id: c.menu.id, qty: c.qty,
-      harga_jual: c.menu.harga_jual, hpp: calcHpp(c.menu),
-      laba: (c.menu.harga_jual - calcHpp(c.menu)) * c.qty,
-    })));
-    if (itemsErr) {
-      await supabase.from("orders").delete().eq("id", order.id);
-      alert("Gagal simpan item: " + itemsErr.message);
-      setLoading(false);
-      return;
+      const bayarNum = Number(bayar) || 0;
+      const kembali = metodeBayar === "tunai" && bayarNum > saleTotal ? bayarNum - saleTotal : 0;
+      const widthMm = getKasirPrintSettings().paperWidthMm;
+      const receipt = buildKasirReceiptHtml({
+        businessName: business.name,
+        orderNo: shortOrderNo(orderId),
+        kasirName: employee.nama,
+        items: cartItems.map(c => ({ nama: c.menu.nama, qty: c.qty, harga: c.menu.harga_jual })),
+        subtotal,
+        diskon: discNum,
+        total: saleTotal,
+        metodeBayar,
+        catatan: orderCatatan,
+        bayar: metodeBayar === "tunai" && bayarNum > 0 ? bayarNum : undefined,
+        kembali: kembali > 0 ? kembali : undefined,
+      }, widthMm);
+
+      saveLastReceipt({ html: receipt, orderNo: shortOrderNo(orderId), total: saleTotal, savedAt: new Date().toISOString() });
+      setReceiptVersion(v => v + 1);
+      setStats(prev => ({ ...prev, omzet: prev.omzet + saleTotal, laba: prev.laba + saleLaba, totalOrders: prev.totalOrders + 1 }));
+      triggerReceiptPrint(receipt);
+      setCartOpen(false);
+      setCart({}); setDiskon(""); setBayar(""); setMeja(""); setCatatan("");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Gagal proses penjualan");
     }
-
-    // Finance + stock movements belong to owner so Keuangan Bisnis sees them.
-    // orders.user_id stays employee.id for kasir attribution.
-    const stockResult = await deductStockForSale(
-      supabase,
-      cartItems.map(c => ({ menu: c.menu, qty: c.qty })),
-      ownerUserId,
-      { today, notePrefix: `Kasir ${employee.nama}` },
-    );
-    if (!stockResult.ok) {
-      await supabase.from("order_items").delete().eq("order_id", order.id);
-      await supabase.from("orders").delete().eq("id", order.id);
-      alert("Penjualan dibatalkan — stok gagal: " + stockResult.errors.join(", "));
-      setLoading(false);
-      return;
-    }
-
-    const { error: txErr } = await supabase.from("transactions").insert({
-      user_id: ownerUserId,
-      business_id: business.id,
-      type: "pemasukan", scope: "bisnis",
-      category: "Penjualan F&B",
-      description: `[${employee.nama}] ` + cartItems.map(c => c.menu.nama + " x" + c.qty).join(", "),
-      amount: total, transaction_date: today,
-    });
-    if (txErr) {
-      await restoreStockApplies(supabase, stockResult.applied);
-      await supabase.from("order_items").delete().eq("order_id", order.id);
-      await supabase.from("orders").delete().eq("id", order.id);
-      alert("Penjualan dibatalkan — keuangan gagal: " + txErr.message);
-      setLoading(false);
-      return;
-    }
-
-    const bayarNum = Number(bayar) || 0;
-    const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;
-    const widthMm = getKasirPrintSettings().paperWidthMm;
-    const receipt = buildKasirReceiptHtml({
-      businessName: business.name,
-      orderNo: shortOrderNo(order.id),
-      kasirName: employee.nama,
-      items: cartItems.map(c => ({ nama: c.menu.nama, qty: c.qty, harga: c.menu.harga_jual })),
-      subtotal,
-      diskon: discNum,
-      total,
-      metodeBayar,
-      catatan: orderCatatan,
-      bayar: metodeBayar === "tunai" && bayarNum > 0 ? bayarNum : undefined,
-      kembali: kembali > 0 ? kembali : undefined,
-    }, widthMm);
-
-    saveLastReceipt({ html: receipt, orderNo: shortOrderNo(order.id), total, savedAt: new Date().toISOString() });
-    setReceiptVersion(v => v + 1);
-    setStats(prev => ({ ...prev, omzet: prev.omzet + total, laba: prev.laba + Math.round(laba), totalOrders: prev.totalOrders + 1 }));
-    triggerReceiptPrint(receipt);
     setLoading(false);
-    setCartOpen(false);
-    setCart({}); setDiskon(""); setBayar(""); setMeja(""); setCatatan("");
   };
 
   const S = kasirShell;
@@ -401,11 +350,17 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
             <button style={btnGrad} onClick={doRegister}>
               <i className="ti ti-fingerprint" /> Daftarkan Sidik Jari
             </button>
+            <button onClick={doCheckin} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "0.5px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#8B8AA0", fontSize: "12px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginBottom: "8px" }}>
+              Masuk tanpa sidik jari
+            </button>
           </>
         ) : (
           <>
             <button style={btnGrad} onClick={doLogin}>
               <i className="ti ti-fingerprint" /> Masuk dengan Sidik Jari
+            </button>
+            <button onClick={doCheckin} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "0.5px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#8B8AA0", fontSize: "12px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginBottom: "8px" }}>
+              Masuk tanpa sidik jari
             </button>
             <button onClick={() => setAuthMode("register")} style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "0.5px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#8B8AA0", fontSize: "12px", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginBottom: "8px" }}>
               Daftar ulang sidik jari

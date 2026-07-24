@@ -177,5 +177,5 @@ DO $$ BEGIN
   CREATE POLICY "production_logs_own" ON production_logs FOR ALL USING (auth.uid() = user_id);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Public kasir (anon) needs read/write via policies — keep open for token-based flows where used
--- Prefer tightening later with Edge Function auth.
+-- Public kasir (anon) policies: see 20260724_public_kasir_anon_policies.sql
+-- Token-based employee share links need read/write beyond owner-only RLS.

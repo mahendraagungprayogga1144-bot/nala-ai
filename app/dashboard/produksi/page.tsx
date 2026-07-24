@@ -5,7 +5,7 @@ import RecipeList from "./recipe-list";
 import ProductionForm from "./production-form";
 import { Package, Wallet, TrendingUp, BarChart3 } from "lucide-react";
 import HomeIndustryHubNav from "../inventory/home-industry-hub-nav";
-import { todayWib } from "../inventory/home-industry-calc";
+import { todayWib } from "@/lib/date";
 
 export default async function ProduksiPage() {
   const supabase = await createClient();
@@ -19,50 +19,37 @@ export default async function ProduksiPage() {
 
   const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
   const config = getConfig(business?.type);
+  const bizId = business?.id || "";
+  const today = todayWib();
 
-  const { data: materials } = await supabase
-    .from("products").select("id, name, stock, cost, category")
-    .eq("business_id", business?.id || "").order("name");
-
-  const { data: finishedProducts } = await supabase
-    .from("products").select("id, name, stock, price, cost, category")
-    .eq("business_id", business?.id || "").order("name");
-
-  const { data: recipes } = await supabase
-    .from("recipes").select("*, recipe_ingredients(*, products(name, cost, stock))")
-    .eq("business_id", business?.id || "").order("created_at", { ascending: false });
-
-  const { data: productionLogs } = await supabase
-    .from("production_logs").select("*, recipes(name, yield_unit)")
-    .eq("business_id", business?.id || "").order("production_date", { ascending: false });
-
-  const { data: salesData } = await supabase
-    .from("stock_movements").select("quantity, profit_loss, movement_date, products(name)")
-    .eq("user_id", user!.id).eq("type", "keluar").eq("reason", "dijual")
-    .order("movement_date", { ascending: false }).limit(20);
+  const [
+    { data: materials },
+    { data: recipes },
+    { data: productionLogs },
+    { data: todayTx },
+  ] = await Promise.all([
+    supabase.from("products").select("id, name, stock, cost, category").eq("business_id", bizId).order("name"),
+    supabase.from("recipes").select("*, recipe_ingredients(*, products(id, name, cost, stock))").eq("business_id", bizId).order("created_at", { ascending: false }),
+    supabase.from("production_logs").select("*, recipes(name, yield_unit)").eq("business_id", bizId).order("production_date", { ascending: false }).limit(50),
+    business?.type === "homeindustry" && bizId
+      ? supabase.from("transactions").select("type, category, amount").eq("business_id", bizId).eq("transaction_date", today)
+      : Promise.resolve({ data: null }),
+  ]);
 
   const totalProduksi = productionLogs?.length || 0;
   const totalBiayaProduksi = productionLogs?.reduce((s, l) => s + Number(l.total_material_cost || 0), 0) || 0;
   const totalProdukJadi = productionLogs?.filter(l => l.status === "selesai").reduce((s, l) => s + Number(l.quantity_produced || 0), 0) || 0;
 
-  let totalLaba = salesData?.reduce((s, m) => s + Number(m.profit_loss || 0), 0) || 0;
-  let labaLabel = "Total Laba";
-
-  if (business?.type === "homeindustry" && business.id) {
-    const today = todayWib();
-    const { data: todayTx } = await supabase
-      .from("transactions")
-      .select("type, category, amount")
-      .eq("business_id", business.id)
-      .eq("transaction_date", today);
-    const penjualan = (todayTx || [])
+  let totalLaba = 0;
+  let labaLabel = "Profit Hari Ini";
+  if (todayTx) {
+    const penjualan = todayTx
       .filter(t => t.type === "pemasukan" && (t.category === "Penjualan" || t.category === "Penjualan Produk"))
       .reduce((s, t) => s + Number(t.amount || 0), 0);
-    const hpp = (todayTx || [])
+    const hpp = todayTx
       .filter(t => t.type === "pengeluaran" && t.category === "HPP")
       .reduce((s, t) => s + Number(t.amount || 0), 0);
     totalLaba = penjualan - hpp;
-    labaLabel = "Profit Hari Ini";
   }
 
   const kpis = [
@@ -82,7 +69,7 @@ export default async function ProduksiPage() {
       </div>
       <p className="text-[#8B8AA0] mb-6">
         {business?.type === "homeindustry"
-          ? "Buat resep, catat produksi, lalu jual produk jadi di Stok & Penjualan."
+          ? "Buat resep, catat produksi selesai, lalu jual produk jadi di Stok & Penjualan."
           : "Kelola resep, produksi, dan hitung HPP otomatis."}
       </p>
 
@@ -104,16 +91,14 @@ export default async function ProduksiPage() {
         <ol className="text-sm text-[#8B8AA0] flex flex-col gap-2">
           <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#38BDF8]/20 text-[#38BDF8] text-xs flex items-center justify-center flex-shrink-0">1</span>Beli bahan baku → masuk <a href="/dashboard/inventory" className="text-[#38BDF8] underline">Inventory</a></li>
           <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6] text-xs flex items-center justify-center flex-shrink-0">2</span>Buat resep + daftar bahan</li>
-          <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#2DD4BF]/20 text-[#2DD4BF] text-xs flex items-center justify-center flex-shrink-0">3</span>Catat produksi → stok bahan berkurang, HPP dihitung otomatis</li>
+          <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#2DD4BF]/20 text-[#2DD4BF] text-xs flex items-center justify-center flex-shrink-0">3</span>Catat produksi selesai → stok bahan berkurang, produk jadi + HPP masuk Inventory</li>
           <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#EC4899]/20 text-[#EC4899] text-xs flex items-center justify-center flex-shrink-0">4</span>
-            {business?.type === "homeindustry"
-              ? <>Set status Selesai → jual di <a href="/dashboard/inventory" className="text-[#2DD4BF] underline">Stok & Penjualan</a> (tombol Jual)</>
-              : <>Set status Selesai → produk jadi otomatis masuk Inventory</>}
+            Jual di <a href="/dashboard/inventory" className="text-[#2DD4BF] underline">Stok & Penjualan</a> (tombol Jual)
           </li>
         </ol>
       </div>
 
-      <RecipeList recipes={(recipes as never) || []} materials={materials || []} finishedProducts={finishedProducts || []} userId={user!.id} businessId={business?.id} config={config} />
+      <RecipeList recipes={(recipes as never) || []} materials={materials || []} finishedProducts={materials || []} userId={user!.id} businessId={business?.id} config={config} />
 
       {(recipes?.length || 0) > 0 && (
         <ProductionForm recipes={(recipes as never) || []} userId={user!.id} businessId={business?.id} />

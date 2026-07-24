@@ -34,6 +34,10 @@ export function calcProductHpp(
   product: { name: string; cost: number | null; category: string | null },
   recipes: HiRecipe[],
 ): number {
+  // Prefer cost tersimpan di produk (sudah include overhead produksi)
+  if (product.category === "Produk Jadi" && product.cost && product.cost > 0) {
+    return Math.round(Number(product.cost));
+  }
   if (product.category !== "Produk Jadi") return Number(product.cost || 0);
   const recipe = findRecipeForProduct(product.name, recipes);
   if (recipe) return Math.round(calcRecipeHppPerUnit(recipe));

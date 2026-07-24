@@ -11,6 +11,7 @@ import FnbEmptyState from "../fnb/components/fnb-empty-state";
 import FnbVividShell, { FNB_VIVID_CARD, FnbGradientLine } from "../fnb/components/fnb-vivid-shell";
 import InventoryExportBar from "./components/inventory-export-bar";
 import { fmtRp } from "../fnb/lib/calc";
+import { todayWib } from "@/lib/date";
 
 type Product = { id: string; name: string; sku: string | null; stock: number; min_stock: number; price: number | null; cost: number | null; category: string | null; photo_url: string | null; unit?: string | null };
 
@@ -99,7 +100,7 @@ export default function FnBInventory({ products, userId, businessId, businessNam
   const [moveType, setMoveType] = useState<"masuk" | "keluar">("masuk");
   const [moveQty, setMoveQty] = useState("");
   const [moveReason, setMoveReason] = useState("terpakai");
-  const [moveDate, setMoveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [moveDate, setMoveDate] = useState(todayWib());
   const [moveNote, setMoveNote] = useState("");
   const [moveLoading, setMoveLoading] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);

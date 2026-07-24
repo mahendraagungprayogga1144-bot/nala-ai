@@ -28,6 +28,7 @@ export default function RecipeList({ recipes, materials, finishedProducts, userI
   };
 
   const totalModalPerUnit = (recipe: Recipe) => {
+    if (!recipe.yield_quantity || recipe.yield_quantity <= 0) return 0;
     return recipe.recipe_ingredients.reduce((sum, ing) => {
       const costPerUnit = ing.products.cost || 0;
       return sum + (costPerUnit * ing.quantity);
@@ -64,6 +65,7 @@ export default function RecipeList({ recipes, materials, finishedProducts, userI
 
   const handleDelete = async (id: string) => {
     if (!confirm("Hapus resep ini?")) return;
+    await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
     await supabase.from("recipes").delete().eq("id", id);
     router.refresh();
   };

@@ -42,7 +42,21 @@ export const cardCls = "bg-[#0F0F1A]/80 backdrop-blur-sm border border-white/10 
 
 export function isHarvestCategory(cat: string | null) {
   if (!cat) return false;
-  return HARVEST_CATEGORIES.some(c => cat.toLowerCase().includes(c.toLowerCase()));
+  const c = cat.toLowerCase();
+  if (HARVEST_CATEGORIES.some(h => c.includes(h.toLowerCase()))) return true;
+  // Chip Quick-Add (Cabai, Tomat, …) tetap dianggap hasil panen
+  const panenAliases = ["cabai", "tomat", "jagung", "kedelai", "kentang", "padi", "sayur", "buah", "palawija"];
+  return panenAliases.some(a => c.includes(a));
+}
+
+/** Map chip Quick-Add → kategori kanonik HARVEST_CATEGORIES */
+export function normalizeHarvestCategory(chip: string): string {
+  const c = chip.toLowerCase();
+  if (c === "padi") return "Padi";
+  if (["cabai", "tomat", "kentang", "sayuran"].includes(c)) return "Sayuran";
+  if (["jagung", "kedelai", "palawija"].includes(c)) return "Palawija";
+  if (HARVEST_CATEGORIES.includes(chip)) return chip;
+  return "Sayuran";
 }
 
 export function isSaprotanCategory(cat: string | null) {

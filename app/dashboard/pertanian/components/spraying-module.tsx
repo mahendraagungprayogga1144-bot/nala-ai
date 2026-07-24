@@ -58,9 +58,18 @@ export default function SprayingModule({ records, userId, businessId, compact }:
     router.refresh();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (r: SprayingRecord) => {
     if (!confirm("Hapus riwayat?")) return;
-    await supabase.from("agri_spraying_records").delete().eq("id", id);
+    await supabase.from("agri_spraying_records").delete().eq("id", r.id);
+    if (Number(r.biaya) > 0) {
+      await supabase.from("transactions").delete()
+        .eq("business_id", businessId)
+        .eq("user_id", userId)
+        .eq("type", "pengeluaran")
+        .eq("amount", r.biaya)
+        .eq("transaction_date", r.tanggal)
+        .ilike("description", "%Pertanian%");
+    }
     router.refresh();
   };
 
@@ -124,7 +133,7 @@ export default function SprayingModule({ records, userId, businessId, compact }:
                     <td className="p-3 text-[#8B8AA0]">{r.dosis || "—"}</td>
                     <td className="p-3">{r.luas_area ? `${r.luas_area} ha` : "—"}</td>
                     <td className="p-3 text-right font-mono">{fmtRp(Number(r.biaya || 0))}</td>
-                    <td className="p-3"><button type="button" onClick={() => handleDelete(r.id)} className="text-[#8B8AA0] hover:text-red-400"><Trash2 size={14} /></button></td>
+                    <td className="p-3"><button type="button" onClick={() => handleDelete(r)} className="text-[#8B8AA0] hover:text-red-400"><Trash2 size={14} /></button></td>
                   </tr>
                 ))}
               </tbody>

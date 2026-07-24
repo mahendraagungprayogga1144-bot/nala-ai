@@ -38,8 +38,8 @@ function b642buf(b64: string): ArrayBuffer {
   return buf.buffer;
 }
 
-export default function KasirPublicClient({ employee: emp, business, menus, initialStats, today }: {
-  employee: Employee; business: Business; menus: Menu[];
+export default function KasirPublicClient({ employee: emp, business, ownerUserId, menus, initialStats, today }: {
+  employee: Employee; business: Business; ownerUserId: string; menus: Menu[];
   initialStats: Stats; today: string;
 }) {
   const supabase = createClient();
@@ -302,21 +302,29 @@ export default function KasirPublicClient({ employee: emp, business, menus, init
       laba: (c.menu.harga_jual - calcHpp(c.menu)) * c.qty,
     })));
 
-    await deductStockForSale(
+    // Finance + stock movements belong to owner so Keuangan Bisnis sees them.
+    // orders.user_id stays employee.id for kasir attribution.
+    const stockResult = await deductStockForSale(
       supabase,
       cartItems.map(c => ({ menu: c.menu, qty: c.qty })),
-      employee.id,
+      ownerUserId,
       { today, notePrefix: `Kasir ${employee.nama}` },
     );
+    if (!stockResult.ok) {
+      console.warn("Stok partial fail:", stockResult.errors.join(", "));
+    }
 
-    await supabase.from("transactions").insert({
-      user_id: employee.id,
+    const { error: txErr } = await supabase.from("transactions").insert({
+      user_id: ownerUserId,
       business_id: business.id,
       type: "pemasukan", scope: "bisnis",
       category: "Penjualan F&B",
-      description: cartItems.map(c => c.menu.nama + " x" + c.qty).join(", "),
+      description: `[${employee.nama}] ` + cartItems.map(c => c.menu.nama + " x" + c.qty).join(", "),
       amount: total, transaction_date: today,
     });
+    if (txErr) {
+      alert("Order tersimpan tapi keuangan gagal: " + txErr.message);
+    }
 
     const bayarNum = Number(bayar) || 0;
     const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;

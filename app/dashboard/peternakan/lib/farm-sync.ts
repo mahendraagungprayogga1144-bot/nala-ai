@@ -36,20 +36,13 @@ export function buildKeuanganRows(p: BuildParams) {
   if (p.jenis === "mortalitas" || p.total <= 0 && p.jenis !== "panen") return rows;
 
   if (p.jenis === "panen") {
+    // Biaya bibit/pakan/obat sudah masuk pengeluaran saat dicatat —
+    // panen hanya catat pemasukan (hindari double HPP).
     if (p.total > 0) {
       rows.push({
         type: "pemasukan", scope: "bisnis", category: "Penjualan Hewan",
         description: desc(`Jual ${p.qty || 0} ekor`, p.batchName, p.jenisTernak),
         amount: p.total, transaction_date: p.tanggal,
-      });
-    }
-    const hppPerUnit = p.totalBibit > 0 ? p.totalModal / p.totalBibit : 0;
-    const hppTotal = Math.round(hppPerUnit * (p.qty || 0));
-    if (hppTotal > 0) {
-      rows.push({
-        type: "pengeluaran", scope: "bisnis", category: "HPP",
-        description: desc(`HPP panen ${p.qty || 0} ekor`, p.batchName, p.jenisTernak),
-        amount: hppTotal, transaction_date: p.tanggal,
       });
     }
     return rows;

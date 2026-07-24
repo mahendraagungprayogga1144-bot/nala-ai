@@ -126,21 +126,27 @@ export default function KaryawanClient({ employees, userId, businessId, business
                   </button>
                 </div>
                 <div className="mt-3 rounded-xl border border-white/[0.06] bg-[#0A0A12] px-3 py-2.5">
-                  <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#5A5B7A]">Link kasir</p>
-                  <p className="mb-2 truncate font-mono text-[11px] text-[#2DD4BF]">{getLink(emp.kasir_token)}</p>
-                  <div className="flex gap-2">
-                    <button onClick={() => copyLink(emp.kasir_token)}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-medium md:py-1.5"
-                      style={{ borderColor: copied === emp.kasir_token ? "rgba(45,212,191,.4)" : "rgba(255,255,255,.1)", color: copied === emp.kasir_token ? "#2DD4BF" : "#8B8AA0", background: copied === emp.kasir_token ? "rgba(45,212,191,.08)" : "rgba(255,255,255,.03)" }}>
-                      <Copy size={11} />
-                      {copied === emp.kasir_token ? "Tersalin!" : "Salin link"}
-                    </button>
-                    <a href={getLink(emp.kasir_token)} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2.5 text-xs text-[#8B8AA0] md:py-1.5">
-                      <ExternalLink size={11} /> Buka
-                    </a>
-                    <button type="button" onClick={() => handleDelete(emp.id, emp.nama)} className="rounded-xl border border-white/10 px-3 py-2.5 text-[#8B8AA0] md:hidden"><Trash2 size={14} /></button>
-                  </div>
+                  {emp.aktif ? (
+                    <>
+                      <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#5A5B7A]">Link kasir</p>
+                      <p className="mb-2 truncate font-mono text-[11px] text-[#2DD4BF]">{getLink(emp.kasir_token)}</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => copyLink(emp.kasir_token)}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-medium md:py-1.5"
+                          style={{ borderColor: copied === emp.kasir_token ? "rgba(45,212,191,.4)" : "rgba(255,255,255,.1)", color: copied === emp.kasir_token ? "#2DD4BF" : "#8B8AA0", background: copied === emp.kasir_token ? "rgba(45,212,191,.08)" : "rgba(255,255,255,.03)" }}>
+                          <Copy size={11} />
+                          {copied === emp.kasir_token ? "Tersalin!" : "Salin link"}
+                        </button>
+                        <a href={getLink(emp.kasir_token)} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2.5 text-xs text-[#8B8AA0] md:py-1.5">
+                          <ExternalLink size={11} /> Buka
+                        </a>
+                        <button type="button" onClick={() => handleDelete(emp.id, emp.nama)} className="rounded-xl border border-white/10 px-3 py-2.5 text-[#8B8AA0] md:hidden"><Trash2 size={14} /></button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-[#5A5B7A]">Link kasir nonaktif — karyawan diarsipkan.</p>
+                  )}
                 </div>
               </div>
             ))}

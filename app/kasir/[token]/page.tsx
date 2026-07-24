@@ -2,6 +2,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import KasirPublicClient from "./kasir-public-client";
 import { normalizeMenus } from "@/app/dashboard/fnb/lib/calc";
+import { todayWib } from "@/lib/date";
 
 export default async function KasirPublicPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -31,7 +32,7 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
 
   const { data: businessData } = await supabase
     .from("businesses")
-    .select("id, name, type")
+    .select("id, name, type, user_id")
     .eq("id", employee.business_id)
     .single();
 
@@ -48,20 +49,22 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
   }
 
   const business = businessData;
+  const today = todayWib();
 
-  const { data: menus } = await supabase
-    .from("menus")
-    .select("*, menu_recipes(*, products(id, name, cost, stock))")
-    .eq("business_id", business.id)
-    .eq("status", "aktif")
-    .order("kategori");
-
-  const today = new Date().toISOString().split("T")[0];
-  const { data: todayOrders } = await supabase
-    .from("orders")
-    .select("total, hpp, laba")
-    .eq("business_id", business.id)
-    .eq("order_date", today);
+  const [{ data: menus }, { data: todayOrders }] = await Promise.all([
+    supabase
+      .from("menus")
+      .select("*, menu_recipes(*, products(id, name, cost, stock))")
+      .eq("business_id", business.id)
+      .eq("status", "aktif")
+      .order("kategori"),
+    supabase
+      .from("orders")
+      .select("total, hpp, laba")
+      .eq("business_id", business.id)
+      .eq("user_id", employee.id)
+      .eq("order_date", today),
+  ]);
 
   const omzet = todayOrders?.reduce((s, o) => s + Number(o.total || 0), 0) || 0;
   const laba = todayOrders?.reduce((s, o) => s + Number(o.laba || 0), 0) || 0;
@@ -73,6 +76,7 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
     <KasirPublicClient
       employee={{ id: employee.id, nama: employee.nama, jabatan: employee.jabatan, kasir_token: token, webauthn_credential_id: employee.webauthn_credential_id }}
       business={business}
+      ownerUserId={business.user_id}
       menus={normalizeMenus(menus || [])}
       initialStats={{ omzet, laba, totalOrders, foodCost }}
       today={today}

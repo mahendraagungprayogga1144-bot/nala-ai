@@ -3,7 +3,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { X } from "lucide-react";
-import { inputCls } from "../lib/constants";
+import { inputCls, normalizeHarvestCategory } from "../lib/constants";
+import { insertKeuanganPengeluaran } from "../lib/agri-sync";
+import { todayWib } from "@/lib/date";
 
 export type QuickAddType = "panen" | "saprotan" | "lahan" | "biaya" | "semprot";
 
@@ -49,16 +51,17 @@ export default function QuickAddSheet({ type, onClose, userId, businessId }: Pro
 
   const handleSave = async () => {
     setLoading(true);
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayWib();
 
     try {
       if (type === "panen") {
         if (!nama || !jumlah) return;
-        const cat = kategori || "Sayuran";
-        const { data: prod } = await supabase.from("products").insert({
+        const cat = normalizeHarvestCategory(kategori || "Sayuran");
+        const { data: prod, error } = await supabase.from("products").insert({
           user_id: userId, business_id: businessId, name: nama, category: cat,
           stock: Number(jumlah), min_stock: 5, price: harga ? Number(harga) : null,
         }).select("id").single();
+        if (error) { alert(error.message); return; }
         if (prod?.id) {
           await supabase.from("agri_harvest_meta").insert({
             product_id: prod.id, user_id: userId, business_id: businessId,
@@ -68,10 +71,11 @@ export default function QuickAddSheet({ type, onClose, userId, businessId }: Pro
       } else if (type === "saprotan") {
         if (!nama || !jumlah) return;
         const cat = kategori || "Pupuk";
-        const { data: prod } = await supabase.from("products").insert({
+        const { data: prod, error } = await supabase.from("products").insert({
           user_id: userId, business_id: businessId, name: nama, category: cat,
           stock: Number(jumlah), min_stock: 5, cost: harga ? Number(harga) : null,
         }).select("id").single();
+        if (error) { alert(error.message); return; }
         if (prod?.id) {
           await supabase.from("agri_saprotan_meta").insert({
             product_id: prod.id, user_id: userId, business_id: businessId,
@@ -87,17 +91,34 @@ export default function QuickAddSheet({ type, onClose, userId, businessId }: Pro
         });
       } else if (type === "biaya") {
         if (!jumlah) return;
+        const amount = Number(jumlah);
+        const cat = kategori || "Lainnya";
         await supabase.from("agri_production_costs").insert({
           user_id: userId, business_id: businessId, tanggal: today,
-          kategori: kategori || "Lainnya", deskripsi: nama || null, jumlah: Number(jumlah),
+          kategori: cat, deskripsi: nama || null, jumlah: amount,
+        });
+        await insertKeuanganPengeluaran(supabase, {
+          userId, businessId, category: cat,
+          description: `Biaya ${cat}${nama ? ": " + nama : ""} — Pertanian`,
+          amount, tanggal: today,
         });
       } else if (type === "semprot") {
         if (!produk) return;
+        const biaya = harga ? Number(harga) : 0;
         await supabase.from("agri_spraying_records").insert({
           user_id: userId, business_id: businessId, tanggal: today,
           nama_produk: produk, jenis_produk: kategori || "Pestisida",
-          biaya: harga ? Number(harga) : 0,
+          biaya,
         });
+        if (biaya > 0) {
+          await insertKeuanganPengeluaran(supabase, {
+            userId, businessId,
+            category: "Pestisida",
+            description: `Semprot ${produk} — Pertanian`,
+            amount: biaya,
+            tanggal: today,
+          });
+        }
       }
       resetAndClose();
       router.refresh();

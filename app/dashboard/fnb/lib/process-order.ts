@@ -1,3 +1,4 @@
+import { todayWib } from "@/lib/date";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CartLine } from "./calc";
 import { getStockShortages } from "./calc";
@@ -8,20 +9,36 @@ export async function deductStockForSale(
   userId: string,
   opts?: { today?: string; notePrefix?: string },
 ) {
-  const today = opts?.today || new Date().toISOString().split("T")[0];
+  const today = opts?.today || todayWib();
   const prefix = opts?.notePrefix || "Kasir";
+  const errors: string[] = [];
 
   for (const item of cart) {
     for (const r of item.menu.menu_recipes) {
       const needed = (r.quantity / (item.menu.yield_quantity || 1)) * item.qty;
-      const { data: prod } = await supabase
+      const { data: prod, error: readErr } = await supabase
         .from("products")
-        .select("id, stock")
+        .select("id, stock, name")
         .eq("id", r.products.id)
         .single();
-      if (!prod) continue;
+      if (readErr || !prod) {
+        errors.push(r.products?.name || "bahan");
+        continue;
+      }
+      if (Number(prod.stock) < needed) {
+        errors.push(`${prod.name} (butuh ${needed.toFixed(1)}, stok ${prod.stock})`);
+        continue;
+      }
 
-      await supabase.from("products").update({ stock: Math.max(0, prod.stock - needed) }).eq("id", prod.id);
+      const { error: upErr } = await supabase
+        .from("products")
+        .update({ stock: Number(prod.stock) - needed })
+        .eq("id", prod.id);
+      if (upErr) {
+        errors.push(prod.name);
+        continue;
+      }
+
       await supabase.from("stock_movements").insert({
         user_id: userId,
         product_id: prod.id,
@@ -33,6 +50,8 @@ export async function deductStockForSale(
       });
     }
   }
+
+  return { ok: errors.length === 0, errors };
 }
 
 export function validateCartStock(cart: CartLine[]) {

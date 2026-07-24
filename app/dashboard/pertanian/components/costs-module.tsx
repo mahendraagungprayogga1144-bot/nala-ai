@@ -27,24 +27,34 @@ export default function CostsModule({ costs, userId, businessId, dashboardData, 
   const handleSave = async () => {
     if (!fJumlah) return;
     setLoading(true);
+    const amount = Number(fJumlah);
+    const desc = `Biaya ${fKategori}${fDeskripsi ? ": " + fDeskripsi : ""} — Pertanian`;
     await supabase.from("agri_production_costs").insert({
       user_id: userId, business_id: businessId, tanggal: fTanggal,
-      kategori: fKategori, deskripsi: fDeskripsi || null, jumlah: Number(fJumlah),
+      kategori: fKategori, deskripsi: fDeskripsi || null, jumlah: amount,
     });
     await insertKeuanganPengeluaran(supabase, {
       userId, businessId,
       category: fKategori,
-      description: `Biaya ${fKategori}${fDeskripsi ? ": " + fDeskripsi : ""} — Pertanian`,
-      amount: Number(fJumlah),
+      description: desc,
+      amount,
       tanggal: fTanggal,
     });
     setLoading(false); setFDeskripsi(""); setFJumlah(""); setShowForm(false);
     router.refresh();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (c: ProductionCost) => {
     if (!confirm("Hapus biaya?")) return;
-    await supabase.from("agri_production_costs").delete().eq("id", id);
+    await supabase.from("agri_production_costs").delete().eq("id", c.id);
+    // Best-effort reverse keuangan (match amount + date + pertanian marker)
+    await supabase.from("transactions").delete()
+      .eq("business_id", businessId)
+      .eq("user_id", userId)
+      .eq("type", "pengeluaran")
+      .eq("amount", c.jumlah)
+      .eq("transaction_date", c.tanggal)
+      .ilike("description", "%Pertanian%");
     router.refresh();
   };
 
@@ -117,7 +127,7 @@ export default function CostsModule({ costs, userId, businessId, dashboardData, 
                     <p className="text-[10px] text-[#8B8AA0]">{new Date(c.tanggal).toLocaleDateString("id-ID")}</p>
                   </div>
                   <span className="font-mono text-red-300">{fmtRp(Number(c.jumlah))}</span>
-                  <button type="button" onClick={() => handleDelete(c.id)} className="text-[#8B8AA0] hover:text-red-400"><Trash2 size={13} /></button>
+                  <button type="button" onClick={() => handleDelete(c)} className="text-[#8B8AA0] hover:text-red-400"><Trash2 size={13} /></button>
                 </div>
               ))}
             </div>

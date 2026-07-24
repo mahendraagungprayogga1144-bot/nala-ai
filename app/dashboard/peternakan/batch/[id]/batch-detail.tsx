@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Plus, Trash2, Edit2, X } from "lucide-react";
 import { todayWib } from "@/lib/date";
 import { syncFarmToKeuangan, deleteFarmKeuangan, type FarmJenis } from "../../lib/farm-sync";
+import { syncFarmInventoryDelta } from "../../lib/farm-inventory";
 import PeternakanHubNav from "../../peternakan-hub-nav";
 
 type Batch = { id: string; nama_batch: string; jenis_ternak: string; tanggal_mulai: string; tanggal_selesai: string | null; status: string };
@@ -78,6 +79,14 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
     const total = calcTotal(jenis);
     if (!tanggal) return;
     if (jenis !== "mortalitas" && total <= 0 && jenis !== "panen") return;
+    const qtyNum = Number(qty) || 0;
+    const hargaNum = Number(harga) || 0;
+
+    if ((jenis === "mortalitas" || jenis === "panen") && qtyNum > populasiHidup && !editingId) {
+      alert(`Qty melebihi populasi hidup (${populasiHidup} ekor).`);
+      return;
+    }
+
     setLoading(true);
 
     const otherTx = transactions.filter(t => t.id !== editingId);
@@ -87,20 +96,38 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
     const oOps = otherTx.filter(t => t.jenis_transaksi === "operasional").reduce((s, t) => s + Number(t.total), 0);
     const modalForHpp = oBibit + oPakan + oObat + oOps + (jenis !== "panen" ? total : 0);
     const bibitEkor = otherTx.filter(t => t.jenis_transaksi === "bibit").reduce((s, t) => s + Number(t.qty || 0), 0)
-      + (jenis === "bibit" ? Number(qty) || 0 : 0);
+      + (jenis === "bibit" ? qtyNum : 0);
+
+    // Berat panen disimpan di catatan, bukan kolom satuan
+    const beratNote = jenis === "panen" && satuan ? `Berat ${satuan} kg` : null;
+    const catatanFinal = [beratNote, catatan || null].filter(Boolean).join(" · ") || null;
 
     const payload = {
       batch_id: batch.id, user_id: userId, tanggal, jenis_transaksi: jenis,
       nama_item: namaItem || null, qty: qty ? Number(qty) : null,
-      satuan: satuan || null, harga: harga ? Number(harga) : null,
-      total: total, catatan: catatan || null,
+      satuan: jenis === "panen" ? "ekor" : (satuan || null),
+      harga: harga ? Number(harga) : null,
+      total: total, catatan: jenis === "panen" ? catatanFinal : (catatan || null),
     };
 
     let farmTxId = editingId;
     let existingTxIds: string[] | null = null;
+    const prevTx = editingId ? transactions.find(t => t.id === editingId) : null;
 
-    if (editingId) {
-      existingTxIds = transactions.find(t => t.id === editingId)?.keuangan_tx_ids || null;
+    if (editingId && prevTx) {
+      // Reverse old inventory effect before applying new
+      await syncFarmInventoryDelta(supabase, {
+        userId, businessId,
+        delta: {
+          jenis: prevTx.jenis_transaksi,
+          qty: Number(prevTx.qty || 0),
+          namaItem: prevTx.nama_item,
+          harga: prevTx.harga != null ? Number(prevTx.harga) : null,
+          jenisTernak: batch.jenis_ternak,
+        },
+        sign: -1,
+      });
+      existingTxIds = prevTx.keuangan_tx_ids || null;
       await supabase.from("farm_transactions").update(payload).eq("id", editingId);
     } else {
       const { data, error } = await supabase.from("farm_transactions").insert(payload).select("id").single();
@@ -123,43 +150,17 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
       });
     }
 
-    // SYNC KE INVENTORY
-    const qtyNum = Number(qty) || 0;
-    const hargaNum = Number(harga) || 0;
-    const namaItemSnap = namaItem;
-
-    if (jenis === "bibit" && qtyNum > 0) {
-      const { data: existing } = await supabase.from("products").select("id, stock, cost").eq("business_id", businessId).ilike("name", batch.jenis_ternak).maybeSingle();
-      if (existing) {
-        await supabase.from("products").update({ stock: existing.stock + qtyNum, cost: hargaNum || existing.cost }).eq("id", existing.id);
-      } else {
-        await supabase.from("products").insert({ user_id: userId, business_id: businessId, name: batch.jenis_ternak, category: batch.jenis_ternak, stock: qtyNum, min_stock: 10, cost: hargaNum || null });
-      }
-    }
-
-    if ((jenis === "pakan" || jenis === "obat" || jenis === "vitamin") && namaItemSnap && qtyNum > 0) {
-      const cat = jenis === "pakan" ? "Pakan" : jenis === "obat" ? "Obat" : "Vitamin";
-      const { data: existing } = await supabase.from("products").select("id, stock").eq("name", namaItemSnap).eq("business_id", businessId).maybeSingle();
-      if (existing) {
-        const r = await supabase.from("products").update({ stock: existing.stock + qtyNum, cost: hargaNum || null }).eq("id", existing.id);
-      } else {
-        const r = await supabase.from("products").insert({ user_id: userId, business_id: businessId, name: namaItemSnap, category: cat, stock: qtyNum, min_stock: 5, cost: hargaNum || null });
-      }
-    }
-
-    if (jenis === "mortalitas" && qtyNum > 0) {
-      const { data: existing } = await supabase.from("products").select("id, stock, cost").eq("business_id", businessId).ilike("name", batch.jenis_ternak).maybeSingle();
-      if (existing) {
-        await supabase.from("products").update({ stock: Math.max(0, existing.stock - qtyNum) }).eq("id", existing.id);
-      }
-    }
-
-    if (jenis === "panen" && qtyNum > 0) {
-      const { data: existing } = await supabase.from("products").select("id, stock, cost").eq("business_id", businessId).ilike("name", batch.jenis_ternak).maybeSingle();
-      if (existing) {
-        await supabase.from("products").update({ stock: Math.max(0, existing.stock - qtyNum), price: hargaNum || null }).eq("id", existing.id);
-      }
-    }
+    await syncFarmInventoryDelta(supabase, {
+      userId, businessId,
+      delta: {
+        jenis,
+        qty: qtyNum,
+        namaItem: namaItem || null,
+        harga: hargaNum || null,
+        jenisTernak: batch.jenis_ternak,
+      },
+      sign: 1,
+    });
 
     setLoading(false);
     resetForm();
@@ -170,6 +171,17 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
   const handleDelete = async (t: Transaction) => {
     if (!confirm("Hapus transaksi ini?")) return;
     await deleteFarmKeuangan(supabase, t.keuangan_tx_ids);
+    await syncFarmInventoryDelta(supabase, {
+      userId, businessId,
+      delta: {
+        jenis: t.jenis_transaksi,
+        qty: Number(t.qty || 0),
+        namaItem: t.nama_item,
+        harga: t.harga != null ? Number(t.harga) : null,
+        jenisTernak: batch.jenis_ternak,
+      },
+      sign: -1,
+    });
     await supabase.from("farm_transactions").delete().eq("id", t.id);
     router.refresh();
   };

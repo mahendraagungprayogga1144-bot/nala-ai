@@ -4,16 +4,6 @@ import Link from "next/link";
 import PertanianClient from "./pertanian-client";
 import type { AgriDashboardData } from "./lib/types";
 
-async function safeQuery<T>(query: PromiseLike<{ data: T | null; error: unknown }>): Promise<T> {
-  try {
-    const { data, error } = await query;
-    if (error) return [] as unknown as T;
-    return data ?? ([] as unknown as T);
-  } catch {
-    return [] as unknown as T;
-  }
-}
-
 export default async function PertanianPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -39,36 +29,32 @@ export default async function PertanianPage() {
 
   const businessId = business.id;
 
-  const products = await safeQuery(
-    supabase.from("products").select("*").eq("business_id", businessId).order("name")
-  );
+  const [
+    { data: products, error: productsErr },
+    { data: harvestMeta },
+    { data: saprotanMeta },
+    { data: fields },
+    { data: spraying },
+    { data: costs },
+    { data: history },
+  ] = await Promise.all([
+    supabase.from("products").select("*").eq("business_id", businessId).order("name"),
+    supabase.from("agri_harvest_meta").select("*").eq("business_id", businessId),
+    supabase.from("agri_saprotan_meta").select("*").eq("business_id", businessId),
+    supabase.from("agri_fields").select("*").eq("business_id", businessId).order("created_at", { ascending: false }),
+    supabase.from("agri_spraying_records").select("*").eq("business_id", businessId).order("tanggal", { ascending: false }),
+    supabase.from("agri_production_costs").select("*").eq("business_id", businessId).order("tanggal", { ascending: false }),
+    supabase.from("inventory_history").select("snapshot_date, total_value").eq("user_id", user!.id).order("snapshot_date", { ascending: true }).limit(30),
+  ]);
 
-  const harvestMeta = await safeQuery(
-    supabase.from("agri_harvest_meta").select("*").eq("business_id", businessId)
-  );
-
-  const saprotanMeta = await safeQuery(
-    supabase.from("agri_saprotan_meta").select("*").eq("business_id", businessId)
-  );
-
-  const fields = await safeQuery(
-    supabase.from("agri_fields").select("*").eq("business_id", businessId).order("created_at", { ascending: false })
-  );
-
-  const spraying = await safeQuery(
-    supabase.from("agri_spraying_records").select("*").eq("business_id", businessId).order("tanggal", { ascending: false })
-  );
-
-  const costs = await safeQuery(
-    supabase.from("agri_production_costs").select("*").eq("business_id", businessId).order("tanggal", { ascending: false })
-  );
-
-  const { data: history } = await supabase
-    .from("inventory_history")
-    .select("snapshot_date, total_value")
-    .eq("user_id", user!.id)
-    .order("snapshot_date", { ascending: true })
-    .limit(30);
+  if (productsErr) {
+    return (
+      <div className="px-8 py-12 text-center">
+        <p className="text-[#EC4899] mb-2">Gagal memuat data pertanian.</p>
+        <p className="text-xs text-[#8B8AA0]">{productsErr.message}</p>
+      </div>
+    );
+  }
 
   const dashboardData: AgriDashboardData = {
     products: products || [],

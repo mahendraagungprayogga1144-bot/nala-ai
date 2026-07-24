@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import KasirClient from "./kasir-client";
 import { normalizeMenus } from "../lib/calc";
+import { todayWib } from "@/lib/date";
 
 export default async function FnbKasirPage() {
   const supabase = await createClient();
@@ -25,33 +26,33 @@ export default async function FnbKasirPage() {
     );
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayWib();
 
-  const { data: menus } = await supabase
-    .from("menus")
-    .select("*, menu_recipes(*, products(id, name, cost, stock))")
-    .eq("business_id", business.id)
-    .eq("status", "aktif")
-    .order("kategori");
-
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("*, checkins(id, tanggal, jam_masuk, jam_keluar)")
-    .eq("business_id", business.id)
-    .eq("aktif", true)
-    .order("nama");
-
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, name, stock, min_stock, category")
-    .eq("business_id", business.id)
-    .order("name");
-
-  const { data: todayOrders } = await supabase
-    .from("orders")
-    .select("id, total, hpp, laba")
-    .eq("business_id", business.id)
-    .eq("order_date", today);
+  const [{ data: menus }, { data: employees }, { data: products }, { data: todayOrders }] = await Promise.all([
+    supabase
+      .from("menus")
+      .select("*, menu_recipes(*, products(id, name, cost, stock))")
+      .eq("business_id", business.id)
+      .eq("status", "aktif")
+      .order("kategori"),
+    supabase
+      .from("employees")
+      .select("*, checkins(id, tanggal, jam_masuk, jam_keluar)")
+      .eq("business_id", business.id)
+      .eq("aktif", true)
+      .eq("checkins.tanggal", today)
+      .order("nama"),
+    supabase
+      .from("products")
+      .select("id, name, stock, min_stock, category")
+      .eq("business_id", business.id)
+      .order("name"),
+    supabase
+      .from("orders")
+      .select("id, total, hpp, laba")
+      .eq("business_id", business.id)
+      .eq("order_date", today),
+  ]);
 
   const omzetHariIni = todayOrders?.reduce((s, o) => s + Number(o.total || 0), 0) || 0;
   const labaHariIni = todayOrders?.reduce((s, o) => s + Number(o.laba || 0), 0) || 0;

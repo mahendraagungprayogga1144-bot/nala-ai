@@ -296,17 +296,22 @@ export default function KasirClient({ menus, products, employees, userId, busine
       order_id: order.id, menu_id: c.menu.id, qty: c.qty,
       harga_jual: c.menu.harga_jual, hpp: calcHpp(c.menu), laba: (c.menu.harga_jual - calcHpp(c.menu)) * c.qty,
     }));
-    await supabase.from("order_items").insert(items);
+    const { error: itemsErr } = await supabase.from("order_items").insert(items);
+    if (itemsErr) { alert("Order tersimpan tapi item gagal: " + itemsErr.message); setLoading(false); return; }
 
-    await deductStockForSale(supabase, cart, userId, { today, notePrefix: "Kasir" });
+    const stockResult = await deductStockForSale(supabase, cart, userId, { today, notePrefix: "Kasir" });
+    if (!stockResult.ok) {
+      alert("Stok sebagian gagal dipotong: " + stockResult.errors.join(", "));
+    }
 
-    await supabase.from("transactions").insert({
+    const { error: txErr } = await supabase.from("transactions").insert({
       user_id: userId, business_id: businessId,
       type: "pemasukan", scope: "bisnis",
       category: "Penjualan F&B",
       description: cart.map(c => c.menu.nama + " x" + c.qty).join(", "),
       amount: total, transaction_date: today,
     });
+    if (txErr) { alert("Order tersimpan tapi keuangan gagal: " + txErr.message); }
 
     const bayarNum = Number(bayar) || 0;
     const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;

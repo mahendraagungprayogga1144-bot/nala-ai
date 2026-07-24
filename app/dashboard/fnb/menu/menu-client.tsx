@@ -214,28 +214,36 @@ export default function FnbMenuClient({ menus, products, userId, businessId, bus
   const handleSaveMenu = async () => {
     if (!fNama || !fHarga) return;
     setMenuLoading(true);
-    const payload = { user_id: userId, business_id: businessId, nama: fNama, kategori: fKategori, harga_jual: Number(fHarga), status: fStatus, yield_quantity: Number(fYield) || 1, foto_url: fFotoUrl || null };
-    if (editMenu) { await supabase.from("menus").update(payload).eq("id", editMenu.id); }
-    else { await supabase.from("menus").insert(payload); }
-    setMenuLoading(false); resetMenuForm(); setShowMenuForm(false); router.refresh();
+    const payload = { user_id: userId, business_id: businessId, nama: fNama, kategori: fKategori, harga_jual: Number(fHarga), status: fStatus, yield_quantity: Number(fYield) || 1, photo_url: fFotoUrl || null };
+    const { error } = editMenu
+      ? await supabase.from("menus").update(payload).eq("id", editMenu.id)
+      : await supabase.from("menus").insert(payload);
+    setMenuLoading(false);
+    if (error) { alert("Gagal simpan menu: " + error.message); return; }
+    resetMenuForm(); setShowMenuForm(false); router.refresh();
   };
 
   const handleDeleteMenu = async (id: string) => {
     if (!confirm("Hapus menu ini beserta resepnya?")) return;
-    await supabase.from("menu_recipes").delete().eq("menu_id", id);
-    await supabase.from("menus").delete().eq("id", id);
+    const { error: e1 } = await supabase.from("menu_recipes").delete().eq("menu_id", id);
+    if (e1) { alert(e1.message); return; }
+    const { error: e2 } = await supabase.from("menus").delete().eq("id", id);
+    if (e2) { alert(e2.message); return; }
     router.refresh();
   };
 
   const handleSaveResep = async (menuId: string) => {
     if (!fProductId || !fQty) return;
     setResepLoading(true);
-    await supabase.from("menu_recipes").insert({ menu_id: menuId, product_id: fProductId, quantity: Number(fQty), unit: fUnit });
-    setResepLoading(false); resetResepForm(); setShowResepForm(null); router.refresh();
+    const { error } = await supabase.from("menu_recipes").insert({ menu_id: menuId, product_id: fProductId, quantity: Number(fQty), unit: fUnit });
+    setResepLoading(false);
+    if (error) { alert("Gagal simpan resep: " + error.message); return; }
+    resetResepForm(); setShowResepForm(null); router.refresh();
   };
 
   const handleDeleteResep = async (id: string) => {
-    await supabase.from("menu_recipes").delete().eq("id", id);
+    const { error } = await supabase.from("menu_recipes").delete().eq("id", id);
+    if (error) { alert(error.message); return; }
     router.refresh();
   };
 

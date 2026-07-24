@@ -67,32 +67,39 @@ export default function AgricultureInventory({
     if (qty <= 0 || harga <= 0) return;
     if (qty > sellingProduct.stock) { setFormError("Stok tidak cukup! Tersedia: " + sellingProduct.stock); return; }
 
+    const hpp = calcAgriProductHpp(sellingProduct, hppPerUnit);
+    if (hpp <= 0) {
+      const ok = confirm("HPP belum kehitung — catat biaya produksi & saprotan di Modul Pertanian dulu.\n\nLanjut jual tanpa estimasi HPP?");
+      if (!ok) return;
+    }
+
     setSellLoading(true);
     setFormError("");
+    const prevStock = sellingProduct.stock;
     try {
-      const newStock = Math.max(0, sellingProduct.stock - qty);
+      const newStock = Math.max(0, prevStock - qty);
       const { error: stockErr } = await supabase.from("products").update({ stock: newStock }).eq("id", sellingProduct.id);
       if (stockErr) throw new Error(stockErr.message);
 
-      const hpp = calcAgriProductHpp(sellingProduct, hppPerUnit);
-      if (hpp <= 0) {
-        const ok = confirm("HPP belum kehitung — catat biaya produksi & saprotan di Modul Pertanian dulu.\n\nLanjut jual tanpa catat HPP?");
-        if (!ok) { setSellLoading(false); return; }
+      try {
+        const { totalJual, laba } = await recordAgriPenjualan(supabase, {
+          userId, businessId, productName: sellingProduct.name, qty, harga,
+          hppPerUnit: hpp, tanggal: today,
+        });
+
+        await supabase.from("stock_movements").insert({
+          user_id: userId, product_id: sellingProduct.id, type: "keluar", reason: "terjual",
+          quantity: qty, note: "Penjualan " + sellingProduct.name, profit_loss: laba, movement_date: today,
+        });
+
+        setSellingProduct(null);
+        setSellSuccess({ nama: sellingProduct.name, total: totalJual, laba });
+        router.refresh();
+      } catch (financeErr) {
+        // Rollback stok kalau keuangan gagal / user cancel di tengah
+        await supabase.from("products").update({ stock: prevStock }).eq("id", sellingProduct.id);
+        throw financeErr;
       }
-
-      const { totalJual, laba } = await recordAgriPenjualan(supabase, {
-        userId, businessId, productName: sellingProduct.name, qty, harga,
-        hppPerUnit: hpp, tanggal: today,
-      });
-
-      await supabase.from("stock_movements").insert({
-        user_id: userId, product_id: sellingProduct.id, type: "keluar", reason: "terjual",
-        quantity: qty, note: "Penjualan " + sellingProduct.name, profit_loss: laba, movement_date: today,
-      });
-
-      setSellingProduct(null);
-      setSellSuccess({ nama: sellingProduct.name, total: totalJual, laba });
-      router.refresh();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Gagal menyimpan");
     }

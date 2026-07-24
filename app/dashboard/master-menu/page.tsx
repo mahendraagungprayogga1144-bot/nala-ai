@@ -19,17 +19,18 @@ export default async function MasterMenuPage() {
     return <div className="px-8 py-8 text-[#8B8AA0]">Master Menu hanya untuk bisnis Kuliner / F&B.</div>;
   }
 
-  const { data: menus } = await supabase
-    .from("menus")
-    .select("*, menu_recipes(*, products(id, name, cost, stock, category))")
-    .eq("business_id", business.id)
-    .order("created_at", { ascending: false });
-
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, name, cost, stock, min_stock, category")
-    .eq("business_id", business.id)
-    .order("name");
+  const [{ data: menus }, { data: products }] = await Promise.all([
+    supabase
+      .from("menus")
+      .select("*, menu_recipes(*, products(id, name, cost, stock, category))")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("products")
+      .select("id, name, cost, stock, min_stock, category")
+      .eq("business_id", business.id)
+      .order("name"),
+  ]);
 
   return (
     <div className="w-full min-w-0 px-3 py-3 sm:px-8 sm:py-8">

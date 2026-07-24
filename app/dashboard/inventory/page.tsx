@@ -109,8 +109,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     agriBiayaSemprot = (spray || []).reduce((s, r) => s + Number(r.biaya || 0), 0);
     agriTodaySales = salesData || [];
     agriPenjualanHariIni = (todayTx || []).filter(t => t.type === "pemasukan" && t.category === "Penjualan Panen").reduce((s, t) => s + Number(t.amount || 0), 0);
-    agriHppHariIni = (todayTx || []).filter(t => t.type === "pengeluaran" && t.category === "HPP").reduce((s, t) => s + Number(t.amount || 0), 0);
-    agriProfitHariIni = agriPenjualanHariIni - agriHppHariIni;
+    // HPP tidak lagi di-double-book ke keuangan; profit hari ini = omzet panen (biaya sudah tercatat saat input)
+    agriHppHariIni = 0;
+    agriProfitHariIni = agriPenjualanHariIni;
   }
 
   const productIds = products?.map(p => p.id) || [];
@@ -141,17 +142,22 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const totalValue = products?.reduce((sum, p) => sum + (p.price || 0) * p.stock, 0) || 0;
   const avgPrice = totalProducts > 0 ? (products!.reduce((sum, p) => sum + (p.price || 0), 0) / totalProducts) : 0;
 
-  await supabase.from("inventory_history").upsert(
-    { user_id: user!.id, business_id: business?.id, snapshot_date: new Date().toISOString().split("T")[0], total_value: totalValue },
-    { onConflict: "user_id,snapshot_date" }
-  );
+  const specialized = business?.type === "kuliner" || business?.type === "homeindustry" || business?.type === "pertanian" || business?.type === "ternak";
 
-  const { data: history } = await supabase
-    .from("inventory_history")
-    .select("snapshot_date, total_value")
-    .eq("user_id", user!.id)
-    .order("snapshot_date", { ascending: true })
-    .limit(30);
+  let history: { snapshot_date: string; total_value: number }[] | null = null;
+  if (!specialized) {
+    await supabase.from("inventory_history").upsert(
+      { user_id: user!.id, business_id: business?.id, snapshot_date: todayWib(), total_value: totalValue },
+      { onConflict: "user_id,snapshot_date" }
+    );
+    const { data: hist } = await supabase
+      .from("inventory_history")
+      .select("snapshot_date, total_value")
+      .eq("user_id", user!.id)
+      .order("snapshot_date", { ascending: true })
+      .limit(30);
+    history = hist;
+  }
 
   const kpis = [
     { label: config.kpiLabel.total, value: totalProducts, icon: Package, color: "#38BDF8" },

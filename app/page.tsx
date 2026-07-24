@@ -638,14 +638,39 @@ export default function Home() {
               <p className="text-[10px] text-[#3A3B52] leading-relaxed max-w-[200px]">Solusi bisnis all-in-one dengan kecerdasan AI untuk UMKM Indonesia.</p>
             </div>
             {[
-              { title: "Produk", links: ["Fitur", "Harga", "Integrasi", "AI Assistant"] },
-              { title: "Company", links: ["Tentang Kami", "Blog", "Karir", "Kontak"] },
-              { title: "Legal", links: ["Privacy Policy", "Terms of Service", "Kebijakan Data"] },
-            ].map(col => (
+              {
+                title: "Produk",
+                links: [
+                  { label: "Fitur", href: "#fitur" },
+                  { label: "Playground", href: "#playground" },
+                  { label: "Harga", href: "/pricing" },
+                ],
+              },
+              {
+                title: "Company",
+                links: [
+                  { label: "Tentang", href: "#tentang" },
+                  { label: "Kontak", href: `https://wa.me/${PAYMENT_WA}` },
+                  { label: "Masuk", href: "/login" },
+                ],
+              },
+              {
+                title: "Legal",
+                links: [
+                  { label: "Privacy Policy", href: "/privacy" },
+                  { label: "Terms of Service", href: "/terms" },
+                  { label: "Kebijakan Data", href: "/kebijakan-data" },
+                ],
+              },
+            ].map((col) => (
               <div key={col.title}>
-                <p className="text-[10px] uppercase tracking-[0.15em] text-[#3A3B52] font-bold mb-3">{col.title}</p>
+                <p className="mb-3 text-[10px] font-bold tracking-[0.15em] text-[#3A3B52] uppercase">{col.title}</p>
                 <div className="space-y-2">
-                  {col.links.map(l => <a key={l} href="#" className="block text-xs text-[#5A5B7A] hover:text-[#2DD4BF] transition-colors">{l}</a>)}
+                  {col.links.map((l) => (
+                    <a key={l.label} href={l.href} className="block text-xs text-[#5A5B7A] transition-colors hover:text-[#2DD4BF]">
+                      {l.label}
+                    </a>
+                  ))}
                 </div>
               </div>
             ))}

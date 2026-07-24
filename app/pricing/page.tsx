@@ -372,8 +372,9 @@ export default function PricingPage() {
         <div className="mx-auto max-w-[1200px] flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
           <p className="text-xs text-[#3A3B52]">&copy; 2026 PT Henima Collection Indonesia. All rights reserved.</p>
           <div className="flex gap-6 text-xs text-[#5A5B7A]">
-            <a href="#" className="hover:text-[#8B8AA0] transition-colors">Syarat & Ketentuan</a>
-            <a href="#" className="hover:text-[#8B8AA0] transition-colors">Privasi</a>
+            <a href="/terms" className="hover:text-[#8B8AA0] transition-colors">Syarat & Ketentuan</a>
+            <a href="/privacy" className="hover:text-[#8B8AA0] transition-colors">Privasi</a>
+            <a href="/kebijakan-data" className="hover:text-[#8B8AA0] transition-colors">Kebijakan Data</a>
             <a href={`https://wa.me/${PAYMENT_WA}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#8B8AA0] transition-colors">Kontak</a>
           </div>
         </div>

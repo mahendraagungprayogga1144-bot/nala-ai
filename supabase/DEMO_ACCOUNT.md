@@ -1,34 +1,14 @@
-# Akun Demo Gercep AI
+# Akun Demo Gercep AI — dinonaktifkan
 
-Akun demo **otomatis dibuat** saat pembeli klik **Masuk Akun Demo** (`/login`) atau **Coba Akun Demo** (`/signup`).
+Login/daftar demo (**Masuk Akun Demo**, `demo@gercep.id` shared) sudah **dihapus dari produk**.
 
-| Field | Value |
-|-------|-------|
-| Email | `demo@gercep.id` |
-| Password | `Gercep123!` |
+Pembeli hanya bisa daftar/masuk dengan akun pribadi (email/password).
 
-## Data contoh yang terisi otomatis
+## Data lama di Supabase (opsional, manual)
 
-- **Warung Pak Budi** (kuliner) — omzet & transaksi
-- **Kebun Sejahtera** (pertanian) — panen, lahan, biaya
-- **Ternak Makmur** (ternak) — batch ayam + transaksi farm
+Produk **tidak** menghapus user demo otomatis. Jika ingin membersihkan di dashboard Supabase:
 
-Dashboard Owner langsung menampilkan ranking untung/rugi multi-bisnis.
+1. Auth → Users → cari `demo@gercep.id` → Delete user (cascade data terkait jika perlu).
+2. (Opsional) hapus setting key `demo_enabled` di tabel platform settings — tidak dipakai lagi oleh app.
 
-## Wajib: env di Vercel
-
-Tambahkan di **Vercel → Settings → Environment Variables**:
-
-```
-SUPABASE_SERVICE_ROLE_KEY=eyJ... (dari Supabase → Settings → API → service_role)
-```
-
-Tanpa key ini, tombol demo gagal dengan pesan error jelas.
-
-Opsional override:
-- `NEXT_PUBLIC_DEMO_EMAIL`
-- `NEXT_PUBLIC_DEMO_PASSWORD`
-
-## Reset demo
-
-Hapus user `demo@gercep.id` di Supabase Auth, lalu klik tombol demo lagi — data akan di-seed ulang.
+Jangan jalankan wipe massal dari aplikasi.

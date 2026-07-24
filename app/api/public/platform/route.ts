@@ -7,7 +7,6 @@ export async function GET() {
   return NextResponse.json({
     trial_days: s.trial_days,
     signup_open: s.signup_open,
-    demo_enabled: s.demo_enabled,
     payment_wa: s.payment_wa,
     support_email: s.support_email,
     app_url: s.app_url,

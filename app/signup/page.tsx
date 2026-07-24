@@ -2,10 +2,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { DEMO_EMAIL } from "@/lib/demo/config";
-import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { registerAccount } from "@/lib/auth/register-client";
-import { homeForBizType, setFastGateCookies, clearFastGateCookies } from "@/lib/auth/post-login";
+import { clearFastGateCookies } from "@/lib/auth/post-login";
 import { TRIAL_DAYS } from "@/lib/auth/trial";
 import { Check, Eye, EyeOff } from "lucide-react";
 
@@ -62,35 +60,6 @@ export default function SignupPage() {
 
     clearFastGateCookies();
     window.location.assign("/onboarding");
-  };
-
-  const handleDemoSignup = async () => {
-    if (loading) return;
-    setError("");
-    setLoading(true);
-    const result = await signInDemoAccount(supabase);
-    if (!result.ok) {
-      setError(result.error);
-      setLoading(false);
-      return;
-    }
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (userId) {
-      const { data: businesses } = await supabase
-        .from("businesses")
-        .select("id, type")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      const b = businesses?.[0];
-      if (b) setFastGateCookies({ businessId: b.id });
-      window.location.assign(homeForBizType(b?.type));
-      return;
-    }
-    window.location.assign("/dashboard/inventory");
   };
 
   return (
@@ -206,27 +175,6 @@ export default function SignupPage() {
           <Link href="/login" className="text-[#2DD4BF] hover:underline">
             Masuk di sini
           </Link>
-        </p>
-
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-white/10" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-[#0A0A12] px-3 text-[#5A5B7A]">atau coba dulu</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => void handleDemoSignup()}
-          disabled={loading}
-          className="w-full rounded-xl border border-white/10 py-3 text-sm text-[#8B8AA0] hover:bg-white/[0.03] disabled:opacity-50"
-        >
-          Masuk akun demo ({DEMO_EMAIL})
-        </button>
-        <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-          Akun demo bersama (bukan akun pribadi) — semua orang melihat data contoh yang sama.
         </p>
         <p className="mt-3 text-center text-[10px] text-[#5A5B7A]">
           Bantuan:{" "}

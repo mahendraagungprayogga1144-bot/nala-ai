@@ -103,7 +103,6 @@ export async function GET() {
     settingsSummary: {
       trial_days: settings.trial_days,
       signup_open: settings.signup_open,
-      demo_enabled: settings.demo_enabled,
       admin_emails: settings.admin_emails,
       payment_wa: settings.payment_wa,
     },

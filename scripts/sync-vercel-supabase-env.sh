@@ -41,10 +41,10 @@ upsert NEXT_PUBLIC_SUPABASE_ANON_KEY "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
 if [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
   upsert SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
 else
-  echo "WARN: SUPABASE_SERVICE_ROLE_KEY belum ada di .env.local — demo provision / register admin akan gagal sampai diisi."
+  echo "WARN: SUPABASE_SERVICE_ROLE_KEY belum ada di .env.local — register admin akan gagal sampai diisi."
 fi
 
 echo "Redeploying production…"
 npx vercel --prod --yes
 
-echo "Done. Test: https://nala-ai-iota.vercel.app/auth (atau /login) dengan demo@gercep.id"
+echo "Done. Test: https://nala-ai-iota.vercel.app/login (daftar/masuk akun nyata)."

@@ -25,7 +25,7 @@ export default function TermsPage() {
       <Ul
         items={[
           "Anda wajib memberikan data pendaftaran yang akurat dan menjaga kerahasiaan kata sandi.",
-          "Anda bertanggung jawab atas seluruh aktivitas di akun Anda, termasuk akun demo/karyawan yang Anda kelola.",
+          "Anda bertanggung jawab atas seluruh aktivitas di akun Anda, termasuk akun karyawan yang Anda kelola.",
           "Dilarang menyalahgunakan layanan: meretas, mengganggu sistem, spam, atau melanggar hukum.",
           "Konten dan data bisnis yang Anda unggah adalah tanggung jawab Anda.",
         ]}

@@ -2,8 +2,6 @@
 import { useState, Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo/config";
-import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { homeForBizType, setFastGateCookies, clearFastGateCookies } from "@/lib/auth/post-login";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
@@ -85,7 +83,6 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(urlError ? mapAuthError(urlError) : "");
   const [loading, setLoading] = useState(false);
-  const [demoEnabled, setDemoEnabled] = useState(true);
   const [trialDays, setTrialDays] = useState(5);
   const [supportEmail, setSupportEmail] = useState("hellogercepai@gmail.com");
 
@@ -93,7 +90,6 @@ function LoginForm() {
     fetch("/api/public/platform")
       .then((r) => r.json())
       .then((d) => {
-        if (typeof d.demo_enabled === "boolean") setDemoEnabled(d.demo_enabled);
         if (typeof d.trial_days === "number") setTrialDays(d.trial_days);
         if (d.support_email) setSupportEmail(String(d.support_email));
       })
@@ -140,36 +136,6 @@ function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await doLogin(email, password);
-  };
-
-  const handleDemoLogin = async () => {
-    if (loading) return;
-    setEmail(DEMO_EMAIL);
-    setPassword(DEMO_PASSWORD);
-    setError("");
-    setLoading(true);
-    try {
-      const supabase = createClient();
-      const result = await signInDemoAccount(supabase);
-      if (!result.ok) {
-        setError(result.error);
-        setLoading(false);
-        return;
-      }
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      if (!userId) {
-        go("/dashboard/inventory");
-        return;
-      }
-      const path = await resolvePostLoginPath(supabase, userId, null, session?.user?.email);
-      go(path);
-    } catch {
-      setError("Gagal masuk akun demo. Coba lagi.");
-      setLoading(false);
-    }
   };
 
   return (
@@ -228,22 +194,6 @@ function LoginForm() {
             {loading ? "Masuk..." : "Masuk"}
           </button>
         </form>
-
-        {demoEnabled && (
-          <>
-            <button
-              type="button"
-              onClick={() => void handleDemoLogin()}
-              disabled={loading}
-              className="mt-3 w-full rounded-xl border border-violet-500/30 bg-violet-500/10 py-3.5 text-sm font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-50"
-            >
-              {loading ? "Menyiapkan demo..." : "Masuk Akun Demo"}
-            </button>
-            <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-              Akun demo bersama (bukan akun pribadi) · data contoh · trial {trialDays} hari
-            </p>
-          </>
-        )}
 
         <p className="mt-6 text-center text-sm text-[#8B8AA0]">
           Belum punya akun?{" "}

@@ -27,7 +27,6 @@ export async function PATCH(request: Request) {
     "maintenance_mode",
     "maintenance_message",
     "signup_open",
-    "demo_enabled",
     "payment_wa",
     "qris_image_url",
     "support_email",

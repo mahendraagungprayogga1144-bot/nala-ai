@@ -1,4 +1,4 @@
-/** Trial gratis untuk akun baru & demo — seperti startup SaaS. */
+/** Trial gratis untuk akun baru — seperti startup SaaS. */
 export const TRIAL_DAYS = 5;
 
 export function trialEndsAt(from = new Date(), days = TRIAL_DAYS) {

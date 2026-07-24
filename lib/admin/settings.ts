@@ -21,7 +21,6 @@ export type PlatformSettingsMap = {
   maintenance_mode: boolean;
   maintenance_message: string;
   signup_open: boolean;
-  demo_enabled: boolean;
   payment_wa: string;
   qris_image_url: string;
   support_email: string;
@@ -42,7 +41,6 @@ const DEFAULTS: PlatformSettingsMap = {
   maintenance_mode: false,
   maintenance_message: "Sedang maintenance. Coba lagi sebentar.",
   signup_open: true,
-  demo_enabled: true,
   payment_wa: PAYMENT_WA,
   qris_image_url: "",
   support_email: "hellogercepai@gmail.com",
@@ -180,7 +178,6 @@ function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSett
     maintenance_mode: asBool(map.get("maintenance_mode"), DEFAULTS.maintenance_mode),
     maintenance_message: asStr(map.get("maintenance_message"), DEFAULTS.maintenance_message),
     signup_open: asBool(map.get("signup_open"), DEFAULTS.signup_open),
-    demo_enabled: asBool(map.get("demo_enabled"), DEFAULTS.demo_enabled),
     payment_wa: toWaMeDigits(asStr(map.get("payment_wa"), DEFAULTS.payment_wa)) || DEFAULTS.payment_wa,
     qris_image_url: asOptionalUrl(map.get("qris_image_url")),
     support_email: asStr(map.get("support_email"), DEFAULTS.support_email),

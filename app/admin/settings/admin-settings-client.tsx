@@ -173,7 +173,6 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
             />
           </label>
           <Toggle label="Signup terbuka" checked={s.signup_open} onChange={(v) => setS({ ...s, signup_open: v })} />
-          <Toggle label="Demo enabled" checked={s.demo_enabled} onChange={(v) => setS({ ...s, demo_enabled: v })} />
           <label className="block">
             <span className="mb-1.5 block text-xs text-[#8B8AA0]">Trial days</span>
             <input

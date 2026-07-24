@@ -3,7 +3,17 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Check, Copy, MessageCircle, Clock, Crown, ShieldCheck } from "lucide-react";
-import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, PAYMENT_WA, isPlaceholderPaymentConfig, type PlanKey } from "@/lib/payment/config";
+import {
+  UPGRADE_PLANS,
+  BANK_ACCOUNTS,
+  fmtRupiah,
+  buildWaMessage,
+  buildInvoiceShareWaMessage,
+  PAYMENT_WA,
+  isPlaceholderPaymentConfig,
+  isPlaceholderWa,
+  type PlanKey,
+} from "@/lib/payment/config";
 import { plansWithPrices } from "@/lib/payment/plans";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import type { CurrentSub, PendingPayment, PaidPayment } from "./page";
@@ -80,6 +90,26 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       wa: paymentWa,
     });
 
+  const invoiceShareLink = (opts: {
+    plan: string;
+    amount: number;
+    invoice: string;
+    paymentId: string;
+    status: string;
+  }) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://www.gercepos.id";
+    return buildInvoiceShareWaMessage({
+      name: userName,
+      email: userEmail,
+      plan: opts.plan,
+      amount: opts.amount,
+      invoice: opts.invoice,
+      status: opts.status,
+      invoiceUrl: `${origin}/api/invoice/${opts.paymentId}`,
+      wa: paymentWa,
+    });
+  };
+
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopied(key);
@@ -102,6 +132,11 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       return;
     }
     setLoading(true);
+    // Open blank tab in the same user gesture — window.open after await is popup-blocked,
+    // which made "kirim ke WA" fail even though payment was already saved.
+    const waUrl = waLink({ plan: selected, amount: plan.price, invoice });
+    const waWin = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
+
     const { error } = await supabase.from("payments").insert({
       user_id: userId,
       plan: selected,
@@ -112,6 +147,11 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
     });
     if (error) {
       setLoading(false);
+      try {
+        waWin?.close();
+      } catch {
+        /* ignore */
+      }
       alert("Gagal buat invoice: " + error.message);
       return;
     }
@@ -121,7 +161,15 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       meta: { plan: selected, amount: plan.price, invoice },
     });
     setLoading(false);
-    window.open(waLink({ plan: selected, amount: plan.price, invoice }), "_blank");
+    if (waWin) {
+      waWin.location.href = waUrl;
+    } else if (isPlaceholderWa(paymentWa)) {
+      alert(
+        "Popup diblokir browser, dan nomor WA admin belum di-set. Minta admin isi WA di Admin → Settings, lalu klik 'Kirim Bukti Transfer via WA' di halaman berikutnya.",
+      );
+    } else {
+      alert("Popup diblokir browser. Klik 'Kirim Bukti Transfer via WA' di halaman berikutnya.");
+    }
     router.refresh();
   };
 
@@ -146,6 +194,20 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
               <MessageCircle size={14} /> Kirim Bukti Transfer via WA
             </a>
             <a
+              href={invoiceShareLink({
+                plan: pendingPayment.plan,
+                amount: Number(pendingPayment.amount),
+                invoice: pendingPayment.invoice_id || "-",
+                paymentId: pendingPayment.id,
+                status: "pending",
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-xs font-medium text-[#4ADE80] hover:underline"
+            >
+              <MessageCircle size={12} /> Kirim link invoice ke WA
+            </a>
+            <a
               href={`/api/invoice/${pendingPayment.id}`}
               target="_blank"
               rel="noreferrer"
@@ -153,6 +215,11 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
             >
               Lihat / unduh invoice
             </a>
+            {isPlaceholderWa(paymentWa) && (
+              <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-[#F59E0B]">
+                Nomor WA admin belum dikonfigurasi — WhatsApp akan membuka pemilih kontak. Minta admin isi di Admin → Settings.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -168,14 +235,30 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
           {isActive && currentSub?.expired_at && <> · aktif sampai {fmtDate(currentSub.expired_at)}</>}
         </p>
         {lastPaidPayment && (
-          <a
-            href={`/api/invoice/${lastPaidPayment.id}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-flex text-xs font-medium text-[#38BDF8] hover:underline"
-          >
-            Unduh invoice terakhir ({lastPaidPayment.invoice_id || lastPaidPayment.id.slice(0, 8)})
-          </a>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <a
+              href={`/api/invoice/${lastPaidPayment.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex text-xs font-medium text-[#38BDF8] hover:underline"
+            >
+              Unduh invoice terakhir ({lastPaidPayment.invoice_id || lastPaidPayment.id.slice(0, 8)})
+            </a>
+            <a
+              href={invoiceShareLink({
+                plan: lastPaidPayment.plan,
+                amount: Number(lastPaidPayment.amount),
+                invoice: lastPaidPayment.invoice_id || lastPaidPayment.id.slice(0, 8),
+                paymentId: lastPaidPayment.id,
+                status: "paid",
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#4ADE80] hover:underline"
+            >
+              <MessageCircle size={12} /> Kirim invoice ke WA
+            </a>
+          </div>
         )}
       </div>
 

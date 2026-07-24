@@ -6,9 +6,13 @@ export const PAYMENT_WA = "6281234567890"; // placeholder — block in upgrade U
 export const PLACEHOLDER_WA = "6281234567890";
 export const PLACEHOLDER_BANK_NUMBERS = new Set(["1234567890", "081234567890"]);
 
-export function isPlaceholderPaymentConfig(wa: string, banks: BankAccount[]) {
+export function isPlaceholderWa(wa: string) {
   const waDigits = (wa || "").replace(/\D/g, "");
-  if (!waDigits || waDigits === PLACEHOLDER_WA || waDigits === "6281234567890") return true;
+  return !waDigits || waDigits === PLACEHOLDER_WA || waDigits === "6281234567890";
+}
+
+export function isPlaceholderPaymentConfig(wa: string, banks: BankAccount[]) {
+  if (isPlaceholderWa(wa)) return true;
   if (!banks.length) return true;
   const allFake = banks.every(
     (b) => !b.number?.trim() || PLACEHOLDER_BANK_NUMBERS.has(b.number.replace(/\D/g, "")),
@@ -61,6 +65,14 @@ export function fmtRupiah(n: number) {
   return "Rp " + Math.round(n).toLocaleString("id-ID");
 }
 
+/** Build wa.me URL. Placeholder/missing WA → chooser (`wa.me/?text=`) so we never open the fake number. */
+export function waMeUrl(text: string, wa?: string) {
+  const encoded = encodeURIComponent(text);
+  const digits = (wa || "").replace(/\D/g, "");
+  if (isPlaceholderWa(digits)) return `https://wa.me/?text=${encoded}`;
+  return `https://wa.me/${digits}?text=${encoded}`;
+}
+
 export function buildWaMessage(opts: {
   name: string;
   email: string;
@@ -79,6 +91,32 @@ export function buildWaMessage(opts: {
     "",
     "Saya sudah transfer, berikut bukti transfernya. Mohon di-ACC ya, terima kasih!",
   ];
-  const wa = (opts.wa || PAYMENT_WA).replace(/\D/g, "") || PAYMENT_WA;
-  return `https://wa.me/${wa}?text=${encodeURIComponent(lines.join("\n"))}`;
+  return waMeUrl(lines.join("\n"), opts.wa);
+}
+
+/** Share paid/pending invoice link via WhatsApp (after payment recorded). */
+export function buildInvoiceShareWaMessage(opts: {
+  name: string;
+  email: string;
+  plan: string;
+  amount: number;
+  invoice: string;
+  status: string;
+  invoiceUrl: string;
+  wa?: string;
+}) {
+  const statusLabel =
+    opts.status === "paid" ? "LUNAS" : opts.status === "pending" ? "MENUNGGU KONFIRMASI" : opts.status.toUpperCase();
+  const lines = [
+    "Halo! Invoice langganan Gercep AI:",
+    "",
+    `Nama: ${opts.name}`,
+    `Email: ${opts.email}`,
+    `Paket: ${opts.plan.toUpperCase()} — ${fmtRupiah(opts.amount)}/bulan`,
+    `Invoice: ${opts.invoice}`,
+    `Status: ${statusLabel}`,
+    "",
+    `Link invoice: ${opts.invoiceUrl}`,
+  ];
+  return waMeUrl(lines.join("\n"), opts.wa);
 }

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlatformSettings } from "@/lib/admin/settings";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { buildInvoiceHtml } from "@/lib/payment/invoice";
+import { buildInvoiceShareWaMessage } from "@/lib/payment/config";
 
 export async function GET(
   _req: NextRequest,
@@ -57,8 +58,22 @@ export async function GET(
     if (profile?.full_name) customerName = profile.full_name;
   }
 
+  const invoiceId = payment.invoice_id || payment.id.slice(0, 8).toUpperCase();
+  const appUrl = (settings.app_url || "https://www.gercepos.id").replace(/\/$/, "");
+  const invoiceUrl = `${appUrl}/api/invoice/${payment.id}`;
+  const waShareUrl = buildInvoiceShareWaMessage({
+    name: customerName,
+    email: customerEmail,
+    plan: payment.plan,
+    amount: Number(payment.amount),
+    invoice: invoiceId,
+    status: payment.status,
+    invoiceUrl,
+    wa: settings.payment_wa,
+  });
+
   const html = buildInvoiceHtml({
-    invoiceId: payment.invoice_id || payment.id.slice(0, 8).toUpperCase(),
+    invoiceId,
     status: payment.status,
     plan: payment.plan,
     amount: Number(payment.amount),
@@ -74,6 +89,7 @@ export async function GET(
     companyName: "Gercep AI",
     supportEmail: settings.support_email,
     appUrl: settings.app_url,
+    waShareUrl,
   });
 
   return new NextResponse(html, {

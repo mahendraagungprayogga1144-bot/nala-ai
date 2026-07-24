@@ -29,3 +29,12 @@ DO $$ BEGIN
     WITH CHECK (auth.uid() = user_id);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Idempotent: ensure columns exist if an older payments table was created without them.
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS method TEXT;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS invoice_id TEXT;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS confirmed_by TEXT;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS period_start DATE;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS period_end DATE;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();

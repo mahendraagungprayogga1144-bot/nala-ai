@@ -18,6 +18,8 @@ export type InvoiceData = {
   companyName?: string;
   supportEmail?: string;
   appUrl?: string;
+  /** Prefilled wa.me URL for "Kirim ke WhatsApp" */
+  waShareUrl?: string;
 };
 
 function esc(s: string) {
@@ -149,6 +151,11 @@ export function buildInvoiceHtml(data: InvoiceData) {
 
     <div class="actions">
       <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+      ${
+        data.waShareUrl
+          ? `<a class="btn" style="background:#16a34a;border-color:#16a34a" href="${esc(data.waShareUrl)}" target="_blank" rel="noopener noreferrer">Kirim ke WhatsApp</a>`
+          : ""
+      }
       <a class="btn btn-secondary" href="/dashboard/upgrade">Kembali ke Upgrade</a>
     </div>
   </div>

@@ -21,11 +21,21 @@ import KesehatanInventory from "./kesehatan-inventory";
 import BengkelInventory from "./bengkel-inventory";
 import { normalizeBizType } from "@/lib/auth/post-login";
 
-const InventoryCharts = dynamic(() => import("./inventory-charts"), { ssr: false });
-const TrendChart = dynamic(() => import("./trend-chart"), { ssr: false });
-const RecentMovements = dynamic(() => import("./recent-movements"), { ssr: false });
-const MovementsChart = dynamic(() => import("./movements-chart"), { ssr: false });
-const LossBreakdownChart = dynamic(() => import("./loss-breakdown-chart"), { ssr: false });
+const InventoryCharts = dynamic(() => import("./inventory-charts"), {
+  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
+const TrendChart = dynamic(() => import("./trend-chart"), {
+  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
+const RecentMovements = dynamic(() => import("./recent-movements"), {
+  loading: () => <div className="mb-4 h-32 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
+const MovementsChart = dynamic(() => import("./movements-chart"), {
+  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
+const LossBreakdownChart = dynamic(() => import("./loss-breakdown-chart"), {
+  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 

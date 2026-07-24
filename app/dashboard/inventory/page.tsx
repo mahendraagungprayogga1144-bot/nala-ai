@@ -17,6 +17,8 @@ import type { HiRecipe } from "./home-industry-calc";
 import { todayWib } from "./home-industry-calc";
 import FnBInventory from "./fnb-inventory";
 import AgricultureInventory from "./agriculture-inventory";
+import TypedInventory from "./typed-inventory";
+import { getInventoryPreset, TYPED_INVENTORY_TYPES } from "./typed-inventory-presets";
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
@@ -52,6 +54,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   let penjualanHariIni = 0;
   let hppHariIni = 0;
   let todaySales: { description: string | null; amount: number }[] = [];
+  let productAttrs: { product_id: string; expiry_date?: string | null; min_order_qty?: number | null; wholesale_price?: number | null }[] = [];
 
   if (business?.type === "homeindustry" && business.id) {
     const [{ data: recipesData }, { data: todayTx }, { data: salesData }] = await Promise.all([
@@ -114,6 +117,14 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     agriProfitHariIni = agriPenjualanHariIni;
   }
 
+  if ((business?.type === "kesehatan" || business?.type === "wholesale") && business.id) {
+    const { data: attrs } = await supabase
+      .from("module_product_attrs")
+      .select("product_id, expiry_date, min_order_qty, wholesale_price")
+      .eq("business_id", business.id);
+    productAttrs = attrs || [];
+  }
+
   const productIds = products?.map(p => p.id) || [];
 
   const movementsQuery = productIds.length > 0
@@ -142,7 +153,13 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const totalValue = products?.reduce((sum, p) => sum + (p.price || 0) * p.stock, 0) || 0;
   const avgPrice = totalProducts > 0 ? (products!.reduce((sum, p) => sum + (p.price || 0), 0) / totalProducts) : 0;
 
-  const specialized = business?.type === "kuliner" || business?.type === "homeindustry" || business?.type === "pertanian" || business?.type === "ternak";
+  const specialized =
+    business?.type === "kuliner" ||
+    business?.type === "homeindustry" ||
+    business?.type === "pertanian" ||
+    business?.type === "ternak" ||
+    TYPED_INVENTORY_TYPES.includes(business?.type || "");
+  const typedPreset = getInventoryPreset(business?.type);
 
   let history: { snapshot_date: string; total_value: number }[] | null = null;
   if (!specialized) {
@@ -174,6 +191,12 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             : business?.type === "homeindustry" ? "Stok & Penjualan"
             : business?.type === "pertanian" ? "Stok & Jual Panen"
             : business?.type === "ternak" ? "Stok Ternak"
+            : business?.type === "retail" ? "Stok Toko"
+            : business?.type === "jasa" ? "Aset & Peralatan"
+            : business?.type === "wholesale" ? "Stok Grosir"
+            : business?.type === "olshop" ? "Stok Online"
+            : business?.type === "kesehatan" ? "Stok Obat & Alkes"
+            : business?.type === "bengkel" ? "Spare Part"
             : "Inventory"}
         </h1>
         {business?.name && <span className="text-xs text-[#8B8AA0] bg-white/5 px-3 py-1 rounded-full">{business.name}</span>}
@@ -202,7 +225,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         <p className="text-[#8B8AA0] mb-8">{config.produkLabel} dan stok kamu.</p>
       )}
 
-      {business?.type !== "homeindustry" && business?.type !== "ternak" && business?.type !== "kuliner" && business?.type !== "pertanian" && (
+      {business?.type !== "homeindustry" && business?.type !== "ternak" && business?.type !== "kuliner" && business?.type !== "pertanian" && !typedPreset && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {kpis.map((k) => (
             <div key={k.label} className="relative bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 overflow-hidden">
@@ -253,6 +276,25 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             today={today}
           />
         </div>
+      ) : typedPreset ? (
+        <div className="mb-8">
+          <TypedInventory
+            products={products || []}
+            userId={user!.id}
+            businessId={business?.id}
+            config={typedPreset.config}
+            tip={typedPreset.tip}
+            hubHref={typedPreset.hubHref}
+            hubLabel={typedPreset.hubLabel}
+            sections={typedPreset.sections}
+            buyCategory={typedPreset.buyCategory}
+            sellCategory={typedPreset.sellCategory}
+            showSku={typedPreset.showSku}
+            attrsMode={typedPreset.attrsMode}
+            attrs={productAttrs}
+            workflow={typedPreset.workflow}
+          />
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 mb-8">
           <ProductForm userId={user!.id} businessId={business?.id} nextSkuNumber={totalProducts + 1} config={config} />
@@ -260,7 +302,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      {business?.type !== "kuliner" && business?.type !== "homeindustry" && business?.type !== "ternak" && business?.type !== "pertanian" && (
+      {!specialized && (
         <>
           <TrendChart history={history || []} />
           <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />

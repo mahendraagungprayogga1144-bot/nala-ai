@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BusinessSwitcher from "./business-switcher";
 import { getSidebarModules, type DashboardModule } from "./lib/modules-registry";
@@ -47,7 +48,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
     ].join(" ");
 
     return (
-      <a key={m.href + m.name} href={m.href} onClick={() => onNavigate?.()} title={m.name} className={itemCls}>
+      <Link key={m.href + m.name} href={m.href} prefetch onClick={() => onNavigate?.()} title={m.name} className={itemCls}>
         <m.icon size={15} className="flex-shrink-0" />
         {expanded && (
           <>
@@ -57,7 +58,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
             )}
           </>
         )}
-      </a>
+      </Link>
     );
   };
 
@@ -100,21 +101,21 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
       </nav>
 
       {expanded && userEmail === ADMIN_EMAIL && (
-        <a href="/admin" onClick={() => onNavigate?.()}
+        <Link href="/admin" prefetch onClick={() => onNavigate?.()}
           className="mx-2 mb-2 flex items-center gap-2 rounded-xl border border-[#EC4899]/20 bg-gradient-to-r from-[#EC4899]/[0.08] to-[#8B5CF6]/[0.06] px-3 py-2.5 text-xs font-bold text-[#EC4899] transition-all hover:from-[#EC4899]/[0.15]">
           <Shield size={14} />
           Admin Panel
-        </a>
+        </Link>
       )}
 
       {expanded && (
         <div className="mx-2 mb-2 rounded-xl border border-[#2DD4BF]/15 bg-gradient-to-br from-[#2DD4BF]/[0.08] to-[#8B5CF6]/[0.06] p-3">
           <p className="mb-0.5 text-xs font-semibold text-[#2DD4BF]">🚀 Upgrade ke Pro</p>
           <p className="mb-2.5 text-[10px] leading-relaxed text-[#5A5B7A]">Akses semua fitur premium tanpa batas</p>
-          <a href="/dashboard/upgrade" onClick={() => onNavigate?.()}
+          <Link href="/dashboard/upgrade" prefetch onClick={() => onNavigate?.()}
             className="gercep-gradient-btn block w-full cursor-pointer rounded-lg py-1.5 text-center text-[11px] font-bold transition-opacity hover:opacity-90">
             Upgrade Sekarang
-          </a>
+          </Link>
         </div>
       )}
 

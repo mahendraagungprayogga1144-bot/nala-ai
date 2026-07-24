@@ -21,18 +21,11 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user!.id)
-    .maybeSingle();
+  const [{ data: profile }, { data: businesses }] = await Promise.all([
+    supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
+    supabase.from("businesses").select("id, name, type").eq("user_id", user!.id).order("created_at", { ascending: true }),
+  ]);
   const userName = profile?.full_name || user?.email?.split("@")[0] || "Owner";
-
-  const { data: businesses } = await supabase
-    .from("businesses")
-    .select("id, name, type")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: true });
 
   if (!businesses || businesses.length === 0) {
     return <div className="px-4 sm:px-8 py-8 text-[#8B8AA0]">Belum ada bisnis. Buat bisnis dulu di onboarding.</div>;
@@ -78,154 +71,116 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
   const startOfLastMonth = prevPeriodStart;
   const endOfLastMonth = prevPeriodEnd;
   const bizIds = businesses.map(b => b.id);
+  const pertanianIds = businesses.filter(b => b.type === "pertanian").map(b => b.id);
+  const ternakIds = businesses.filter(b => b.type === "ternak").map(b => b.id);
 
-  const businessData = await Promise.all(
-    businesses.map(async (biz) => {
-      const { data: monthTx } = await supabase
-        .from("transactions")
-        .select("type, amount, category")
-        .eq("business_id", biz.id)
-        .eq("scope", "bisnis")
-        .gte("transaction_date", startOfMonth)
-        .lte("transaction_date", periodEnd);
+  // Batch queries once for all businesses (avoids N× sequential roundtrips)
+  const [
+    { data: allMonthTx },
+    { data: allLastMonthTx },
+    { data: allYearTx },
+    { data: allProducts },
+    { data: allMonthOrders },
+    { data: allTargets },
+    { data: allDailyTx },
+    { data: agriCosts },
+    { data: agriSpray },
+    { data: farmBatches },
+  ] = await Promise.all([
+    supabase.from("transactions").select("business_id, type, amount, category").in("business_id", bizIds).eq("scope", "bisnis").gte("transaction_date", startOfMonth).lte("transaction_date", periodEnd),
+    supabase.from("transactions").select("business_id, type, amount").in("business_id", bizIds).eq("scope", "bisnis").gte("transaction_date", startOfLastMonth).lte("transaction_date", endOfLastMonth),
+    supabase.from("transactions").select("business_id, type, amount").in("business_id", bizIds).eq("scope", "bisnis").gte("transaction_date", startOfYear),
+    supabase.from("products").select("id, name, stock, min_stock, price, business_id").in("business_id", bizIds),
+    supabase.from("orders").select("business_id, total, laba").in("business_id", bizIds).gte("order_date", startOfMonth).lte("order_date", periodEnd),
+    supabase.from("business_targets").select("business_id, target_omzet").in("business_id", bizIds).eq("bulan", bulan).eq("tahun", tahun),
+    supabase.from("transactions").select("business_id, transaction_date, amount").in("business_id", bizIds).eq("scope", "bisnis").eq("type", "pemasukan").gte("transaction_date", startOfMonth).lte("transaction_date", periodEnd),
+    pertanianIds.length
+      ? supabase.from("agri_production_costs").select("business_id, kategori, jumlah").in("business_id", pertanianIds).gte("tanggal", startOfMonth).lte("tanggal", periodEnd)
+      : Promise.resolve({ data: [] as { business_id: string; kategori: string | null; jumlah: number | string }[] }),
+    pertanianIds.length
+      ? supabase.from("agri_spraying_records").select("business_id, biaya").in("business_id", pertanianIds).gte("tanggal", startOfMonth).lte("tanggal", periodEnd)
+      : Promise.resolve({ data: [] as { business_id: string; biaya: number | string | null }[] }),
+    ternakIds.length
+      ? supabase.from("farm_batches").select("id, business_id").in("business_id", ternakIds)
+      : Promise.resolve({ data: [] as { id: string; business_id: string }[] }),
+  ]);
 
-      const { data: lastMonthTx } = await supabase
-        .from("transactions")
-        .select("type, amount")
-        .eq("business_id", biz.id)
-        .eq("scope", "bisnis")
-        .gte("transaction_date", startOfLastMonth)
-        .lte("transaction_date", endOfLastMonth);
+  const batchIds = (farmBatches || []).map(b => b.id);
+  const { data: farmTx } = batchIds.length
+    ? await supabase.from("farm_transactions").select("batch_id, jenis_transaksi, total").in("batch_id", batchIds).gte("tanggal", startOfMonth).lte("tanggal", periodEnd)
+    : { data: [] as { batch_id: string; jenis_transaksi: string | null; total: number | string }[] };
 
-      const { data: yearTx } = await supabase
-        .from("transactions")
-        .select("type, amount")
-        .eq("business_id", biz.id)
-        .eq("scope", "bisnis")
-        .gte("transaction_date", startOfYear);
+  const businessData = businesses.map((biz) => {
+    const monthTx = (allMonthTx || []).filter(t => t.business_id === biz.id);
+    const lastMonthTx = (allLastMonthTx || []).filter(t => t.business_id === biz.id);
+    const yearTx = (allYearTx || []).filter(t => t.business_id === biz.id);
+    const products = (allProducts || []).filter(p => p.business_id === biz.id);
+    const monthOrders = (allMonthOrders || []).filter(o => o.business_id === biz.id);
+    const target = (allTargets || []).find(t => t.business_id === biz.id);
 
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, name, stock, min_stock")
-        .eq("business_id", biz.id);
+    const omzetFromTx = monthTx.filter(t => t.type === "pemasukan").reduce((s, t) => s + Number(t.amount), 0);
+    let omzetBulan = omzetFromTx;
+    let pengeluaranBulan = monthTx.filter(t => t.type === "pengeluaran").reduce((s, t) => s + Number(t.amount), 0);
 
-      const { data: monthOrders } = await supabase
-        .from("orders")
-        .select("total, laba")
-        .eq("business_id", biz.id)
-        .gte("order_date", startOfMonth)
-        .lte("order_date", periodEnd);
+    const pengeluaranByCategory: Record<string, number> = {};
+    monthTx.filter(t => t.type === "pengeluaran").forEach(t => {
+      const cat = t.category || "Lainnya";
+      pengeluaranByCategory[cat] = (pengeluaranByCategory[cat] || 0) + Number(t.amount);
+    });
 
-      const { data: target } = await supabase
-        .from("business_targets")
-        .select("target_omzet")
-        .eq("business_id", biz.id)
-        .eq("bulan", bulan)
-        .eq("tahun", tahun)
-        .maybeSingle();
-
-      const omzetFromTx = monthTx?.filter(t => t.type === "pemasukan").reduce((s, t) => s + Number(t.amount), 0) || 0;
-      let omzetBulan = omzetFromTx;
-      let pengeluaranBulan = monthTx?.filter(t => t.type === "pengeluaran").reduce((s, t) => s + Number(t.amount), 0) || 0;
-
-      const pengeluaranByCategory: Record<string, number> = {};
-      monthTx?.filter(t => t.type === "pengeluaran").forEach(t => {
-        const cat = t.category || "Lainnya";
-        pengeluaranByCategory[cat] = (pengeluaranByCategory[cat] || 0) + Number(t.amount);
+    if (biz.type === "pertanian") {
+      (agriCosts || []).filter(c => c.business_id === biz.id).forEach(c => {
+        const amt = Number(c.jumlah);
+        pengeluaranBulan += amt;
+        const cat = c.kategori || "Biaya Pertanian";
+        pengeluaranByCategory[cat] = (pengeluaranByCategory[cat] || 0) + amt;
       });
+      (agriSpray || []).filter(s => s.business_id === biz.id).forEach(s => {
+        const amt = Number(s.biaya || 0);
+        pengeluaranBulan += amt;
+        pengeluaranByCategory["Penyemprotan"] = (pengeluaranByCategory["Penyemprotan"] || 0) + amt;
+      });
+      const nilaiPanen = products.reduce((s, p) => s + (Number(p.price) || 0) * Number(p.stock), 0);
+      if (omzetBulan === 0 && nilaiPanen > 0) omzetBulan = nilaiPanen;
+    }
 
-      // Data modul pertanian
-      if (biz.type === "pertanian") {
-        const { data: agriCosts } = await supabase
-          .from("agri_production_costs")
-          .select("kategori, jumlah")
-          .eq("business_id", biz.id)
-          .gte("tanggal", startOfMonth)
-          .lte("tanggal", periodEnd);
-        agriCosts?.forEach(c => {
-          const amt = Number(c.jumlah);
+    if (biz.type === "ternak") {
+      const bizBatchIds = new Set((farmBatches || []).filter(b => b.business_id === biz.id).map(b => b.id));
+      (farmTx || []).filter(t => bizBatchIds.has(t.batch_id)).forEach(t => {
+        const amt = Number(t.total);
+        if (t.jenis_transaksi === "panen") {
+          omzetBulan += amt;
+        } else {
           pengeluaranBulan += amt;
-          const cat = c.kategori || "Biaya Pertanian";
+          const cat = t.jenis_transaksi || "Operasional Ternak";
           pengeluaranByCategory[cat] = (pengeluaranByCategory[cat] || 0) + amt;
-        });
-        const { data: agriSpray } = await supabase
-          .from("agri_spraying_records")
-          .select("biaya")
-          .eq("business_id", biz.id)
-          .gte("tanggal", startOfMonth)
-          .lte("tanggal", periodEnd);
-        agriSpray?.forEach(s => {
-          const amt = Number(s.biaya || 0);
-          pengeluaranBulan += amt;
-          pengeluaranByCategory["Penyemprotan"] = (pengeluaranByCategory["Penyemprotan"] || 0) + amt;
-        });
-        const { data: harvestProds } = await supabase
-          .from("products")
-          .select("price, stock")
-          .eq("business_id", biz.id);
-        const nilaiPanen = harvestProds?.reduce((s, p) => s + (Number(p.price) || 0) * Number(p.stock), 0) || 0;
-        if (omzetBulan === 0 && nilaiPanen > 0) omzetBulan = nilaiPanen;
-      }
-
-      // Data modul ternak
-      if (biz.type === "ternak") {
-        const { data: batches } = await supabase.from("farm_batches").select("id").eq("business_id", biz.id);
-        const batchIds = batches?.map(b => b.id) || [];
-        if (batchIds.length > 0) {
-          const { data: farmTx } = await supabase
-            .from("farm_transactions")
-            .select("jenis_transaksi, total")
-            .in("batch_id", batchIds)
-            .gte("tanggal", startOfMonth)
-            .lte("tanggal", periodEnd);
-          farmTx?.forEach(t => {
-            const amt = Number(t.total);
-            if (t.jenis_transaksi === "panen") {
-              omzetBulan += amt;
-            } else {
-              pengeluaranBulan += amt;
-              const cat = t.jenis_transaksi || "Operasional Ternak";
-              pengeluaranByCategory[cat] = (pengeluaranByCategory[cat] || 0) + amt;
-            }
-          });
         }
-      }
-
-      const labaBulan = omzetBulan - pengeluaranBulan;
-      const omzetBulanLalu = lastMonthTx?.filter(t => t.type === "pemasukan").reduce((s, t) => s + Number(t.amount), 0) || 0;
-      const omzetTahun = yearTx?.filter(t => t.type === "pemasukan").reduce((s, t) => s + Number(t.amount), 0) || 0;
-
-      const stokKritis = products?.filter(p => p.stock <= p.min_stock) || [];
-      const totalOrderBulan = monthOrders?.length || 0;
-      const growthPct = omzetBulanLalu > 0 ? Math.round((omzetBulan - omzetBulanLalu) / omzetBulanLalu * 100) : 0;
-      const targetOmzet = target?.target_omzet || 0;
-      const targetPct = targetOmzet > 0 ? Math.round(omzetBulan / targetOmzet * 100) : 0;
-
-      // Daily data for chart
-      const { data: dailyTx } = await supabase
-        .from("transactions")
-        .select("transaction_date, amount")
-        .eq("business_id", biz.id)
-        .eq("scope", "bisnis")
-        .eq("type", "pemasukan")
-        .gte("transaction_date", startOfMonth)
-        .lte("transaction_date", periodEnd);
-
-      const dailyMap: Record<string, number> = {};
-      dailyTx?.forEach(t => {
-        const d = t.transaction_date;
-        dailyMap[d] = (dailyMap[d] || 0) + Number(t.amount);
       });
+    }
 
-      return {
-        id: biz.id, name: biz.name, type: biz.type,
-        omzetBulan, labaBulan, omzetBulanLalu, omzetTahun, growthPct,
-        totalOrderBulan, stokKritis, pengeluaranByCategory,
-        targetOmzet, targetPct, dailyMap,
-        margin: omzetBulan > 0 ? Math.round(labaBulan / omzetBulan * 100) : 0,
-      };
-    })
-  );
+    const labaBulan = omzetBulan - pengeluaranBulan;
+    const omzetBulanLalu = lastMonthTx.filter(t => t.type === "pemasukan").reduce((s, t) => s + Number(t.amount), 0);
+    const omzetTahun = yearTx.filter(t => t.type === "pemasukan").reduce((s, t) => s + Number(t.amount), 0);
+    const stokKritis = products.filter(p => p.stock <= p.min_stock);
+    const totalOrderBulan = monthOrders.length;
+    const growthPct = omzetBulanLalu > 0 ? Math.round((omzetBulan - omzetBulanLalu) / omzetBulanLalu * 100) : 0;
+    const targetOmzet = target?.target_omzet || 0;
+    const targetPct = targetOmzet > 0 ? Math.round(omzetBulan / targetOmzet * 100) : 0;
+
+    const dailyMap: Record<string, number> = {};
+    (allDailyTx || []).filter(t => t.business_id === biz.id).forEach(t => {
+      const d = t.transaction_date;
+      dailyMap[d] = (dailyMap[d] || 0) + Number(t.amount);
+    });
+
+    return {
+      id: biz.id, name: biz.name, type: biz.type,
+      omzetBulan, labaBulan, omzetBulanLalu, omzetTahun, growthPct,
+      totalOrderBulan, stokKritis, pengeluaranByCategory,
+      targetOmzet, targetPct, dailyMap,
+      margin: omzetBulan > 0 ? Math.round(labaBulan / omzetBulan * 100) : 0,
+    };
+  });
 
   const { data: orderItems } = await supabase
     .from("order_items")

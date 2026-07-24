@@ -9,21 +9,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!user) redirect("/login");
 
-  const { data: businesses } = await supabase
-    .from("businesses")
-    .select("id, name, type")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
-
   const cookieStore = await cookies();
+  const [{ data: businesses }, { data: profile }] = await Promise.all([
+    supabase
+      .from("businesses")
+      .select("id, name, type")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+  ]);
+
   const activeId = cookieStore.get("active_business_id")?.value;
   const activeBusiness = businesses?.find((b) => b.id === activeId) || businesses?.[0] || null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .maybeSingle();
 
   const userName = profile?.full_name || user.email?.split("@")[0] || "Owner";
   const userEmail = user.email || "";

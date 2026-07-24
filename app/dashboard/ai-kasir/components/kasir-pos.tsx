@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Product, KasirShift } from "../page";
 import { trackClientEvent } from "@/lib/admin/track-event";
+import { checkoutProductSale } from "@/lib/pos/checkout-product-sale";
 
 type CartItem = { product: Product; qty: number };
 
@@ -110,58 +111,32 @@ export default function KasirPOS({
 
     setLoading(true);
 
-    const { data: order, error } = await supabase.from("orders").insert({
-      user_id: userId, business_id: businessId,
-      total, diskon: diskonNum, hpp: totalHpp, laba,
-      metode_bayar: metodeBayar, catatan: `AI Kasir — ${metodeBayar}`,
-      order_date: today,
-    }).select("id").single();
-
-    if (error || !order) {
-      alert("Gagal simpan order: " + error?.message);
-      setLoading(false);
-      return;
-    }
-
-    const items = cart.map(c => ({
-      order_id: order.id,
-      product_id: c.product.id,
-      qty: c.qty,
-      harga_jual: c.product.price,
-      hpp: c.product.cost || 0,
-      laba: ((c.product.price || 0) - (c.product.cost || 0)) * c.qty,
-    }));
-    await supabase.from("order_items").insert(items);
-
-    await supabase.from("transactions").insert({
-      user_id: userId, business_id: businessId,
-      type: "pemasukan", scope: "bisnis",
-      category: "Penjualan",
-      description: cart.map(c => c.product.name + " x" + c.qty).join(", "),
-      amount: total, transaction_date: today,
+    const result = await checkoutProductSale(supabase, {
+      userId,
+      businessId,
+      lines: cart.map((c) => ({
+        productId: c.product.id,
+        name: c.product.name,
+        qty: c.qty,
+        price: c.product.price || 0,
+        cost: c.product.cost || 0,
+        expectedStock: c.product.stock,
+      })),
+      total,
+      diskon: diskonNum,
+      hpp: totalHpp,
+      laba,
+      metodeBayar,
+      today,
+      shiftId: activeShift?.id || null,
+      shiftTotal: activeShift ? Number(activeShift.total_transaksi) : 0,
+      shiftOrders: activeShift ? Number(activeShift.total_order) : 0,
     });
 
-    for (const c of cart) {
-      const newStock = Math.max(0, c.product.stock - c.qty);
-      await supabase.from("products").update({ stock: newStock }).eq("id", c.product.id);
-      const itemLaba = ((c.product.price || 0) - (c.product.cost || 0)) * c.qty;
-      await supabase.from("stock_movements").insert({
-        user_id: userId,
-        product_id: c.product.id,
-        type: "keluar",
-        reason: "terjual",
-        quantity: c.qty,
-        note: `AI Kasir — ${metodeBayar}`,
-        profit_loss: itemLaba,
-        movement_date: today,
-      });
-    }
-
-    if (activeShift) {
-      await supabase.from("kasir_shifts").update({
-        total_transaksi: Number(activeShift.total_transaksi) + total,
-        total_order: Number(activeShift.total_order) + 1,
-      }).eq("id", activeShift.id);
+    if (!result.ok) {
+      alert(result.error);
+      setLoading(false);
+      return;
     }
 
     trackClientEvent({

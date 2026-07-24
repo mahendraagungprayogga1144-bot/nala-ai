@@ -3,18 +3,21 @@ import { cookies } from "next/headers";
 import KasirClient from "./kasir-client";
 import { normalizeMenus } from "../lib/calc";
 import { todayWib } from "@/lib/date";
+import { normalizeBizType } from "@/lib/auth/post-login";
 
 export default async function FnbKasirPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
 
   const { data: businessData } = await supabase
-    .from("businesses").select("id, type, name").eq("user_id", user!.id).order("created_at", { ascending: true });
+    .from("businesses").select("id, type, name").eq("user_id", user.id).order("created_at", { ascending: true });
 
-  const business = businessData?.find(b => b.id === activeBusinessId) || businessData?.[0] || null;
+  const raw = businessData?.find(b => b.id === activeBusinessId) || businessData?.[0] || null;
+  const business = raw ? { ...raw, type: normalizeBizType(raw.type) } : null;
 
   if (business?.type !== "kuliner") {
     return (
@@ -71,7 +74,7 @@ export default async function FnbKasirPage() {
         menus={normalizeMenus(menus || [])}
         products={products || []}
         employees={employees || []}
-        userId={user!.id}
+        userId={user.id}
         businessId={business.id}
         businessName={business.name}
         omzetHariIni={omzetHariIni}

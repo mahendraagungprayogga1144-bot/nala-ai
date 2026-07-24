@@ -21,19 +21,31 @@ export default function FeedTracker({ feeds, animals, userId, businessId }: { fe
   }));
 
   const handleCatatHarian = async () => {
+    if (loading) return;
     if (totalPakanPerHari <= 0) {
       alert("Isi dulu kebutuhan pakan per ekor per hari di form Batch Panen.");
       return;
     }
     setLoading(true);
+    const date = new Date().toISOString().split("T")[0];
+    const errors: string[] = [];
 
     for (const feed of feeds) {
       if (feed.stock > 0) {
         const pakai = Math.min(feed.stock, totalPakanPerHari);
         const newStock = Math.max(0, feed.stock - pakai);
 
-        await supabase.from("products").update({ stock: newStock }).eq("id", feed.id);
-        await supabase.from("stock_movements").insert({
+        const { error: stockErr } = await supabase
+          .from("products")
+          .update({ stock: newStock })
+          .eq("id", feed.id)
+          .eq("stock", feed.stock);
+        if (stockErr) {
+          errors.push(feed.name + ": " + stockErr.message);
+          continue;
+        }
+
+        const { error: movErr } = await supabase.from("stock_movements").insert({
           user_id: userId,
           product_id: feed.id,
           type: "keluar",
@@ -41,11 +53,12 @@ export default function FeedTracker({ feeds, animals, userId, businessId }: { fe
           quantity: pakai,
           note: `Pakan harian ${totalHewan} ekor`,
           profit_loss: -(feed.cost || 0) * pakai,
-          movement_date: new Date().toISOString().split("T")[0],
+          movement_date: date,
         });
+        if (movErr) errors.push(feed.name + " mutasi: " + movErr.message);
 
         if (feed.cost) {
-          await supabase.from("transactions").insert({
+          const { error: txErr } = await supabase.from("transactions").insert({
             user_id: userId,
             business_id: businessId,
             type: "pengeluaran",
@@ -53,13 +66,17 @@ export default function FeedTracker({ feeds, animals, userId, businessId }: { fe
             category: "Biaya Pakan",
             description: `Pakan harian ${feed.name} untuk ${totalHewan} ekor`,
             amount: (feed.cost || 0) * pakai,
-            transaction_date: new Date().toISOString().split("T")[0],
+            transaction_date: date,
           });
+          if (txErr) errors.push(feed.name + " biaya: " + txErr.message);
         }
       }
     }
 
     setLoading(false);
+    if (errors.length) {
+      alert("Sebagian gagal dicatat:\n" + errors.join("\n"));
+    }
     router.refresh();
   };
 

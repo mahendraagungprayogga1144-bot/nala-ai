@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Check, Copy, MessageCircle, Clock, Crown, ShieldCheck } from "lucide-react";
-import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, PAYMENT_WA, type PlanKey } from "@/lib/payment/config";
+import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, PAYMENT_WA, isPlaceholderPaymentConfig, type PlanKey } from "@/lib/payment/config";
 import { plansWithPrices } from "@/lib/payment/plans";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import type { CurrentSub, PendingPayment, PaidPayment } from "./page";
@@ -33,33 +33,42 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   const [bankAccounts, setBankAccounts] = useState(BANK_ACCOUNTS);
   const [qrisImageUrl, setQrisImageUrl] = useState("");
   const [plans, setPlans] = useState(() => plansWithPrices());
+  const [billingReady, setBillingReady] = useState(false);
 
   useEffect(() => {
     trackClientEvent({ event: "upgrade_view", module: "billing", path: "/dashboard/upgrade" });
     fetch("/api/public/platform")
       .then((r) => r.json())
       .then((d) => {
-        if (d.payment_wa) setPaymentWa(String(d.payment_wa));
+        let wa = paymentWa;
+        let banks = bankAccounts;
+        if (d.payment_wa) {
+          wa = String(d.payment_wa);
+          setPaymentWa(wa);
+        }
         if (Array.isArray(d.bank_accounts) && d.bank_accounts.length > 0) {
-          setBankAccounts(
-            d.bank_accounts.map((a: { bank?: string; number?: string; holder?: string }) => ({
-              bank: String(a.bank || ""),
-              number: String(a.number || ""),
-              holder: String(a.holder || ""),
-            })),
-          );
+          banks = d.bank_accounts.map((a: { bank?: string; number?: string; holder?: string }) => ({
+            bank: String(a.bank || ""),
+            number: String(a.number || ""),
+            holder: String(a.holder || ""),
+          }));
+          setBankAccounts(banks);
         }
         if (typeof d.qris_image_url === "string" && d.qris_image_url.trim()) {
           setQrisImageUrl(d.qris_image_url.trim());
         }
         if (d.plan_prices) setPlans(plansWithPrices(d.plan_prices));
+        setBillingReady(!isPlaceholderPaymentConfig(wa, banks) || !!String(d.qris_image_url || "").trim());
       })
-      .catch(() => {});
+      .catch(() => {
+        setBillingReady(!isPlaceholderPaymentConfig(paymentWa, bankAccounts));
+      });
   }, []);
 
   const plan = plans[selected];
   const currentPlan = currentSub?.plan || "free";
   const isActive = currentSub?.status === "active" && currentPlan !== "free";
+  const paymentBlocked = isPlaceholderPaymentConfig(paymentWa, bankAccounts) && !qrisImageUrl;
 
   const waLink = (opts: { plan: string; amount: number; invoice: string }) =>
     buildWaMessage({
@@ -78,14 +87,22 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   };
 
   const startPayment = () => {
+    if (paymentBlocked) {
+      alert("Pembayaran belum dikonfigurasi admin (WA/rekening masih placeholder). Hubungi support.");
+      return;
+    }
     const inv = "GRC-" + Date.now().toString(36).toUpperCase();
     setInvoice(inv);
     setStep("bayar");
   };
 
   const confirmTransfer = async () => {
+    if (paymentBlocked) {
+      alert("Pembayaran belum dikonfigurasi. Hubungi admin.");
+      return;
+    }
     setLoading(true);
-    await supabase.from("payments").insert({
+    const { error } = await supabase.from("payments").insert({
       user_id: userId,
       plan: selected,
       amount: plan.price,
@@ -93,6 +110,11 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       status: "pending",
       invoice_id: invoice,
     });
+    if (error) {
+      setLoading(false);
+      alert("Gagal buat invoice: " + error.message);
+      return;
+    }
     trackClientEvent({
       event: "payment_submit",
       module: "billing",
@@ -159,6 +181,13 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
 
       {step === "pilih" && (
         <>
+          {paymentBlocked && (
+            <div className="mb-6 rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-4 py-3 text-xs text-[#F59E0B]">
+              Transfer manual belum siap: nomor WA/rekening admin masih placeholder.
+              Hubungi support atau minta admin isi di Admin → Settings sebelum upgrade.
+              {!billingReady ? "" : ""}
+            </div>
+          )}
           {/* Plan cards */}
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
             {(Object.entries(plans) as [PlanKey, typeof plans[PlanKey]][]).map(([key, p]) => (

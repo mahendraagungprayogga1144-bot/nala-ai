@@ -298,11 +298,20 @@ export default function KasirClient({ menus, products, employees, userId, busine
       harga_jual: c.menu.harga_jual, hpp: calcHpp(c.menu), laba: (c.menu.harga_jual - calcHpp(c.menu)) * c.qty,
     }));
     const { error: itemsErr } = await supabase.from("order_items").insert(items);
-    if (itemsErr) { alert("Order tersimpan tapi item gagal: " + itemsErr.message); setLoading(false); return; }
+    if (itemsErr) {
+      await supabase.from("orders").delete().eq("id", order.id);
+      alert("Gagal simpan item: " + itemsErr.message);
+      setLoading(false);
+      return;
+    }
 
     const stockResult = await deductStockForSale(supabase, cart, userId, { today, notePrefix: "Kasir" });
     if (!stockResult.ok) {
-      alert("Stok sebagian gagal dipotong: " + stockResult.errors.join(", "));
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      alert("Penjualan dibatalkan — stok gagal dipotong: " + stockResult.errors.join(", "));
+      setLoading(false);
+      return;
     }
 
     const { error: txErr } = await supabase.from("transactions").insert({
@@ -312,7 +321,13 @@ export default function KasirClient({ menus, products, employees, userId, busine
       description: cart.map(c => c.menu.nama + " x" + c.qty).join(", "),
       amount: total, transaction_date: today,
     });
-    if (txErr) { alert("Order tersimpan tapi keuangan gagal: " + txErr.message); }
+    if (txErr) {
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      alert("Penjualan dibatalkan — keuangan gagal: " + txErr.message);
+      setLoading(false);
+      return;
+    }
 
     const bayarNum = Number(bayar) || 0;
     const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;

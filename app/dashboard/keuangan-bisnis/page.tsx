@@ -1,16 +1,22 @@
 import { createClient } from "@/lib/supabase/server";
 import TransactionForm from "../transaction-form";
 import DeleteTransactionButton from "../delete-transaction-button";
-import CashFlowChart from "../cash-flow-chart";
 import MonthYearFilter from "../month-year-filter";
 import { Suspense, Fragment } from "react";
+import dynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import { sortBisnisTransactions, formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
 import KasirTransactionsPanel, { type KasirOrderRow } from "./kasir-transactions-panel";
 
+const CashFlowChart = dynamic(() => import("../cash-flow-chart"), {
+  ssr: false,
+  loading: () => <div className="mb-6 h-48 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
+
 export default async function KeuanganBisnisPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
   const params = await searchParams;
 
   const now = new Date();
@@ -22,8 +28,10 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
-  const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user!.id).order("created_at", { ascending: true });
-  const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user.id).order("created_at", { ascending: true });
+  const rawBiz = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const { normalizeBizType } = await import("@/lib/auth/post-login");
+  const business = rawBiz ? { ...rawBiz, type: normalizeBizType(rawBiz.type) } : null;
 
   let kasirOrders: KasirOrderRow[] = [];
   if (business?.type === "kuliner" && business.id) {
@@ -36,10 +44,10 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
         .lte("order_date", endDate)
         .order("created_at", { ascending: false }),
       supabase.from("employees").select("id, nama").eq("business_id", business.id),
-      supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
+      supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
     ]);
 
-    const kasirNames: Record<string, string> = { [user!.id]: profile?.full_name || "Owner" };
+    const kasirNames: Record<string, string> = { [user.id]: profile?.full_name || "Owner" };
     employees?.forEach(e => { kasirNames[e.id] = e.nama; });
 
     kasirOrders = (orderRows || []).map(o => ({
@@ -48,21 +56,25 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
     }));
   }
 
+  const yearStart = `${tahun}-01-01`;
   let allQuery = supabase
     .from("transactions")
-    .select("*")
+    .select("id, type, amount, category, description, transaction_date, created_at, business_id")
     .eq("scope", "bisnis")
-    .eq("user_id", user!.id);
+    .eq("user_id", user.id)
+    .gte("transaction_date", yearStart)
+    .limit(5000);
   if (business?.id) allQuery = allQuery.eq("business_id", business.id);
   const { data: allTransactions } = await allQuery;
 
   let monthQuery = supabase
     .from("transactions")
-    .select("*")
+    .select("id, type, amount, category, description, transaction_date, created_at, business_id")
     .eq("scope", "bisnis")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .gte("transaction_date", startDate)
-    .lte("transaction_date", endDate);
+    .lte("transaction_date", endDate)
+    .limit(2000);
   if (business?.id) monthQuery = monthQuery.eq("business_id", business.id);
   const { data: monthRows } = await monthQuery
     .order("transaction_date", { ascending: false })
@@ -118,7 +130,7 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
-        <TransactionForm userId={user!.id} scope="bisnis" businessId={business?.id} />
+        <TransactionForm userId={user.id} scope="bisnis" businessId={business?.id} />
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5">
           <h2 className="font-medium mb-1">Transaksi {months[bulan - 1]} {tahun}</h2>
           <p className="text-[10px] text-[#5A5B7A] mb-4">Terbaru di atas · grup jual & HPP berdampingan</p>

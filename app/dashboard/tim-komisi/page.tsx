@@ -5,7 +5,8 @@ import TimKomisiClient from "./tim-komisi-client";
 export default async function TimKomisiPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { business } = await getActiveBusiness(supabase, user!.id);
+  if (!user) return null;
+  const { business } = await getActiveBusiness(supabase, user.id);
 
   const [{ data: staff }, { data: sales }] = business?.id
     ? await Promise.all([
@@ -18,7 +19,7 @@ export default async function TimKomisiPage() {
     <TimKomisiClient
       businessId={business?.id || ""}
       businessName={business?.name || "Bisnis"}
-      userId={user!.id}
+      userId={user.id}
       staff={staff || []}
       sales={sales || []}
     />

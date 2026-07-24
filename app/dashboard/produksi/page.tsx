@@ -6,18 +6,21 @@ import ProductionForm from "./production-form";
 import { Package, Wallet, TrendingUp, BarChart3 } from "lucide-react";
 import HomeIndustryHubNav from "../inventory/home-industry-hub-nav";
 import { todayWib } from "@/lib/date";
+import { normalizeBizType } from "@/lib/auth/post-login";
 
 export default async function ProduksiPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
 
   const { data: businessData } = await supabase
-    .from("businesses").select("id, type, name").eq("user_id", user!.id).order("created_at", { ascending: true });
+    .from("businesses").select("id, type, name").eq("user_id", user.id).order("created_at", { ascending: true });
 
-  const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const raw = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const business = raw ? { ...raw, type: normalizeBizType(raw.type) } : null;
   const config = getConfig(business?.type);
   const bizId = business?.id || "";
   const today = todayWib();
@@ -98,10 +101,10 @@ export default async function ProduksiPage() {
         </ol>
       </div>
 
-      <RecipeList recipes={(recipes as never) || []} materials={materials || []} finishedProducts={materials || []} userId={user!.id} businessId={business?.id} config={config} />
+      <RecipeList recipes={(recipes as never) || []} materials={materials || []} finishedProducts={materials || []} userId={user.id} businessId={business?.id} config={config} />
 
       {(recipes?.length || 0) > 0 && (
-        <ProductionForm recipes={(recipes as never) || []} userId={user!.id} businessId={business?.id} />
+        <ProductionForm recipes={(recipes as never) || []} userId={user.id} businessId={business?.id} />
       )}
 
       {(productionLogs?.length || 0) > 0 && (

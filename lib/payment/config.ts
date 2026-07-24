@@ -1,7 +1,20 @@
 // ═══ KONFIGURASI PEMBAYARAN MANUAL ═══
-// Ganti nomor WA dan rekening di bawah dengan data asli sebelum jualan.
+// Placeholder ONLY for local/dev. Production upgrade UI must refuse these.
 
-export const PAYMENT_WA = "6281234567890"; // TODO: ganti nomor WhatsApp admin
+export const PAYMENT_WA = "6281234567890"; // placeholder — block in upgrade UI
+
+export const PLACEHOLDER_WA = "6281234567890";
+export const PLACEHOLDER_BANK_NUMBERS = new Set(["1234567890", "081234567890"]);
+
+export function isPlaceholderPaymentConfig(wa: string, banks: BankAccount[]) {
+  const waDigits = (wa || "").replace(/\D/g, "");
+  if (!waDigits || waDigits === PLACEHOLDER_WA || waDigits === "6281234567890") return true;
+  if (!banks.length) return true;
+  const allFake = banks.every(
+    (b) => !b.number?.trim() || PLACEHOLDER_BANK_NUMBERS.has(b.number.replace(/\D/g, "")),
+  );
+  return allFake;
+}
 
 export type BankAccount = {
   bank: string;

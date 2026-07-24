@@ -1,13 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import TransactionForm from "../transaction-form";
 import DeleteTransactionButton from "../delete-transaction-button";
-import CashFlowChart from "../cash-flow-chart";
 import MonthYearFilter from "../month-year-filter";
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
+
+const CashFlowChart = dynamic(() => import("../cash-flow-chart"), {
+  ssr: false,
+  loading: () => <div className="mb-6 h-48 animate-pulse rounded-2xl bg-white/[0.04]" />,
+});
 
 export default async function KeuanganPribadiPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
   const params = await searchParams;
 
   const now = new Date();
@@ -20,7 +26,7 @@ export default async function KeuanganPribadiPage({ searchParams }: { searchPara
   const { data: business } = await supabase
     .from("businesses")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .limit(1)
     .single();
 
@@ -74,7 +80,7 @@ export default async function KeuanganPribadiPage({ searchParams }: { searchPara
       <CashFlowChart transactions={(transactions as never) || []} />
 
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
-        <TransactionForm userId={user!.id} scope="pribadi" businessId={business?.id} />
+        <TransactionForm userId={user.id} scope="pribadi" businessId={business?.id} />
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5">
           <h2 className="font-medium mb-4">Transaksi {months[bulan - 1]} {tahun}</h2>
           <div className="flex flex-col gap-3">

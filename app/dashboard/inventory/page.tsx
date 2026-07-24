@@ -1,15 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import ProductForm from "./product-form";
 import ProductList from "./product-list";
-import InventoryCharts from "./inventory-charts";
-import TrendChart from "./trend-chart";
-import RecentMovements from "./recent-movements";
-import MovementsChart from "./movements-chart";
 import ProfitIndicator from "./profit-indicator";
-import LossBreakdownChart from "./loss-breakdown-chart";
 import MonthYearFilter from "../month-year-filter";
 import { Package, AlertTriangle, Wallet, TrendingUp } from "lucide-react";
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { getConfig } from "./business-config";
 import LivestockInventory from "./livestock-inventory";
 import HomeIndustryInventory from "./home-industry-inventory";
@@ -23,6 +19,13 @@ import WholesaleInventory from "./wholesale-inventory";
 import OlshopInventory from "./olshop-inventory";
 import KesehatanInventory from "./kesehatan-inventory";
 import BengkelInventory from "./bengkel-inventory";
+import { normalizeBizType } from "@/lib/auth/post-login";
+
+const InventoryCharts = dynamic(() => import("./inventory-charts"), { ssr: false });
+const TrendChart = dynamic(() => import("./trend-chart"), { ssr: false });
+const RecentMovements = dynamic(() => import("./recent-movements"), { ssr: false });
+const MovementsChart = dynamic(() => import("./movements-chart"), { ssr: false });
+const LossBreakdownChart = dynamic(() => import("./loss-breakdown-chart"), { ssr: false });
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
@@ -51,7 +54,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
 
-  const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const raw = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
+  const business = raw
+    ? { ...raw, type: raw.type ? normalizeBizType(raw.type) : raw.type }
+    : null;
   const config = getConfig(business?.type);
 
   const { data: products, error: productsErr } = await supabase
@@ -164,6 +170,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         .from("stock_movements")
         .select("profit_loss, reason")
         .in("product_id", productIds)
+        .gte("movement_date", startDate)
+        .lte("movement_date", endDate)
+        .limit(5000)
     : Promise.resolve({ data: [] as never[] });
 
   const [{ data: movements }, { data: allMovements }] = await Promise.all([movementsQuery, allMovementsQuery]);
@@ -172,7 +181,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const totalProducts = products?.length || 0;
   const lowStockCount = products?.filter((p) => p.stock <= p.min_stock).length || 0;
   const totalValue = products?.reduce((sum, p) => sum + (p.price || 0) * p.stock, 0) || 0;
-  const avgPrice = totalProducts > 0 ? (products!.reduce((sum, p) => sum + (p.price || 0), 0) / totalProducts) : 0;
+  const avgPrice = totalProducts > 0 ? ((products || []).reduce((sum, p) => sum + (p.price || 0), 0) / totalProducts) : 0;
 
   const specialized =
     business?.type === "kuliner" ||

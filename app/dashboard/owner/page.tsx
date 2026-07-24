@@ -1,11 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
-import DashboardOwnerClient from "./dashboard-owner-client";
+import dynamic from "next/dynamic";
 import type { KasirTodaySummary } from "./owner-kasir-summary";
 import type { LiveKasirRow } from "./owner-kasir-live";
 import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
 import { computeKasirKpis } from "@/app/dashboard/keuangan-bisnis/lib/kasir-export";
 import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import { parseMejaFromCatatan, mejaLabel } from "@/app/dashboard/fnb/lib/kasir-order-meta";
+
+const DashboardOwnerClient = dynamic(() => import("./dashboard-owner-client"), {
+  loading: () => <div className="px-4 py-8 sm:px-8"><div className="h-64 animate-pulse rounded-2xl bg-white/[0.04]" /></div>,
+});
 
 export type TopProduct = { id: string; name: string; sold: number; revenue: number; emoji: string };
 export type RecentTransaction = {
@@ -20,10 +24,11 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
   const range = params.range || "month";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
   const [{ data: profile }, { data: businesses }] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
-    supabase.from("businesses").select("id, name, type").eq("user_id", user!.id).order("created_at", { ascending: true }),
+    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    supabase.from("businesses").select("id, name, type").eq("user_id", user.id).order("created_at", { ascending: true }),
   ]);
   const userName = profile?.full_name || user?.email?.split("@")[0] || "Owner";
 
@@ -281,7 +286,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
         .eq("order_date", today)
         .order("created_at", { ascending: false }),
       supabase.from("employees").select("id, nama").eq("business_id", activeKuliner.id),
-      supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle(),
+      supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
       supabase
         .from("checkins")
         .select("employee_id, jam_masuk, jam_keluar")
@@ -289,7 +294,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
         .eq("tanggal", today),
     ]);
 
-    const nameMap: Record<string, string> = { [user!.id]: ownerProfile?.full_name || "Owner" };
+    const nameMap: Record<string, string> = { [user.id]: ownerProfile?.full_name || "Owner" };
     employees?.forEach(e => { nameMap[e.id] = e.nama; });
 
     const orders = todayOrders || [];
@@ -324,11 +329,11 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
         isActive: chk?.isActive || false,
       });
     });
-    const ownerStats = ordersByUser[user!.id];
+    const ownerStats = ordersByUser[user.id];
     if (ownerStats) {
       liveRows.unshift({
-        employeeId: user!.id,
-        nama: nameMap[user!.id] || "Owner",
+        employeeId: user.id,
+        nama: nameMap[user.id] || "Owner",
         jamMasuk: "—",
         orderCount: ownerStats.count,
         omzet: ownerStats.omzet,
@@ -403,7 +408,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
       dayCloseData={dayCloseData}
       bulan={bulan}
       tahun={tahun}
-      userId={user!.id}
+      userId={user.id}
       userName={userName}
     />
   );

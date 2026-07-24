@@ -159,13 +159,16 @@ export default function ProductionForm({ recipes, userId, businessId }: { recipe
 
     // Hanya biaya overhead tambahan ke keuangan (bahan sudah dicatat saat beli)
     if (totalBiayaTambahan > 0) {
-      await supabase.from("transactions").insert({
+      const { error: txErr } = await supabase.from("transactions").insert({
         user_id: userId, business_id: businessId,
         type: "pengeluaran", scope: "bisnis",
         category: "Biaya Produksi",
         description: `Biaya produksi ${selectedRecipe.name} (${biayaTambahan.map(b => b.nama).filter(Boolean).join(", ")})`,
         amount: totalBiayaTambahan, transaction_date: date,
       });
+      if (txErr) {
+        alert("Produksi tersimpan tapi biaya overhead gagal dicatat: " + txErr.message);
+      }
     }
 
     setLoading(false);

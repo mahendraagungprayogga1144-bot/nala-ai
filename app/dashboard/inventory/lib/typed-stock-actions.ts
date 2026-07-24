@@ -183,10 +183,21 @@ export async function moveStock(supabase: SupabaseClient, input: MoveStockInput)
   const { error: stockErr } = await supabase
     .from("products")
     .update({ stock: newStock })
-    .eq("id", input.product.id);
+    .eq("id", input.product.id)
+    .eq("stock", Number(input.product.stock));
   if (stockErr) return { error: stockErr.message };
 
-  await supabase.from("stock_movements").insert({
+  // Verify row actually updated (optimistic concurrency)
+  const { data: verify } = await supabase
+    .from("products")
+    .select("stock")
+    .eq("id", input.product.id)
+    .maybeSingle();
+  if (verify && Number(verify.stock) !== newStock) {
+    return { error: "Stok berubah — muat ulang lalu coba lagi" };
+  }
+
+  const { error: movErr } = await supabase.from("stock_movements").insert({
     user_id: input.userId,
     product_id: input.product.id,
     type: isIn ? "masuk" : "keluar",
@@ -196,9 +207,13 @@ export async function moveStock(supabase: SupabaseClient, input: MoveStockInput)
     profit_loss: laba,
     movement_date: date,
   });
+  if (movErr) {
+    await supabase.from("products").update({ stock: Number(input.product.stock) }).eq("id", input.product.id);
+    return { error: "Gagal catat mutasi: " + movErr.message };
+  }
 
   if (isIn && modal > 0) {
-    await supabase.from("transactions").insert({
+    const { error: txErr } = await supabase.from("transactions").insert({
       user_id: input.userId,
       business_id: input.businessId,
       type: "pengeluaran",
@@ -208,8 +223,12 @@ export async function moveStock(supabase: SupabaseClient, input: MoveStockInput)
       amount: modal * q,
       transaction_date: date,
     });
+    if (txErr) {
+      await supabase.from("products").update({ stock: Number(input.product.stock) }).eq("id", input.product.id);
+      return { error: "Stok dibatalkan — keuangan gagal: " + txErr.message };
+    }
   } else if (!isIn && (input.mode === "jual" || isSellReason(reason)) && harga > 0) {
-    await supabase.from("transactions").insert({
+    const { error: txErr } = await supabase.from("transactions").insert({
       user_id: input.userId,
       business_id: input.businessId,
       type: "pemasukan",
@@ -219,6 +238,10 @@ export async function moveStock(supabase: SupabaseClient, input: MoveStockInput)
       amount: harga * q,
       transaction_date: date,
     });
+    if (txErr) {
+      await supabase.from("products").update({ stock: Number(input.product.stock) }).eq("id", input.product.id);
+      return { error: "Stok dibatalkan — keuangan gagal: " + txErr.message };
+    }
   }
 
   if (typeof window !== "undefined") {

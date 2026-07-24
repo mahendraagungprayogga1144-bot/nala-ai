@@ -8,31 +8,61 @@ import { normalizeBizType } from "@/lib/auth/post-login";
 type FarmTx = { jenis_transaksi: string; total: number; qty: number | null; batch_id: string };
 
 export default async function PeternakanPage() {
-  const { supabase, user, business } = await getActiveBusiness("ternak");
+  let supabase;
+  let user;
+  let business;
+  try {
+    ({ supabase, user, business } = await getActiveBusiness("ternak"));
+  } catch (err) {
+    console.error("[peternakan]", err);
+    return (
+      <div className="px-8 py-12 text-center">
+        <p className="mb-2 text-[#EC4899]">Gagal memuat Peternakan.</p>
+        <p className="text-xs text-[#8B8AA0]">Coba muat ulang halaman.</p>
+      </div>
+    );
+  }
   if (!user) return null;
 
   if (!business || normalizeBizType(business.type) !== "ternak") {
     return <WrongBizType label="Peternakan" />;
   }
 
-  const { data: batches, error: batchErr } = await supabase
-    .from("farm_batches")
-    .select("id, nama_batch, jenis_ternak, tanggal_mulai, tanggal_selesai, status")
-    .eq("user_id", user.id)
-    .eq("business_id", business.id)
-    .order("tanggal_mulai", { ascending: false });
-
+  let batches: {
+    id: string;
+    nama_batch: string;
+    jenis_ternak: string;
+    tanggal_mulai: string;
+    tanggal_selesai: string | null;
+    status: string;
+  }[] | null = null;
+  let batchErr: { message: string } | null = null;
   let txByBatch: Record<string, FarmTx[]> = {};
-  if (batches?.length) {
-    const ids = batches.map(b => b.id);
-    const { data: txs } = await supabase
-      .from("farm_transactions")
-      .select("batch_id, jenis_transaksi, total, qty")
-      .in("batch_id", ids);
-    for (const t of txs || []) {
-      if (!txByBatch[t.batch_id]) txByBatch[t.batch_id] = [];
-      txByBatch[t.batch_id].push(t as FarmTx);
+
+  try {
+    const res = await supabase
+      .from("farm_batches")
+      .select("id, nama_batch, jenis_ternak, tanggal_mulai, tanggal_selesai, status")
+      .eq("user_id", user.id)
+      .eq("business_id", business.id)
+      .order("tanggal_mulai", { ascending: false });
+    batches = res.data;
+    batchErr = res.error;
+
+    if (batches?.length) {
+      const ids = batches.map((b) => b.id);
+      const { data: txs } = await supabase
+        .from("farm_transactions")
+        .select("batch_id, jenis_transaksi, total, qty")
+        .in("batch_id", ids);
+      for (const t of txs || []) {
+        if (!txByBatch[t.batch_id]) txByBatch[t.batch_id] = [];
+        txByBatch[t.batch_id].push(t as FarmTx);
+      }
     }
+  } catch (err) {
+    console.error("[peternakan/query]", err);
+    batchErr = { message: err instanceof Error ? err.message : "Query gagal" };
   }
 
   const dbError = batchErr?.message;

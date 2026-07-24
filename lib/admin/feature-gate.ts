@@ -9,8 +9,9 @@ export function blockedPathForFlags(
   },
 ): boolean {
   if (!flags) return false;
+  // AI Kasir only — do NOT gate real F&B POS behind this flag
   if (flags.ai_kasir === false) {
-    if (pathname.startsWith("/dashboard/ai-kasir") || pathname.startsWith("/dashboard/fnb/kasir")) {
+    if (pathname.startsWith("/dashboard/ai-kasir")) {
       return true;
     }
   }

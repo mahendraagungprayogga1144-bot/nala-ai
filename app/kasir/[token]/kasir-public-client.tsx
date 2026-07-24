@@ -296,11 +296,17 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
 
     if (error || !order) { alert("Gagal: " + error?.message); setLoading(false); return; }
 
-    await supabase.from("order_items").insert(cartItems.map(c => ({
+    const { error: itemsErr } = await supabase.from("order_items").insert(cartItems.map(c => ({
       order_id: order.id, menu_id: c.menu.id, qty: c.qty,
       harga_jual: c.menu.harga_jual, hpp: calcHpp(c.menu),
       laba: (c.menu.harga_jual - calcHpp(c.menu)) * c.qty,
     })));
+    if (itemsErr) {
+      await supabase.from("orders").delete().eq("id", order.id);
+      alert("Gagal simpan item: " + itemsErr.message);
+      setLoading(false);
+      return;
+    }
 
     // Finance + stock movements belong to owner so Keuangan Bisnis sees them.
     // orders.user_id stays employee.id for kasir attribution.
@@ -311,7 +317,11 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
       { today, notePrefix: `Kasir ${employee.nama}` },
     );
     if (!stockResult.ok) {
-      console.warn("Stok partial fail:", stockResult.errors.join(", "));
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      alert("Penjualan dibatalkan — stok gagal: " + stockResult.errors.join(", "));
+      setLoading(false);
+      return;
     }
 
     const { error: txErr } = await supabase.from("transactions").insert({
@@ -323,7 +333,11 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
       amount: total, transaction_date: today,
     });
     if (txErr) {
-      alert("Order tersimpan tapi keuangan gagal: " + txErr.message);
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      alert("Penjualan dibatalkan — keuangan gagal: " + txErr.message);
+      setLoading(false);
+      return;
     }
 
     const bayarNum = Number(bayar) || 0;

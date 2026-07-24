@@ -28,7 +28,7 @@ export default async function PertanianPage() {
     supabase.from("agri_fields").select("*").eq("business_id", businessId).order("created_at", { ascending: false }),
     supabase.from("agri_spraying_records").select("*").eq("business_id", businessId).order("tanggal", { ascending: false }),
     supabase.from("agri_production_costs").select("*").eq("business_id", businessId).order("tanggal", { ascending: false }),
-    supabase.from("inventory_history").select("snapshot_date, total_value").eq("user_id", user!.id).order("snapshot_date", { ascending: true }).limit(30),
+    supabase.from("inventory_history").select("snapshot_date, total_value").eq("user_id", user.id).order("snapshot_date", { ascending: true }).limit(30),
   ]);
 
   if (productsErr) {
@@ -54,7 +54,7 @@ export default async function PertanianPage() {
     <PertanianClient
       data={dashboardData}
       businessName={business.name}
-      userId={user!.id}
+      userId={user.id}
       businessId={businessId}
     />
   );

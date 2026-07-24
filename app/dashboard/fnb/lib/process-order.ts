@@ -3,6 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CartLine } from "./calc";
 import { getStockShortages } from "./calc";
 
+/**
+ * Deduct recipe BOM stock with optimistic concurrency.
+ * On any failure, returns ok:false — caller must NOT print receipt / claim success.
+ * Movements are inserted only after successful stock update.
+ */
 export async function deductStockForSale(
   supabase: SupabaseClient,
   cart: CartLine[],
@@ -12,6 +17,7 @@ export async function deductStockForSale(
   const today = opts?.today || todayWib();
   const prefix = opts?.notePrefix || "Kasir";
   const errors: string[] = [];
+  const applied: { productId: string; prevStock: number; qty: number }[] = [];
 
   for (const item of cart) {
     for (const r of item.menu.menu_recipes) {
@@ -25,21 +31,29 @@ export async function deductStockForSale(
         errors.push(r.products?.name || "bahan");
         continue;
       }
-      if (Number(prod.stock) < needed) {
-        errors.push(`${prod.name} (butuh ${needed.toFixed(1)}, stok ${prod.stock})`);
+      const prev = Number(prod.stock);
+      if (prev < needed) {
+        errors.push(`${prod.name} (butuh ${needed.toFixed(1)}, stok ${prev})`);
         continue;
       }
 
-      const { error: upErr } = await supabase
+      const newStock = prev - needed;
+      const { data: updated, error: upErr } = await supabase
         .from("products")
-        .update({ stock: Number(prod.stock) - needed })
-        .eq("id", prod.id);
-      if (upErr) {
-        errors.push(prod.name);
+        .update({ stock: newStock })
+        .eq("id", prod.id)
+        .eq("stock", prev)
+        .select("id")
+        .maybeSingle();
+
+      if (upErr || !updated) {
+        errors.push(`${prod.name} (stok berubah — coba lagi)`);
         continue;
       }
 
-      await supabase.from("stock_movements").insert({
+      applied.push({ productId: prod.id, prevStock: prev, qty: needed });
+
+      const { error: movErr } = await supabase.from("stock_movements").insert({
         user_id: userId,
         product_id: prod.id,
         type: "keluar",
@@ -48,6 +62,16 @@ export async function deductStockForSale(
         note: `${prefix}: ${item.menu.nama} x${item.qty}`,
         movement_date: today,
       });
+      if (movErr) {
+        errors.push(`${prod.name} (mutasi gagal)`);
+      }
+    }
+  }
+
+  if (errors.length > 0 && applied.length > 0) {
+    // Best-effort restore on partial failure
+    for (const a of applied) {
+      await supabase.from("products").update({ stock: a.prevStock }).eq("id", a.productId);
     }
   }
 
@@ -58,7 +82,7 @@ export function validateCartStock(cart: CartLine[]) {
   const shortages = getStockShortages(cart);
   if (!shortages.length) return { ok: true as const };
   const msg = shortages
-    .map(s => `${s.name} (butuh ${s.needed.toFixed(1)}, stok ${s.stock})`)
+    .map((s) => `${s.name} (butuh ${s.needed.toFixed(1)}, stok ${s.stock})`)
     .join(", ");
   return { ok: false as const, message: `Stok bahan kurang: ${msg}` };
 }

@@ -14,40 +14,47 @@ export type ActiveBusiness = { id: string; name: string; type: string | null };
  * Component (mobile hubs → ERROR 1621801304). Sync via SyncActiveBusiness.
  */
 export async function getActiveBusiness(expectedType?: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, business: null as ActiveBusiness | null };
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { supabase, user: null, business: null as ActiveBusiness | null };
 
-  const cookieStore = await cookies();
-  const activeId = cookieStore.get("active_business_id")?.value;
-  const { data: businesses } = await supabase
-    .from("businesses")
-    .select("id, name, type")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
+    // Read-only cookies — never set here (RSC crash → ERROR digest / blank page).
+    const cookieStore = await cookies();
+    const activeId = cookieStore.get("active_business_id")?.value;
+    const { data: businesses } = await supabase
+      .from("businesses")
+      .select("id, name, type")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
 
-  const list = (businesses || []).map((b) => ({
-    ...b,
-    type: b.type ? normalizeBizType(b.type) : b.type,
-  }));
+    const list = (businesses || []).map((b) => ({
+      ...b,
+      type: b.type ? normalizeBizType(b.type) : b.type,
+    }));
 
-  const want = expectedType ? normalizeBizType(expectedType) : undefined;
-  const byCookie = activeId ? list.find((b) => b.id === activeId) || null : null;
+    const want = expectedType ? normalizeBizType(expectedType) : undefined;
+    const byCookie = activeId ? list.find((b) => b.id === activeId) || null : null;
 
-  let business: ActiveBusiness | null = null;
-  if (want) {
-    if (byCookie && normalizeBizType(byCookie.type || "") === want) {
-      business = byCookie;
+    let business: ActiveBusiness | null = null;
+    if (want) {
+      if (byCookie && normalizeBizType(byCookie.type || "") === want) {
+        business = byCookie;
+      } else {
+        business = list.find((b) => normalizeBizType(b.type || "") === want) || null;
+      }
     } else {
-      business = list.find((b) => normalizeBizType(b.type || "") === want) || null;
+      business = byCookie || list[0] || null;
     }
-  } else {
-    business = byCookie || list[0] || null;
-  }
 
-  return { supabase, user, business };
+    return { supabase, user, business };
+  } catch (err) {
+    console.error("[getActiveBusiness]", err);
+    const supabase = await createClient();
+    return { supabase, user: null, business: null as ActiveBusiness | null };
+  }
 }
 
 export function WrongBizType({ label }: { label: string }) {

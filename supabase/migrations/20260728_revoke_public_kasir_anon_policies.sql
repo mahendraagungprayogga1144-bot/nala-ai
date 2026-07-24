@@ -18,14 +18,18 @@ DROP POLICY IF EXISTS "transactions_public_kasir_insert" ON transactions;
 DROP POLICY IF EXISTS "stock_movements_public_kasir_insert" ON stock_movements;
 
 -- kasir_shifts had no RLS — any authenticated client could read/write all shifts
-ALTER TABLE IF EXISTS kasir_shifts ENABLE ROW LEVEL SECURITY;
-
 DO $$ BEGIN
-  CREATE POLICY "kasir_shifts_own" ON kasir_shifts
-    FOR ALL
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF to_regclass('public.kasir_shifts') IS NOT NULL THEN
+    ALTER TABLE kasir_shifts ENABLE ROW LEVEL SECURITY;
+
+    BEGIN
+      CREATE POLICY "kasir_shifts_own" ON kasir_shifts
+        FOR ALL
+        USING (auth.uid() = user_id)
+        WITH CHECK (auth.uid() = user_id);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
 END $$;
 
 -- Harden stock RPC: require product ownership for authenticated callers;

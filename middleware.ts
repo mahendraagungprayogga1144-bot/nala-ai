@@ -101,7 +101,7 @@ export async function middleware(request: NextRequest) {
 
   // Already logged in on login/signup → bounce to app
   if (isAuthPage(pathname)) {
-    const dest = await resolveAppHome(supabase, user.id, request, response);
+    const dest = await resolveAppHome(supabase, user.id, request, response, user.email);
     return redirectTo(request, dest, response);
   }
 
@@ -236,7 +236,20 @@ async function resolveAppHome(
   userId: string,
   request: NextRequest,
   response: NextResponse,
+  userEmail?: string | null,
 ) {
+  // Admin team → command center, skip user onboarding
+  try {
+    const settings = await getPlatformSettings();
+    if (isAdminEmail(userEmail, settings.admin_emails)) {
+      return "/admin";
+    }
+  } catch {
+    if (isAdminEmail(userEmail, [FALLBACK_ADMIN_EMAIL])) {
+      return "/admin";
+    }
+  }
+
   if (request.cookies.get(ONBOARDING_COOKIE)?.value === "1") {
     return "/dashboard/inventory";
   }

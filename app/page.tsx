@@ -1,7 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { motion, useInView } from "framer-motion";
-import { Wallet, ShoppingCart, Receipt, FileText, TrendingUp, Brain, Sparkles, ChevronDown, ArrowRight, Check, Globe, Shield, Clock, Zap, Eye, Layout, MessageCircle, Star } from "lucide-react";
+import {
+  Wallet, ShoppingCart, Receipt, FileText, TrendingUp, Brain, Sparkles, ChevronDown, ArrowRight, Check,
+  Globe, Shield, Clock, Zap, Eye, Layout, MessageCircle, Star, Menu, X,
+  Store, Bird, UtensilsCrossed, Factory, Briefcase, Truck, ShoppingBag, Heart, Leaf, Wrench, PenLine, Package,
+} from "lucide-react";
 
 const HeroScene = lazy(() => import("./components/home-3d/hero-scene"));
 const WaveScene = lazy(() => import("./components/home-3d/wave-scene"));
@@ -59,6 +63,29 @@ const FEATURES = [
   { icon: Brain, title: "Insight AI", desc: "Rekomendasi bisnis dari AI", color: "#EC4899" },
 ];
 
+/** Playground: tap jenis bisnis → modul apa yang Gercep kasih */
+const PLAYGROUND = [
+  { type: "retail", label: "Toko Retail", desc: "Stok, barcode, kasir, laporan", icon: Store, color: "#38BDF8", modules: ["Inventory & barcode", "AI Kasir", "Keuangan bisnis", "Laporan omzet"] },
+  { type: "ternak", label: "Peternakan", desc: "Batch, pakan, panen, biaya", icon: Bird, color: "#2DD4BF", modules: ["Manajemen batch", "Catat pakan & panen", "Keuangan ternak", "Insight AI"] },
+  { type: "kuliner", label: "Kuliner / F&B", desc: "Menu, meja, kasir, stok bahan", icon: UtensilsCrossed, color: "#F59E0B", modules: ["Kasir F&B", "Master menu", "Stok bahan", "Karyawan toko"] },
+  { type: "homeindustry", label: "Home Industry", desc: "Resep, produksi, HPP", icon: Factory, color: "#8B5CF6", modules: ["Produksi & resep", "HPP otomatis", "Inventory", "Smart Profit"] },
+  { type: "jasa", label: "Jasa / Freelance", desc: "Order klien, fee, status", icon: Briefcase, color: "#EC4899", modules: ["Order jasa", "Catat fee", "Keuangan", "CRM klien"] },
+  { type: "wholesale", label: "Grosir / Distributor", desc: "Harga partai, MOQ, stok", icon: Truck, color: "#6366F1", modules: ["Harga grosir & MOQ", "Inventory partai", "AI Kasir", "Piutang"] },
+  { type: "olshop", label: "Online Shop", desc: "Stok + Shopee/TikTok/Tokped", icon: ShoppingBag, color: "#F43F5E", modules: ["Stok olshop", "Upload CSV marketplace", "Analisis fee", "Omzet multi-channel"] },
+  { type: "kesehatan", label: "Kesehatan / Klinik", desc: "ED obat, stok kritis, kasir", icon: Heart, color: "#10B981", modules: ["Pantau kadaluarsa", "Stok kritis", "AI Kasir", "Laporan"] },
+  { type: "pertanian", label: "Pertanian", desc: "Lahan, panen, saprotan", icon: Leaf, color: "#84CC16", modules: ["Lahan & panen", "Saprotan", "Biaya produksi", "Keuangan"] },
+  { type: "bengkel", label: "Bengkel / Otomotif", desc: "Antrian servis, sparepart", icon: Wrench, color: "#EF4444", modules: ["Antrian kendaraan", "Sparepart", "Status servis", "Kasir"] },
+  { type: "custom", label: "Bisnis Lainnya", desc: "Modul universal semua jenis", icon: PenLine, color: "#A78BFA", modules: ["Keuangan AI", "Inventory", "AI Kasir", "Pajak & insight"] },
+];
+
+const NAV_LINKS = [
+  { label: "Fitur", href: "#fitur" },
+  { label: "Playground", href: "#playground" },
+  { label: "Harga", href: "/pricing" },
+  { label: "Tentang", href: "#tentang" },
+  { label: "Kontak", href: `https://wa.me/${PAYMENT_WA}` },
+];
+
 const STATS = [
   { value: 1000, suffix: "+", label: "UMKM Terbantu", icon: Globe, color: "#2DD4BF" },
   { value: 50000, suffix: "+", label: "Transaksi Diproses", icon: Zap, color: "#8B5CF6" },
@@ -83,7 +110,10 @@ function NebulaBlob({ color, position, size = 500 }: { color: string; position: 
 
 export default function Home() {
   const [is3D, setIs3D] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [playType, setPlayType] = useState("kuliner");
   useEffect(() => { setIs3D(true); }, []);
+  const activePlay = PLAYGROUND.find((b) => b.type === playType) || PLAYGROUND[0];
 
   return (
     <main className="min-h-screen overflow-x-hidden relative" style={{ background: "#050508", color: "#F2F1F8" }}>
@@ -97,27 +127,64 @@ export default function Home() {
       {/* ═══ FULL PAGE PARTICLE BACKGROUND ═══ */}
       {is3D && <Suspense fallback={null}><BgParticles /></Suspense>}
 
-      {/* ═══ NAV ═══ */}
-      <nav className="fixed top-0 left-0 right-0 z-50" style={{ background: "rgba(5,5,8,0.6)", backdropFilter: "blur(25px)", borderBottom: "1px solid rgba(45,212,191,0.08)" }}>
-        <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+      {/* ═══ NAV (desktop + mobile) ═══ */}
+      <nav
+        className="fixed top-0 right-0 left-0 z-50"
+        style={{
+          background: "rgba(5,5,8,0.72)",
+          backdropFilter: "blur(25px)",
+          borderBottom: "1px solid rgba(45,212,191,0.08)",
+          paddingTop: "env(safe-area-inset-top)",
+        }}
+      >
+        <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4 sm:h-16 sm:px-6">
+          <a href="/" className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-gercep.png" alt="Gercep AI" className="h-8 w-8 rounded-lg object-cover" style={{ boxShadow: "0 0 15px rgba(45,212,191,0.3)" }} />
             <span className="text-sm font-bold tracking-wide">GERCEP AI</span>
-          </div>
-          <div className="hidden md:flex items-center gap-8 text-xs text-[#8B8AA0]">
-            {["Fitur", "Harga", "Blog", "Tentang", "Kontak"].map(l => (
-              <a key={l} href={l === "Harga" ? "/pricing" : `#${l.toLowerCase()}`} className="hover:text-[#2DD4BF] transition-colors">{l}</a>
+          </a>
+          <div className="hidden items-center gap-8 text-xs text-[#8B8AA0] md:flex">
+            {NAV_LINKS.map((l) => (
+              <a key={l.label} href={l.href} className="transition-colors hover:text-[#2DD4BF]">{l.label}</a>
             ))}
           </div>
-          <div className="flex items-center gap-3">
-            <a href="/login" className="text-xs text-[#8B8AA0] hover:text-white transition-colors">Masuk</a>
-            <a href="/signup" className="text-xs px-5 py-2.5 rounded-xl font-bold relative overflow-hidden group"
+          <div className="flex items-center gap-2 sm:gap-3">
+            <a href="/login" className="hidden text-xs text-[#8B8AA0] transition-colors hover:text-white sm:inline">Masuk</a>
+            <a href="/signup" className="relative hidden overflow-hidden rounded-xl px-4 py-2 text-xs font-bold sm:inline-flex"
               style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#050508", boxShadow: "0 0 25px rgba(45,212,191,0.3)" }}>
-              <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500" />
               <span className="relative">Mulai Gratis</span>
             </a>
+            <button
+              type="button"
+              aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
+              className="rounded-lg p-2 text-[#F2F1F8] hover:bg-white/[0.06] md:hidden"
+              onClick={() => setMobileOpen((v) => !v)}
+            >
+              {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
           </div>
         </div>
+        {mobileOpen && (
+          <div className="border-t border-white/[0.06] px-4 py-4 md:hidden" style={{ background: "rgba(8,8,14,0.98)" }}>
+            <div className="flex flex-col gap-1">
+              {NAV_LINKS.map((l) => (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-xl px-3 py-3 text-sm text-[#C4C3D4] hover:bg-white/[0.04] hover:text-[#2DD4BF]"
+                >
+                  {l.label}
+                </a>
+              ))}
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
+                <a href="/login" onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 py-3 text-center text-sm text-[#8B8AA0]">Masuk</a>
+                <a href="/signup" onClick={() => setMobileOpen(false)} className="rounded-xl py-3 text-center text-sm font-bold text-[#050508]"
+                  style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)" }}>Mulai Gratis</a>
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ═══ HERO ═══ */}
@@ -150,7 +217,7 @@ export default function Home() {
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }}
               className="text-sm sm:text-base text-[#8B8AA0] mb-8 max-w-[480px] leading-relaxed">
-              Kelola keuangan, inventory, kasir, marketplace, pajak — semua dengan kecerdasan AI dalam satu platform.
+              Kelola keuangan, inventory, kasir, marketplace, pajak — cocok untuk retail, F&amp;B, ternak, olshop, bengkel, dan bisnis lain.
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.8 }} className="flex flex-wrap items-center gap-3 mb-8">
@@ -159,9 +226,9 @@ export default function Home() {
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                 <span className="relative">Mulai Gratis</span> <ArrowRight size={16} className="relative" />
               </a>
-              <a href="#fitur" className="flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm text-[#8B8AA0] hover:text-white transition-all"
+              <a href="#playground" className="flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm text-[#8B8AA0] hover:text-white transition-all"
                 style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)" }}>
-                Lihat Demo <Eye size={14} />
+                Coba Playground <Eye size={14} />
               </a>
             </motion.div>
 
@@ -213,6 +280,11 @@ export default function Home() {
         <NebulaBlob color="#38BDF8" position="top-left" size={500} />
         <NebulaBlob color="#EC4899" position="bottom-right" size={400} />
         <div className="max-w-[1100px] mx-auto relative z-10">
+          <div className="mb-10 text-center">
+            <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-[#38BDF8] uppercase">Apa itu Gercep AI?</p>
+            <Heading3D className="mb-3 text-3xl font-black sm:text-4xl">Satu OS untuk semua modul bisnis</Heading3D>
+            <p className="mx-auto max-w-lg text-sm text-[#8B8AA0]">Bukan cuma kasir. Ini aplikasi lengkap: keuangan, stok, pajak, marketplace, dan AI insight.</p>
+          </div>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
             className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {FEATURES.map(f => (
@@ -237,8 +309,120 @@ export default function Home() {
 
       <GlowDivider />
 
+      {/* ═══ BUSINESS PLAYGROUND ═══ */}
+      <section id="playground" className="relative px-6 py-24">
+        <NebulaBlob color="#2DD4BF" position="top-right" size={600} />
+        <NebulaBlob color="#8B5CF6" position="bottom-left" size={500} />
+        <div className="relative z-10 mx-auto max-w-[1100px]">
+          <div className="mb-8 text-center sm:mb-10">
+            <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-[#2DD4BF] uppercase">Playground bisnis</p>
+            <Heading3D className="mb-3 text-3xl font-black sm:text-4xl">Tap jenis bisnismu</Heading3D>
+            <p className="mx-auto max-w-lg text-sm text-[#8B8AA0]">
+              Lihat modul untuk toko, F&amp;B, ternak, olshop, bengkel, dan lainnya — biar jelas ini aplikasi apa dan cocok untuk siapa.
+            </p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {PLAYGROUND.map((b) => {
+                const active = b.type === playType;
+                return (
+                  <button
+                    key={b.type}
+                    type="button"
+                    onClick={() => setPlayType(b.type)}
+                    className="rounded-2xl p-3.5 text-left transition-all sm:p-4"
+                    style={{
+                      background: active ? `${b.color}14` : "rgba(6,6,12,0.9)",
+                      border: `1px solid ${active ? b.color + "55" : "rgba(255,255,255,0.06)"}`,
+                      boxShadow: active ? `0 0 28px ${b.color}22` : "none",
+                    }}
+                  >
+                    <div
+                      className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{ background: b.color + "18", border: `1px solid ${b.color}30` }}
+                    >
+                      <b.icon size={18} style={{ color: b.color }} />
+                    </div>
+                    <p className="text-xs font-bold text-[#F0EFF8]">{b.label}</p>
+                    <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-[#5A5B7A]">{b.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <motion.div
+              key={activePlay.type}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="rounded-3xl p-5 sm:p-6"
+              style={{
+                background: "rgba(8,8,16,0.95)",
+                border: `1px solid ${activePlay.color}35`,
+                boxShadow: `0 0 50px ${activePlay.color}12`,
+              }}
+            >
+              <div className="mb-4 flex items-center gap-3">
+                <div
+                  className="flex h-12 w-12 items-center justify-center rounded-2xl"
+                  style={{ background: activePlay.color + "18", border: `1px solid ${activePlay.color}35` }}
+                >
+                  <activePlay.icon size={22} style={{ color: activePlay.color }} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">{activePlay.label}</p>
+                  <p className="text-[11px] text-[#8B8AA0]">Modul yang siap dipakai</p>
+                </div>
+              </div>
+
+              <ul className="mb-5 space-y-2.5">
+                {activePlay.modules.map((m) => (
+                  <li key={m} className="flex items-center gap-2.5 text-sm text-[#C4C3D4]">
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: activePlay.color + "15" }}
+                    >
+                      <Check size={12} style={{ color: activePlay.color }} />
+                    </span>
+                    {m}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mb-5 flex flex-wrap gap-2">
+                {[
+                  { icon: Package, label: "Stok" },
+                  { icon: Wallet, label: "Keuangan" },
+                  { icon: Receipt, label: "Kasir" },
+                  { icon: Brain, label: "AI" },
+                ].map((chip) => (
+                  <span
+                    key={chip.label}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] text-[#8B8AA0]"
+                    style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}
+                  >
+                    <chip.icon size={11} /> {chip.label}
+                  </span>
+                ))}
+              </div>
+
+              <a
+                href={`/signup?biz=${activePlay.type}`}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold"
+                style={{ background: `linear-gradient(135deg, ${activePlay.color}, #8B5CF6)`, color: "#050508" }}
+              >
+                Mulai untuk {activePlay.label} <ArrowRight size={16} />
+              </a>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      <GlowDivider />
+
       {/* ═══ 3D DASHBOARD ═══ */}
-      <section className="py-24 px-6 relative overflow-hidden">
+      <section id="tentang" className="py-24 px-6 relative overflow-hidden">
         <NebulaBlob color="#8B5CF6" position="top-right" size={700} />
         <NebulaBlob color="#2DD4BF" position="bottom-left" size={500} />
         <div className="max-w-[1200px] mx-auto relative z-10">

@@ -6,6 +6,7 @@ import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo/config";
 import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { homeForBizType, setFastGateCookies } from "@/lib/auth/post-login";
 import { trackClientEvent } from "@/lib/admin/track-event";
+import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
 
 function mapAuthError(message: string) {
   if (/invalid login credentials|invalid_credentials/i.test(message)) {
@@ -31,7 +32,21 @@ async function resolvePostLoginPath(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   preferredNext: string | null,
+  userEmail?: string | null,
 ) {
+  // Tim Gercep (admin) → command center, bukan onboarding bisnis
+  try {
+    const plat = await fetch("/api/public/platform").then((r) => r.json());
+    if (preferredNext === "/admin") return "/admin";
+    if (isAdminEmail(userEmail, plat.admin_emails || [FALLBACK_ADMIN_EMAIL])) {
+      return "/admin";
+    }
+  } catch {
+    if (isAdminEmail(userEmail, [FALLBACK_ADMIN_EMAIL, "henimascent@gmail.com", "dandy123@gmail.com"])) {
+      return "/admin";
+    }
+  }
+
   // Satu query ringan — set cookie biar middleware tidak query lagi
   const { data: businesses } = await supabase
     .from("businesses")
@@ -50,12 +65,10 @@ async function resolvePostLoginPath(
   const active = list[0];
   setFastGateCookies({ businessId: active?.id });
 
-  // Kalau next spesifik (bukan owner berat), hormati
   if (preferredNext && preferredNext !== "/dashboard/owner") {
     return preferredNext;
   }
 
-  // Default: hub ringan per tipe — bukan Dashboard Owner (paling berat)
   return homeForBizType(active?.type);
 }
 
@@ -110,7 +123,7 @@ function LoginForm() {
       }
 
       trackClientEvent({ event: "login", module: "auth", path: "/login" });
-      const path = await resolvePostLoginPath(supabase, userId, preferredNext);
+      const path = await resolvePostLoginPath(supabase, userId, preferredNext, data.user?.email);
       go(path);
     } catch {
       setError("Koneksi gagal. Cek internet lalu coba lagi.");
@@ -145,7 +158,7 @@ function LoginForm() {
         go("/dashboard/inventory");
         return;
       }
-      const path = await resolvePostLoginPath(supabase, userId, null);
+      const path = await resolvePostLoginPath(supabase, userId, null, session?.user?.email);
       go(path);
     } catch {
       setError("Gagal masuk akun demo. Coba lagi.");

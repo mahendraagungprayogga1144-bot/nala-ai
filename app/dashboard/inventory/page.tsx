@@ -128,7 +128,7 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
     const [{ data: recipesData }, { data: todayTx }, { data: salesData }] = await Promise.all([
       supabase
         .from("recipes")
-        .select("id, name, yield_quantity, recipe_ingredients(quantity, products(name, cost))")
+        .select("id, name, yield_quantity, recipe_ingredients(quantity, products!material_id(name, cost))")
         .eq("business_id", business.id),
       supabase
         .from("transactions")

@@ -6,7 +6,7 @@ import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { BusinessConfig } from "../inventory/business-config";
 
 type Material = { id: string; name: string; stock: number; cost: number | null; category: string | null };
-type Recipe = { id: string; name: string; yield_quantity: number; yield_unit: string; recipe_ingredients: { id: string; quantity: number; unit: string; products: { name: string; cost: number | null; stock: number } }[] };
+type Recipe = { id: string; name: string; yield_quantity: number; yield_unit: string; recipe_ingredients: { id: string; quantity: number; unit: string; products?: { name: string; cost: number | null; stock: number } | null }[] };
 
 export default function RecipeList({ recipes, materials, finishedProducts, userId, businessId, config }: { recipes: Recipe[]; materials: Material[]; finishedProducts: Material[]; userId: string; businessId?: string; config: BusinessConfig }) {
   const router = useRouter();
@@ -30,36 +30,82 @@ export default function RecipeList({ recipes, materials, finishedProducts, userI
   const totalModalPerUnit = (recipe: Recipe) => {
     if (!recipe.yield_quantity || recipe.yield_quantity <= 0) return 0;
     return recipe.recipe_ingredients.reduce((sum, ing) => {
-      const costPerUnit = ing.products.cost || 0;
+      const costPerUnit = ing.products?.cost || 0;
       return sum + (costPerUnit * ing.quantity);
     }, 0) / recipe.yield_quantity;
   };
 
   const handleSave = async () => {
-    if (!name.trim() || ingredients.some(i => !i.material_id || !i.quantity)) return;
+    if (!name.trim()) {
+      alert("Isi nama resep dulu.");
+      return;
+    }
+    if (ingredients.some((i) => !i.material_id || !i.quantity || Number(i.quantity) <= 0)) {
+      alert("Pilih bahan dan isi jumlah (> 0) untuk setiap baris.");
+      return;
+    }
+    if (!businessId) {
+      alert("Bisnis aktif tidak terbaca. Ganti bisnis di sidebar lalu buka Produksi lagi.");
+      return;
+    }
+    const yq = Number(yieldQty);
+    if (!Number.isFinite(yq) || yq <= 0) {
+      alert("Hasil resep harus angka > 0.");
+      return;
+    }
+
     setLoading(true);
 
-    const { data: recipe, error } = await supabase.from("recipes").insert({
-      user_id: userId,
-      business_id: businessId,
-      name: name.trim(),
-      yield_quantity: Number(yieldQty),
-      yield_unit: yieldUnit,
-    }).select("id").single();
+    const { data: recipe, error } = await supabase
+      .from("recipes")
+      .insert({
+        user_id: userId,
+        business_id: businessId,
+        name: name.trim(),
+        yield_quantity: yq,
+        yield_unit: yieldUnit || "pcs",
+      })
+      .select("id")
+      .single();
 
-    if (error || !recipe) { alert("Gagal simpan resep: " + error?.message); setLoading(false); return; }
+    if (error || !recipe) {
+      const msg = error?.message || "Unknown";
+      const hint = /schema cache|does not exist|Could not find the table/i.test(msg)
+        ? "\n\nTabel recipes belum ada di Supabase — jalankan migrasi produksi di SQL Editor."
+        : "";
+      alert("Gagal simpan resep: " + msg + hint);
+      setLoading(false);
+      return;
+    }
 
-    const ingInserts = ingredients.filter(i => i.material_id && i.quantity).map(i => ({
-      recipe_id: recipe.id,
-      material_id: i.material_id,
-      quantity: Number(i.quantity),
-      unit: i.unit,
-    }));
+    const ingInserts = ingredients
+      .filter((i) => i.material_id && i.quantity)
+      .map((i) => ({
+        recipe_id: recipe.id,
+        material_id: i.material_id,
+        quantity: Number(i.quantity),
+        unit: i.unit || "gr",
+      }));
 
-    await supabase.from("recipe_ingredients").insert(ingInserts);
+    const { error: ingErr } = await supabase.from("recipe_ingredients").insert(ingInserts);
+    if (ingErr) {
+      await supabase.from("recipes").delete().eq("id", recipe.id);
+      alert(
+        "Resep gagal menyimpan bahan: " +
+          ingErr.message +
+          ( /schema cache|Could not find|foreign key|material_id/i.test(ingErr.message)
+            ? "\n\nCek migrasi recipe_ingredients + FK ke products di Supabase."
+            : ""),
+      );
+      setLoading(false);
+      return;
+    }
+
     setLoading(false);
     setShowForm(false);
-    setName(""); setYieldQty("1"); setIngredients([{ material_id: "", quantity: "", unit: "gr" }]);
+    setName("");
+    setYieldQty("1");
+    setIngredients([{ material_id: "", quantity: "", unit: "gr" }]);
     router.refresh();
   };
 
@@ -137,8 +183,8 @@ export default function RecipeList({ recipes, materials, finishedProducts, userI
                     <div className="flex flex-col gap-1.5">
                       {r.recipe_ingredients.map((ing) => (
                         <div key={ing.id} className="flex items-center justify-between text-xs">
-                          <span className="text-[#F2F1F8]">{ing.products.name}</span>
-                          <span className="text-[#8B8AA0]">{ing.quantity} {ing.unit} · <span className="text-[#EC4899]">Rp{((ing.products.cost || 0) * ing.quantity).toLocaleString("id-ID")}</span></span>
+                          <span className="text-[#F2F1F8]">{ing.products?.name || "Bahan"}</span>
+                          <span className="text-[#8B8AA0]">{ing.quantity} {ing.unit} · <span className="text-[#EC4899]">Rp{((ing.products?.cost || 0) * ing.quantity).toLocaleString("id-ID")}</span></span>
                         </div>
                       ))}
                       <div className="flex items-center justify-between text-xs border-t border-white/5 pt-2 mt-1">

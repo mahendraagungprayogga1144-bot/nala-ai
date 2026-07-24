@@ -29,17 +29,33 @@ export default async function ProduksiPage() {
 
   const [
     { data: materials },
-    { data: recipes },
+    recipesRes,
     { data: productionLogs },
     { data: todayTx },
   ] = await Promise.all([
     supabase.from("products").select("id, name, stock, cost, category").eq("business_id", bizId).order("name"),
-    supabase.from("recipes").select("*, recipe_ingredients(*, products(id, name, cost, stock))").eq("business_id", bizId).order("created_at", { ascending: false }),
+    supabase
+      .from("recipes")
+      .select("*, recipe_ingredients(*, products!material_id(id, name, cost, stock))")
+      .eq("business_id", bizId)
+      .order("created_at", { ascending: false }),
     supabase.from("production_logs").select("*, recipes(name, yield_unit)").eq("business_id", bizId).order("production_date", { ascending: false }).limit(50),
     business?.type === "homeindustry" && bizId
       ? supabase.from("transactions").select("type, category, amount").eq("business_id", bizId).eq("transaction_date", today)
       : Promise.resolve({ data: null }),
   ]);
+
+  let recipes = recipesRes.data;
+  if (recipesRes.error) {
+    console.error("[produksi/recipes]", recipesRes.error.message);
+    // Fallback without embed if FK/hint missing on prod yet
+    const { data: fallback } = await supabase
+      .from("recipes")
+      .select("*, recipe_ingredients(*)")
+      .eq("business_id", bizId)
+      .order("created_at", { ascending: false });
+    recipes = fallback;
+  }
 
   const totalProduksi = productionLogs?.length || 0;
   const totalBiayaProduksi = productionLogs?.reduce((s, l) => s + Number(l.total_material_cost || 0), 0) || 0;

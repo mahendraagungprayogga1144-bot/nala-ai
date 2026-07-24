@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import type { KasirExportContext, KasirExportKpis, KasirExportOrder } from "./kasir-export-types";
 import { escapeHtml, fmtRpFull, formatWibNow, slugFilename } from "@/app/dashboard/inventory/lib/export-helpers";
 import { formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
+export { computeKasirKpis } from "./kasir-kpis";
 
 const METODE: Record<string, string> = { tunai: "Tunai", qris: "QRIS", transfer: "Transfer" };
 
@@ -26,20 +27,6 @@ const PDF_STYLES = `
   .total-row td { font-weight: 700; background: #f9fafb; }
   .footer { margin-top: 28px; font-size: 10px; color: #888; text-align: center; }
 `;
-
-export function computeKasirKpis(orders: KasirExportOrder[]): KasirExportKpis {
-  const omzet = orders.reduce((s, o) => s + o.total, 0);
-  const laba = orders.reduce((s, o) => s + Number(o.laba || 0), 0);
-  const byMetode = (m: string) => orders.filter(o => o.metode_bayar === m).reduce((s, o) => s + o.total, 0);
-  return {
-    totalOrders: orders.length,
-    omzet,
-    laba,
-    tunai: byMetode("tunai"),
-    qris: byMetode("qris"),
-    transfer: byMetode("transfer"),
-  };
-}
 
 export function exportKasirExcel(orders: KasirExportOrder[], kpis: KasirExportKpis, ctx: KasirExportContext) {
   const rows = orders.map((o, i) => ({

@@ -16,7 +16,7 @@ import {
 import type { TopProduct, RecentTransaction } from "./owner-types";
 import OwnerKasirSummary, { type KasirTodaySummary } from "./owner-kasir-summary";
 import OwnerKasirLive, { type LiveKasirRow } from "./owner-kasir-live";
-import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-types";
 
 type Business = {
   id: string; name: string; type: string;

@@ -1,16 +1,21 @@
 "use client";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { FileSpreadsheet, FileText, MessageCircle, Moon } from "lucide-react";
-import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
-import { buildDayClosePdfHtml, buildDayCloseWhatsAppText, exportDayCloseExcel } from "@/app/dashboard/fnb/lib/day-close-report";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-types";
+import { buildDayCloseWhatsAppText } from "@/app/dashboard/fnb/lib/day-close-types";
 import { openWhatsAppShare } from "@/app/dashboard/fnb/lib/shift-report";
-import InventoryPrintPreview from "@/app/dashboard/inventory/components/inventory-print-preview";
+
+const InventoryPrintPreview = dynamic(
+  () => import("@/app/dashboard/inventory/components/inventory-print-preview"),
+  { ssr: false },
+);
 
 const BTN =
   "flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#0b0e14]/80 px-2 py-2 text-[10px] font-medium text-slate-400 transition-colors hover:border-[#2DD4BF]/35 hover:text-slate-200 sm:text-xs";
 
 export default function OwnerDayCloseBar({ data }: { data: DayCloseData }) {
-  const [preview, setPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   if (data.kpis.totalOrders === 0) {
     return (
@@ -28,23 +33,43 @@ export default function OwnerDayCloseBar({ data }: { data: DayCloseData }) {
           <p className="text-[11px] font-semibold text-[#A78BFA]">Rekap tutup hari</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={BTN} onClick={() => exportDayCloseExcel(data)}>
+          <button
+            type="button"
+            className={BTN}
+            onClick={() => {
+              void import("@/app/dashboard/fnb/lib/day-close-report").then((m) =>
+                m.exportDayCloseExcel(data),
+              );
+            }}
+          >
             <FileSpreadsheet size={13} className="text-[#2DD4BF]" /> Excel
           </button>
-          <button type="button" className={BTN} onClick={() => setPreview(true)}>
+          <button
+            type="button"
+            className={BTN}
+            onClick={() => {
+              void import("@/app/dashboard/fnb/lib/day-close-report").then((m) => {
+                setPreviewHtml(m.buildDayClosePdfHtml(data));
+              });
+            }}
+          >
             <FileText size={13} className="text-[#A78BFA]" /> PDF
           </button>
-          <button type="button" className={BTN} onClick={() => openWhatsAppShare(buildDayCloseWhatsAppText(data))}>
+          <button
+            type="button"
+            className={BTN}
+            onClick={() => openWhatsAppShare(buildDayCloseWhatsAppText(data))}
+          >
             <MessageCircle size={13} className="text-[#4ADE80]" /> WA
           </button>
         </div>
       </div>
 
-      {preview && (
+      {previewHtml && (
         <InventoryPrintPreview
-          html={buildDayClosePdfHtml(data)}
+          html={previewHtml}
           title={`Tutup hari · ${data.tanggal}`}
-          onClose={() => setPreview(false)}
+          onClose={() => setPreviewHtml(null)}
         />
       )}
     </>

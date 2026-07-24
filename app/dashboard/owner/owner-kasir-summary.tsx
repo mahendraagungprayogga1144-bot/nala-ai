@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatTxTimeWib } from "@/lib/finance/sort-transactions";
 import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import OwnerDayCloseBar from "./owner-day-close-bar";
-import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-types";
 
 export type KasirRecentOrder = {
   id: string;

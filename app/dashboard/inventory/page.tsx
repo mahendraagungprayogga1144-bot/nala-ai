@@ -7,18 +7,8 @@ import { Package, AlertTriangle, Wallet, TrendingUp } from "lucide-react";
 import { Suspense } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { getConfig } from "./business-config";
-import LivestockInventory from "./livestock-inventory";
-import HomeIndustryInventory from "./home-industry-inventory";
 import type { HiRecipe } from "./home-industry-calc";
 import { todayWib } from "./home-industry-calc";
-import FnBInventory from "./fnb-inventory";
-import AgricultureInventory from "./agriculture-inventory";
-import RetailInventory from "./retail-inventory";
-import JasaInventory from "./jasa-inventory";
-import WholesaleInventory from "./wholesale-inventory";
-import OlshopInventory from "./olshop-inventory";
-import KesehatanInventory from "./kesehatan-inventory";
-import BengkelInventory from "./bengkel-inventory";
 import { normalizeBizType } from "@/lib/auth/post-login";
 import {
   InventoryChartsLazy,
@@ -27,6 +17,18 @@ import {
   MovementsChartLazy,
   LossBreakdownChartLazy,
 } from "./inventory-charts-lazy";
+import {
+  LivestockInventoryLazy,
+  HomeIndustryInventoryLazy,
+  FnBInventoryLazy,
+  AgricultureInventoryLazy,
+  RetailInventoryLazy,
+  JasaInventoryLazy,
+  WholesaleInventoryLazy,
+  OlshopInventoryLazy,
+  KesehatanInventoryLazy,
+  BengkelInventoryLazy,
+} from "./inventory-panels-lazy";
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
@@ -309,11 +311,11 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
 
       {business?.type === "ternak" ? (
         <div className="mb-8">
-          <LivestockInventory products={products || []} userId={user.id} businessId={business?.id} />
+          <LivestockInventoryLazy products={products || []} userId={user.id} businessId={business?.id} />
         </div>
       ) : business?.type === "homeindustry" ? (
         <div className="mb-8">
-          <HomeIndustryInventory
+          <HomeIndustryInventoryLazy
             products={products || []}
             recipes={homeRecipes || []}
             userId={user.id}
@@ -327,11 +329,11 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
         </div>
       ) : business?.type === "kuliner" ? (
         <div className="mb-8">
-          <FnBInventory products={products || []} userId={user.id} businessId={business?.id} businessName={business?.name} />
+          <FnBInventoryLazy products={products || []} userId={user.id} businessId={business?.id} businessName={business?.name} />
         </div>
       ) : business?.type === "pertanian" ? (
         <div className="mb-8">
-          <AgricultureInventory
+          <AgricultureInventoryLazy
             products={products || []}
             harvestMeta={harvestMeta as never}
             userId={user.id}
@@ -348,27 +350,27 @@ async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bu
         </div>
       ) : business?.type === "retail" ? (
         <div className="mb-8">
-          <RetailInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
+          <RetailInventoryLazy products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "jasa" ? (
         <div className="mb-8">
-          <JasaInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
+          <JasaInventoryLazy products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "wholesale" ? (
         <div className="mb-8">
-          <WholesaleInventory products={products || []} userId={user.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
+          <WholesaleInventoryLazy products={products || []} userId={user.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "olshop" ? (
         <div className="mb-8">
-          <OlshopInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
+          <OlshopInventoryLazy products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "kesehatan" ? (
         <div className="mb-8">
-          <KesehatanInventory products={products || []} userId={user.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
+          <KesehatanInventoryLazy products={products || []} userId={user.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
         </div>
       ) : business?.type === "bengkel" ? (
         <div className="mb-8">
-          <BengkelInventory products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
+          <BengkelInventoryLazy products={products || []} userId={user.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 mb-8">

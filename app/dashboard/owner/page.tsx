@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { KasirTodaySummary } from "./owner-kasir-summary";
 import type { LiveKasirRow } from "./owner-kasir-live";
-import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
-import { computeKasirKpis } from "@/app/dashboard/keuangan-bisnis/lib/kasir-export";
+import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-types";
+import { computeKasirKpis } from "@/app/dashboard/keuangan-bisnis/lib/kasir-kpis";
 import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import { parseMejaFromCatatan, mejaLabel } from "@/app/dashboard/fnb/lib/kasir-order-meta";
 import OwnerClientLazy from "./owner-client-lazy";
@@ -106,9 +106,37 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
   ]);
 
   const batchIds = (farmBatches || []).map(b => b.id);
-  const { data: farmTx } = batchIds.length
-    ? await supabase.from("farm_transactions").select("batch_id, jenis_transaksi, total").in("batch_id", batchIds).gte("tanggal", startOfMonth).lte("tanggal", periodEnd)
-    : { data: [] as { batch_id: string; jenis_transaksi: string | null; total: number | string }[] };
+
+  // Wave 2: independent follow-ups in parallel (was 3–4 sequential round-trips)
+  const [
+    { data: farmTx },
+    { data: orderItems },
+    { data: recentTxRaw },
+  ] = await Promise.all([
+    batchIds.length
+      ? supabase
+          .from("farm_transactions")
+          .select("batch_id, jenis_transaksi, total")
+          .in("batch_id", batchIds)
+          .gte("tanggal", startOfMonth)
+          .lte("tanggal", periodEnd)
+      : Promise.resolve({
+          data: [] as { batch_id: string; jenis_transaksi: string | null; total: number | string }[],
+        }),
+    supabase
+      .from("order_items")
+      .select("qty, harga_jual, menus(nama), orders!inner(business_id, order_date)")
+      .in("orders.business_id", bizIds)
+      .gte("orders.order_date", startOfMonth)
+      .lte("orders.order_date", periodEnd),
+    supabase
+      .from("transactions")
+      .select("id, amount, type, description, category, created_at, business_id")
+      .in("business_id", bizIds)
+      .eq("scope", "bisnis")
+      .order("created_at", { ascending: false })
+      .limit(6),
+  ]);
 
   const businessData = businesses.map((biz) => {
     const monthTx = (allMonthTx || []).filter(t => t.business_id === biz.id);
@@ -182,13 +210,6 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
     };
   });
 
-  const { data: orderItems } = await supabase
-    .from("order_items")
-    .select("qty, harga_jual, menus(nama), orders!inner(business_id, order_date)")
-    .in("orders.business_id", bizIds)
-    .gte("orders.order_date", startOfMonth)
-    .lte("orders.order_date", periodEnd);
-
   const productMap: Record<string, { name: string; sold: number; revenue: number }> = {};
   orderItems?.forEach(item => {
     const raw = item.menus as unknown;
@@ -207,28 +228,20 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
 
+  // Reuse products already fetched in wave 1 — no extra round-trip
   if (topProducts.length === 0) {
-    const { data: allProducts } = await supabase
-      .from("products").select("id, name, price, stock, business_id").in("business_id", bizIds).order("name").limit(20);
     topProducts = (allProducts || [])
+      .slice()
+      .sort((a, b) => (Number(b.price) || 0) * (Number(b.stock) || 1) - (Number(a.price) || 0) * (Number(a.stock) || 1))
+      .slice(0, 5)
       .map((p, i) => ({
         id: p.id,
         name: p.name,
         sold: Number(p.stock) || 0,
         revenue: Number(p.price || 0) * (Number(p.stock) || 1),
         emoji: PRODUCT_EMOJI[i % PRODUCT_EMOJI.length],
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+      }));
   }
-
-  const { data: recentTxRaw } = await supabase
-    .from("transactions")
-    .select("id, amount, type, description, category, created_at, business_id")
-    .in("business_id", bizIds)
-    .eq("scope", "bisnis")
-    .order("created_at", { ascending: false })
-    .limit(6);
 
   let recentTransactions: RecentTransaction[] = (recentTxRaw || []).map(tx => {
     const created = tx.created_at ? new Date(tx.created_at) : new Date();
@@ -242,27 +255,23 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
     };
   });
 
-  if (recentTransactions.length < 6) {
-    const { data: farmBatches } = await supabase.from("farm_batches").select("id, business_id").in("business_id", bizIds);
-    const batchIds = farmBatches?.map(b => b.id) || [];
-    if (batchIds.length > 0) {
-      const { data: farmRecent } = await supabase
-        .from("farm_transactions")
-        .select("id, jenis_transaksi, total, tanggal, created_at")
-        .in("batch_id", batchIds)
-        .order("created_at", { ascending: false })
-        .limit(6 - recentTransactions.length);
-      farmRecent?.forEach(ft => {
-        const created = ft.created_at ? new Date(ft.created_at) : new Date(ft.tanggal);
-        recentTransactions.push({
-          id: ft.id,
-          customer: ft.jenis_transaksi || "Ternak",
-          status: ft.jenis_transaksi === "panen" ? "Selesai" : "Diproses",
-          amount: Number(ft.total),
-          time: `${String(created.getHours()).padStart(2, "0")}:${String(created.getMinutes()).padStart(2, "0")}`,
-        });
+  if (recentTransactions.length < 6 && batchIds.length > 0) {
+    const { data: farmRecent } = await supabase
+      .from("farm_transactions")
+      .select("id, jenis_transaksi, total, tanggal, created_at")
+      .in("batch_id", batchIds)
+      .order("created_at", { ascending: false })
+      .limit(6 - recentTransactions.length);
+    farmRecent?.forEach(ft => {
+      const created = ft.created_at ? new Date(ft.created_at) : new Date(ft.tanggal);
+      recentTransactions.push({
+        id: ft.id,
+        customer: ft.jenis_transaksi || "Ternak",
+        status: ft.jenis_transaksi === "panen" ? "Selesai" : "Diproses",
+        amount: Number(ft.total),
+        time: `${String(created.getHours()).padStart(2, "0")}:${String(created.getMinutes()).padStart(2, "0")}`,
       });
-    }
+    });
   }
 
   let kasirSummary: KasirTodaySummary | null = null;
@@ -394,13 +403,13 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
 
   return (
     <OwnerClientLazy
-      businesses={JSON.parse(JSON.stringify(businessData))}
-      topProducts={JSON.parse(JSON.stringify(topProducts))}
-      recentTransactions={JSON.parse(JSON.stringify(recentTransactions))}
-      kasirSummary={kasirSummary ? JSON.parse(JSON.stringify(kasirSummary)) : null}
+      businesses={businessData}
+      topProducts={topProducts}
+      recentTransactions={recentTransactions}
+      kasirSummary={kasirSummary}
       kasirBusinessName={kasirBusinessName}
-      liveKasir={liveKasir ? JSON.parse(JSON.stringify(liveKasir)) : null}
-      dayCloseData={dayCloseData ? JSON.parse(JSON.stringify(dayCloseData)) : null}
+      liveKasir={liveKasir}
+      dayCloseData={dayCloseData}
       bulan={bulan}
       tahun={tahun}
       userId={user.id}

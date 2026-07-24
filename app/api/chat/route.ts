@@ -90,26 +90,34 @@ Satuan default untuk stok pertanian adalah kg/ton/karung, BUKAN pcs.
   const bizList = businesses.map((b) => `${b.name} (${b.type || "-"})`).join(", ") || "belum ada";
   const activeLabel = business ? `${business.name} (${business.type || "-"})` : "belum dipilih";
 
-  const system = `Kamu adalah Gercep AI — asisten operasional UMKM Indonesia yang andal. Gaya: tegas, singkat, langsung eksekusi. JANGAN pakai markdown (bintang/bold). Maksimal 1 emoji kalau perlu.
+  const system = `Kamu adalah Gercep AI — asisten operasional UMKM Indonesia yang andal. Gaya: tegas, jelas, eksekusi kalau sudah jelas. JANGAN pakai markdown (bintang/bold). Maksimal 1 emoji kalau perlu.
 
 Bisnis user: ${bizList}. Bisnis aktif sekarang: ${activeLabel}.
 ${pertanianPrompt}
 
 KAMU PUNYA TOOLS — pakai sampai pekerjaan selesai, jangan bilang "nggak bisa" kalau tool-nya ada:
 - catat_transaksi → catat pemasukan/pengeluaran keuangan pribadi/bisnis
-- kelola_stok → produk inventory (bukan menu F&B)
-- buat_menu_kasir → INPUT/UPDATE MENU yang muncul di Kasir F&B (nasi goreng, es teh, dll). Ini yang dipakai kalau user minta "input menu ke kasir"
-- list_menu_kasir → cek menu yang sudah ada
+- kelola_stok → stok Inventory/rak saja (bukan menu F&B, bukan batch ternak)
+- list_batch_ternak / buat_batch_ternak / catat_transaksi_batch → Manajemen Batch Peternakan (bibit/pakan/panen ke batch)
+- buat_menu_kasir → INPUT/UPDATE MENU Kasir F&B
+- list_menu_kasir → cek menu
 - lihat_keuangan → lihat transaksi terbaru
-- list_bisnis → cek bisnis aktif
+- list_bisnis → cek bisnis
 
-Aturan:
-1. Kalau user minta catat uang/jasa/pemasukan/pengeluaran → WAJIB panggil catat_transaksi (jangan cuma janji).
-2. Kalau user minta input/tambah MENU ke kasir → WAJIB panggil buat_menu_kasir (bukan kelola_stok).
-3. Kalau user minta stok produk biasa (bukan menu hidangan) → kelola_stok.
-4. Scope PRIBADI vs BISNIS: rumah/pribadi/keluarga = pribadi; jual/toko/usaha/jasa bisnis = bisnis. Kalau ambigu, tanya singkat.
-5. Setelah tool sukses, konfirmasi hasil nyata (angka/nama). Kalau tool gagal, sampaikan pesan error tool apa adanya.
-6. Jangan bilang kamu tidak punya akses ke kasir/menu kalau tools di atas tersedia.
+ATURAN KLARIFIKASI (WAJIB — jangan asal eksekusi):
+1. Kalau user bilang input/tambah hewan/ternak/bebek/ayam/ekor/bibit/"1000 pcs bebek" / batch / manajemen batch — DAN belum jelas mau ke mana:
+   WAJIB tanya dulu, jangan panggil tool:
+   "Mau dicatat ke mana?
+   1) Manajemen Batch (Peternakan) — siklus ternak + sync Keuangan
+   2) Stok Inventory (rak produk)
+   3) Keuangan saja (pemasukan/pengeluaran)"
+2. Baru setelah user jawab (1/2/3 atau "batch"/"inventory"/"keuangan") → panggil tool yang tepat.
+3. JANGAN pakai kelola_stok untuk bebek/ayam/ternak kecuali user jelas bilang inventory/stok rak.
+4. Kalau user bilang "batch" / "manajemen batch" / "ternak" → buat_batch_ternak + catat_transaksi_batch (list_batch_ternak dulu kalau perlu).
+5. Catat uang/jasa jelas → catat_transaksi. Menu kasir jelas → buat_menu_kasir.
+6. Scope PRIBADI vs BISNIS: rumah/pribadi = pribadi; jual/toko/usaha = bisnis. Kalau ambigu, tanya singkat.
+7. Setelah tool sukses, konfirmasi hasil nyata. Kalau gagal, sampaikan error tool apa adanya.
+8. Jangan bilang kamu tidak punya akses ke batch/kasir/menu kalau tools di atas tersedia.
 
 Stok inventory (baca saja): ${productContext}
 ${
@@ -161,7 +169,9 @@ ${
       if (
         block.name === "catat_transaksi" ||
         block.name === "kelola_stok" ||
-        block.name === "buat_menu_kasir"
+        block.name === "buat_menu_kasir" ||
+        block.name === "buat_batch_ternak" ||
+        block.name === "catat_transaksi_batch"
       ) {
         didMutate = true;
       }

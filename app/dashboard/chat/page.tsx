@@ -15,7 +15,7 @@ function ChatContent() {
       role: "assistant",
       content: isPertanian
         ? "Halo! Aku Gercep AI Pertanian 🌾 Tanya soal panen, pupuk, pestisida, HPP, estimasi keuntungan, atau komoditas terbaik — aku analisis dari data inventory kamu."
-        : "Halo! Aku Gercep AI. Tanya omzet kasir, order hari ini, menu terlaris — atau cerita transaksi bisnis kamu, nanti otomatis aku catat.",
+        : "Halo! Aku Gercep AI. Bisa catat keuangan, menu kasir, stok inventory, atau Manajemen Batch ternak. Kalau input hewan/stok ambigu, aku tanya dulu mau ke Batch atau Inventory.",
     },
   ]);
   const [input, setInput] = useState(presetQ || "");
@@ -96,7 +96,7 @@ function ChatContent() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isPertanian ? "Tanya soal panen, pupuk, HPP, keuntungan..." : "Tanya omzet kasir, order hari ini, atau cerita transaksi..."}
+            placeholder={isPertanian ? "Tanya soal panen, pupuk, HPP, keuntungan..." : "Contoh: catat 1000 bebek ke batch, atau omzet kasir..."}
             className="flex-1 px-4 py-3 rounded-xl bg-[#0F0F1A] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50"
           />
           <button type="submit" disabled={loading} className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold disabled:opacity-50">

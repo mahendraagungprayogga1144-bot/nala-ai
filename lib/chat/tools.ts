@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Anthropic from "@anthropic-ai/sdk";
 import { todayWib } from "@/lib/date";
+import { normalizeBizType } from "@/lib/auth/post-login";
+import { syncFarmToKeuangan, type FarmJenis } from "@/app/dashboard/peternakan/lib/farm-sync";
 
 export type ChatBiz = { id: string; type: string | null; name: string };
 
@@ -24,7 +26,7 @@ export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: "kelola_stok",
     description:
-      "Tambah/update produk inventory (bukan menu F&B). Nambah/kurang/set stok, harga jual, HPP/modal.",
+      "Tambah/update produk di Inventory/rak saja (bukan menu F&B, bukan batch ternak). JANGAN pakai untuk bebek/ayam/ternak/bibit/ekor kecuali user sudah jelas bilang 'inventory' atau 'stok rak'.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -35,6 +37,53 @@ export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
         cost: { type: "number", description: "HPP / harga modal" },
       },
       required: ["name"],
+    },
+  },
+  {
+    name: "list_batch_ternak",
+    description:
+      "Lihat daftar batch di Manajemen Ternak (batch aktif/selesai). Pakai sebelum catat bibit/pakan ke batch.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        status: { type: "string", enum: ["aktif", "selesai", "semua"], description: "Default aktif" },
+      },
+    },
+  },
+  {
+    name: "buat_batch_ternak",
+    description:
+      "Buat batch baru di Manajemen Ternak / Peternakan (nama batch + jenis ternak). Setelah batch ada, pakai catat_transaksi_batch untuk bibit/pakan.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        nama_batch: { type: "string", description: "Contoh: Batch Bebek Maret" },
+        jenis_ternak: { type: "string", description: "Contoh: Bebek, Ayam Broiler, Sapi" },
+        tanggal_mulai: { type: "string", description: "YYYY-MM-DD opsional" },
+      },
+      required: ["nama_batch", "jenis_ternak"],
+    },
+  },
+  {
+    name: "catat_transaksi_batch",
+    description:
+      "Catat bibit/pakan/obat/operasional/panen ke batch Manajemen Ternak, lalu sync ke Keuangan Bisnis. Pakai ini kalau user mau input hewan/ekor ke batch (bukan inventory rak).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        batch_id: { type: "string", description: "UUID batch (lebih akurat)" },
+        nama_batch: { type: "string", description: "Nama batch kalau belum punya id" },
+        jenis: {
+          type: "string",
+          enum: ["bibit", "pakan", "obat", "vitamin", "operasional", "mortalitas", "panen"],
+        },
+        qty: { type: "number", description: "Jumlah ekor/kg" },
+        total: { type: "number", description: "Total Rupiah (opsional, default 0)" },
+        harga: { type: "number", description: "Harga satuan opsional" },
+        nama_item: { type: "string", description: "Contoh: Bebek pedaging" },
+        tanggal: { type: "string", description: "YYYY-MM-DD opsional" },
+      },
+      required: ["jenis"],
     },
   },
   {
@@ -111,6 +160,12 @@ export async function runChatTool(
         return await catatTransaksi(ctx, input);
       case "kelola_stok":
         return await kelolaStok(ctx, input);
+      case "list_batch_ternak":
+        return await listBatchTernak(ctx, input);
+      case "buat_batch_ternak":
+        return await buatBatchTernak(ctx, input);
+      case "catat_transaksi_batch":
+        return await catatTransaksiBatch(ctx, input);
       case "buat_menu_kasir":
         return await buatMenuKasir(ctx, input);
       case "list_menu_kasir":
@@ -249,6 +304,217 @@ async function kelolaStok(
   });
   if (error) return `Gagal nambah produk: ${error.message}`;
   return `Produk ${name} ditambahkan, stok awal ${initial} ${ctx.unitLabel}.`;
+}
+
+function resolveTernakBusiness(ctx: {
+  business: ChatBiz | null;
+  businesses: ChatBiz[];
+}): ChatBiz | null {
+  if (ctx.business && normalizeBizType(ctx.business.type) === "ternak") return ctx.business;
+  return ctx.businesses.find((b) => normalizeBizType(b.type) === "ternak") || null;
+}
+
+async function listBatchTernak(
+  ctx: {
+    supabase: SupabaseClient;
+    userId: string;
+    business: ChatBiz | null;
+    businesses: ChatBiz[];
+  },
+  input: Record<string, unknown>,
+) {
+  const ternak = resolveTernakBusiness(ctx);
+  if (!ternak) {
+    return "Belum ada bisnis tipe Peternakan. Buat/aktifkan bisnis ternak dulu, atau bilang mau dicatat ke Inventory saja.";
+  }
+  const status = input.status === "semua" || input.status === "selesai" ? String(input.status) : "aktif";
+  let q = ctx.supabase
+    .from("farm_batches")
+    .select("id, nama_batch, jenis_ternak, status, tanggal_mulai")
+    .eq("user_id", ctx.userId)
+    .eq("business_id", ternak.id)
+    .order("tanggal_mulai", { ascending: false })
+    .limit(20);
+  if (status !== "semua") q = q.eq("status", status);
+  const { data, error } = await q;
+  if (error) {
+    return `Gagal baca batch: ${error.message}. Pastikan tabel farm_batches sudah ada di Supabase.`;
+  }
+  if (!data?.length) {
+    return `Belum ada batch ${status === "semua" ? "" : status + " "}di ${ternak.name}. Buat dulu dengan buat_batch_ternak.`;
+  }
+  return `Batch di ${ternak.name}:\n${data
+    .map(
+      (b) =>
+        `- ${b.nama_batch} (${b.jenis_ternak}) [${b.status}] id=${b.id} mulai ${b.tanggal_mulai || "-"}`,
+    )
+    .join("\n")}`;
+}
+
+async function buatBatchTernak(
+  ctx: {
+    supabase: SupabaseClient;
+    userId: string;
+    business: ChatBiz | null;
+    businesses: ChatBiz[];
+  },
+  input: Record<string, unknown>,
+) {
+  const ternak = resolveTernakBusiness(ctx);
+  if (!ternak) {
+    return "Belum ada bisnis Peternakan. Aktifkan bisnis ternak di sidebar, atau konfirmasi user mau pakai Inventory saja.";
+  }
+  const nama = String(input.nama_batch || "").trim();
+  const jenis = String(input.jenis_ternak || "").trim();
+  if (!nama || !jenis) return "nama_batch dan jenis_ternak wajib.";
+  const tanggal =
+    typeof input.tanggal_mulai === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.tanggal_mulai)
+      ? input.tanggal_mulai
+      : todayWib();
+
+  const { data, error } = await ctx.supabase
+    .from("farm_batches")
+    .insert({
+      user_id: ctx.userId,
+      business_id: ternak.id,
+      nama_batch: nama,
+      jenis_ternak: jenis,
+      tanggal_mulai: tanggal,
+      status: "aktif",
+    })
+    .select("id, nama_batch, jenis_ternak")
+    .single();
+  if (error || !data) {
+    return `Gagal buat batch: ${error?.message || "unknown"}. Cek migrasi farm_batches di Supabase.`;
+  }
+  return `Batch "${data.nama_batch}" (${data.jenis_ternak}) dibuat di Manajemen Ternak (${ternak.name}). id=${data.id}. Lanjut catat bibit dengan catat_transaksi_batch.`;
+}
+
+async function catatTransaksiBatch(
+  ctx: {
+    supabase: SupabaseClient;
+    userId: string;
+    business: ChatBiz | null;
+    businesses: ChatBiz[];
+  },
+  input: Record<string, unknown>,
+) {
+  const ternak = resolveTernakBusiness(ctx);
+  if (!ternak) return "Belum ada bisnis Peternakan aktif.";
+
+  const jenisRaw = String(input.jenis || "").toLowerCase();
+  const allowed: FarmJenis[] = ["bibit", "pakan", "obat", "vitamin", "operasional", "mortalitas", "panen"];
+  if (!allowed.includes(jenisRaw as FarmJenis)) {
+    return `Jenis transaksi batch tidak valid. Pilih: ${allowed.join(", ")}.`;
+  }
+  const jenis = jenisRaw as FarmJenis;
+  const qty = input.qty !== undefined ? Number(input.qty) : null;
+  const harga = input.harga !== undefined ? Number(input.harga) : null;
+  let total = input.total !== undefined ? Number(input.total) : NaN;
+  if (!Number.isFinite(total)) {
+    total =
+      qty !== null && Number.isFinite(qty) && harga !== null && Number.isFinite(harga)
+        ? qty * harga
+        : 0;
+  }
+  const tanggal =
+    typeof input.tanggal === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.tanggal)
+      ? input.tanggal
+      : todayWib();
+  const namaItem =
+    typeof input.nama_item === "string" && input.nama_item.trim() ? input.nama_item.trim() : null;
+
+  let batchId = typeof input.batch_id === "string" ? input.batch_id.trim() : "";
+  const namaBatchHint =
+    typeof input.nama_batch === "string" ? input.nama_batch.trim() : "";
+
+  let batch: {
+    id: string;
+    nama_batch: string;
+    jenis_ternak: string;
+    business_id: string;
+  } | null = null;
+
+  if (batchId) {
+    const { data } = await ctx.supabase
+      .from("farm_batches")
+      .select("id, nama_batch, jenis_ternak, business_id")
+      .eq("id", batchId)
+      .eq("user_id", ctx.userId)
+      .maybeSingle();
+    batch = data;
+  } else if (namaBatchHint) {
+    const { data } = await ctx.supabase
+      .from("farm_batches")
+      .select("id, nama_batch, jenis_ternak, business_id")
+      .eq("user_id", ctx.userId)
+      .eq("business_id", ternak.id)
+      .ilike("nama_batch", namaBatchHint)
+      .eq("status", "aktif")
+      .order("tanggal_mulai", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    batch = data;
+  } else {
+    const { data } = await ctx.supabase
+      .from("farm_batches")
+      .select("id, nama_batch, jenis_ternak, business_id")
+      .eq("user_id", ctx.userId)
+      .eq("business_id", ternak.id)
+      .eq("status", "aktif")
+      .order("tanggal_mulai", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    batch = data;
+  }
+
+  if (!batch) {
+    return "Batch tidak ditemukan. Buat dulu dengan buat_batch_ternak, atau sebutkan nama_batch / batch_id.";
+  }
+  batchId = batch.id;
+
+  const { data: farmTx, error: farmErr } = await ctx.supabase
+    .from("farm_transactions")
+    .insert({
+      batch_id: batchId,
+      user_id: ctx.userId,
+      tanggal,
+      jenis_transaksi: jenis,
+      nama_item: namaItem,
+      qty: qty !== null && Number.isFinite(qty) ? qty : null,
+      satuan: jenis === "panen" || jenis === "bibit" || jenis === "mortalitas" ? "ekor" : null,
+      harga: harga !== null && Number.isFinite(harga) ? harga : null,
+      total: Number.isFinite(total) ? total : 0,
+    })
+    .select("id")
+    .single();
+
+  if (farmErr || !farmTx) {
+    return `Gagal catat ke batch: ${farmErr?.message || "unknown"}`;
+  }
+
+  const sync = await syncFarmToKeuangan(ctx.supabase, {
+    userId: ctx.userId,
+    businessId: batch.business_id || ternak.id,
+    farmTxId: farmTx.id,
+    jenis,
+    total: Number.isFinite(total) ? total : 0,
+    qty: qty !== null && Number.isFinite(qty) ? qty : null,
+    namaItem,
+    batchName: batch.nama_batch,
+    jenisTernak: batch.jenis_ternak,
+    tanggal,
+    totalModal: 0,
+    totalBibit: 0,
+  });
+
+  if (!sync.ok) {
+    return `Tercatat di batch "${batch.nama_batch}" (${jenis}${qty ? ` ${qty}` : ""}), tapi sync Keuangan Bisnis gagal: ${sync.error}`;
+  }
+
+  return `Tercatat di Manajemen Batch "${batch.nama_batch}" (${batch.jenis_ternak}): ${jenis}${
+    qty ? ` ${qty} ekor` : ""
+  }${total > 0 ? `, total ${fmtRp(total)}` : ""}. Sudah masuk Keuangan Bisnis bisnis ${ternak.name}.`;
 }
 
 async function resolveKulinerBusiness(ctx: {

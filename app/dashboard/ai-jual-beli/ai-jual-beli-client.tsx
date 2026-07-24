@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Camera, Plus } from "lucide-react";
 import ModuleHeader from "../components/module-header";
 import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../components/module-form-styles";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 type Listing = {
   id: string; nama_barang: string; kondisi: string | null;
@@ -32,6 +33,12 @@ export default function AiJualBeliClient({
     });
     setLoading(false);
     if (error) return alert(error.message);
+    trackClientEvent({
+      event: "ai_jual_beli_listing",
+      module: "ai_jual_beli",
+      business_id: businessId,
+      meta: { nama: form.nama_barang.trim() },
+    });
     setForm({ nama_barang: "", kondisi: "baru", harga_jual: "", harga_beli: "", lokasi: "", catatan: "" });
     router.refresh();
   };

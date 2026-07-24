@@ -1,5 +1,6 @@
 "use client";
 import { createClient } from "@/lib/supabase/client";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 function clearAppCookies() {
   const expire = "path=/; max-age=0; samesite=lax";
@@ -11,6 +12,7 @@ function clearAppCookies() {
 
 export default function LogoutButton({ className }: { className?: string }) {
   const handleLogout = async () => {
+    trackClientEvent({ event: "logout", module: "auth" });
     const supabase = createClient();
     await supabase.auth.signOut();
     clearAppCookies();

@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Check, X, Zap, Crown, Building2, Sparkles,
   ChevronDown, ChevronUp, ArrowRight,
 } from "lucide-react";
 import { PAYMENT_WA } from "@/lib/payment/config";
+import { DEFAULT_PLAN_PRICES, mergePlanPrices } from "@/lib/payment/plans";
 
 function fmtRp(n: number) { return "Rp" + n.toLocaleString("id-ID"); }
 
@@ -141,6 +142,29 @@ const FAQS = [
 export default function PricingPage() {
   const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [paymentWa, setPaymentWa] = useState(PAYMENT_WA);
+  const [trialDays, setTrialDays] = useState(5);
+  const [prices, setPrices] = useState(DEFAULT_PLAN_PRICES);
+
+  useEffect(() => {
+    fetch("/api/public/platform")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.payment_wa) setPaymentWa(String(d.payment_wa).replace(/\D/g, "") || PAYMENT_WA);
+        if (typeof d.trial_days === "number") setTrialDays(d.trial_days);
+        if (d.plan_prices) setPrices(mergePlanPrices(d.plan_prices));
+      })
+      .catch(() => {});
+  }, []);
+
+  const livePlans = useMemo(() => {
+    return PLANS.map((p) => {
+      if (p.id === "starter") return { ...p, priceMonthly: prices.starter, priceYearly: prices.starter_yearly };
+      if (p.id === "pro") return { ...p, priceMonthly: prices.pro, priceYearly: prices.pro_yearly, cta: `Coba ${trialDays} Hari Gratis` };
+      if (p.id === "enterprise") return { ...p, priceMonthly: prices.enterprise, priceYearly: prices.enterprise_yearly, ctaHref: `https://wa.me/${paymentWa}` };
+      return p;
+    });
+  }, [prices, paymentWa, trialDays]);
 
   return (
     <main className="min-h-screen text-[#F2F1F8] overflow-x-hidden" style={{ background: "#070711", fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -199,7 +223,7 @@ export default function PricingPage() {
       {/* Pricing Cards */}
       <section className="mx-auto max-w-[1200px] px-5 pb-16">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PLANS.map(plan => {
+          {livePlans.map(plan => {
             const price = yearly ? plan.priceYearly : plan.priceMonthly;
             const perMonth = yearly && plan.priceYearly > 0 ? Math.round(plan.priceYearly / 12) : plan.priceMonthly;
             const isExternal = plan.ctaHref.startsWith("http");
@@ -375,7 +399,7 @@ export default function PricingPage() {
             <a href="/terms" className="hover:text-[#8B8AA0] transition-colors">Syarat & Ketentuan</a>
             <a href="/privacy" className="hover:text-[#8B8AA0] transition-colors">Privasi</a>
             <a href="/kebijakan-data" className="hover:text-[#8B8AA0] transition-colors">Kebijakan Data</a>
-            <a href={`https://wa.me/${PAYMENT_WA}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#8B8AA0] transition-colors">Kontak</a>
+            <a href={`https://wa.me/${paymentWa}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#8B8AA0] transition-colors">Kontak</a>
           </div>
         </div>
       </footer>

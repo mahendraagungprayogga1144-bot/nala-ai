@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, Trash2, Shield, Save } from "lucide-react";
 import type { NpwpProfile, PajakRecord } from "../page";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 const BULAN = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const inputCls = "w-full rounded-xl border border-white/[0.08] bg-[#0A0A12] px-3 py-2.5 text-sm text-[#F0EFF8] outline-none focus:border-[#2DD4BF]/40 transition-colors";
@@ -64,6 +65,15 @@ export default function PajakRiwayat({
     });
     setRecLoading(false);
     if (error) return alert(error.message);
+    trackClientEvent({
+      event: "pajak_calculate",
+      module: "pajak",
+      meta: {
+        tahun: Number(recForm.tahun),
+        bulan: Number(recForm.bulan),
+        omzet: omzetVal,
+      },
+    });
     setOpenRecord(false);
     setRecForm({ bulan: String(now.getMonth() + 1), tahun: String(tahun), omzet_bulan: "", pph_terutang: "", pph_dibayar: "", tanggal_bayar: "", no_ntpn: "", catatan: "" });
     router.refresh();

@@ -7,6 +7,7 @@ import { Shield } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 import { FALLBACK_ADMIN_EMAIL, isAdminEmail } from "@/lib/auth/admin";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 type Business = { id: string; name: string; type: string | null };
 
@@ -25,6 +26,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
   const groups = getSidebarModules(activeBusiness?.type, featureFlags);
 
   const handleLogout = async () => {
+    trackClientEvent({ event: "logout", module: "auth" });
     const supabase = createClient();
     await supabase.auth.signOut();
     const expire = "path=/; max-age=0; samesite=lax";

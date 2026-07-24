@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { CheckCircle2, Lock } from "lucide-react";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -48,6 +49,7 @@ export default function ResetPasswordPage() {
       setError(updateError.message || "Gagal ubah password.");
       return;
     }
+    trackClientEvent({ event: "password_reset_done", module: "auth" });
     setDone(true);
   };
 

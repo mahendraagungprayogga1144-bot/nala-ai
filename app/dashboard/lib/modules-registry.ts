@@ -93,7 +93,10 @@ export function getSidebarModules(
 ): { label: string; modules: DashboardModule[] }[] {
   const result: { label: string; modules: DashboardModule[] }[] = [];
   const hide = new Set<string>();
-  if (flags?.ai_kasir === false) hide.add("kasir");
+  if (flags?.ai_kasir === false) {
+    hide.add("kasir");
+    hide.add("fnb-kasir");
+  }
   if (flags?.ai_jual_beli === false) hide.add("ai-jual-beli");
   if (flags?.marketplace === false) {
     hide.add("marketplace");

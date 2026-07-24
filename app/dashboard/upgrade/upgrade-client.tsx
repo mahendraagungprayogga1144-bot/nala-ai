@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Check, Copy, MessageCircle, Clock, Crown, ShieldCheck } from "lucide-react";
 import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, PAYMENT_WA, type PlanKey } from "@/lib/payment/config";
+import { plansWithPrices } from "@/lib/payment/plans";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import type { CurrentSub, PendingPayment } from "./page";
 
@@ -28,6 +29,8 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   const [copied, setCopied] = useState("");
   const [invoice, setInvoice] = useState("");
   const [paymentWa, setPaymentWa] = useState(PAYMENT_WA);
+  const [bankAccounts, setBankAccounts] = useState(BANK_ACCOUNTS);
+  const [plans, setPlans] = useState(() => plansWithPrices());
 
   useEffect(() => {
     trackClientEvent({ event: "upgrade_view", module: "billing", path: "/dashboard/upgrade" });
@@ -35,11 +38,21 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       .then((r) => r.json())
       .then((d) => {
         if (d.payment_wa) setPaymentWa(String(d.payment_wa));
+        if (Array.isArray(d.bank_accounts) && d.bank_accounts.length > 0) {
+          setBankAccounts(
+            d.bank_accounts.map((a: { bank?: string; number?: string; holder?: string }) => ({
+              bank: String(a.bank || ""),
+              number: String(a.number || ""),
+              holder: String(a.holder || ""),
+            })),
+          );
+        }
+        if (d.plan_prices) setPlans(plansWithPrices(d.plan_prices));
       })
       .catch(() => {});
   }, []);
 
-  const plan = UPGRADE_PLANS[selected];
+  const plan = plans[selected];
   const currentPlan = currentSub?.plan || "free";
   const isActive = currentSub?.status === "active" && currentPlan !== "free";
 
@@ -123,7 +136,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
         <>
           {/* Plan cards */}
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
-            {(Object.entries(UPGRADE_PLANS) as [PlanKey, typeof UPGRADE_PLANS[PlanKey]][]).map(([key, p]) => (
+            {(Object.entries(plans) as [PlanKey, typeof plans[PlanKey]][]).map(([key, p]) => (
               <button key={key} type="button" onClick={() => setSelected(key)}
                 className="relative rounded-2xl p-5 text-left transition-all"
                 style={{
@@ -182,8 +195,8 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
           <div className="rounded-2xl border border-white/[0.07] bg-[#0A0A12] p-5 mb-4">
             <p className="text-xs font-bold mb-3 flex items-center gap-1.5"><ShieldCheck size={13} className="text-[#2DD4BF]" /> Transfer ke salah satu rekening:</p>
             <div className="space-y-2.5">
-              {BANK_ACCOUNTS.map(acc => (
-                <div key={acc.bank} className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
+              {bankAccounts.map(acc => (
+                <div key={`${acc.bank}-${acc.number}`} className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] text-[#5A5B7A]">{acc.bank} · a.n. {acc.holder}</p>
                     <p className="text-sm font-bold font-mono text-[#F0EFF8]">{acc.number}</p>

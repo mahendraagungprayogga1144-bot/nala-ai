@@ -11,6 +11,11 @@ export async function GET() {
     payment_wa: s.payment_wa,
     support_email: s.support_email,
     app_url: s.app_url,
+    bank_accounts: s.bank_accounts,
+    plan_prices: s.plan_prices,
+    announcement_enabled: s.announcement_enabled,
+    announcement_message: s.announcement_message,
+    announcement_link: s.announcement_link,
     maintenance_mode: s.maintenance_mode,
     maintenance_message: s.maintenance_message,
     // Needed so login can route admin team to /admin (emails are not secrets)

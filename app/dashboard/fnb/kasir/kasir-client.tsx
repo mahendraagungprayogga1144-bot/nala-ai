@@ -23,6 +23,7 @@ import { FNB_NAV_BOTTOM_OFFSET } from "../lib/mobile-layout";
 import { KASIR } from "../lib/kasir-theme";
 import KasirTablePicker from "../components/kasir-table-picker";
 import { buildOrderCatatan } from "../lib/kasir-order-meta";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 type Product = { id: string; name: string; stock: number; min_stock: number; category?: string | null };
 type Checkin = { id: string; tanggal: string; jam_masuk: string; jam_keluar: string | null };
@@ -334,6 +335,12 @@ export default function KasirClient({ menus, products, employees, userId, busine
     saveLastReceipt({ html: receipt, orderNo: shortOrderNo(order.id), total, savedAt: new Date().toISOString() });
     setReceiptVersion(v => v + 1);
     triggerReceiptPrint(receipt);
+    trackClientEvent({
+      event: "fnb_kasir_sale",
+      module: "fnb",
+      business_id: businessId,
+      meta: { total, items: cart.length, metode: metodeBayar },
+    });
     resetOrder();
     setLoading(false);
     router.refresh();

@@ -37,6 +37,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         userName={userName}
         userEmail={userEmail}
         featureFlags={settings.feature_flags}
+        announcement={{
+          enabled: settings.announcement_enabled,
+          message: settings.announcement_message,
+          link: settings.announcement_link,
+        }}
       >
         {children}
       </DashboardShell>

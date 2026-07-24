@@ -7,6 +7,7 @@ import {
   DollarSign, AlertTriangle, Package,
 } from "lucide-react";
 import type { Product, KasirShift } from "../page";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 type CartItem = { product: Product; qty: number };
 
@@ -162,6 +163,13 @@ export default function KasirPOS({
         total_order: Number(activeShift.total_order) + 1,
       }).eq("id", activeShift.id);
     }
+
+    trackClientEvent({
+      event: "ai_kasir_sale",
+      module: "ai_kasir",
+      business_id: businessId,
+      meta: { total, items: cart.length, metode: metodeBayar },
+    });
 
     setSuccessMsg(`Transaksi ${fmtRp(total)} berhasil!`);
     setTimeout(() => setSuccessMsg(null), 3000);

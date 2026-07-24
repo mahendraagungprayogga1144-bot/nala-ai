@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
-import { PAYMENT_WA } from "@/lib/payment/config";
+import { BANK_ACCOUNTS, PAYMENT_WA, type BankAccount } from "@/lib/payment/config";
+import { DEFAULT_PLAN_PRICES, mergePlanPrices, type PlanPrices } from "@/lib/payment/plans";
 
 export type FeatureFlags = {
   ai_kasir: boolean;
@@ -9,6 +10,8 @@ export type FeatureFlags = {
   marketplace: boolean;
   pajak: boolean;
 };
+
+export type { BankAccount, PlanPrices };
 
 export type PlatformSettingsMap = {
   trial_days: number;
@@ -20,6 +23,11 @@ export type PlatformSettingsMap = {
   support_email: string;
   app_url: string;
   admin_emails: string[];
+  bank_accounts: BankAccount[];
+  plan_prices: PlanPrices;
+  announcement_enabled: boolean;
+  announcement_message: string;
+  announcement_link: string;
   feature_flags: FeatureFlags;
   event_retention_days: number;
 };
@@ -34,6 +42,11 @@ const DEFAULTS: PlatformSettingsMap = {
   support_email: "hellogercepai@gmail.com",
   app_url: "https://www.gercepos.id",
   admin_emails: [FALLBACK_ADMIN_EMAIL],
+  bank_accounts: BANK_ACCOUNTS.map((a) => ({ ...a })),
+  plan_prices: { ...DEFAULT_PLAN_PRICES },
+  announcement_enabled: false,
+  announcement_message: "",
+  announcement_link: "",
   feature_flags: {
     ai_kasir: true,
     ai_jual_beli: true,
@@ -82,6 +95,29 @@ function asFlags(v: unknown): FeatureFlags {
   };
 }
 
+function asBankAccounts(v: unknown): BankAccount[] {
+  if (!Array.isArray(v) || v.length === 0) {
+    return DEFAULTS.bank_accounts.map((a) => ({ ...a }));
+  }
+  const parsed = v
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const o = row as Record<string, unknown>;
+      const bank = asStr(o.bank, "");
+      const number = asStr(o.number, "");
+      const holder = asStr(o.holder, "");
+      if (!bank || !number) return null;
+      return { bank, number, holder };
+    })
+    .filter(Boolean) as BankAccount[];
+  return parsed.length ? parsed : DEFAULTS.bank_accounts.map((a) => ({ ...a }));
+}
+
+function asPlanPrices(v: unknown): PlanPrices {
+  if (!v || typeof v !== "object") return { ...DEFAULT_PLAN_PRICES };
+  return mergePlanPrices(v as Partial<PlanPrices>);
+}
+
 function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSettingsMap {
   const map = new Map((rows || []).map((r) => [r.key, r.value]));
   return {
@@ -94,13 +130,24 @@ function parseRows(rows: { key: string; value: unknown }[] | null): PlatformSett
     support_email: asStr(map.get("support_email"), DEFAULTS.support_email),
     app_url: asStr(map.get("app_url"), DEFAULTS.app_url).replace(/\/$/, ""),
     admin_emails: asEmails(map.get("admin_emails")),
+    bank_accounts: asBankAccounts(map.get("bank_accounts")),
+    plan_prices: asPlanPrices(map.get("plan_prices")),
+    announcement_enabled: asBool(map.get("announcement_enabled"), DEFAULTS.announcement_enabled),
+    announcement_message: asStr(map.get("announcement_message"), DEFAULTS.announcement_message),
+    announcement_link: asStr(map.get("announcement_link"), DEFAULTS.announcement_link),
     feature_flags: asFlags(map.get("feature_flags")),
     event_retention_days: asNum(map.get("event_retention_days"), DEFAULTS.event_retention_days),
   };
 }
 
 export function getDefaultSettings() {
-  return { ...DEFAULTS, admin_emails: [...DEFAULTS.admin_emails], feature_flags: { ...DEFAULTS.feature_flags } };
+  return {
+    ...DEFAULTS,
+    admin_emails: [...DEFAULTS.admin_emails],
+    bank_accounts: DEFAULTS.bank_accounts.map((a) => ({ ...a })),
+    plan_prices: { ...DEFAULTS.plan_prices },
+    feature_flags: { ...DEFAULTS.feature_flags },
+  };
 }
 
 export function invalidateSettingsCache() {

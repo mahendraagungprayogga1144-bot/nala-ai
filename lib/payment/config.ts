@@ -3,9 +3,15 @@
 
 export const PAYMENT_WA = "6281234567890"; // TODO: ganti nomor WhatsApp admin
 
-export const BANK_ACCOUNTS = [
-  { bank: "BCA", number: "1234567890", holder: "PT Henima Collection Indonesia" }, // TODO: ganti
-  { bank: "DANA / QRIS", number: "081234567890", holder: "Gercep AI" }, // TODO: ganti
+export type BankAccount = {
+  bank: string;
+  number: string;
+  holder: string;
+};
+
+export const BANK_ACCOUNTS: BankAccount[] = [
+  { bank: "BCA", number: "1234567890", holder: "PT Henima Collection Indonesia" },
+  { bank: "DANA / QRIS", number: "081234567890", holder: "Gercep AI" },
 ];
 
 export type PlanKey = "starter" | "pro" | "enterprise";

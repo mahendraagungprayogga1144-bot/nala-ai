@@ -22,7 +22,12 @@ const AICore = lazy(() =>
 );
 import { DecodeText } from "./components/home-3d/decode-text";
 import { PAYMENT_WA } from "@/lib/payment/config";
+import { DEFAULT_PLAN_PRICES, mergePlanPrices } from "@/lib/payment/plans";
 import { useLightHome } from "./components/home-3d/use-light-home";
+
+function fmtPlanPrice(n: number) {
+  return Math.round(n).toLocaleString("id-ID");
+}
 
 const heading3D = {
   textShadow: [
@@ -88,12 +93,11 @@ const PLAYGROUND = [
   { type: "custom", label: "Bisnis Lainnya", desc: "Modul universal semua jenis", icon: PenLine, color: "#A78BFA", modules: ["Keuangan AI", "Inventory", "AI Kasir", "Pajak & insight"] },
 ];
 
-const NAV_LINKS = [
+const NAV_LINKS_BASE = [
   { label: "Fitur", href: "#fitur" },
   { label: "Playground", href: "#playground" },
   { label: "Harga", href: "/pricing" },
   { label: "Tentang", href: "#tentang" },
-  { label: "Kontak", href: `https://wa.me/${PAYMENT_WA}` },
 ];
 
 const STATS = [
@@ -103,12 +107,14 @@ const STATS = [
   { value: 24, suffix: "/7", label: "AI Assistant", icon: Clock, color: "#38BDF8" },
 ];
 
-const PLANS = [
-  { name: "Gratis", price: "0", period: "/bulan", color: "#8B8AA0", features: ["1 bisnis", "Keuangan basic", "Dashboard Owner basic"], cta: "Mulai Gratis" },
-  { name: "Starter", price: "40.000", period: "/bulan", color: "#38BDF8", features: ["2 bisnis", "Inventory 50 produk", "Export Excel/PDF"], cta: "Pilih Starter" },
-  { name: "Pro", price: "75.000", period: "/bulan", color: "#2DD4BF", popular: true, features: ["5 bisnis", "AI Kasir universal", "Marketplace Center"], cta: "Coba 7 Hari Gratis" },
-  { name: "Enterprise", price: "150.000", period: "/bulan", color: "#A78BFA", features: ["Unlimited bisnis", "API access", "Dedicated support"], cta: "Hubungi Kami" },
-];
+function buildHomePlans(prices: ReturnType<typeof mergePlanPrices>, trialDays: number) {
+  return [
+    { name: "Gratis", price: "0", period: "/bulan", color: "#8B8AA0", features: ["1 bisnis", "Keuangan basic", "Dashboard Owner basic"], cta: "Mulai Gratis" },
+    { name: "Starter", price: fmtPlanPrice(prices.starter), period: "/bulan", color: "#38BDF8", features: ["2 bisnis", "Inventory 50 produk", "Export Excel/PDF"], cta: "Pilih Starter" },
+    { name: "Pro", price: fmtPlanPrice(prices.pro), period: "/bulan", color: "#2DD4BF", popular: true, features: ["5 bisnis", "AI Kasir universal", "Marketplace Center"], cta: `Coba ${trialDays} Hari Gratis` },
+    { name: "Enterprise", price: fmtPlanPrice(prices.enterprise), period: "/bulan", color: "#A78BFA", features: ["Unlimited bisnis", "API access", "Dedicated support"], cta: "Hubungi Kami" },
+  ];
+}
 
 function GlowDivider() {
   return <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(45,212,191,0.3), rgba(139,92,246,0.3), rgba(236,72,153,0.2), transparent)" }} />;
@@ -122,7 +128,23 @@ export default function Home() {
   const [is3D, setIs3D] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [playType, setPlayType] = useState("kuliner");
+  const [paymentWa, setPaymentWa] = useState(PAYMENT_WA);
+  const [, setTrialDays] = useState(5);
+  const [plans, setPlans] = useState(() => buildHomePlans(DEFAULT_PLAN_PRICES, 5));
   const lightHome = useLightHome();
+
+  useEffect(() => {
+    fetch("/api/public/platform")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.payment_wa) setPaymentWa(String(d.payment_wa).replace(/\D/g, "") || PAYMENT_WA);
+        const days = typeof d.trial_days === "number" ? d.trial_days : 5;
+        setTrialDays(days);
+        setPlans(buildHomePlans(mergePlanPrices(d.plan_prices), days));
+      })
+      .catch(() => {});
+  }, []);
+
   // Desktop: enable 3D after mount. Mobile/light: never load heavy canvases.
   useEffect(() => {
     if (lightHome) {
@@ -139,6 +161,8 @@ export default function Home() {
   }, [lightHome]);
   const activePlay = PLAYGROUND.find((b) => b.type === playType) || PLAYGROUND[0];
   const showHeavy3D = is3D && !lightHome;
+  const navLinks = [...NAV_LINKS_BASE, { label: "Kontak", href: `https://wa.me/${paymentWa}` }];
+  const plansList = plans;
 
   return (
     <main className="min-h-screen overflow-x-hidden relative" style={{ background: "#050508", color: "#F2F1F8" }}>
@@ -168,7 +192,7 @@ export default function Home() {
             <span className="text-sm font-bold tracking-wide">GERCEP AI</span>
           </a>
           <div className="hidden items-center gap-8 text-xs text-[#8B8AA0] md:flex">
-            {NAV_LINKS.map((l) => (
+            {navLinks.map((l) => (
               <a key={l.label} href={l.href} className="transition-colors hover:text-[#2DD4BF]">{l.label}</a>
             ))}
           </div>
@@ -191,7 +215,7 @@ export default function Home() {
         {mobileOpen && (
           <div className="border-t border-white/[0.06] px-4 py-4 md:hidden" style={{ background: "rgba(8,8,14,0.98)" }}>
             <div className="flex flex-col gap-1">
-              {NAV_LINKS.map((l) => (
+              {navLinks.map((l) => (
                 <a
                   key={l.label}
                   href={l.href}
@@ -604,7 +628,7 @@ export default function Home() {
 
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
             className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {PLANS.map(p => (
+            {plansList.map(p => (
               <motion.div key={p.name} variants={fadeUp}
                 className="relative rounded-2xl p-6 overflow-hidden"
                 style={{
@@ -636,7 +660,7 @@ export default function Home() {
                     </p>
                   ))}
                 </div>
-                <a href={p.name === "Enterprise" ? `https://wa.me/${PAYMENT_WA}` : `/signup?plan=${p.name.toLowerCase()}`}
+                <a href={p.name === "Enterprise" ? `https://wa.me/${paymentWa}` : `/signup?plan=${p.name.toLowerCase()}`}
                   className="block w-full text-center rounded-xl py-2.5 text-xs font-bold transition-all group relative overflow-hidden"
                   style={{
                     background: p.popular ? "linear-gradient(135deg, #2DD4BF, #8B5CF6)" : "transparent",
@@ -709,7 +733,7 @@ export default function Home() {
                 title: "Company",
                 links: [
                   { label: "Tentang", href: "#tentang" },
-                  { label: "Kontak", href: `https://wa.me/${PAYMENT_WA}` },
+                  { label: "Kontak", href: `https://wa.me/${paymentWa}` },
                   { label: "Masuk", href: "/login" },
                 ],
               },

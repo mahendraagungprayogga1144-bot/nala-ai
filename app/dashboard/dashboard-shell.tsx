@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./sidebar";
 import TrialBanner from "./components/trial-banner";
 import { Menu, X } from "lucide-react";
+import { blockedPathForFlags } from "@/lib/admin/feature-gate";
 
 type Business = { id: string; name: string; type: string | null };
 type Flags = { ai_kasir?: boolean; ai_jual_beli?: boolean; marketplace?: boolean; pajak?: boolean };
@@ -17,6 +19,7 @@ export default function DashboardShell({
   userName,
   userEmail,
   featureFlags,
+  announcement,
 }: {
   children: React.ReactNode;
   businesses: Business[];
@@ -24,9 +27,26 @@ export default function DashboardShell({
   userName?: string;
   userEmail?: string;
   featureFlags?: Flags;
+  announcement?: { enabled: boolean; message: string; link: string };
 }) {
   const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [announceDismissed, setAnnounceDismissed] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (blockedPathForFlags(pathname || "", featureFlags)) {
+      router.replace("/dashboard/owner");
+    }
+  }, [pathname, featureFlags, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("gercep_announce_dismissed") === "1") {
+      setAnnounceDismissed(true);
+    }
+  }, []);
 
   const sidebarProps = {
     businesses,
@@ -35,6 +55,11 @@ export default function DashboardShell({
     userEmail,
     featureFlags,
   };
+
+  const showAnnounce =
+    announcement?.enabled &&
+    announcement.message?.trim() &&
+    !announceDismissed;
 
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
@@ -93,6 +118,36 @@ export default function DashboardShell({
           "md:transition-[margin-left] md:duration-[220ms] md:ease-[cubic-bezier(0.4,0,0.2,1)]",
         ].join(" ")}
       >
+        {showAnnounce && (
+          <div className="flex items-start gap-3 border-b border-[#38BDF8]/25 bg-[#38BDF8]/10 px-4 py-2.5 text-sm text-[#E0F2FE]">
+            <p className="min-w-0 flex-1 leading-relaxed">
+              {announcement!.message}
+              {announcement!.link ? (
+                <>
+                  {" "}
+                  <a
+                    href={announcement!.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold underline"
+                  >
+                    Selengkapnya
+                  </a>
+                </>
+              ) : null}
+            </p>
+            <button
+              type="button"
+              className="shrink-0 text-xs text-[#8B8AA0] hover:text-white"
+              onClick={() => {
+                sessionStorage.setItem("gercep_announce_dismissed", "1");
+                setAnnounceDismissed(true);
+              }}
+            >
+              Tutup
+            </button>
+          </div>
+        )}
         <TrialBanner />
         {children}
       </main>

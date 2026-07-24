@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Upload, FileText, Trash2, Check, AlertTriangle } from "lucide-react";
 import { parseFile, type ParseResult } from "../lib/csv-parser";
 import type { MpReport } from "../page";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 const PLATFORM_TABS = [
   { id: "Shopee", color: "#F97316", label: "Shopee" },
@@ -79,6 +80,11 @@ export default function MpUploadTab({
 
     setLoading(false);
     setSaved(true);
+    trackClientEvent({
+      event: "marketplace_upload",
+      module: "marketplace",
+      meta: { platform: result.platform, orders: result.orders.length, omzet: result.totalOmzet },
+    });
     router.refresh();
   };
 

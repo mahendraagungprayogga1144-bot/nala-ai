@@ -32,6 +32,11 @@ export async function PATCH(request: Request) {
     "support_email",
     "app_url",
     "admin_emails",
+    "bank_accounts",
+    "plan_prices",
+    "announcement_enabled",
+    "announcement_message",
+    "announcement_link",
     "feature_flags",
     "event_retention_days",
   ];

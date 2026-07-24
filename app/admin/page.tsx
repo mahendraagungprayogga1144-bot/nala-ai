@@ -77,6 +77,31 @@ export default async function AdminOverviewPage() {
 
   const uniqueUsers = new Set(users.map(u => u.user_id));
 
+  // Event-based DAU / top modules (if table exists)
+  let dau = activeToday;
+  let topModules: { module: string; count: number }[] = [];
+  if (admin) {
+    const dayAgo = new Date(Date.now() - 86400000).toISOString();
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+    const { data: dayEvents } = await admin
+      .from("app_events")
+      .select("user_id, module")
+      .gte("created_at", dayAgo)
+      .limit(5000);
+    if (dayEvents?.length) {
+      dau = new Set(dayEvents.map((e: { user_id: string | null }) => e.user_id).filter(Boolean)).size;
+      const modCount: Record<string, number> = {};
+      dayEvents.forEach((e: { module: string | null }) => {
+        if (e.module) modCount[e.module] = (modCount[e.module] || 0) + 1;
+      });
+      topModules = Object.entries(modCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([module, count]) => ({ module, count }));
+    }
+    void weekAgo;
+  }
+
   const userGrowth: { month: string; count: number }[] = [];
   const monthSet = new Set<string>();
   const allSignups = authUsers.length > 0 ? authUsers : users.map(u => ({ id: u.user_id, created_at: u.created_at }));
@@ -111,7 +136,7 @@ export default async function AdminOverviewPage() {
   return (
     <AdminOverviewClient
       totalUsers={authUsers.length || uniqueUsers.size}
-      activeToday={activeToday}
+      activeToday={dau}
       newUsersThisMonth={newUsersThisMonth}
       revenueThisMonth={revenueThisMonth}
       revenueThisYear={revenueThisYear}
@@ -121,6 +146,7 @@ export default async function AdminOverviewPage() {
       revenueByMonth={revenueByMonth}
       totalBusinesses={businesses.length}
       recentUsers={recentUsers}
+      topModules={topModules}
     />
   );
 }

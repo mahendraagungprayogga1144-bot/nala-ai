@@ -23,6 +23,7 @@ const PLAN_COLORS: Record<string, string> = { free: "#8B8AA0", starter: "#38BDF8
 export default function AdminOverviewClient({
   totalUsers, activeToday, newUsersThisMonth, revenueThisMonth, revenueThisYear,
   churnRate, planCounts, userGrowth, revenueByMonth, totalBusinesses, recentUsers,
+  topModules = [],
 }: {
   totalUsers: number; activeToday: number; newUsersThisMonth: number;
   revenueThisMonth: number; revenueThisYear: number;
@@ -31,6 +32,7 @@ export default function AdminOverviewClient({
   revenueByMonth: { month: string; revenue: number }[];
   totalBusinesses: number;
   recentUsers: RecentUser[];
+  topModules?: { module: string; count: number }[];
 }) {
   const kpis = [
     { label: "Total User", value: String(totalUsers), icon: Users, color: "#2DD4BF" },
@@ -65,6 +67,22 @@ export default function AdminOverviewClient({
           </div>
         ))}
       </div>
+
+      {topModules.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-white/[0.08] p-5" style={{ background: "#0D0D1A" }}>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8B8AA0]">Top modules hari ini</p>
+          <div className="flex flex-wrap gap-2">
+            {topModules.map((m) => (
+              <span
+                key={m.module}
+                className="rounded-full border border-[#2DD4BF]/20 bg-[#2DD4BF]/10 px-3 py-1 text-xs text-[#2DD4BF]"
+              >
+                {m.module} · {m.count}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recent logged in users */}
       <div className="mb-6 rounded-2xl border border-white/[0.08] p-5" style={{ background: "#0D0D1A" }}>

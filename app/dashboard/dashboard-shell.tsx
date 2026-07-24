@@ -5,10 +5,10 @@ import TrialBanner from "./components/trial-banner";
 import { Menu, X } from "lucide-react";
 
 type Business = { id: string; name: string; type: string | null };
+type Flags = { ai_kasir?: boolean; ai_jual_beli?: boolean; marketplace?: boolean; pajak?: boolean };
 
 /**
  * CSS-first responsive shell — no isMobile useState flash.
- * (Previously: first paint desktop → remount mobile → first tap lost / butuh klik 2×)
  */
 export default function DashboardShell({
   children,
@@ -16,19 +16,28 @@ export default function DashboardShell({
   activeBusiness,
   userName,
   userEmail,
+  featureFlags,
 }: {
   children: React.ReactNode;
   businesses: Business[];
   activeBusiness: Business | null;
   userName?: string;
   userEmail?: string;
+  featureFlags?: Flags;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const sidebarProps = {
+    businesses,
+    activeBusiness,
+    userName,
+    userEmail,
+    featureFlags,
+  };
+
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
-      {/* Mobile top bar */}
       <div
         className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-white/[0.06] bg-[#0D0D1A]/95 px-4 backdrop-blur-md md:hidden"
         style={{
@@ -53,7 +62,6 @@ export default function DashboardShell({
         </button>
       </div>
 
-      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileOpen(false)}>
           <div
@@ -65,29 +73,17 @@ export default function DashboardShell({
               embedded
               expanded={true}
               setExpanded={() => {}}
-              businesses={businesses}
-              activeBusiness={activeBusiness}
-              userName={userName}
-              userEmail={userEmail}
               onNavigate={() => setMobileOpen(false)}
+              {...sidebarProps}
             />
           </div>
         </div>
       )}
 
-      {/* Desktop sidebar */}
       <div className="hidden md:block">
-        <Sidebar
-          expanded={expanded}
-          setExpanded={setExpanded}
-          businesses={businesses}
-          activeBusiness={activeBusiness}
-          userName={userName}
-          userEmail={userEmail}
-        />
+        <Sidebar expanded={expanded} setExpanded={setExpanded} {...sidebarProps} />
       </div>
 
-      {/* Main — mobile top padding; desktop left margin for fixed sidebar */}
       <main
         className={[
           "w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto bg-[#070711]",

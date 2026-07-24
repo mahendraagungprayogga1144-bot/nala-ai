@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEMO_EMAIL, DEMO_FULL_NAME, DEMO_PASSWORD } from "./config";
 import { trialPayload } from "@/lib/auth/trial";
+import { getPlatformSettings } from "@/lib/admin/settings";
+import { trackEvent } from "@/lib/admin/track-event";
 
 function daysAgo(n: number) {
   const d = new Date();
@@ -18,6 +20,11 @@ async function ensureDemoUser() {
     };
   }
 
+  const settings = await getPlatformSettings();
+  if (!settings.demo_enabled) {
+    return { ok: false as const, error: "Akun demo sedang dinonaktifkan oleh admin." };
+  }
+
   const { data: listed } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   const existing = listed?.users?.find(u => u.email?.toLowerCase() === DEMO_EMAIL.toLowerCase());
 
@@ -27,15 +34,17 @@ async function ensureDemoUser() {
       email_confirm: true,
       user_metadata: { full_name: DEMO_FULL_NAME },
     });
-    // Pastikan demo punya trial 5 hari (hanya set jika belum ada trial_ends_at)
     const { data: sub } = await admin
       .from("subscriptions")
       .select("trial_ends_at, plan")
       .eq("user_id", existing.id)
       .maybeSingle();
     if (!sub?.trial_ends_at) {
-      await admin.from("subscriptions").upsert(trialPayload(existing.id), { onConflict: "user_id" });
+      await admin
+        .from("subscriptions")
+        .upsert(trialPayload(existing.id, new Date(), settings.trial_days), { onConflict: "user_id" });
     }
+    await trackEvent({ event: "demo_login", module: "auth", user_id: existing.id });
     return { ok: true as const, userId: existing.id };
   }
 
@@ -50,7 +59,10 @@ async function ensureDemoUser() {
     return { ok: false as const, error: error?.message || "Gagal buat user demo." };
   }
 
-  await admin.from("subscriptions").upsert(trialPayload(data.user.id), { onConflict: "user_id" });
+  await admin.from("subscriptions").upsert(trialPayload(data.user.id, new Date(), settings.trial_days), {
+    onConflict: "user_id",
+  });
+  await trackEvent({ event: "demo_created", module: "auth", user_id: data.user.id });
   return { ok: true as const, userId: data.user.id };
 }
 

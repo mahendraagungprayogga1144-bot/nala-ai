@@ -1,14 +1,14 @@
 /** Trial gratis untuk akun baru & demo — seperti startup SaaS. */
 export const TRIAL_DAYS = 5;
 
-export function trialEndsAt(from = new Date()) {
+export function trialEndsAt(from = new Date(), days = TRIAL_DAYS) {
   const d = new Date(from);
-  d.setDate(d.getDate() + TRIAL_DAYS);
+  d.setDate(d.getDate() + days);
   return d;
 }
 
-export function trialPayload(userId: string, from = new Date()) {
-  const ends = trialEndsAt(from).toISOString();
+export function trialPayload(userId: string, from = new Date(), days = TRIAL_DAYS) {
+  const ends = trialEndsAt(from, days).toISOString();
   return {
     user_id: userId,
     plan: "trial",

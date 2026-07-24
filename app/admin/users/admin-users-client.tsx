@@ -159,7 +159,11 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
                     <div className="flex items-center gap-2">
                       <span className={"h-2 w-2 flex-shrink-0 rounded-full " + (u.last_sign_in && (Date.now() - new Date(u.last_sign_in).getTime()) < 86_400_000 ? "bg-[#4ADE80]" : "bg-[#3A3B52]")} />
                       <div>
-                        <p className="text-xs font-medium text-[#F0EFF8] truncate max-w-[180px]">{u.email || u.user_id.slice(0, 8)}</p>
+                        <p className="text-xs font-medium text-[#F0EFF8] truncate max-w-[180px]">
+                          <a href={`/admin/users/${u.user_id}`} className="hover:text-[#38BDF8] hover:underline">
+                            {u.email || u.user_id.slice(0, 8)}
+                          </a>
+                        </p>
                         <p className="text-[9px] text-[#5A5B7A] truncate max-w-[180px]">{u.name || "—"}</p>
                       </div>
                     </div>

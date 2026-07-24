@@ -6,11 +6,11 @@ import { getSidebarModules, type DashboardModule } from "./lib/modules-registry"
 import { Shield } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
+import { FALLBACK_ADMIN_EMAIL, isAdminEmail } from "@/lib/auth/admin";
+
 type Business = { id: string; name: string; type: string | null };
 
-const ADMIN_EMAIL = "mahendraagungprayogga1144@gmail.com";
-
-export default function Sidebar({ expanded, setExpanded, businesses, activeBusiness, userName, userEmail, onNavigate, embedded }: {
+export default function Sidebar({ expanded, setExpanded, businesses, activeBusiness, userName, userEmail, onNavigate, embedded, featureFlags }: {
   expanded: boolean;
   setExpanded: (v: boolean) => void;
   businesses: Business[];
@@ -19,9 +19,10 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
   userEmail?: string;
   onNavigate?: () => void;
   embedded?: boolean;
+  featureFlags?: { ai_kasir?: boolean; ai_jual_beli?: boolean; marketplace?: boolean; pajak?: boolean };
 }) {
   const pathname = usePathname();
-  const groups = getSidebarModules(activeBusiness?.type);
+  const groups = getSidebarModules(activeBusiness?.type, featureFlags);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -101,7 +102,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
         ))}
       </nav>
 
-      {expanded && userEmail === ADMIN_EMAIL && (
+      {expanded && isAdminEmail(userEmail, [FALLBACK_ADMIN_EMAIL]) && (
         <Link href="/admin" prefetch onClick={() => onNavigate?.()}
           className="mx-2 mb-2 flex items-center gap-2 rounded-xl border border-[#EC4899]/20 bg-gradient-to-r from-[#EC4899]/[0.08] to-[#8B5CF6]/[0.06] px-3 py-2.5 text-xs font-bold text-[#EC4899] transition-all hover:from-[#EC4899]/[0.15]">
           <Shield size={14} />

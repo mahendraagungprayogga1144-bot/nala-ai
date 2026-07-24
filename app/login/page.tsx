@@ -1,10 +1,11 @@
 "use client";
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo/config";
 import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { homeForBizType, setFastGateCookies } from "@/lib/auth/post-login";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 function mapAuthError(message: string) {
   if (/invalid login credentials|invalid_credentials/i.test(message)) {
@@ -67,6 +68,18 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(urlError ? mapAuthError(urlError) : "");
   const [loading, setLoading] = useState(false);
+  const [demoEnabled, setDemoEnabled] = useState(true);
+  const [trialDays, setTrialDays] = useState(5);
+
+  useEffect(() => {
+    fetch("/api/public/platform")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.demo_enabled === "boolean") setDemoEnabled(d.demo_enabled);
+        if (typeof d.trial_days === "number") setTrialDays(d.trial_days);
+      })
+      .catch(() => {});
+  }, []);
 
   const go = (path: string) => {
     window.location.assign(path);
@@ -83,6 +96,7 @@ function LoginForm() {
         password: loginPassword,
       });
       if (authError) {
+        trackClientEvent({ event: "login_failed", module: "auth", meta: { reason: "credentials" } });
         setError(mapAuthError(authError.message));
         setLoading(false);
         return;
@@ -95,6 +109,7 @@ function LoginForm() {
         return;
       }
 
+      trackClientEvent({ event: "login", module: "auth", path: "/login" });
       const path = await resolvePostLoginPath(supabase, userId, preferredNext);
       go(path);
     } catch {
@@ -195,22 +210,26 @@ function LoginForm() {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => void handleDemoLogin()}
-          disabled={loading}
-          className="mt-3 w-full rounded-xl border border-violet-500/30 bg-violet-500/10 py-3.5 text-sm font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-50"
-        >
-          {loading ? "Menyiapkan demo..." : "Masuk Akun Demo"}
-        </button>
-        <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-          Demo trial 5 hari · {DEMO_EMAIL}
-        </p>
+        {demoEnabled && (
+          <>
+            <button
+              type="button"
+              onClick={() => void handleDemoLogin()}
+              disabled={loading}
+              className="mt-3 w-full rounded-xl border border-violet-500/30 bg-violet-500/10 py-3.5 text-sm font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-50"
+            >
+              {loading ? "Menyiapkan demo..." : "Masuk Akun Demo"}
+            </button>
+            <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
+              Demo trial {trialDays} hari · {DEMO_EMAIL}
+            </p>
+          </>
+        )}
 
         <p className="mt-6 text-center text-sm text-[#8B8AA0]">
           Belum punya akun?{" "}
           <a href="/signup" className="text-[#2DD4BF]">
-            Daftar gratis · trial 5 hari
+            Daftar gratis · trial {trialDays} hari
           </a>
         </p>
       </div>

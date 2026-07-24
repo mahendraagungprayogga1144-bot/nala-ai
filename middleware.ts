@@ -8,8 +8,8 @@ import {
   SUB_CHECKED_COOKIE,
   ROLE_CHECKED_COOKIE,
 } from "@/lib/supabase/middleware";
-
-const ADMIN_EMAIL = "mahendraagungprayogga1144@gmail.com";
+import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
+import { getPlatformSettings } from "@/lib/admin/settings";
 
 function needsAuth(pathname: string) {
   return (
@@ -77,6 +77,28 @@ export async function middleware(request: NextRequest) {
     },
   );
 
+  // Platform settings (cached) — maintenance + multi-admin
+  let adminEmails = [FALLBACK_ADMIN_EMAIL];
+  let maintenance = false;
+  try {
+    const settings = await getPlatformSettings();
+    adminEmails = settings.admin_emails;
+    maintenance = settings.maintenance_mode;
+  } catch {
+    // keep defaults
+  }
+
+  const userIsAdmin = isAdminEmail(user.email, adminEmails);
+
+  if (
+    maintenance &&
+    !userIsAdmin &&
+    !pathname.startsWith("/maintenance") &&
+    (pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname.startsWith("/admin"))
+  ) {
+    return redirectTo(request, "/maintenance", response);
+  }
+
   // Already logged in on login/signup → bounce to app
   if (isAuthPage(pathname)) {
     const dest = await resolveAppHome(supabase, user.id, request, response);
@@ -85,7 +107,7 @@ export async function middleware(request: NextRequest) {
 
   // Admin
   if (pathname.startsWith("/admin")) {
-    if (user.email !== ADMIN_EMAIL) {
+    if (!userIsAdmin) {
       return redirectTo(request, "/dashboard/owner", response);
     }
     return response;

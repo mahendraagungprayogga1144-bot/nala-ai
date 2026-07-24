@@ -87,30 +87,38 @@ const CATEGORY_LABELS: Record<ModuleCategory, string> = {
   aplikasi: "APLIKASI MODUL",
 };
 
-export function getSidebarModules(bizType: string | null | undefined): { label: string; modules: DashboardModule[] }[] {
+export function getSidebarModules(
+  bizType: string | null | undefined,
+  flags?: { ai_kasir?: boolean; ai_jual_beli?: boolean; marketplace?: boolean; pajak?: boolean },
+): { label: string; modules: DashboardModule[] }[] {
   const result: { label: string; modules: DashboardModule[] }[] = [];
+  const hide = new Set<string>();
+  if (flags?.ai_kasir === false) hide.add("kasir");
+  if (flags?.ai_jual_beli === false) hide.add("ai-jual-beli");
+  if (flags?.marketplace === false) {
+    hide.add("marketplace");
+    hide.add("marketplace-laporan");
+  }
+  if (flags?.pajak === false) hide.add("pajak");
+  const keep = (m: DashboardModule) => !hide.has(m.id);
 
-  // 1. MENU UTAMA selalu di atas
-  const utama = GERCEP_MODULES.filter(m => m.category === "utama");
+  const utama = GERCEP_MODULES.filter((m) => m.category === "utama" && keep(m));
   if (utama.length > 0) result.push({ label: CATEGORY_LABELS.utama, modules: utama });
 
-  // 2. Modul khusus bisnis — muncul langsung setelah menu utama
   if (bizType) {
-    const bizSpecific = BIZ_MODULES.filter(m => m.bizTypes?.includes(bizType));
+    const bizSpecific = BIZ_MODULES.filter((m) => m.bizTypes?.includes(bizType) && keep(m));
     if (bizSpecific.length > 0) {
       result.push({ label: BIZ_TYPE_LABELS[bizType] || `FITUR ${bizType.toUpperCase()}`, modules: bizSpecific });
     }
   }
 
-  // 3. Modul universal toko / keuangan / platform (tanpa AI Kasir & AI Jual Beli)
   const order: ModuleCategory[] = ["keuangan", "operasional", "marketing", "platform", "manajemen"];
   for (const cat of order) {
-    const mods = GERCEP_MODULES.filter(m => m.category === cat);
+    const mods = GERCEP_MODULES.filter((m) => m.category === cat && keep(m));
     if (mods.length > 0) result.push({ label: CATEGORY_LABELS[cat], modules: mods });
   }
 
-  // 4. Aplikasi modul mandiri — terpisah dari navbar toko & jenis bisnis
-  const apps = GERCEP_MODULES.filter(m => m.category === "aplikasi");
+  const apps = GERCEP_MODULES.filter((m) => m.category === "aplikasi" && keep(m));
   if (apps.length > 0) result.push({ label: CATEGORY_LABELS.aplikasi, modules: apps });
 
   return result;

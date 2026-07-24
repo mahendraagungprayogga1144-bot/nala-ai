@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { DEMO_EMAIL } from "@/lib/demo/config";
@@ -18,11 +18,28 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(true);
+  const [trialDays, setTrialDays] = useState(TRIAL_DAYS);
+
+  useEffect(() => {
+    fetch("/api/public/platform")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.signup_open === "boolean") setSignupOpen(d.signup_open);
+        if (typeof d.trial_days === "number") setTrialDays(d.trial_days);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
     setError("");
+
+    if (!signupOpen) {
+      setError("Pendaftaran sedang ditutup.");
+      return;
+    }
 
     if (password.length < 6) {
       setError("Password minimal 6 karakter.");
@@ -86,13 +103,13 @@ export default function SignupPage() {
           </Link>
           <h1 className="mt-6 mb-2 text-2xl font-semibold">Buat akun bisnis</h1>
           <p className="text-sm text-[#8B8AA0]">
-            Daftar gratis · trial penuh <span className="font-medium text-[#2DD4BF]">{TRIAL_DAYS} hari</span>
+            Daftar gratis · trial penuh <span className="font-medium text-[#2DD4BF]">{trialDays} hari</span>
           </p>
         </div>
 
         <div className="mb-5 rounded-2xl border border-[#2DD4BF]/20 bg-[#2DD4BF]/[0.06] px-4 py-3">
           <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#2DD4BF] uppercase">
-            Termasuk trial {TRIAL_DAYS} hari
+            Termasuk trial {trialDays} hari
           </p>
           <ul className="space-y-1.5 text-[12px] text-[#8B8AA0]">
             {[
@@ -177,7 +194,7 @@ export default function SignupPage() {
             disabled={loading}
             className="mt-1 w-full rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] py-3.5 font-semibold text-[#0A0A12] disabled:opacity-50"
           >
-            {loading ? "Membuat akun..." : `Daftar · Trial ${TRIAL_DAYS} hari`}
+            {loading ? "Membuat akun..." : `Daftar · Trial ${trialDays} hari`}
           </button>
         </form>
 
@@ -206,7 +223,7 @@ export default function SignupPage() {
           Masuk akun demo ({DEMO_EMAIL})
         </button>
         <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-          Demo juga terbatas trial {TRIAL_DAYS} hari — data contoh untuk eksplorasi.
+          Demo juga terbatas trial {trialDays} hari — data contoh untuk eksplorasi.
         </p>
       </div>
     </main>

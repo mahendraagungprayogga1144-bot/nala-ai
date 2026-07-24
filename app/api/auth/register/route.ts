@@ -1,27 +1,31 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { trialPayload } from "@/lib/auth/trial";
+import { getPlatformSettings } from "@/lib/admin/settings";
+import { trackEvent } from "@/lib/admin/track-event";
 
 async function findUserByEmail(admin: NonNullable<ReturnType<typeof createAdminClient>>, email: string) {
   const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   return data?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 }
 
-async function ensureTrial(admin: NonNullable<ReturnType<typeof createAdminClient>>, userId: string) {
+async function ensureTrial(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  userId: string,
+  trialDays: number,
+) {
   const { data: existing } = await admin
     .from("subscriptions")
     .select("user_id, plan, status, trial_ends_at")
     .eq("user_id", userId)
     .maybeSingle();
 
-  // Jangan overwrite langganan berbayar aktif
   if (existing && ["starter", "pro", "enterprise"].includes(existing.plan) && existing.status === "active") {
     return;
   }
-  // Trial sudah pernah dibuat — biarkan
   if (existing?.trial_ends_at) return;
 
-  await admin.from("subscriptions").upsert(trialPayload(userId), { onConflict: "user_id" });
+  await admin.from("subscriptions").upsert(trialPayload(userId, new Date(), trialDays), { onConflict: "user_id" });
 }
 
 export async function POST(request: Request) {
@@ -41,6 +45,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Format email tidak valid." }, { status: 400 });
   }
 
+  const settings = await getPlatformSettings();
+  if (!settings.signup_open) {
+    return NextResponse.json({ error: "Pendaftaran sedang ditutup." }, { status: 403 });
+  }
+
   const admin = createAdminClient();
   if (!admin) {
     return NextResponse.json(
@@ -55,7 +64,6 @@ export async function POST(request: Request) {
   const existing = await findUserByEmail(admin, email);
 
   if (existing) {
-    // Jangan reset password sembarangan lewat daftar — minta login / lupa sandi
     return NextResponse.json(
       { error: "Email sudah terdaftar. Silakan masuk, atau pakai Lupa kata sandi." },
       { status: 409 },
@@ -74,7 +82,13 @@ export async function POST(request: Request) {
   }
 
   await admin.from("profiles").upsert({ id: data.user.id, full_name: name }, { onConflict: "id" });
-  await ensureTrial(admin, data.user.id);
+  await ensureTrial(admin, data.user.id, settings.trial_days);
+  await trackEvent({
+    event: "signup",
+    module: "auth",
+    user_id: data.user.id,
+    meta: { trial_days: settings.trial_days },
+  });
 
-  return NextResponse.json({ ok: true, trialDays: 5 });
+  return NextResponse.json({ ok: true, trialDays: settings.trial_days });
 }

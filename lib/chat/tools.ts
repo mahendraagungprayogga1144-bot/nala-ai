@@ -3,8 +3,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { todayWib } from "@/lib/date";
 import { normalizeBizType } from "@/lib/auth/post-login";
 import { syncFarmToKeuangan, type FarmJenis } from "@/app/dashboard/peternakan/lib/farm-sync";
+import { WAVE1_TOOLS, runWave1Tool, type ChatSession, type ChatBiz } from "./wave1-tools";
 
-export type ChatBiz = { id: string; type: string | null; name: string };
+export type { ChatBiz, ChatSession };
 
 export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
   {
@@ -135,6 +136,7 @@ export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
       properties: {},
     },
   },
+  ...WAVE1_TOOLS,
 ];
 
 function fmtRp(n: number) {
@@ -144,14 +146,7 @@ function fmtRp(n: number) {
 export async function runChatTool(
   name: string,
   rawInput: unknown,
-  ctx: {
-    supabase: SupabaseClient;
-    userId: string;
-    business: ChatBiz | null;
-    businesses: ChatBiz[];
-    unitLabel: string;
-    isPertanian: boolean;
-  },
+  ctx: ChatSession,
 ): Promise<string> {
   const input = (rawInput || {}) as Record<string, unknown>;
   try {
@@ -175,7 +170,7 @@ export async function runChatTool(
       case "list_bisnis":
         return listBisnis(ctx);
       default:
-        return `Tool ${name} belum dikenal.`;
+        return await runWave1Tool(name, input, ctx);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -15,7 +15,7 @@ function ChatContent() {
       role: "assistant",
       content: isPertanian
         ? "Halo! Aku Gercep AI Pertanian 🌾 Tanya soal panen, pupuk, pestisida, HPP, estimasi keuntungan, atau komoditas terbaik — aku analisis dari data inventory kamu."
-        : "Halo! Aku Gercep AI. Bisa catat keuangan, menu kasir, stok inventory, atau Manajemen Batch ternak. Kalau input hewan/stok ambigu, aku tanya dulu mau ke Batch atau Inventory.",
+        : "Halo! Aku Gercep AI. Bisa keuangan, kasir F&B, inventory, jual produk, batch ternak, bengkel, produksi, CRM, karyawan. Kalau input ambigu (mis. hewan), aku tanya dulu mau ke Batch atau Inventory.",
     },
   ]);
   const [input, setInput] = useState(presetQ || "");

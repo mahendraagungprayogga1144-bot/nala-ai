@@ -8,7 +8,7 @@ import {
   isKasirQuestion,
   kasirSnapshotToContext,
 } from "@/lib/chat/kasir-snapshot";
-import { CHAT_TOOLS, runChatTool, type ChatBiz } from "@/lib/chat/tools";
+import { CHAT_TOOLS, runChatTool, type ChatBiz, type ChatSession } from "@/lib/chat/tools";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -96,28 +96,30 @@ Bisnis user: ${bizList}. Bisnis aktif sekarang: ${activeLabel}.
 ${pertanianPrompt}
 
 KAMU PUNYA TOOLS — pakai sampai pekerjaan selesai, jangan bilang "nggak bisa" kalau tool-nya ada:
-- catat_transaksi → catat pemasukan/pengeluaran keuangan pribadi/bisnis
-- kelola_stok → stok Inventory/rak saja (bukan menu F&B, bukan batch ternak)
-- list_batch_ternak / buat_batch_ternak / catat_transaksi_batch → Manajemen Batch Peternakan (bibit/pakan/panen ke batch)
-- buat_menu_kasir → INPUT/UPDATE MENU Kasir F&B
-- list_menu_kasir → cek menu
-- lihat_keuangan → lihat transaksi terbaru
-- list_bisnis → cek bisnis
+- list_bisnis / ganti_bisnis_aktif → lihat & ganti bisnis aktif
+- catat_transaksi / lihat_keuangan / lihat_omzet_bisnis → keuangan
+- kelola_stok / list_produk / jual_produk_kasir → inventory & jual produk
+- list_batch_ternak / buat_batch_ternak / catat_transaksi_batch / catat_pakan_harian → peternakan
+- buat_menu_kasir / list_menu_kasir → Kasir F&B
+- buat_karyawan_kasir / list_karyawan → link kasir karyawan
+- buat_order_bengkel / update_status_bengkel → bengkel
+- tambah_pelanggan_crm → CRM
+- jalankan_produksi → produksi dari resep
 
 ATURAN KLARIFIKASI (WAJIB — jangan asal eksekusi):
-1. Kalau user bilang input/tambah hewan/ternak/bebek/ayam/ekor/bibit/"1000 pcs bebek" / batch / manajemen batch — DAN belum jelas mau ke mana:
+1. Kalau user bilang input/tambah hewan/ternak/bebek/ayam/ekor/bibit/"1000 pcs bebek" / batch — DAN belum jelas mau ke mana:
    WAJIB tanya dulu, jangan panggil tool:
    "Mau dicatat ke mana?
-   1) Manajemen Batch (Peternakan) — siklus ternak + sync Keuangan
+   1) Manajemen Batch (Peternakan)
    2) Stok Inventory (rak produk)
-   3) Keuangan saja (pemasukan/pengeluaran)"
-2. Baru setelah user jawab (1/2/3 atau "batch"/"inventory"/"keuangan") → panggil tool yang tepat.
+   3) Keuangan saja"
+2. Baru setelah user jawab → panggil tool yang tepat.
 3. JANGAN pakai kelola_stok untuk bebek/ayam/ternak kecuali user jelas bilang inventory/stok rak.
-4. Kalau user bilang "batch" / "manajemen batch" / "ternak" → buat_batch_ternak + catat_transaksi_batch (list_batch_ternak dulu kalau perlu).
-5. Catat uang/jasa jelas → catat_transaksi. Menu kasir jelas → buat_menu_kasir.
+4. Kalau user bilang "batch" / "manajemen batch" / "ternak" → tools batch ternak.
+5. Jual produk (bukan menu F&B) → jual_produk_kasir. Menu hidangan → buat_menu_kasir.
 6. Scope PRIBADI vs BISNIS: rumah/pribadi = pribadi; jual/toko/usaha = bisnis. Kalau ambigu, tanya singkat.
 7. Setelah tool sukses, konfirmasi hasil nyata. Kalau gagal, sampaikan error tool apa adanya.
-8. Jangan bilang kamu tidak punya akses ke batch/kasir/menu kalau tools di atas tersedia.
+8. Jangan bilang kamu tidak punya akses ke modul kalau tools di atas tersedia.
 
 Stok inventory (baca saja): ${productContext}
 ${
@@ -129,7 +131,7 @@ ${
   type Msg = Anthropic.Messages.MessageParam;
   const messages: Msg[] = Array.isArray(chatHistory) ? [...chatHistory] : [];
 
-  const toolCtx = {
+  const toolCtx: ChatSession = {
     supabase,
     userId: user.id,
     business,
@@ -171,7 +173,15 @@ ${
         block.name === "kelola_stok" ||
         block.name === "buat_menu_kasir" ||
         block.name === "buat_batch_ternak" ||
-        block.name === "catat_transaksi_batch"
+        block.name === "catat_transaksi_batch" ||
+        block.name === "ganti_bisnis_aktif" ||
+        block.name === "jual_produk_kasir" ||
+        block.name === "buat_karyawan_kasir" ||
+        block.name === "buat_order_bengkel" ||
+        block.name === "update_status_bengkel" ||
+        block.name === "tambah_pelanggan_crm" ||
+        block.name === "catat_pakan_harian" ||
+        block.name === "jalankan_produksi"
       ) {
         didMutate = true;
       }

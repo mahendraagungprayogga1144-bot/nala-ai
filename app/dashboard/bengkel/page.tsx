@@ -4,6 +4,7 @@ import BizHubShell, { fmtRp } from "../components/biz-hub-shell";
 import BengkelClient from "./bengkel-client";
 import { normalizeBizType } from "@/lib/auth/post-login";
 import { guardPage } from "../lib/page-guard";
+import type { ProductRow } from "../inventory/lib/typed-stock-actions";
 
 export default async function BengkelPage() {
   return guardPage("Antrian Bengkel", async () => {
@@ -16,6 +17,12 @@ export default async function BengkelPage() {
     .select("*")
     .eq("business_id", business.id)
     .order("created_at", { ascending: false });
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name, sku, stock, min_stock, price, cost, category, photo_url, unit")
+    .eq("business_id", business.id)
+    .order("name");
 
   const antrian = (orders || []).filter((o) => o.status === "antrian");
   const proses = (orders || []).filter((o) => o.status === "proses");
@@ -40,7 +47,12 @@ export default async function BengkelPage() {
         { href: "/dashboard/crm-pelanggan", label: "CRM", desc: "Riwayat pelanggan bengkel." },
       ]}
     >
-      <BengkelClient businessId={business.id} userId={user.id} orders={orders || []} />
+      <BengkelClient
+        businessId={business.id}
+        userId={user.id}
+        orders={orders || []}
+        products={(products || []) as ProductRow[]}
+      />
     </BizHubShell>
   );
   });

@@ -91,19 +91,61 @@ export default function KasirPrintSettingsButton({ compact = false }: { compact?
               />
             </div>
 
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-[#5A5B7A]">Lebar kertas</p>
-            <div className="mb-4 flex gap-2">
-              {[58, 80].map(w => (
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-[#5A5B7A]">Kertas struk printer thermal</p>
+            <p className="mb-2 text-[10px] leading-relaxed text-[#8B8AA0]">
+              Pilih lebar sesuai printer toko (umum 58mm atau 80mm). Custom untuk ukuran lain.
+            </p>
+            <div className="mb-2 flex gap-2">
+              {([58, 80] as const).map((w) => (
                 <button
                   key={w}
                   type="button"
-                  onClick={() => setS(p => ({ ...p, paperWidthMm: w }))}
-                  className={`flex-1 rounded-lg border py-2 text-xs font-medium ${s.paperWidthMm === w ? "border-[#2DD4BF]/40 bg-[#2DD4BF]/10 text-[#2DD4BF]" : "border-white/10 text-[#8B8AA0]"}`}
+                  onClick={() => setS((p) => ({ ...p, paperWidthMm: w }))}
+                  className={`flex-1 rounded-lg border py-2 text-xs font-medium ${
+                    s.paperWidthMm === w
+                      ? "border-[#2DD4BF]/40 bg-[#2DD4BF]/10 text-[#2DD4BF]"
+                      : "border-white/10 text-[#8B8AA0]"
+                  }`}
                 >
                   {w}mm
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setS((p) => ({
+                    ...p,
+                    paperWidthMm: p.paperWidthMm === 58 || p.paperWidthMm === 80 ? 72 : p.paperWidthMm,
+                  }))
+                }
+                className={`flex-1 rounded-lg border py-2 text-xs font-medium ${
+                  s.paperWidthMm !== 58 && s.paperWidthMm !== 80
+                    ? "border-[#2DD4BF]/40 bg-[#2DD4BF]/10 text-[#2DD4BF]"
+                    : "border-white/10 text-[#8B8AA0]"
+                }`}
+              >
+                Custom
+              </button>
             </div>
+            {s.paperWidthMm !== 58 && s.paperWidthMm !== 80 && (
+              <div className="mb-4 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={48}
+                  max={120}
+                  value={s.paperWidthMm}
+                  onChange={(e) =>
+                    setS((p) => ({
+                      ...p,
+                      paperWidthMm: Math.min(120, Math.max(48, Number(e.target.value) || 58)),
+                    }))
+                  }
+                  className="w-24 rounded-lg border border-white/10 bg-[#0A0A12] px-3 py-2 text-sm text-[#F0EFF8]"
+                />
+                <span className="text-xs text-[#8B8AA0]">mm (48–120)</span>
+              </div>
+            )}
+            {(s.paperWidthMm === 58 || s.paperWidthMm === 80) && <div className="mb-4" />}
 
             <p className="mb-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-200/80">
               Browser tidak bisa cetak 100% diam tanpa dialog sistem. Hubungkan printer thermal Bluetooth lewat dialog cetak HP/tablet, lalu pilih printer default — setelah itu setiap order langsung muncul dialog cetak.

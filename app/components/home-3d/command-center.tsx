@@ -292,39 +292,6 @@ export function AICore() {
   );
 }
 
-/* ═══════════════ DECODE TEXT — sci-fi character scramble reveal ═══════════════ */
-const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&@*+=<>[]{}";
+export { DecodeText } from "./decode-text";
 
-export function DecodeText({ text, delay = 0, className, style }: {
-  text: string; delay?: number; className?: string; style?: React.CSSProperties;
-}) {
-  const [display, setDisplay] = useState(text);
-  const [started, setStarted] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const startT = setTimeout(() => setStarted(true), delay);
-    return () => clearTimeout(startT);
-  }, [delay]);
-
-  useEffect(() => {
-    if (!started) return;
-    let frame = 0;
-    const totalFrames = Math.max(20, text.length * 2.2);
-    const iv = setInterval(() => {
-      frame++;
-      const revealed = Math.floor((frame / totalFrames) * text.length);
-      let out = "";
-      for (let i = 0; i < text.length; i++) {
-        if (text[i] === " ") { out += " "; continue; }
-        if (i < revealed) out += text[i];
-        else out += GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-      }
-      setDisplay(out);
-      if (frame >= totalFrames) { setDisplay(text); clearInterval(iv); }
-    }, 35);
-    return () => clearInterval(iv);
-  }, [started, text]);
-
-  return <span ref={ref} className={className} style={style}>{display}</span>;
-}
+/* ═══════════════ DECODE TEXT — re-exported from decode-text.tsx ═══════════════ */

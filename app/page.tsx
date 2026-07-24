@@ -11,8 +11,18 @@ const HeroScene = lazy(() => import("./components/home-3d/hero-scene"));
 const WaveScene = lazy(() => import("./components/home-3d/wave-scene"));
 const BgParticles = lazy(() => import("./components/home-3d/bg-particles"));
 const LaptopScene = lazy(() => import("./components/home-3d/laptop-scene"));
-import { BootSequence, HudOverlay, AICore, DecodeText } from "./components/home-3d/command-center";
+const BootSequence = lazy(() =>
+  import("./components/home-3d/command-center").then((m) => ({ default: m.BootSequence })),
+);
+const HudOverlay = lazy(() =>
+  import("./components/home-3d/command-center").then((m) => ({ default: m.HudOverlay })),
+);
+const AICore = lazy(() =>
+  import("./components/home-3d/command-center").then((m) => ({ default: m.AICore })),
+);
+import { DecodeText } from "./components/home-3d/decode-text";
 import { PAYMENT_WA } from "@/lib/payment/config";
+import { useLightHome } from "./components/home-3d/use-light-home";
 
 const heading3D = {
   textShadow: [
@@ -112,20 +122,34 @@ export default function Home() {
   const [is3D, setIs3D] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [playType, setPlayType] = useState("kuliner");
-  useEffect(() => { setIs3D(true); }, []);
+  const lightHome = useLightHome();
+  // Desktop: enable 3D after mount. Mobile/light: never load heavy canvases.
+  useEffect(() => {
+    if (lightHome) {
+      setIs3D(false);
+      return;
+    }
+    const idle = window.requestIdleCallback
+      ? window.requestIdleCallback(() => setIs3D(true), { timeout: 1200 })
+      : window.setTimeout(() => setIs3D(true), 400);
+    return () => {
+      if (typeof idle === "number") window.clearTimeout(idle);
+      else window.cancelIdleCallback?.(idle as number);
+    };
+  }, [lightHome]);
   const activePlay = PLAYGROUND.find((b) => b.type === playType) || PLAYGROUND[0];
+  const showHeavy3D = is3D && !lightHome;
 
   return (
     <main className="min-h-screen overflow-x-hidden relative" style={{ background: "#050508", color: "#F2F1F8" }}>
-      {/* ═══ BOOT SEQUENCE — GERCEP OS startup ═══ */}
-      {is3D && <BootSequence />}
-
-      {/* ═══ COMMAND CENTER HUD ═══ */}
-      {is3D && <HudOverlay />}
-      {is3D && <AICore />}
-
-      {/* ═══ FULL PAGE PARTICLE BACKGROUND ═══ */}
-      {is3D && <Suspense fallback={null}><BgParticles /></Suspense>}
+      {showHeavy3D && (
+        <Suspense fallback={null}>
+          <BootSequence />
+          <HudOverlay />
+          <AICore />
+          <BgParticles />
+        </Suspense>
+      )}
 
       {/* ═══ NAV (desktop + mobile) ═══ */}
       <nav
@@ -189,7 +213,23 @@ export default function Home() {
 
       {/* ═══ HERO ═══ */}
       <section className="relative min-h-screen flex items-center overflow-hidden pt-16">
-        {is3D && <Suspense fallback={null}><HeroScene /></Suspense>}
+        {showHeavy3D && (
+          <Suspense fallback={null}>
+            <HeroScene />
+          </Suspense>
+        )}
+        {/* Mobile: CSS atmosphere instead of WebGL hero */}
+        {lightHome && (
+          <>
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(ellipse at 70% 20%, rgba(45,212,191,0.18), transparent 50%), radial-gradient(ellipse at 20% 80%, rgba(139,92,246,0.16), transparent 45%), radial-gradient(ellipse at 50% 50%, rgba(236,72,153,0.08), transparent 55%)",
+              }}
+            />
+          </>
+        )}
         <NebulaBlob color="#2DD4BF" position="top-right" size={800} />
         <NebulaBlob color="#8B5CF6" position="bottom-left" size={600} />
         <NebulaBlob color="#EC4899" position="top-left" size={400} />
@@ -200,7 +240,7 @@ export default function Home() {
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-bold tracking-[0.2em] uppercase text-[#2DD4BF] mb-8"
                 style={{ border: "1px solid rgba(45,212,191,0.3)", background: "rgba(45,212,191,0.06)", boxShadow: "0 0 30px rgba(45,212,191,0.1)" }}>
                 <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2DD4BF] opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-[#2DD4BF]" /></span>
-                <DecodeText text="AI-Powered Business OS" delay={2900} />
+                <DecodeText text="AI-Powered Business OS" delay={lightHome ? 0 : 2900} instant={lightHome} />
               </span>
             </motion.div>
 
@@ -208,11 +248,11 @@ export default function Home() {
               transition={{ delay: 0.1, duration: 1.2, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
               className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.05] tracking-tight mb-6"
               style={{ fontFamily: "'Space Grotesk', sans-serif", transformPerspective: 900, ...heading3D }}>
-              <DecodeText text="Business OS" delay={3000} />{" "}
+              <DecodeText text="Business OS" delay={lightHome ? 0 : 3000} instant={lightHome} />{" "}
               <span className="block" style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6, #EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 25px rgba(139,92,246,0.4))" }}>
-                <DecodeText text="Masa Depan untuk" delay={3350} />
+                <DecodeText text="Masa Depan untuk" delay={lightHome ? 0 : 3350} instant={lightHome} />
               </span>
-              <DecodeText text="UMKM Indonesia" delay={3700} />
+              <DecodeText text="UMKM Indonesia" delay={lightHome ? 0 : 3700} instant={lightHome} />
             </motion.h1>
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }}
@@ -449,9 +489,24 @@ export default function Home() {
             <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }} transition={{ duration: 1.2 }} className="lg:col-span-3 relative">
               <div className="relative w-full h-[420px] sm:h-[520px]" style={{ pointerEvents: "auto" }}>
-                {is3D && <Suspense fallback={
-                  <div className="flex items-center justify-center h-full text-xs text-[#3A3B52]">Loading 3D...</div>
-                }><LaptopScene /></Suspense>}
+                {showHeavy3D && (
+                  <Suspense
+                    fallback={
+                      <div className="flex h-full items-center justify-center text-xs text-[#3A3B52]">Loading 3D...</div>
+                    }
+                  >
+                    <LaptopScene />
+                  </Suspense>
+                )}
+                {lightHome && (
+                  <div
+                    className="flex h-full items-center justify-center rounded-2xl border border-white/[0.08]"
+                    style={{ background: "rgba(10,10,20,0.8)" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo-gercep.png" alt="" className="h-24 w-24 rounded-2xl object-cover opacity-90" />
+                  </div>
+                )}
               </div>
               <div className="absolute -inset-10 rounded-3xl -z-10" style={{ background: "radial-gradient(ellipse, rgba(139,92,246,0.12), transparent 60%)", filter: "blur(40px)" }} />
             </motion.div>
@@ -602,7 +657,11 @@ export default function Home() {
 
       {/* ═══ CTA ═══ */}
       <section className="relative py-36 px-6 overflow-hidden">
-        {is3D && <Suspense fallback={null}><WaveScene /></Suspense>}
+        {showHeavy3D && (
+          <Suspense fallback={null}>
+            <WaveScene />
+          </Suspense>
+        )}
         <NebulaBlob color="#2DD4BF" position="top-left" size={600} />
         <NebulaBlob color="#8B5CF6" position="bottom-right" size={500} />
         <NebulaBlob color="#EC4899" position="top-right" size={400} />

@@ -1,8 +1,14 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
+/**
+ * Server Components may ONLY read cookies.
+ * Session refresh + Set-Cookie must happen in middleware (never here).
+ * Calling cookies().set during RSC render → ERROR digest / blank page
+ * (historically ERROR 1621801304 on this app).
+ */
 export async function createClient() {
-  const cookieStore = await cookies()
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,18 +16,12 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // Diabaikan kalau dipanggil dari Server Component
-          }
+        setAll() {
+          // Intentionally empty — do not call cookieStore.set from RSC.
         },
       },
-    }
-  )
+    },
+  );
 }

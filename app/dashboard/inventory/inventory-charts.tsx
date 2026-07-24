@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 type Product = { name: string; stock: number; price: number | null };
@@ -6,10 +7,14 @@ type Product = { name: string; stock: number; price: number | null };
 const COLORS = ["#38BDF8", "#8B5CF6", "#EC4899", "#2DD4BF", "#F59E0B", "#6366F1"];
 
 export default function InventoryCharts({ products }: { products: Product[] }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const pieData = products.map((p) => ({ name: p.name, value: (p.price || 0) * p.stock })).filter((p) => p.value > 0).sort((a, b) => b.value - a.value).slice(0, 6);
   const barData = products.map((p) => ({ name: p.name, stok: p.stock })).sort((a, b) => b.stok - a.stok).slice(0, 6);
 
   if (products.length === 0) return null;
+  if (!mounted) return <div className="mb-6 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />;
 
   return (
     <div className="grid sm:grid-cols-2 gap-4 mb-6">

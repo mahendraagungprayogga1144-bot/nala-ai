@@ -79,8 +79,11 @@ export default function DashboardOwnerClient({
   const [showBizDropdown, setShowBizDropdown] = useState(false);
   const [chartTab, setChartTab] = useState("Harian");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [chartsReady, setChartsReady] = useState(false);
   const dateRef = useRef<HTMLDivElement>(null);
   const bizRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setChartsReady(true); }, []);
 
   const closeDropdowns = () => {
     setShowDatePicker(false);
@@ -340,6 +343,7 @@ export default function DashboardOwnerClient({
                 ))}
               </div>
             </div>
+            {chartsReady ? (
             <ResponsiveContainer width="100%" height={210}>
               <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                 <defs>
@@ -356,6 +360,9 @@ export default function DashboardOwnerClient({
                 <Area type="monotone" dataKey="omzet" stroke="#7c3aed" strokeWidth={2.5} fill="url(#omzetGrad)" dot={false} activeDot={{ r: 5, fill: "#7c3aed" }} />
               </AreaChart>
             </ResponsiveContainer>
+            ) : (
+              <div className="h-[210px] animate-pulse rounded-xl bg-white/[0.04]" />
+            )}
             <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-4 sm:grid-cols-4">
               {[
                 { label: "Omzet Tertinggi", value: fmtRp(Math.max(...chartData.map(d => d.omzet), 0) * 1000), dot: "#ef4444" },
@@ -468,7 +475,9 @@ export default function DashboardOwnerClient({
               <button type="button" className="dash-card-link">Detail</button>
             </div>
             <div className="flex flex-1 flex-col items-center justify-center">
-            {donutData.length === 0 ? <p className="text-sm text-slate-600">Belum ada data</p> : (
+            {donutData.length === 0 ? <p className="text-sm text-slate-600">Belum ada data</p> : !chartsReady ? (
+              <div className="h-[130px] w-[130px] animate-pulse rounded-full bg-white/[0.04]" />
+            ) : (
               <>
                 <div className="relative mx-auto mb-3" style={{ width: 130, height: 130 }}>
                   <PieChart width={130} height={130}>

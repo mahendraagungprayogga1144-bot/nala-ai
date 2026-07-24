@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import type { AgriDashboardData } from "../lib/types";
 import { isHarvestCategory, cardCls, fmtRp } from "../lib/constants";
@@ -6,6 +7,9 @@ import { isHarvestCategory, cardCls, fmtRp } from "../lib/constants";
 const COLORS = ["#8b5cf6", "#2dd4bf", "#38bdf8", "#f59e0b", "#ec4899"];
 
 export default function AgriCharts({ data }: { data: AgriDashboardData }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const harvestProducts = data.products.filter(p => isHarvestCategory(p.category));
   const productionByCat = harvestProducts.reduce<Record<string, number>>((acc, p) => {
     const cat = p.category || "Lainnya";
@@ -23,6 +27,10 @@ export default function AgriCharts({ data }: { data: AgriDashboardData }) {
     acc[c.kategori] = (acc[c.kategori] || 0) + Number(c.jumlah);
     return acc;
   }, {});
+
+  if (!mounted) {
+    return <div className="mb-4 h-48 animate-pulse rounded-2xl bg-white/[0.04]" />;
+  }
   const costChart = Object.entries(costByCat).map(([name, value]) => ({ name, value }));
 
   const tooltipStyle = { background: "#1a2030", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 };

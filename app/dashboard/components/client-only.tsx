@@ -1,0 +1,17 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+
+/** Avoid SSR crashes from libraries that need window/document (e.g. Recharts). */
+export default function ClientOnly({
+  children,
+  fallback = null,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return <>{fallback}</>;
+  return <>{children}</>;
+}

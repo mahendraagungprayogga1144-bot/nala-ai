@@ -12,9 +12,26 @@ export default function DashboardError({
 }) {
   useEffect(() => {
     console.error("[dashboard]", error?.message, error?.digest);
+    try {
+      void fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "dashboard_rsc_error",
+          module: "dashboard",
+          meta: { message: error?.message?.slice(0, 300), digest: error?.digest },
+        }),
+      });
+    } catch {
+      /* ignore */
+    }
   }, [error]);
 
-  const hint = (error?.message || "").slice(0, 180);
+  const raw = error?.message || "";
+  const isGeneric = /omitted in production|Server Components render/i.test(raw);
+  const hint = isGeneric
+    ? "Sesi/auth atau data chart gagal di server. Coba hard-refresh (Ctrl+Shift+R) atau ganti bisnis aktif."
+    : raw.slice(0, 180);
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
@@ -34,7 +51,10 @@ export default function DashboardError({
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
-          onClick={reset}
+          onClick={() => {
+            if (typeof window !== "undefined") window.location.reload();
+            else reset();
+          }}
           className="rounded-xl px-5 py-2.5 text-sm font-semibold"
           style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
         >

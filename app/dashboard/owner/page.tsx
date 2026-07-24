@@ -319,7 +319,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
       liveRows.push({
         employeeId: e.id,
         nama: e.nama,
-        jamMasuk: chk?.jamMasuk || "—",
+        jamMasuk: chk?.jamMasuk ? String(chk.jamMasuk) : "—",
         orderCount: stats?.count || 0,
         omzet: stats?.omzet || 0,
         isActive: chk?.isActive || false,
@@ -395,13 +395,13 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
 
   return (
     <OwnerClientLazy
-      businesses={businessData}
-      topProducts={topProducts}
-      recentTransactions={recentTransactions}
-      kasirSummary={kasirSummary}
+      businesses={JSON.parse(JSON.stringify(businessData))}
+      topProducts={JSON.parse(JSON.stringify(topProducts))}
+      recentTransactions={JSON.parse(JSON.stringify(recentTransactions))}
+      kasirSummary={kasirSummary ? JSON.parse(JSON.stringify(kasirSummary)) : null}
       kasirBusinessName={kasirBusinessName}
-      liveKasir={liveKasir}
-      dayCloseData={dayCloseData}
+      liveKasir={liveKasir ? JSON.parse(JSON.stringify(liveKasir)) : null}
+      dayCloseData={dayCloseData ? JSON.parse(JSON.stringify(dayCloseData)) : null}
       bulan={bulan}
       tahun={tahun}
       userId={user.id}

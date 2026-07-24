@@ -14,7 +14,7 @@ import FieldsModule from "./components/fields-module";
 import SprayingModule from "./components/spraying-module";
 import CostsModule from "./components/costs-module";
 import AiInsightModule from "./components/ai-insight-module";
-import AgriCharts from "./components/agri-charts";
+import AgriCharts from "./components/agri-charts-lazy";
 import AgriHubNav from "./agri-hub-nav";
 import QuickAddSheet, { type QuickAddType } from "./components/quick-add-sheet";
 import SetupWizard from "./components/setup-wizard";

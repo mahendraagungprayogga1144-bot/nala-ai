@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { todayWib } from "@/lib/date";
 
 const categoriesByScope = {
   pribadi: ["Gaji", "Belanja", "Tagihan", "Transportasi", "Kesehatan", "Hiburan", "Lainnya"],
@@ -26,6 +27,10 @@ export default function TransactionForm({ userId, scope, businessId }: { userId:
       setError("Jumlah tidak valid");
       return;
     }
+    if (scope === "bisnis" && !businessId) {
+      setError("Pilih bisnis aktif dulu di sidebar, lalu coba lagi.");
+      return;
+    }
     setLoading(true);
     const { error: insertErr } = await supabase.from("transactions").insert({
       user_id: userId,
@@ -35,6 +40,7 @@ export default function TransactionForm({ userId, scope, businessId }: { userId:
       amount: amt,
       description,
       category,
+      transaction_date: todayWib(),
     });
     setLoading(false);
     if (insertErr) {

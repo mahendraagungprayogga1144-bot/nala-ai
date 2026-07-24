@@ -8,6 +8,110 @@ import { sortBisnisTransactions, formatTxDateLabel, formatTxTimeWib } from "@/li
 import KasirTransactionsPanel, { type KasirOrderRow } from "./kasir-transactions-panel";
 import CashFlowChartLazy from "../cash-flow-chart-lazy";
 import { guardPage } from "../lib/page-guard";
+import { monthEndYmd, monthStartYmd } from "@/lib/date";
+import { normalizeBizType } from "@/lib/auth/post-login";
+
+type OrderItemRow = {
+  qty: number;
+  harga_jual: number;
+  menu_id?: string | null;
+  menus?: { nama: string } | { nama: string }[] | null;
+};
+
+async function loadKasirOrders(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  businessId: string,
+  userId: string,
+  startDate: string,
+  endDate: string,
+): Promise<KasirOrderRow[]> {
+  const orderSelect =
+    "id, user_id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menu_id, menus(nama))";
+  const orderSelectFallback =
+    "id, user_id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menu_id)";
+
+  type RawOrder = {
+    id: string;
+    user_id: string;
+    total: number;
+    diskon: number | null;
+    laba: number | null;
+    metode_bayar: string | null;
+    catatan: string | null;
+    order_date: string;
+    created_at: string;
+    order_items?: OrderItemRow[] | null;
+  };
+
+  const [{ data: orderRows, error: orderErr }, { data: employees }, { data: profile }] = await Promise.all([
+    supabase
+      .from("orders")
+      .select(orderSelect)
+      .eq("business_id", businessId)
+      .gte("order_date", startDate)
+      .lte("order_date", endDate)
+      .order("created_at", { ascending: false }),
+    supabase.from("employees").select("id, nama").eq("business_id", businessId),
+    supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+  ]);
+
+  let rows: RawOrder[] = (orderRows || []) as RawOrder[];
+  if (orderErr) {
+    console.error("[keuangan-bisnis/orders]", orderErr.message);
+    // Fallback when PostgREST has no order_items→menus FK yet.
+    const { data: fallbackRows, error: fallbackErr } = await supabase
+      .from("orders")
+      .select(orderSelectFallback)
+      .eq("business_id", businessId)
+      .gte("order_date", startDate)
+      .lte("order_date", endDate)
+      .order("created_at", { ascending: false });
+    if (fallbackErr) {
+      console.error("[keuangan-bisnis/orders-fallback]", fallbackErr.message);
+      return [];
+    }
+    rows = (fallbackRows || []) as RawOrder[];
+
+    const menuIds = new Set<string>();
+    for (const o of rows) {
+      for (const item of o.order_items || []) {
+        if (item.menu_id) menuIds.add(item.menu_id);
+      }
+    }
+    const menuMap: Record<string, string> = {};
+    if (menuIds.size > 0) {
+      const { data: menus } = await supabase.from("menus").select("id, nama").in("id", [...menuIds]);
+      menus?.forEach((m) => { menuMap[m.id] = m.nama; });
+    }
+    rows = rows.map((o) => ({
+      ...o,
+      order_items: (o.order_items || []).map((item) => ({
+        ...item,
+        menus: item.menu_id && menuMap[item.menu_id] ? { nama: menuMap[item.menu_id] } : null,
+      })),
+    }));
+  }
+
+  const kasirNames: Record<string, string> = { [userId]: profile?.full_name || "Owner" };
+  employees?.forEach((e) => { kasirNames[e.id] = e.nama; });
+  return rows.map((o) => ({
+    id: o.id,
+    user_id: o.user_id,
+    total: o.total,
+    diskon: o.diskon,
+    laba: o.laba,
+    metode_bayar: o.metode_bayar,
+    catatan: o.catatan,
+    order_date: o.order_date,
+    created_at: o.created_at,
+    order_items: (o.order_items || []).map((item) => ({
+      qty: item.qty,
+      harga_jual: item.harga_jual,
+      menus: item.menus ?? null,
+    })),
+    kasirName: kasirNames[o.user_id] || "Kasir",
+  }));
+}
 
 export default async function KeuanganBisnisPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   return guardPage("Keuangan Bisnis", async () => {
@@ -20,40 +124,19 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
   const bulan = Number(params.bulan) || now.getMonth() + 1;
   const tahun = Number(params.tahun) || now.getFullYear();
 
-  const startDate = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
-  const endDate = new Date(tahun, bulan, 0).toISOString().split("T")[0];
+  const startDate = monthStartYmd(tahun, bulan);
+  const endDate = monthEndYmd(tahun, bulan);
 
   const cookieStore = await cookies();
   const activeBusinessId = cookieStore.get("active_business_id")?.value;
   const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user.id).order("created_at", { ascending: true });
   const rawBiz = businessData?.find((b) => b.id === activeBusinessId) || businessData?.[0] || null;
-  const { normalizeBizType } = await import("@/lib/auth/post-login");
   const business = rawBiz ? { ...rawBiz, type: normalizeBizType(rawBiz.type) } : null;
 
   let kasirOrders: KasirOrderRow[] = [];
   if (business?.type === "kuliner" && business.id) {
     try {
-      const [{ data: orderRows, error: orderErr }, { data: employees }, { data: profile }] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("id, user_id, total, diskon, laba, metode_bayar, catatan, order_date, created_at, order_items(qty, harga_jual, menus(nama))")
-          .eq("business_id", business.id)
-          .gte("order_date", startDate)
-          .lte("order_date", endDate)
-          .order("created_at", { ascending: false }),
-        supabase.from("employees").select("id, nama").eq("business_id", business.id),
-        supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-      ]);
-      if (orderErr) {
-        console.error("[keuangan-bisnis/orders]", orderErr.message);
-      } else {
-        const kasirNames: Record<string, string> = { [user.id]: profile?.full_name || "Owner" };
-        employees?.forEach(e => { kasirNames[e.id] = e.nama; });
-        kasirOrders = (orderRows || []).map(o => ({
-          ...(o as Omit<KasirOrderRow, "kasirName">),
-          kasirName: kasirNames[o.user_id] || "Kasir",
-        }));
-      }
+      kasirOrders = await loadKasirOrders(supabase, business.id, user.id, startDate, endDate);
     } catch (err) {
       console.error("[keuangan-bisnis/orders]", err);
     }
@@ -122,7 +205,7 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
       <Suspense><MonthYearFilter /></Suspense>
 
-      <CashFlowChartLazy transactions={(transactions as never) || []} />
+      <CashFlowChartLazy title="Tren Saldo Bisnis" transactions={(transactions as never) || []} />
 
       {business?.type === "kuliner" && (
         <KasirTransactionsPanel
@@ -140,9 +223,9 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
           <div className="flex flex-col gap-3">
             {transactions.length > 0 ? (
               transactions.map((t, i) => {
-                const dateKey = t.transaction_date || t.created_at.slice(0, 10);
+                const dateKey = (t.transaction_date || t.created_at || "").slice(0, 10);
                 const prevKey = i > 0
-                  ? (transactions[i - 1].transaction_date || transactions[i - 1].created_at.slice(0, 10))
+                  ? (transactions[i - 1].transaction_date || transactions[i - 1].created_at || "").slice(0, 10)
                   : null;
                 return (
                   <Fragment key={t.id}>

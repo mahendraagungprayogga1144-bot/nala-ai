@@ -7,7 +7,8 @@ type Tx = {
 };
 
 function txDate(t: Tx) {
-  return t.transaction_date || t.created_at.slice(0, 10);
+  const raw = t.transaction_date || t.created_at || "";
+  return raw.slice(0, 10) || "1970-01-01";
 }
 
 /** Kunci grup peristiwa (jual + HPP produk yang sama di hari yang sama) */
@@ -32,8 +33,8 @@ export function sortBisnisTransactions<T extends Tx>(rows: T[]): T[] {
   const groupLatest = new Map<string, number>();
   for (const t of rows) {
     const key = eventKey(t);
-    const ts = new Date(t.created_at).getTime();
-    groupLatest.set(key, Math.max(groupLatest.get(key) || 0, ts));
+    const ts = t.created_at ? new Date(t.created_at).getTime() : 0;
+    groupLatest.set(key, Math.max(groupLatest.get(key) || 0, Number.isFinite(ts) ? ts : 0));
   }
 
   return [...rows].sort((a, b) => {
@@ -53,16 +54,23 @@ export function sortBisnisTransactions<T extends Tx>(rows: T[]): T[] {
   });
 }
 
-export function formatTxDateLabel(dateStr: string) {
-  return new Date(dateStr + (dateStr.includes("T") ? "" : "T12:00:00")).toLocaleDateString("id-ID", {
+export function formatTxDateLabel(dateStr: string | null | undefined) {
+  if (!dateStr) return "Tanpa tanggal";
+  const normalized = dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "Tanpa tanggal";
+  return d.toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 }
 
-export function formatTxTimeWib(createdAt: string) {
-  return new Date(createdAt).toLocaleTimeString("id-ID", {
+export function formatTxTimeWib(createdAt: string | null | undefined) {
+  if (!createdAt) return "--:--";
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Jakarta",

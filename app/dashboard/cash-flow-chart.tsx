@@ -1,22 +1,35 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Dot } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 type Transaction = { type: string; amount: number; transaction_date: string | null; created_at: string };
 
-export default function CashFlowChart({ transactions }: { transactions: Transaction[] }) {
+function txDayKey(t: Transaction): string | null {
+  const raw = t.transaction_date || t.created_at;
+  if (!raw) return null;
+  return String(raw).split("T")[0] || null;
+}
+
+export default function CashFlowChart({
+  transactions,
+  title = "Tren Saldo",
+}: {
+  transactions: Transaction[];
+  title?: string;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
   const sorted = [...transactions].sort((a, b) => {
-    const dateA = a.transaction_date || a.created_at;
-    const dateB = b.transaction_date || b.created_at;
-    return new Date(dateA).getTime() - new Date(dateB).getTime();
+    const dateA = txDayKey(a) || "";
+    const dateB = txDayKey(b) || "";
+    return dateA.localeCompare(dateB);
   });
 
   const grouped: Record<string, number> = {};
   sorted.forEach((t) => {
-    const key = (t.transaction_date || t.created_at).split("T")[0];
+    const key = txDayKey(t);
+    if (!key) return;
     const delta = t.type === "pemasukan" ? Number(t.amount) : -Number(t.amount);
     grouped[key] = (grouped[key] || 0) + delta;
   });
@@ -25,7 +38,7 @@ export default function CashFlowChart({ transactions }: { transactions: Transact
   const data = Object.entries(grouped).map(([date, delta]) => {
     running += delta;
     return {
-      date: new Date(date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "2-digit" }),
+      date: new Date(date + "T12:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "2-digit" }),
       saldo: running,
     };
   });
@@ -41,7 +54,7 @@ export default function CashFlowChart({ transactions }: { transactions: Transact
       />
       <div className="relative flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-medium">Tren Saldo Bisnis</h3>
+          <h3 className="text-sm font-medium">{title}</h3>
           <p className="text-xs text-[#8B8AA0]">Pergerakan kas dari waktu ke waktu</p>
         </div>
         {data.length > 0 && (

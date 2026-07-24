@@ -5,6 +5,7 @@ import MonthYearFilter from "../month-year-filter";
 import { Suspense } from "react";
 import CashFlowChartLazy from "../cash-flow-chart-lazy";
 import { guardPage } from "../lib/page-guard";
+import { monthEndYmd, monthStartYmd } from "@/lib/date";
 
 export default async function KeuanganPribadiPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   return guardPage("Keuangan Pribadi", async () => {
@@ -17,8 +18,8 @@ export default async function KeuanganPribadiPage({ searchParams }: { searchPara
     const bulan = Number(params.bulan) || now.getMonth() + 1;
     const tahun = Number(params.tahun) || now.getFullYear();
 
-    const startDate = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
-    const endDate = new Date(tahun, bulan, 0).toISOString().split("T")[0];
+    const startDate = monthStartYmd(tahun, bulan);
+    const endDate = monthEndYmd(tahun, bulan);
 
     // maybeSingle — .single() errors when 0 or >1 businesses (common multi-bisnis).
     const { data: business } = await supabase
@@ -80,7 +81,7 @@ export default async function KeuanganPribadiPage({ searchParams }: { searchPara
 
         <Suspense><MonthYearFilter /></Suspense>
 
-        <CashFlowChartLazy transactions={(transactions as never) || []} />
+        <CashFlowChartLazy title="Tren Saldo Pribadi" transactions={(transactions as never) || []} />
 
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
           <TransactionForm userId={user.id} scope="pribadi" businessId={business?.id} />

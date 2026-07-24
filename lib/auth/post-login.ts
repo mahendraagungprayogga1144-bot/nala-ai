@@ -12,19 +12,55 @@ export const BIZ_HOME: Record<string, string> = {
   bengkel: "/dashboard/bengkel",
 };
 
+/** Custom / legacy labels → canonical type keys used in hubs & registry. */
+const TYPE_ALIASES: Record<string, string> = {
+  peternakan: "ternak",
+  farm: "ternak",
+  livestock: "ternak",
+  ternak_ayam: "ternak",
+  fnb: "kuliner",
+  "f&b": "kuliner",
+  food: "kuliner",
+  restoran: "kuliner",
+  warung: "kuliner",
+  agriculture: "pertanian",
+  agri: "pertanian",
+  kebun: "pertanian",
+  toko: "retail",
+  shop: "retail",
+  fashion: "retail",
+  online_shop: "olshop",
+  online: "olshop",
+  apotek: "kesehatan",
+  klinik: "kesehatan",
+  workshop: "bengkel",
+  otomotif: "bengkel",
+  grosir: "wholesale",
+  distributor: "wholesale",
+};
+
+export function normalizeBizType(type: string | null | undefined): string {
+  if (!type) return "";
+  const t = type.trim().toLowerCase().replace(/\s+/g, "_");
+  return TYPE_ALIASES[t] || t;
+}
+
 export function homeForBizType(type: string | null | undefined) {
-  if (!type) return "/dashboard/inventory";
-  return BIZ_HOME[type] || "/dashboard/inventory";
+  const key = normalizeBizType(type);
+  if (!key) return "/dashboard/inventory";
+  return BIZ_HOME[key] || "/dashboard/inventory";
 }
 
 /** Cookies that let middleware skip repeated DB checks on the next request. */
 export function setFastGateCookies(opts?: { businessId?: string; isKasir?: boolean }) {
   const maxAge = 60 * 60 * 24 * 30;
   const short = 300;
-  document.cookie = `ob_done=1; path=/; max-age=${maxAge}; samesite=lax`;
-  document.cookie = `role_checked=${opts?.isKasir ? "kasir" : "owner"}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
-  document.cookie = `sub_checked=1; path=/; max-age=${short}; samesite=lax`;
+  const secure =
+    typeof window !== "undefined" && window.location.protocol === "https:" ? "; secure" : "";
+  document.cookie = `ob_done=1; path=/; max-age=${maxAge}; samesite=lax${secure}`;
+  document.cookie = `role_checked=${opts?.isKasir ? "kasir" : "owner"}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax${secure}`;
+  document.cookie = `sub_checked=1; path=/; max-age=${short}; samesite=lax${secure}`;
   if (opts?.businessId) {
-    document.cookie = `active_business_id=${opts.businessId}; path=/; max-age=${maxAge}; samesite=lax`;
+    document.cookie = `active_business_id=${opts.businessId}; path=/; max-age=${maxAge}; samesite=lax${secure}`;
   }
 }

@@ -1,30 +1,18 @@
-import { createClient } from "@/lib/supabase/server";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { Plus, Bird } from "lucide-react";
 import PeternakanHubNav from "./peternakan-hub-nav";
 import FnbEmptyState from "../fnb/components/fnb-empty-state";
+import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
+import { normalizeBizType } from "@/lib/auth/post-login";
 
 type FarmTx = { jenis_transaksi: string; total: number; qty: number | null; batch_id: string };
 
 export default async function PeternakanPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user, business } = await getActiveBusiness("ternak");
   if (!user) return null;
 
-  const cookieStore = await cookies();
-  const activeBusinessId = cookieStore.get("active_business_id")?.value;
-  const { data: businessData } = await supabase.from("businesses").select("id, name, type").eq("user_id", user.id).order("created_at", { ascending: true });
-  const business = businessData?.find((b) => b.id === activeBusinessId) || businessData?.find(b => b.type === "ternak") || businessData?.[0] || null;
-
-  if (business?.type !== "ternak") {
-    return (
-      <div className="px-8 py-12 text-center">
-        <p className="text-[#8B8AA0] mb-4">Manajemen Ternak hanya tersedia untuk bisnis tipe Peternakan.</p>
-        <p className="text-xs text-[#5A5B7A] mb-4">Pilih bisnis <strong className="text-[#F0EFF8]">Ternak Makmur</strong> di switcher sidebar.</p>
-        <Link href="/dashboard/owner" className="text-[#2DD4BF] text-sm hover:underline">Kembali ke Dashboard Owner</Link>
-      </div>
-    );
+  if (!business || normalizeBizType(business.type) !== "ternak") {
+    return <WrongBizType label="Peternakan" />;
   }
 
   const { data: batches, error: batchErr } = await supabase

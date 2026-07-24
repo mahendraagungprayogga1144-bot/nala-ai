@@ -1,30 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
-import { cookies } from "next/headers";
-import Link from "next/link";
 import PertanianClient from "./pertanian-client";
 import type { AgriDashboardData } from "./lib/types";
+import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
+import { normalizeBizType } from "@/lib/auth/post-login";
 
 export default async function PertanianPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const cookieStore = await cookies();
-  const activeBusinessId = cookieStore.get("active_business_id")?.value;
+  const { supabase, user, business } = await getActiveBusiness("pertanian");
+  if (!user) return null;
 
-  const { data: businessData } = await supabase
-    .from("businesses")
-    .select("id, name, type")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: true });
-
-  const business = businessData?.find(b => b.id === activeBusinessId) || businessData?.[0] || null;
-
-  if (business?.type !== "pertanian") {
-    return (
-      <div className="px-8 py-12 text-center">
-        <p className="text-[#8B8AA0] mb-4">Modul Pertanian hanya tersedia untuk bisnis tipe Pertanian.</p>
-        <Link href="/dashboard/inventory" className="text-violet-400 text-sm hover:underline">Kembali ke Inventory</Link>
-      </div>
-    );
+  if (!business || normalizeBizType(business.type) !== "pertanian") {
+    return <WrongBizType label="Pertanian" />;
   }
 
   const businessId = business.id;

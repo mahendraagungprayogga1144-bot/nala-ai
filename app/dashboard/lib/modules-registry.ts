@@ -5,6 +5,7 @@ import {
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
   Briefcase, Boxes, HeartPulse, Wrench,
 } from "lucide-react";
+import { normalizeBizType } from "@/lib/auth/post-login";
 
 export type ModuleStatus = "live" | "beta";
 export type ModuleCategory = "utama" | "keuangan" | "operasional" | "marketing" | "platform" | "manajemen" | "aplikasi";
@@ -108,10 +109,14 @@ export function getSidebarModules(
   const utama = GERCEP_MODULES.filter((m) => m.category === "utama" && keep(m));
   if (utama.length > 0) result.push({ label: CATEGORY_LABELS.utama, modules: utama });
 
-  if (bizType) {
-    const bizSpecific = BIZ_MODULES.filter((m) => m.bizTypes?.includes(bizType) && keep(m));
+  const normalized = normalizeBizType(bizType);
+  if (normalized) {
+    const bizSpecific = BIZ_MODULES.filter((m) => m.bizTypes?.includes(normalized) && keep(m));
     if (bizSpecific.length > 0) {
-      result.push({ label: BIZ_TYPE_LABELS[bizType] || `FITUR ${bizType.toUpperCase()}`, modules: bizSpecific });
+      result.push({
+        label: BIZ_TYPE_LABELS[normalized] || `FITUR ${normalized.toUpperCase()}`,
+        modules: bizSpecific,
+      });
     }
   }
 

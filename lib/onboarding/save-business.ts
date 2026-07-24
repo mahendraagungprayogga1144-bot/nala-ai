@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { setFastGateCookies } from "@/lib/auth/post-login";
+import { setFastGateCookies, normalizeBizType } from "@/lib/auth/post-login";
 import { trackClientEvent } from "@/lib/admin/track-event";
 
 export async function saveOnboardingBusiness(
@@ -8,7 +8,7 @@ export async function saveOnboardingBusiness(
   opts: { name: string; type: string; isNew?: boolean },
 ) {
   const name = opts.name.trim();
-  const type = opts.type;
+  const type = normalizeBizType(opts.type) || opts.type;
 
   const trackCreated = (businessId: string, created: boolean) => {
     if (typeof window === "undefined") return;

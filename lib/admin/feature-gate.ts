@@ -18,10 +18,10 @@ export function blockedPathForFlags(
     if (pathname.startsWith("/dashboard/ai-jual-beli")) return true;
   }
   if (flags.marketplace === false) {
+    // Marketplace modules only — jangan blok hub Online Shop (jenis bisnis olshop)
     if (
       pathname.startsWith("/dashboard/marketplace") ||
-      pathname.startsWith("/dashboard/marketplace-center") ||
-      pathname.startsWith("/dashboard/olshop")
+      pathname.startsWith("/dashboard/marketplace-center")
     ) {
       return true;
     }

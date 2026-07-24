@@ -10,6 +10,7 @@ import {
 } from "@/lib/supabase/middleware";
 import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
 import { getPlatformSettings } from "@/lib/admin/settings";
+import { homeForBizType } from "@/lib/auth/post-login";
 
 function needsAuth(pathname: string) {
   return (
@@ -158,6 +159,17 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/onboarding") {
     const allowNew = request.nextUrl.searchParams.get("mode") === "new";
     if (!allowNew && request.cookies.get(ONBOARDING_COOKIE)?.value === "1") {
+      // Type-aware bounce — jangan selalu inventory
+      const activeId = request.cookies.get("active_business_id")?.value;
+      if (activeId) {
+        const { data: one } = await supabase
+          .from("businesses")
+          .select("type")
+          .eq("id", activeId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (one?.type) return redirectTo(request, homeForBizType(one.type), response);
+      }
       return redirectTo(request, "/dashboard/inventory", response);
     }
     return response;
@@ -251,12 +263,22 @@ async function resolveAppHome(
   }
 
   if (request.cookies.get(ONBOARDING_COOKIE)?.value === "1") {
+    const activeId = request.cookies.get("active_business_id")?.value;
+    if (activeId) {
+      const { data: one } = await supabase
+        .from("businesses")
+        .select("type")
+        .eq("id", activeId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (one?.type) return homeForBizType(one.type);
+    }
     return "/dashboard/inventory";
   }
 
   const { data: businesses } = await supabase
     .from("businesses")
-    .select("type, name")
+    .select("id, type, name")
     .eq("user_id", userId)
     .order("created_at", { ascending: true })
     .limit(5);
@@ -272,18 +294,16 @@ async function resolveAppHome(
     sameSite: "lax",
   });
 
-  const type = businesses?.[0]?.type;
-  const hubs: Record<string, string> = {
-    ternak: "/dashboard/peternakan",
-    pertanian: "/dashboard/pertanian",
-    retail: "/dashboard/retail",
-    jasa: "/dashboard/jasa",
-    wholesale: "/dashboard/wholesale",
-    olshop: "/dashboard/olshop",
-    kesehatan: "/dashboard/kesehatan",
-    bengkel: "/dashboard/bengkel",
-  };
-  return (type && hubs[type]) || "/dashboard/inventory";
+  const activeId = request.cookies.get("active_business_id")?.value;
+  const active = (businesses || []).find((b: { id: string }) => b.id === activeId) || businesses?.[0];
+  if (active?.id) {
+    response.cookies.set("active_business_id", active.id, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: "lax",
+    });
+  }
+  return homeForBizType(active?.type);
 }
 
 export const config = {

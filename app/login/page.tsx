@@ -62,7 +62,10 @@ async function resolvePostLoginPath(
     return "/onboarding";
   }
 
-  const active = list[0];
+  // Pertahankan bisnis aktif di cookie kalau masih milik user (jangan reset ke bisnis pertama)
+  const cookieMatch = document.cookie.match(/(?:^|; )active_business_id=([^;]*)/);
+  const existingId = cookieMatch ? decodeURIComponent(cookieMatch[1]) : "";
+  const active = list.find((b) => b.id === existingId) || list[0];
   setFastGateCookies({ businessId: active?.id });
 
   if (preferredNext && preferredNext !== "/dashboard/owner") {

@@ -83,6 +83,8 @@ export default function BatchList({ batches, userId, businessId }: { batches: Ba
       description: `Panen ${batches.find(b => b.id === batchId)?.batch_name} — ${harvestCount} ekor`,
       amount: income,
       transaction_date: data.date || new Date().toISOString().split("T")[0],
+    }).then(({ error }) => {
+      if (error) alert("Panen tersimpan, tapi gagal masuk Keuangan Bisnis: " + error.message);
     });
 
     setLoading(null);

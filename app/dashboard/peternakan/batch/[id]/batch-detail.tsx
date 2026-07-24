@@ -136,7 +136,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
     }
 
     if (farmTxId && businessId) {
-      await syncFarmToKeuangan(supabase, {
+      const syncResult = await syncFarmToKeuangan(supabase, {
         userId, businessId, farmTxId,
         existingTxIds,
         jenis: jenis as FarmJenis,
@@ -148,6 +148,21 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
         totalModal: modalForHpp,
         totalBibit: bibitEkor,
       });
+      if (!syncResult.ok) {
+        setLoading(false);
+        alert(
+          "Catatan batch tersimpan, tapi gagal masuk Keuangan Bisnis:\n" +
+            (syncResult.error || "Unknown") +
+            "\n\nCek bisnis aktif = Peternakan, atau constraint type transaksi di Supabase.",
+        );
+        router.refresh();
+        return;
+      }
+    } else if (farmTxId && !businessId) {
+      setLoading(false);
+      alert("Batch tersimpan, tapi bisnis ternak tidak terdeteksi — Keuangan Bisnis tidak ter-update. Ganti bisnis aktif ke Peternakan.");
+      router.refresh();
+      return;
     }
 
     await syncFarmInventoryDelta(supabase, {

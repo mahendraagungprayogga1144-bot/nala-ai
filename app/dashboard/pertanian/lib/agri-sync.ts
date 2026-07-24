@@ -30,7 +30,11 @@ export async function insertKeuanganPengeluaran(
   opts: { userId: string; businessId: string; category: string; description: string; amount: number; tanggal: string },
 ) {
   if (opts.amount <= 0) return null as string | null;
-  const { data } = await supabase.from("transactions").insert({
+  if (!opts.businessId) {
+    console.error("[agri-sync] missing businessId for pengeluaran");
+    return null;
+  }
+  const { data, error } = await supabase.from("transactions").insert({
     user_id: opts.userId,
     business_id: opts.businessId,
     type: "pengeluaran",
@@ -40,6 +44,10 @@ export async function insertKeuanganPengeluaran(
     amount: opts.amount,
     transaction_date: opts.tanggal,
   }).select("id").single();
+  if (error) {
+    console.error("[agri-sync] pengeluaran", error.message);
+    throw new Error(error.message);
+  }
   return data?.id || null;
 }
 

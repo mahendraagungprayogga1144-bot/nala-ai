@@ -18,7 +18,10 @@ export default function MonthYearFilter() {
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
 
   const handleChange = (bulan: number, tahun: number) => {
-    router.push(`${pathname}?bulan=${bulan}&tahun=${tahun}`);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("bulan", String(bulan));
+    next.set("tahun", String(tahun));
+    router.push(`${pathname}?${next.toString()}`);
   };
 
   return (

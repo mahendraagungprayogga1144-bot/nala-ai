@@ -33,7 +33,7 @@ function desc(prefix: string, batchName: string, jenisTernak: string, namaItem?:
 
 export function buildKeuanganRows(p: BuildParams) {
   const rows: { type: string; scope: string; category: string; description: string; amount: number; transaction_date: string }[] = [];
-  if (p.jenis === "mortalitas" || p.total <= 0 && p.jenis !== "panen") return rows;
+  if (p.jenis === "mortalitas" || (p.total <= 0 && p.jenis !== "panen")) return rows;
 
   if (p.jenis === "panen") {
     // Biaya bibit/pakan/obat sudah masuk pengeluaran saat dicatat —
@@ -57,6 +57,8 @@ export function buildKeuanganRows(p: BuildParams) {
   return rows;
 }
 
+export type FarmSyncResult = { ok: boolean; error?: string; txIds: string[] };
+
 export async function syncFarmToKeuangan(
   supabase: SupabaseClient,
   opts: {
@@ -65,7 +67,11 @@ export async function syncFarmToKeuangan(
     farmTxId: string;
     existingTxIds?: string[] | null;
   } & BuildParams,
-) {
+): Promise<FarmSyncResult> {
+  if (!opts.businessId) {
+    return { ok: false, error: "Bisnis ternak tidak terpilih — ganti bisnis aktif ke Peternakan.", txIds: [] };
+  }
+
   if (opts.existingTxIds?.length) {
     await supabase.from("transactions").delete().in("id", opts.existingTxIds);
   }
@@ -73,7 +79,7 @@ export async function syncFarmToKeuangan(
   const rows = buildKeuanganRows(opts);
   if (!rows.length) {
     await supabase.from("farm_transactions").update({ keuangan_tx_ids: [] }).eq("id", opts.farmTxId);
-    return;
+    return { ok: true, txIds: [] };
   }
 
   const ids: string[] = [];
@@ -83,10 +89,22 @@ export async function syncFarmToKeuangan(
       business_id: opts.businessId,
       ...row,
     }).select("id").single();
-    if (!error && data?.id) ids.push(data.id);
+    if (error) {
+      if (ids.length) {
+        await supabase.from("transactions").delete().in("id", ids);
+      }
+      await supabase.from("farm_transactions").update({ keuangan_tx_ids: [] }).eq("id", opts.farmTxId);
+      return {
+        ok: false,
+        error: error.message || "Gagal sync ke Keuangan Bisnis",
+        txIds: [],
+      };
+    }
+    if (data?.id) ids.push(data.id);
   }
 
   await supabase.from("farm_transactions").update({ keuangan_tx_ids: ids }).eq("id", opts.farmTxId);
+  return { ok: true, txIds: ids };
 }
 
 export async function deleteFarmKeuangan(

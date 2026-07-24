@@ -36,7 +36,9 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
       .eq("user_id", user.id);
 
     const ternakList = (businesses || []).filter((b) => normalizeBizType(b.type) === "ternak");
+    // Prefer batch's own business_id so keuangan sync stays on the correct tenant.
     const businessId =
+      (batch.business_id && ternakList.find((b) => b.id === batch.business_id)?.id) ||
       (activeBusinessId && ternakList.find((b) => b.id === activeBusinessId)?.id) ||
       ternakList[0]?.id ||
       batch.business_id ||

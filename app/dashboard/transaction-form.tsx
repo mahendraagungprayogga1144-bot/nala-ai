@@ -3,21 +3,40 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { todayWib } from "@/lib/date";
+import { bizTypeLabel } from "@/lib/finance/biz-type-label";
 
 const categoriesByScope = {
   pribadi: ["Gaji", "Belanja", "Tagihan", "Transportasi", "Kesehatan", "Hiburan", "Lainnya"],
   bisnis: ["Penjualan", "Modal", "Operasional", "Gaji Karyawan", "Marketing", "Sewa", "Lainnya"],
 };
 
-export default function TransactionForm({ userId, scope, businessId }: { userId: string; scope: "pribadi" | "bisnis"; businessId?: string }) {
+type BizOption = { id: string; name: string; type?: string | null };
+
+export default function TransactionForm({
+  userId,
+  scope,
+  businessId,
+  businesses,
+  requireBusinessPick,
+}: {
+  userId: string;
+  scope: "pribadi" | "bisnis";
+  businessId?: string;
+  businesses?: BizOption[];
+  /** When true (mode Semua bisnis), user must pick a target business. */
+  requireBusinessPick?: boolean;
+}) {
   const router = useRouter();
   const supabase = createClient();
   const [type, setType] = useState("pengeluaran");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(categoriesByScope[scope][0]);
+  const [pickedBizId, setPickedBizId] = useState(businessId || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const effectiveBizId = requireBusinessPick ? pickedBizId : businessId || pickedBizId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,14 +46,18 @@ export default function TransactionForm({ userId, scope, businessId }: { userId:
       setError("Jumlah tidak valid");
       return;
     }
-    if (scope === "bisnis" && !businessId) {
-      setError("Pilih bisnis aktif dulu di sidebar, lalu coba lagi.");
+    if (scope === "bisnis" && !effectiveBizId) {
+      setError(
+        requireBusinessPick
+          ? "Pilih bisnis tujuan dulu."
+          : "Pilih bisnis aktif dulu di sidebar, lalu coba lagi.",
+      );
       return;
     }
     setLoading(true);
     const { error: insertErr } = await supabase.from("transactions").insert({
       user_id: userId,
-      business_id: businessId || null,
+      business_id: effectiveBizId || null,
       type,
       scope,
       amount: amt,
@@ -60,6 +83,22 @@ export default function TransactionForm({ userId, scope, businessId }: { userId:
         <button type="button" onClick={() => setType("pengeluaran")} className={"flex-1 py-2 rounded-lg text-sm font-medium " + (type === "pengeluaran" ? "bg-[#EC4899] text-[#0A0A12]" : "bg-[#0A0A12] border border-white/10 text-[#8B8AA0]")}>Pengeluaran</button>
         <button type="button" onClick={() => setType("pemasukan")} className={"flex-1 py-2 rounded-lg text-sm font-medium " + (type === "pemasukan" ? "bg-[#2DD4BF] text-[#0A0A12]" : "bg-[#0A0A12] border border-white/10 text-[#8B8AA0]")}>Pemasukan</button>
       </div>
+
+      {scope === "bisnis" && requireBusinessPick && businesses && businesses.length > 0 && (
+        <select
+          value={pickedBizId}
+          onChange={(e) => setPickedBizId(e.target.value)}
+          required
+          className="px-4 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] focus:outline-none focus:border-[#2DD4BF]/50"
+        >
+          <option value="">Pilih bisnis…</option>
+          {businesses.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name} · {bizTypeLabel(b.type)}
+            </option>
+          ))}
+        </select>
+      )}
 
       <input type="number" required placeholder="Jumlah (Rp)" value={amount} onChange={(e) => setAmount(e.target.value)} className="px-4 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50" />
       <input type="text" placeholder="Deskripsi" value={description} onChange={(e) => setDescription(e.target.value)} className="px-4 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50" />

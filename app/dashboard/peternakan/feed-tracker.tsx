@@ -26,6 +26,10 @@ export default function FeedTracker({ feeds, animals, userId, businessId }: { fe
       alert("Isi dulu kebutuhan pakan per ekor per hari di form Batch Panen.");
       return;
     }
+    if (!businessId) {
+      alert("Bisnis ternak tidak terdeteksi — ganti bisnis aktif ke Peternakan dulu.");
+      return;
+    }
     setLoading(true);
     const date = new Date().toISOString().split("T")[0];
     const errors: string[] = [];

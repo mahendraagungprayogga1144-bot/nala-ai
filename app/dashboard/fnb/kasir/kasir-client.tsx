@@ -167,9 +167,10 @@ function OrderPanel({
   );
 }
 
-export default function KasirClient({ menus, products, employees, userId, businessId, businessName, omzetHariIni, labaHariIni, totalOrder, today }: {
+export default function KasirClient({ menus, products, employees, userId, businessId, businessName, omzetHariIni, labaHariIni, totalOrder, today, menuHint }: {
   menus: FnbMenu[]; products: Product[]; employees: Employee[]; userId: string; businessId: string; businessName: string;
   omzetHariIni: number; labaHariIni: number; totalOrder: number; today: string;
+  menuHint?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -467,8 +468,8 @@ export default function KasirClient({ menus, products, employees, userId, busine
                 <FnbEmptyState
                   icon={UtensilsCrossed}
                   title="Belum ada menu aktif"
-                  subtitle="Buat menu dulu di Master Menu, pastikan statusnya aktif."
-                  actionLabel="Buat Menu"
+                  subtitle={menuHint || "Buat menu di Master Menu untuk bisnis yang sama, pastikan status Aktif, lalu kembali ke Kasir."}
+                  actionLabel="Buka Master Menu"
                   actionHref="/dashboard/master-menu"
                 />
               </div>

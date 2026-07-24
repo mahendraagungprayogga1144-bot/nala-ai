@@ -214,22 +214,42 @@ export default function FnbMenuClient({ menus, products, userId, businessId, bus
   const handleSaveMenu = async () => {
     if (!fNama || !fHarga) return;
     setMenuLoading(true);
-    const payload = {
+    const base = {
       user_id: userId,
       business_id: businessId,
-      nama: fNama,
+      nama: fNama.trim(),
       kategori: fKategori,
       harga_jual: Number(fHarga),
-      status: fStatus || "aktif",
+      status: (fStatus || "aktif").toLowerCase() === "nonaktif" ? "nonaktif" : "aktif",
       yield_quantity: Number(fYield) || 1,
-      photo_url: fFotoUrl || null,
     };
-    const { error } = editMenu
-      ? await supabase.from("menus").update(payload).eq("id", editMenu.id)
-      : await supabase.from("menus").insert(payload);
+    const withPhoto = { ...base, photo_url: fFotoUrl || null };
+    let error = (
+      editMenu
+        ? await supabase.from("menus").update(withPhoto).eq("id", editMenu.id)
+        : await supabase.from("menus").insert(withPhoto)
+    ).error;
+    // Older DBs may only have foto_url or neither photo column
+    if (error && /photo_url|foto_url|column/i.test(error.message)) {
+      const withFoto = { ...base, foto_url: fFotoUrl || null };
+      error = (
+        editMenu
+          ? await supabase.from("menus").update(withFoto).eq("id", editMenu.id)
+          : await supabase.from("menus").insert(withFoto)
+      ).error;
+    }
+    if (error && /photo_url|foto_url|column/i.test(error.message)) {
+      error = (
+        editMenu
+          ? await supabase.from("menus").update(base).eq("id", editMenu.id)
+          : await supabase.from("menus").insert(base)
+      ).error;
+    }
     setMenuLoading(false);
     if (error) { alert("Gagal simpan menu: " + error.message); return; }
-    resetMenuForm(); setShowMenuForm(false); router.refresh();
+    resetMenuForm(); setShowMenuForm(false);
+    router.push("/dashboard/fnb/kasir");
+    router.refresh();
   };
 
   const handleDeleteMenu = async (id: string) => {

@@ -32,8 +32,8 @@ export default async function FnbKasirPage() {
 
   const today = todayWib();
 
-  const [{ menus, error: menusErr }, { data: employees }, { data: products }, { data: todayOrders }] = await Promise.all([
-    loadActiveMenusForKasir(supabase, business.id),
+  const [{ menus, error: menusErr, inactiveCount, totalForBusiness, otherBusinessActiveCount }, { data: employees }, { data: products }, { data: todayOrders }] = await Promise.all([
+    loadActiveMenusForKasir(supabase, business.id, user.id),
     supabase
       .from("employees")
       .select("*, checkins(id, tanggal, jam_masuk, jam_keluar)")
@@ -86,6 +86,17 @@ export default async function FnbKasirPage() {
         labaHariIni={labaHariIni}
         totalOrder={totalOrder}
         today={today}
+        menuHint={
+          menus.length === 0
+            ? otherBusinessActiveCount > 0
+              ? `Ada ${otherBusinessActiveCount} menu di bisnis lain. Ganti bisnis aktif di sidebar ke bisnis tempat menu dibuat.`
+              : inactiveCount > 0
+                ? `Ada ${inactiveCount} menu nonaktif di “${business.name}”. Ubah status jadi Aktif di Master Menu.`
+                : totalForBusiness === 0
+                  ? `Belum ada menu untuk “${business.name}”. Simpan menu baru (status Aktif), lalu kasir akan terbuka otomatis.`
+                  : null
+            : null
+        }
       />
     </div>
   );

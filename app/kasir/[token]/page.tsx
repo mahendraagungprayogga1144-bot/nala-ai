@@ -55,7 +55,7 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
   const today = todayWib();
 
   const [{ menus, error: menusErr }, { data: todayOrders }] = await Promise.all([
-    loadActiveMenusForKasir(db, business.id),
+    loadActiveMenusForKasir(db, business.id, business.user_id),
     db
       .from("orders")
       .select("total, hpp, laba")

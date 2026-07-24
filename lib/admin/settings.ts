@@ -84,12 +84,12 @@ function asStr(v: unknown, fallback: string) {
   return typeof v === "string" && v.length ? v : fallback;
 }
 
-/** Empty string allowed (no QRIS image yet). Accepts absolute URL or site-relative path. */
+/** Empty string allowed (no QRIS image yet). Accepts http(s), site path, or data:image. */
 function asOptionalUrl(v: unknown): string {
   if (typeof v !== "string") return "";
   const s = v.trim();
   if (!s) return "";
-  if (s.startsWith("/") || /^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/") || /^https?:\/\//i.test(s) || /^data:image\//i.test(s)) return s;
   return "";
 }
 

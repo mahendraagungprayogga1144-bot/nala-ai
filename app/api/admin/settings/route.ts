@@ -51,7 +51,7 @@ export async function PATCH(request: Request) {
   if (typeof patch.qris_image_url === "string") {
     const u = patch.qris_image_url.trim();
     patch.qris_image_url =
-      !u || u.startsWith("/") || /^https?:\/\//i.test(u) ? u : "";
+      !u || u.startsWith("/") || /^https?:\/\//i.test(u) || /^data:image\//i.test(u) ? u : "";
   }
 
   // Normalize roles to lowercase emails

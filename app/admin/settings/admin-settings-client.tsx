@@ -34,9 +34,10 @@ export default function AdminSettingsClient({ initial }: { initial: PlatformSett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload gagal");
       setS((prev) => ({ ...prev, qris_image_url: String(data.url || "") }));
-      setMsg("Barcode QRIS tersimpan.");
+      setMsg(data.warning ? `Barcode QRIS tersimpan. (${data.warning})` : "Barcode QRIS tersimpan.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Upload gagal");
+      window.alert(e instanceof Error ? e.message : "Upload QRIS gagal");
     } finally {
       setUploadingQris(false);
     }

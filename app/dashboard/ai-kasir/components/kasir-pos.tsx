@@ -9,6 +9,7 @@ import {
 import type { Product, KasirShift } from "../page";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import { checkoutProductSale } from "@/lib/pos/checkout-product-sale";
+import { isRetailSellable } from "@/lib/pos/retail-sellable";
 
 type CartItem = { product: Product; qty: number };
 
@@ -42,29 +43,41 @@ export default function KasirPOS({
   const [loading, setLoading] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  /** Retail POS: default hanya SKU siap jual (harga > 0, bukan bahan baku). */
+  const [showAllStock, setShowAllStock] = useState(false);
+
+  const sellablePool = useMemo(
+    () => (showAllStock ? products : products.filter(isRetailSellable)),
+    [products, showAllStock],
+  );
 
   const categories = useMemo(() => {
-    const cats = new Set(products.map(p => p.category || "Lainnya"));
+    const cats = new Set(sellablePool.map((p) => p.category || "Lainnya"));
     return ["Semua", ...Array.from(cats).sort()];
-  }, [products]);
+  }, [sellablePool]);
 
   const filtered = useMemo(() => {
-    return products.filter(p =>
-      (p.name.toLowerCase().includes(search.toLowerCase()) ||
-       (p.sku && p.sku.toLowerCase().includes(search.toLowerCase())) ||
-       (p.barcode && p.barcode.includes(search))) &&
-      (activeCat === "Semua" || (p.category || "Lainnya") === activeCat)
+    return sellablePool.filter(
+      (p) =>
+        (p.name.toLowerCase().includes(search.toLowerCase()) ||
+          (p.sku && p.sku.toLowerCase().includes(search.toLowerCase())) ||
+          (p.barcode && p.barcode.includes(search))) &&
+        (activeCat === "Semua" || (p.category || "Lainnya") === activeCat),
     );
-  }, [products, search, activeCat]);
+  }, [sellablePool, search, activeCat]);
 
   const addToCart = useCallback((product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(c => c.product.id === product.id);
+    if ((Number(product.price) || 0) <= 0) {
+      alert("Produk ini belum punya harga jual. Set harga di Inventory dulu — kasir retail hanya jual SKU berharga.");
+      return;
+    }
+    if (product.stock <= 0) return;
+    setCart((prev) => {
+      const existing = prev.find((c) => c.product.id === product.id);
       if (existing) {
         if (existing.qty >= product.stock) return prev;
-        return prev.map(c => c.product.id === product.id ? { ...c, qty: c.qty + 1 } : c);
+        return prev.map((c) => (c.product.id === product.id ? { ...c, qty: c.qty + 1 } : c));
       }
-      if (product.stock <= 0) return prev;
       return [...prev, { product, qty: 1 }];
     });
   }, []);
@@ -103,9 +116,15 @@ export default function KasirPOS({
     if (loading) return;
     if (cart.length === 0) return;
 
-    const overStock = cart.filter(c => c.qty > c.product.stock);
+    const zeroPrice = cart.filter((c) => (Number(c.product.price) || 0) <= 0);
+    if (zeroPrice.length > 0) {
+      alert(`Harga jual belum diisi: ${zeroPrice.map((c) => c.product.name).join(", ")}`);
+      return;
+    }
+
+    const overStock = cart.filter((c) => c.qty > c.product.stock);
     if (overStock.length > 0) {
-      alert(`Stok tidak cukup: ${overStock.map(c => `${c.product.name} (sisa ${c.product.stock})`).join(", ")}`);
+      alert(`Stok tidak cukup: ${overStock.map((c) => `${c.product.name} (sisa ${c.product.stock})`).join(", ")}`);
       return;
     }
 
@@ -145,6 +164,31 @@ export default function KasirPOS({
       business_id: businessId,
       meta: { total, items: cart.length, metode: metodeBayar },
     });
+
+    // Struk retail sederhana (window print) — bukan struk F&B
+    try {
+      const w = window.open("", "_blank", "width=320,height=600");
+      if (w) {
+        const rows = cart
+          .map(
+            (c) =>
+              `<tr><td>${c.product.name} x${c.qty}</td><td style="text-align:right">${fmtRp((c.product.price || 0) * c.qty)}</td></tr>`,
+          )
+          .join("");
+        w.document.write(`<!DOCTYPE html><html><head><title>Struk</title>
+<style>body{font-family:monospace;font-size:12px;padding:12px;max-width:280px}table{width:100%}td{padding:2px 0}h1{font-size:14px;margin:0 0 8px}</style></head><body>
+<h1>${businessName || "Gercep Kasir"}</h1>
+<p>${today} · ${metodeBayar}</p>
+<table>${rows}</table>
+<hr/>
+<p><strong>Total ${fmtRp(total)}</strong>${diskonNum ? ` (diskon ${fmtRp(diskonNum)})` : ""}</p>
+<p style="margin-top:16px;text-align:center">Terima kasih</p>
+<script>window.print()</script></body></html>`);
+        w.document.close();
+      }
+    } catch {
+      /* ignore print blockers */
+    }
 
     setSuccessMsg(`Transaksi ${fmtRp(total)} berhasil!`);
     setTimeout(() => setSuccessMsg(null), 3000);
@@ -208,30 +252,60 @@ export default function KasirPOS({
               {search && <button type="button" onClick={() => setSearch("")} className="text-[#5A5B7A]"><X size={14} /></button>}
             </div>
             <div className="mt-2 flex gap-1.5 overflow-x-auto scrollbar-none">
-              {categories.map(cat => (
-                <button key={cat} onClick={() => setActiveCat(cat)}
-                  className={"text-[11px] px-3 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " +
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCat(cat)}
+                  className={
+                    "text-[11px] px-3 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " +
                     (activeCat === cat
                       ? "border-[#2DD4BF]/50 text-[#2DD4BF] bg-[#2DD4BF]/15"
-                      : "border-white/[0.06] text-[#5A5B7A] hover:text-[#8B8AA0]")}>
+                      : "border-white/[0.06] text-[#5A5B7A] hover:text-[#8B8AA0]")
+                  }
+                >
                   {cat}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAllStock((v) => !v);
+                  setActiveCat("Semua");
+                }}
+                className={
+                  "text-[11px] px-3 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " +
+                  (showAllStock
+                    ? "border-[#F59E0B]/50 text-[#F59E0B] bg-[#F59E0B]/10"
+                    : "border-white/[0.06] text-[#5A5B7A] hover:text-[#8B8AA0]")
+                }
+              >
+                {showAllStock ? "Mode: semua stok" : "Mode: siap jual"}
+              </button>
             </div>
+            {!showAllStock && (
+              <p className="mt-2 text-[10px] text-[#5A5B7A]">
+                Menampilkan SKU siap jual (harga &gt; 0, bukan bahan baku). Set harga di Inventory untuk muncul di kasir.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4 max-h-[60vh] overflow-y-auto scrollbar-none">
             {filtered.length === 0 ? (
               <div className="col-span-full py-10 text-center text-sm text-[#3A3B52]">
-                {products.length === 0 ? "Belum ada produk. Tambah di Inventory." : "Tidak ditemukan."}
+                {products.length === 0
+                  ? "Belum ada produk. Tambah di Inventory."
+                  : showAllStock
+                    ? "Tidak ditemukan."
+                    : "Belum ada SKU siap jual. Isi harga jual di Inventory, atau aktifkan Mode: semua stok."}
               </div>
-            ) : filtered.map(p => {
+            ) : filtered.map((p) => {
               const qty = getQty(p.id);
               const outOfStock = p.stock <= 0;
+              const noPrice = (Number(p.price) || 0) <= 0;
               return (
                 <div key={p.id}
                   className={"cursor-pointer overflow-hidden rounded-2xl border transition-shadow active:scale-[0.98] " +
-                    (outOfStock ? "opacity-50 cursor-not-allowed" : "")}
+                    (outOfStock || noPrice ? "opacity-50" : "")}
                   style={{
                     borderColor: qty > 0 ? "rgba(45,212,191,.45)" : "rgba(255,255,255,0.06)",
                     boxShadow: qty > 0 ? "0 0 0 1px rgba(45,212,191,.3), 0 8px 24px rgba(45,212,191,.1)" : "none",
@@ -250,7 +324,7 @@ export default function KasirPOS({
                     )}
                     <p className="mb-0.5 truncate text-sm font-medium text-[#F0EFF8]">{p.name}</p>
                     <p className="mb-2 text-[9px] text-[#5A5B7A]">
-                      Stok: {p.stock}{p.sku ? ` · ${p.sku}` : ""}
+                      Stok: {p.stock}{p.sku ? ` · ${p.sku}` : ""}{noPrice ? " · tanpa harga" : ""}
                     </p>
                     <div className="flex items-center justify-between gap-1">
                       <p className="text-xs font-semibold sm:text-sm" style={{ color: "#2DD4BF", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -267,7 +341,7 @@ export default function KasirPOS({
                         <span className="w-5 text-center text-xs font-medium"
                           style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52", fontFamily: "monospace" }}>{qty}</span>
                         <button type="button" onClick={() => addToCart(p)}
-                          disabled={outOfStock || qty >= p.stock}
+                          disabled={outOfStock || noPrice || qty >= p.stock}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border sm:h-6 sm:w-6 disabled:opacity-30"
                           style={{ borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }}>
                           <Plus size={11} />

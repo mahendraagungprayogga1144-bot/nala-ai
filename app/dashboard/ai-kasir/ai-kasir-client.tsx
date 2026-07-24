@@ -35,7 +35,9 @@ export default function AiKasirClient({
           <h1 className="text-xl font-semibold sm:text-2xl">
             <span className="bg-gradient-to-r from-[#2DD4BF] to-[#8B5CF6] bg-clip-text text-transparent">AI Kasir</span>
           </h1>
-          <p className="text-xs text-[#8B8AA0]">Kasir universal — semua jenis bisnis</p>
+          <p className="text-xs text-[#8B8AA0]">
+            Aplikasi kasir retail mandiri — jual produk dari inventory (bukan menu Kasir F&B)
+          </p>
         </div>
         {businessName && (
           <span className="rounded-full border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-3 py-1 text-xs text-[#2DD4BF] truncate max-w-[40%]">

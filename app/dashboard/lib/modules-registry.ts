@@ -64,7 +64,7 @@ export const GERCEP_MODULES: DashboardModule[] = [
   { id: "barcode", name: "Barcode QR Analyzer", desc: "Daftar barcode & SKU sendiri.", href: "/dashboard/barcode-qr", icon: QrCode, category: "operasional", status: "beta" },
 
   // Modul aplikasi sendiri — bukan bagian OPERASIONAL TOKO / fitur jenis bisnis
-  { id: "kasir", name: "AI Kasir", desc: "Aplikasi kasir mandiri — struk, rekap, tutup shift.", href: "/dashboard/ai-kasir", icon: Receipt, category: "aplikasi", status: "live" },
+  { id: "kasir", name: "AI Kasir", desc: "Aplikasi kasir retail mandiri — jual produk inventory, shift, rekap. Bukan Kasir F&B.", href: "/dashboard/ai-kasir", icon: Receipt, category: "aplikasi", status: "live" },
   { id: "ai-jual-beli", name: "AI Jual Beli", desc: "Aplikasi listing jual/beli mandiri.", href: "/dashboard/ai-jual-beli", icon: Camera, category: "aplikasi", status: "beta" },
 
   { id: "marketplace", name: "Marketplace Center", desc: "Daftar toko Shopee/Tokopedia sendiri.", href: "/dashboard/marketplace-center", icon: ShoppingCart, category: "marketing", status: "beta" },

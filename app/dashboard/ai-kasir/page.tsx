@@ -68,6 +68,7 @@ export default async function AiKasirPage() {
       .eq("business_id", business.id)
       .eq("type", "pemasukan")
       .eq("scope", "bisnis")
+      .eq("category", "Penjualan")
       .gte("transaction_date", today)
       .order("created_at", { ascending: false }),
     supabase.from("kasir_shifts")

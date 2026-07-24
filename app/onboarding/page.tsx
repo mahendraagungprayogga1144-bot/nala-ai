@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { saveOnboardingBusiness, setActiveBusinessCookie } from "@/lib/onboarding/save-business";
+import { homeForBizType } from "@/lib/auth/post-login";
 import { Store, Bird, UtensilsCrossed, Factory, Briefcase, ShoppingBag, Truck, Heart, Leaf, Wrench, PenLine } from "lucide-react";
 
 const businessTypes = [
@@ -26,11 +27,19 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    const finalType = selectedType === "custom" ? (customType.trim().toLowerCase().replace(/\s+/g, "_") || "custom") : selectedType;
+    if (loading) return;
+    const finalType =
+      selectedType === "custom"
+        ? customType.trim().toLowerCase().replace(/\s+/g, "_") || "custom"
+        : selectedType;
     if (!finalType || !businessName.trim()) return;
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    // getSession = local (cepat). getUser = network ke Supabase Auth (lambat).
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       window.location.assign("/login");
       return;
@@ -46,79 +55,107 @@ export default function OnboardingPage() {
         isNew,
       });
       if (bizId) setActiveBusinessCookie(bizId);
-      await supabase.from("profiles").upsert({ id: user.id, full_name: user.user_metadata?.full_name || user.email?.split("@")[0] }, { onConflict: "id" });
+
+      // Jangan tunggu profile — fire-and-forget
+      void supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          full_name: user.user_metadata?.full_name || user.email?.split("@")[0],
+        },
+        { onConflict: "id" },
+      );
+
+      // Langsung ke hub tipe (lebih ringan dari Dashboard Owner)
+      window.location.assign(homeForBizType(finalType));
     } catch {
       alert("Gagal simpan bisnis. Coba lagi.");
       setLoading(false);
-      return;
     }
-
-    setLoading(false);
-    window.location.assign("/dashboard/owner");
   };
 
   const selected = businessTypes.find((b) => b.type === selectedType);
   const isReady = selectedType && businessName.trim() && (selectedType !== "custom" || customType.trim());
 
   return (
-    <div className="min-h-screen bg-[#0A0A12] text-[#F2F1F8] flex items-center justify-center px-4 py-12">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#0A0A12] px-4 py-12 text-[#F2F1F8]">
       <div className="w-full max-w-2xl">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-semibold mb-2">Selamat datang di <span className="holo-text">Gercep AI</span></h1>
-          <p className="text-[#8B8AA0]">Pilih jenis bisnis kamu biar sistem bisa menyesuaikan fitur & kategori yang paling relevan.</p>
+        <div className="mb-10 text-center">
+          <h1 className="mb-2 text-3xl font-semibold">
+            Selamat datang di <span className="holo-text">Gercep AI</span>
+          </h1>
+          <p className="text-[#8B8AA0]">
+            Pilih jenis bisnis kamu biar sistem bisa menyesuaikan fitur & kategori yang paling relevan.
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {businessTypes.map((b) => (
             <button
               key={b.type}
+              type="button"
               onClick={() => setSelectedType(b.type)}
-              className={"relative rounded-2xl p-4 text-left border transition-all overflow-hidden " + (selectedType === b.type ? "border-white/30 bg-white/5" : "border-white/10 bg-[#0F0F1A] hover:bg-white/5")}
+              className={
+                "relative overflow-hidden rounded-2xl border p-4 text-left transition-all " +
+                (selectedType === b.type
+                  ? "border-white/30 bg-white/5"
+                  : "border-white/10 bg-[#0F0F1A] hover:bg-white/5")
+              }
             >
               {selectedType === b.type && (
-                <div className="absolute inset-0 pointer-events-none" style={{ background: `${b.color}15` }} />
+                <div className="pointer-events-none absolute inset-0" style={{ background: `${b.color}15` }} />
               )}
               <div className="relative">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: `${b.color}20` }}>
+                <div
+                  className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl"
+                  style={{ background: `${b.color}20` }}
+                >
                   <b.icon size={18} style={{ color: b.color }} />
                 </div>
                 <p className="text-sm font-medium">{b.label}</p>
-                <p className="text-[11px] text-[#8B8AA0] mt-0.5">{b.desc}</p>
+                <p className="mt-0.5 text-[11px] text-[#8B8AA0]">{b.desc}</p>
               </div>
             </button>
           ))}
         </div>
 
         {selectedType === "custom" && (
-          <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 mb-4">
-            <label className="text-xs text-[#8B8AA0] mb-2 block">Jenis bisnis kamu</label>
+          <div className="mb-4 rounded-2xl border border-white/10 bg-[#0F0F1A] p-5">
+            <label className="mb-2 block text-xs text-[#8B8AA0]">Jenis bisnis kamu</label>
             <input
               type="text"
               placeholder="Contoh: Afiliator, Laundry, Konveksi, dll"
               value={customType}
               onChange={(e) => setCustomType(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50"
+              className="w-full rounded-lg border border-white/10 bg-[#0A0A12] px-4 py-2.5 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none"
             />
           </div>
         )}
 
         {selectedType && (
-          <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 mb-4">
-            <label className="text-xs text-[#8B8AA0] mb-2 block">Nama bisnis kamu</label>
+          <div className="mb-4 rounded-2xl border border-white/10 bg-[#0F0F1A] p-5">
+            <label className="mb-2 block text-xs text-[#8B8AA0]">Nama bisnis kamu</label>
             <input
               type="text"
-              placeholder={selectedType === "custom" ? "Contoh: Toko Laundry Bu Ani" : `Contoh: ${selected?.label} Pak Budi`}
+              placeholder={
+                selectedType === "custom"
+                  ? "Contoh: Toko Laundry Bu Ani"
+                  : `Contoh: ${selected?.label} Pak Budi`
+              }
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && isReady && !loading) void handleSubmit();
+              }}
+              className="w-full rounded-lg border border-white/10 bg-[#0A0A12] px-4 py-2.5 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none"
             />
           </div>
         )}
 
         <button
-          onClick={handleSubmit}
+          type="button"
+          onClick={() => void handleSubmit()}
           disabled={!isReady || loading}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-semibold disabled:opacity-30 transition-opacity"
+          className="w-full rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] py-3 font-semibold text-[#0A0A12] transition-opacity disabled:opacity-30"
         >
           {loading ? "Menyimpan..." : "Mulai Pakai Gercep AI →"}
         </button>

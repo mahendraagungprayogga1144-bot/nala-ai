@@ -50,3 +50,6 @@ export function isPlaceholderBusiness(b: { type?: string | null; name?: string |
 
 export const ONBOARDING_COOKIE = "ob_done";
 export const SUB_CHECKED_COOKIE = "sub_checked";
+/** Skip kasir-role DB lookup on subsequent navigations (set after first check). */
+export const ROLE_CHECKED_COOKIE = "role_checked";
+

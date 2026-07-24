@@ -98,6 +98,7 @@ export default function KasirPOS({
   };
 
   const handleProses = async () => {
+    if (loading) return;
     if (cart.length === 0) return;
 
     const overStock = cart.filter(c => c.qty > c.product.stock);
@@ -142,6 +143,17 @@ export default function KasirPOS({
     for (const c of cart) {
       const newStock = Math.max(0, c.product.stock - c.qty);
       await supabase.from("products").update({ stock: newStock }).eq("id", c.product.id);
+      const itemLaba = ((c.product.price || 0) - (c.product.cost || 0)) * c.qty;
+      await supabase.from("stock_movements").insert({
+        user_id: userId,
+        product_id: c.product.id,
+        type: "keluar",
+        reason: "terjual",
+        quantity: c.qty,
+        note: `AI Kasir — ${metodeBayar}`,
+        profit_loss: itemLaba,
+        movement_date: today,
+      });
     }
 
     if (activeShift) {

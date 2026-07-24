@@ -17,8 +17,14 @@ import type { HiRecipe } from "./home-industry-calc";
 import { todayWib } from "./home-industry-calc";
 import FnBInventory from "./fnb-inventory";
 import AgricultureInventory from "./agriculture-inventory";
-import TypedInventory from "./typed-inventory";
-import { getInventoryPreset, TYPED_INVENTORY_TYPES } from "./typed-inventory-presets";
+import RetailInventory from "./retail-inventory";
+import JasaInventory from "./jasa-inventory";
+import WholesaleInventory from "./wholesale-inventory";
+import OlshopInventory from "./olshop-inventory";
+import KesehatanInventory from "./kesehatan-inventory";
+import BengkelInventory from "./bengkel-inventory";
+
+const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
@@ -158,8 +164,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     business?.type === "homeindustry" ||
     business?.type === "pertanian" ||
     business?.type === "ternak" ||
-    TYPED_INVENTORY_TYPES.includes(business?.type || "");
-  const typedPreset = getInventoryPreset(business?.type);
+    DISTINCT_INVENTORY_TYPES.includes(business?.type || "");
+  const isDistinct = DISTINCT_INVENTORY_TYPES.includes(business?.type || "");
 
   let history: { snapshot_date: string; total_value: number }[] | null = null;
   if (!specialized) {
@@ -206,7 +212,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       ) : business?.type === "homeindustry" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok bahan → produksi + resep → jual produk jadi. HPP & profit otomatis.</p>
       ) : business?.type === "pertanian" ? (
-        <p className="text-[#8B8AA0] mb-4 text-sm">Catat panen & biaya di Modul Pertanian → jual hasil panen di sini.</p>
+        <p className="text-[#8B8AA0] mb-4 text-sm">Gudang panen & saprotan — Masuk/Keluar/Jual. Biaya produksi di Modul Pertanian.</p>
       ) : business?.type === "ternak" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok hewan & pakan — catat batch & P&L di Manajemen Ternak.</p>
       ) : business?.type === "retail" ? (
@@ -225,7 +231,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         <p className="text-[#8B8AA0] mb-8">{config.produkLabel} dan stok kamu.</p>
       )}
 
-      {business?.type !== "homeindustry" && business?.type !== "ternak" && business?.type !== "kuliner" && business?.type !== "pertanian" && !typedPreset && (
+      {business?.type !== "homeindustry" && business?.type !== "ternak" && business?.type !== "kuliner" && business?.type !== "pertanian" && !isDistinct && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {kpis.map((k) => (
             <div key={k.label} className="relative bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 overflow-hidden">
@@ -274,26 +280,32 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             hppHariIni={agriHppHariIni}
             todaySales={agriTodaySales}
             today={today}
+            movements={(movements as never) || []}
           />
         </div>
-      ) : typedPreset ? (
+      ) : business?.type === "retail" ? (
         <div className="mb-8">
-          <TypedInventory
-            products={products || []}
-            userId={user!.id}
-            businessId={business?.id}
-            config={typedPreset.config}
-            tip={typedPreset.tip}
-            hubHref={typedPreset.hubHref}
-            hubLabel={typedPreset.hubLabel}
-            sections={typedPreset.sections}
-            buyCategory={typedPreset.buyCategory}
-            sellCategory={typedPreset.sellCategory}
-            showSku={typedPreset.showSku}
-            attrsMode={typedPreset.attrsMode}
-            attrs={productAttrs}
-            workflow={typedPreset.workflow}
-          />
+          <RetailInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+        </div>
+      ) : business?.type === "jasa" ? (
+        <div className="mb-8">
+          <JasaInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+        </div>
+      ) : business?.type === "wholesale" ? (
+        <div className="mb-8">
+          <WholesaleInventory products={products || []} userId={user!.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
+        </div>
+      ) : business?.type === "olshop" ? (
+        <div className="mb-8">
+          <OlshopInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
+        </div>
+      ) : business?.type === "kesehatan" ? (
+        <div className="mb-8">
+          <KesehatanInventory products={products || []} userId={user!.id} businessId={business?.id} attrs={productAttrs} movements={(movements as never) || []} />
+        </div>
+      ) : business?.type === "bengkel" ? (
+        <div className="mb-8">
+          <BengkelInventory products={products || []} userId={user!.id} businessId={business?.id} movements={(movements as never) || []} />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 mb-8">

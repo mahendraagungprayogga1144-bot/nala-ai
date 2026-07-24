@@ -8,6 +8,31 @@
     overflow-x: hidden;
     font-family: var(--font-geist-sans), system-ui, sans-serif;
   }
+  /* Mobile-friendly taps — closer to native app feel */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+  input, select, textarea {
+    font-size: 16px; /* prevent iOS zoom on focus */
+  }
+  @media (min-width: 768px) {
+    input, select, textarea {
+      font-size: inherit;
+    }
+  }
+}
+
+/* Saat dibuka dari Home Screen — hilangkan “rasa browser” */
+@media (display-mode: standalone) {
+  html, body {
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  input, textarea, [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }

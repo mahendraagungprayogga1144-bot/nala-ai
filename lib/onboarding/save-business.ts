@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { setFastGateCookies } from "@/lib/auth/post-login";
 
 export async function saveOnboardingBusiness(
   supabase: SupabaseClient,
@@ -18,6 +19,7 @@ export async function saveOnboardingBusiness(
     return data.id as string;
   }
 
+  // Single round-trip: try update first business; if none, insert
   const { data: existing } = await supabase
     .from("businesses")
     .select("id")
@@ -45,8 +47,5 @@ export async function saveOnboardingBusiness(
 }
 
 export function setActiveBusinessCookie(businessId: string) {
-  const maxAge = 60 * 60 * 24 * 30;
-  document.cookie = `active_business_id=${businessId}; path=/; max-age=${maxAge}; samesite=lax`;
-  // Skip repeated onboarding DB checks in middleware
-  document.cookie = `ob_done=1; path=/; max-age=${maxAge}; samesite=lax`;
+  setFastGateCookies({ businessId });
 }

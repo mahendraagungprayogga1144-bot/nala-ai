@@ -16,6 +16,7 @@ export default function DeleteTransactionButton({ id, table = "transactions" }: 
       await supabase.from("harvest_batches").delete().eq("product_id", id);
       await supabase.from("recipe_ingredients").delete().eq("material_id", id);
       await supabase.from("recipes").delete().eq("product_id", id);
+      await supabase.from("module_product_attrs").delete().eq("product_id", id);
     }
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {

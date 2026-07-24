@@ -6,6 +6,7 @@ import {
   isPlaceholderBusiness,
   ONBOARDING_COOKIE,
   SUB_CHECKED_COOKIE,
+  ROLE_CHECKED_COOKIE,
 } from "@/lib/supabase/middleware";
 
 const ADMIN_EMAIL = "mahendraagungprayogga1144@gmail.com";
@@ -90,22 +91,44 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Kasir role lock (one lightweight query)
+  // Kasir role lock — cookie skips DB on every navigation after first check
   if (pathname.startsWith("/dashboard") || pathname === "/onboarding") {
-    const { data: kasirMember } = await supabase
-      .from("business_members")
-      .select("role")
-      .eq("member_user_id", user.id)
-      .eq("status", "aktif")
-      .eq("role", "kasir")
-      .limit(1)
-      .maybeSingle();
+    const roleCookie = request.cookies.get(ROLE_CHECKED_COOKIE)?.value;
 
-    if (kasirMember) {
+    if (roleCookie === "kasir") {
       if (pathname === "/onboarding" || !pathname.startsWith("/dashboard/ai-kasir")) {
         return redirectTo(request, "/dashboard/ai-kasir", response);
       }
       return response;
+    }
+
+    if (roleCookie !== "owner") {
+      const { data: kasirMember } = await supabase
+        .from("business_members")
+        .select("role")
+        .eq("member_user_id", user.id)
+        .eq("status", "aktif")
+        .eq("role", "kasir")
+        .limit(1)
+        .maybeSingle();
+
+      if (kasirMember) {
+        response.cookies.set(ROLE_CHECKED_COOKIE, "kasir", {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
+          sameSite: "lax",
+        });
+        if (pathname === "/onboarding" || !pathname.startsWith("/dashboard/ai-kasir")) {
+          return redirectTo(request, "/dashboard/ai-kasir", response);
+        }
+        return response;
+      }
+
+      response.cookies.set(ROLE_CHECKED_COOKIE, "owner", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+        sameSite: "lax",
+      });
     }
   }
 
@@ -113,7 +136,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/onboarding") {
     const allowNew = request.nextUrl.searchParams.get("mode") === "new";
     if (!allowNew && request.cookies.get(ONBOARDING_COOKIE)?.value === "1") {
-      return redirectTo(request, "/dashboard/owner", response);
+      return redirectTo(request, "/dashboard/inventory", response);
     }
     return response;
   }
@@ -180,7 +203,7 @@ async function resolveAppHome(
   response: NextResponse,
 ) {
   if (request.cookies.get(ONBOARDING_COOKIE)?.value === "1") {
-    return "/dashboard/owner";
+    return "/dashboard/inventory";
   }
 
   const { data: businesses } = await supabase
@@ -200,7 +223,19 @@ async function resolveAppHome(
     maxAge: 60 * 60 * 24 * 30,
     sameSite: "lax",
   });
-  return "/dashboard/owner";
+
+  const type = businesses?.[0]?.type;
+  const hubs: Record<string, string> = {
+    ternak: "/dashboard/peternakan",
+    pertanian: "/dashboard/pertanian",
+    retail: "/dashboard/retail",
+    jasa: "/dashboard/jasa",
+    wholesale: "/dashboard/wholesale",
+    olshop: "/dashboard/olshop",
+    kesehatan: "/dashboard/kesehatan",
+    bengkel: "/dashboard/bengkel",
+  };
+  return (type && hubs[type]) || "/dashboard/inventory";
 }
 
 export const config = {

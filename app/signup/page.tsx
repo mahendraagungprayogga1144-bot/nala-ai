@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo/config";
 import { signInDemoAccount } from "@/lib/demo/auth-client";
 import { registerAccount } from "@/lib/auth/register-client";
+import { homeForBizType, setFastGateCookies } from "@/lib/auth/post-login";
 
 export default function SignupPage() {
   const supabase = createClient();
@@ -15,6 +16,7 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError("");
     setLoading(true);
 
@@ -29,6 +31,7 @@ export default function SignupPage() {
   };
 
   const handleDemoSignup = async () => {
+    if (loading) return;
     setError("");
     setLoading(true);
     const result = await signInDemoAccount(supabase);
@@ -37,7 +40,23 @@ export default function SignupPage() {
       setLoading(false);
       return;
     }
-    window.location.assign("/dashboard/owner");
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (userId) {
+      const { data: businesses } = await supabase
+        .from("businesses")
+        .select("id, type")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const b = businesses?.[0];
+      if (b) setFastGateCookies({ businessId: b.id });
+      window.location.assign(homeForBizType(b?.type));
+      return;
+    }
+    window.location.assign("/dashboard/inventory");
   };
 
   return (

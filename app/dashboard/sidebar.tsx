@@ -30,6 +30,7 @@ export default function Sidebar({ expanded, setExpanded, businesses, activeBusin
     document.cookie = `ob_done=; ${expire}`;
     document.cookie = `sub_checked=; ${expire}`;
     document.cookie = `sub_expired=; ${expire}`;
+    document.cookie = `role_checked=; ${expire}`;
     document.cookie = `active_business_id=; ${expire}`;
     window.location.assign("/login");
   };

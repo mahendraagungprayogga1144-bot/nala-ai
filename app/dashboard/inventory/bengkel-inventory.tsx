@@ -52,8 +52,9 @@ export default function BengkelInventory({
   const handleAdd = async (defaultCat: string) => {
     if (!fName.trim() || !fStock) return;
     setLoading(true);
+    const category = fCat.trim() || defaultCat;
     const { error } = await addProduct(supabase, {
-      userId, businessId, name: fName, category: fCat || defaultCat,
+      userId, businessId, name: fName, category,
       stock: Number(fStock), minStock: Number(fMin) || 0,
       price: fPrice ? Number(fPrice) : null, cost: fCost ? Number(fCost) : null,
       unit: "pcs", buyCategory: "Pembelian Spare Part",
@@ -64,6 +65,9 @@ export default function BengkelInventory({
     setShowAdd(null);
     router.refresh();
   };
+
+  const knownCats = RACKS.flatMap((r) => r.cats);
+  const lainnya = filtered.filter((p) => !knownCats.includes(p.category || ""));
 
   return (
     <div className="pb-24">
@@ -127,9 +131,16 @@ export default function BengkelInventory({
               {showAdd === rack.key && (
                 <div className="space-y-2 border-b border-white/[0.06] p-4">
                   <input className={inputCls} placeholder="Nama part *" value={fName} onChange={(e) => setFName(e.target.value)} autoFocus />
-                  <select className={inputCls} value={fCat} onChange={(e) => setFCat(e.target.value)}>
-                    {rack.cats.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <input
+                    className={inputCls}
+                    list={`bengkel-cat-${rack.key}`}
+                    placeholder="Kategori (ketik / pilih)"
+                    value={fCat}
+                    onChange={(e) => setFCat(e.target.value)}
+                  />
+                  <datalist id={`bengkel-cat-${rack.key}`}>
+                    {rack.cats.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <input className={inputCls} type="number" placeholder="Stok *" value={fStock} onChange={(e) => setFStock(e.target.value)} />
                     <input className={inputCls} type="number" placeholder="Min" value={fMin} onChange={(e) => setFMin(e.target.value)} />
@@ -154,6 +165,7 @@ export default function BengkelInventory({
                         <div className="min-w-0">
                           <p className="font-medium text-[#F0EFF8]">{p.name}</p>
                           <p className="text-[11px] text-[#8B8AA0]">
+                            {p.category ? `${p.category} · ` : ""}
                             Stok <span className={low ? "text-[#F59E0B]" : "text-[#EF4444]"}>{p.stock}</span>
                             {p.price != null ? ` · ${fmtRp(Number(p.price))}` : ""}
                           </p>
@@ -173,6 +185,40 @@ export default function BengkelInventory({
             </section>
           );
         })}
+        {lainnya.length > 0 && (
+          <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#100808]">
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderLeft: "4px solid #8B8AA0", background: "#8B8AA012" }}>
+              <div>
+                <p className="text-sm font-semibold text-[#8B8AA0]">Lainnya</p>
+                <p className="text-[10px] text-[#5A5B7A]">{lainnya.length} part · kategori bebas</p>
+              </div>
+            </div>
+            <div className="divide-y divide-white/[0.04]">
+              {lainnya.map((p) => {
+                const low = Number(p.stock) <= Number(p.min_stock);
+                return (
+                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-[#F0EFF8]">{p.name}</p>
+                      <p className="text-[11px] text-[#8B8AA0]">
+                        {p.category ? `${p.category} · ` : ""}
+                        Stok <span className={low ? "text-[#F59E0B]" : "text-[#EF4444]"}>{p.stock}</span>
+                        {p.price != null ? ` · ${fmtRp(Number(p.price))}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <button type="button" onClick={() => { setActive(p); setSheet("masuk"); }} className="rounded-lg bg-[#2DD4BF]/10 px-2 py-1 text-[10px] text-[#2DD4BF]"><ArrowDownToLine size={11} className="inline" /> Masuk</button>
+                      <button type="button" onClick={() => { setActive(p); setSheet("keluar"); }} className="rounded-lg bg-[#EF4444]/15 px-2 py-1 text-[10px] font-semibold text-[#EF4444]"><Wrench size={11} className="inline" /> Dipasang</button>
+                      <button type="button" onClick={() => { setActive(p); setSheet("jual"); }} className="rounded-lg bg-[#F59E0B]/10 px-2 py-1 text-[10px] text-[#F59E0B]"><ShoppingCart size={11} className="inline" /> Jual</button>
+                      <EditProductModal product={p as never} />
+                      <DeleteTransactionButton id={p.id} table="products" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       {sheet && active && (

@@ -5,6 +5,7 @@ import ProfitIndicator from "./profit-indicator";
 import MonthYearFilter from "../month-year-filter";
 import { Package, AlertTriangle, Wallet, TrendingUp } from "lucide-react";
 import { Suspense } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { getConfig } from "./business-config";
 import LivestockInventory from "./livestock-inventory";
 import HomeIndustryInventory from "./home-industry-inventory";
@@ -19,17 +20,26 @@ import OlshopInventory from "./olshop-inventory";
 import KesehatanInventory from "./kesehatan-inventory";
 import BengkelInventory from "./bengkel-inventory";
 import { normalizeBizType } from "@/lib/auth/post-login";
-import {
-  InventoryChartsLazy,
-  TrendChartLazy,
-  RecentMovementsLazy,
-  MovementsChartLazy,
-  LossBreakdownChartLazy,
-} from "./inventory-charts-lazy";
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
-export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
+export default async function InventoryPage(props: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
+  try {
+    return await InventoryPageInner(props);
+  } catch (err) {
+    unstable_rethrow(err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[inventory]", err);
+    return (
+      <div className="px-4 py-10 text-center sm:px-8">
+        <p className="mb-2 text-[#EC4899]">Inventory error</p>
+        <p className="break-words font-mono text-xs text-[#8B8AA0]">{message}</p>
+      </div>
+    );
+  }
+}
+
+async function InventoryPageInner({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -60,21 +70,42 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     : null;
   const config = getConfig(business?.type);
 
-  const { data: products, error: productsErr } = await supabase
+  const { data: productRowsRaw, error: productsErr } = await supabase
     .from("products")
     .select("id, name, sku, stock, min_stock, price, cost, category, photo_url, unit, business_id, user_id, created_at")
     .eq("business_id", business?.id || "")
     .order("name", { ascending: true })
     .limit(2000);
 
-  if (productsErr) {
+  // Fallback if some columns missing on older DBs
+  let productRows = productRowsRaw;
+  let loadErr = productsErr;
+  if (productsErr?.message?.includes("does not exist")) {
+    const retry = await supabase
+      .from("products")
+      .select("id, name, sku, stock, min_stock, price, cost, category, business_id, user_id")
+      .eq("business_id", business?.id || "")
+      .order("name", { ascending: true })
+      .limit(2000);
+    productRows = retry.data as typeof productRowsRaw;
+    loadErr = retry.error;
+  }
+
+  if (loadErr) {
     return (
       <div className="px-4 py-10 text-center sm:px-8">
         <p className="mb-2 text-[#EC4899]">Gagal memuat inventory.</p>
-        <p className="text-xs text-[#8B8AA0]">{productsErr.message}</p>
+        <p className="text-xs text-[#8B8AA0]">{loadErr.message}</p>
       </div>
     );
   }
+
+  const products = (productRows || []).map((p) => ({
+    ...p,
+    photo_url: (p as { photo_url?: string | null }).photo_url ?? null,
+    unit: (p as { unit?: string | null }).unit ?? null,
+    created_at: (p as { created_at?: string }).created_at ?? new Date().toISOString(),
+  }));
 
   const today = todayWib();
   let homeRecipes: HiRecipe[] = [];
@@ -192,19 +223,12 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     DISTINCT_INVENTORY_TYPES.includes(business?.type || "");
   const isDistinct = DISTINCT_INVENTORY_TYPES.includes(business?.type || "");
 
-  let history: { snapshot_date: string; total_value: number }[] | null = null;
+  // Snapshot only — chart history UI temporarily disabled (Recharts RSC crashes).
   if (!specialized) {
     await supabase.from("inventory_history").upsert(
       { user_id: user.id, business_id: business?.id, snapshot_date: todayWib(), total_value: totalValue },
       { onConflict: "user_id,snapshot_date" }
     );
-    const { data: hist } = await supabase
-      .from("inventory_history")
-      .select("snapshot_date, total_value")
-      .eq("user_id", user.id)
-      .order("snapshot_date", { ascending: true })
-      .limit(30);
-    history = hist;
   }
 
   const kpis = [
@@ -341,10 +365,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       {!specialized && (
         <>
-          <TrendChartLazy history={history || []} />
           <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />
-          <LossBreakdownChartLazy movements={(allMovements as never) || []} />
-          <InventoryChartsLazy products={products || []} />
 
           <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl px-5 pt-4 pb-2 mb-4">
             <div className="flex items-center justify-between">
@@ -353,8 +374,38 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             </div>
           </div>
 
-          <MovementsChartLazy movements={(movements as never) || []} />
-          <RecentMovementsLazy movements={(movements as never) || []} />
+          <div className="mb-4 overflow-x-auto rounded-2xl border border-white/10 bg-[#0F0F1A]">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-xs text-[#8B8AA0]">
+                  <th className="px-4 py-3 font-medium">Tanggal</th>
+                  <th className="px-4 py-3 font-medium">Produk</th>
+                  <th className="px-4 py-3 font-medium">Tipe</th>
+                  <th className="px-4 py-3 font-medium">Qty</th>
+                  <th className="px-4 py-3 font-medium">Alasan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(movements || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-[#8B8AA0]">
+                      Belum ada pergerakan stok bulan ini.
+                    </td>
+                  </tr>
+                ) : (
+                  (movements as { id: string; movement_date: string; type: string; quantity: number; reason: string | null; products: { name: string } | null }[]).map((m) => (
+                    <tr key={m.id} className="border-b border-white/[0.06]">
+                      <td className="px-4 py-2.5 font-mono text-xs text-[#8B8AA0]">{m.movement_date}</td>
+                      <td className="px-4 py-2.5">{m.products?.name || "—"}</td>
+                      <td className="px-4 py-2.5 capitalize">{m.type}</td>
+                      <td className="px-4 py-2.5 font-mono">{m.quantity}</td>
+                      <td className="px-4 py-2.5 text-[#8B8AA0]">{m.reason || "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

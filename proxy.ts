@@ -38,7 +38,7 @@ function redirectTo(request: NextRequest, path: string, response?: NextResponse)
   return redirect;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Public pages without session cookie: skip Supabase entirely (fast)

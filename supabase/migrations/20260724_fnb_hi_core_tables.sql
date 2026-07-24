@@ -136,13 +136,34 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE POLICY "checkins_own" ON checkins FOR ALL USING (auth.uid() = user_id OR employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- orders: owner sees own + employee sales on their businesses (if businesses exists)
 DO $$ BEGIN
-  CREATE POLICY "orders_own" ON orders FOR ALL USING (auth.uid() = user_id OR business_id IN (SELECT id FROM businesses WHERE user_id = auth.uid()));
+  IF to_regclass('public.businesses') IS NOT NULL THEN
+    CREATE POLICY "orders_own" ON orders FOR ALL USING (
+      auth.uid() = user_id
+      OR business_id IN (SELECT id FROM public.businesses WHERE user_id = auth.uid())
+    );
+  ELSE
+    CREATE POLICY "orders_own" ON orders FOR ALL USING (auth.uid() = user_id);
+  END IF;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  CREATE POLICY "order_items_via_order" ON order_items FOR ALL USING (
-    EXISTS (SELECT 1 FROM orders o WHERE o.id = order_id AND (o.user_id = auth.uid() OR o.business_id IN (SELECT id FROM businesses WHERE user_id = auth.uid())))
-  );
+  IF to_regclass('public.businesses') IS NOT NULL THEN
+    CREATE POLICY "order_items_via_order" ON order_items FOR ALL USING (
+      EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.id = order_id
+          AND (
+            o.user_id = auth.uid()
+            OR o.business_id IN (SELECT id FROM public.businesses WHERE user_id = auth.uid())
+          )
+      )
+    );
+  ELSE
+    CREATE POLICY "order_items_via_order" ON order_items FOR ALL USING (
+      EXISTS (SELECT 1 FROM orders o WHERE o.id = order_id AND o.user_id = auth.uid())
+    );
+  END IF;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE POLICY "recipes_own" ON recipes FOR ALL USING (auth.uid() = user_id);

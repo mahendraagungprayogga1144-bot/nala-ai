@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getAppOrigin } from "@/lib/auth/app-url";
 import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
@@ -18,7 +19,8 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const origin = window.location.origin;
+    // Prefer production URL so email links never fall back to localhost Site URL mismatches.
+    const origin = getAppOrigin(window.location.origin);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: `${origin}/auth/callback?next=/reset-password`,
     });

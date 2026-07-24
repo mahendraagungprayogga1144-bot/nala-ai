@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://gercep.ai"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://www.gercepos.id"),
   title: {
     default: "Gercep AI — Aplikasi Bisnis UMKM",
     template: "%s · Gercep AI",

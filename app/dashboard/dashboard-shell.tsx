@@ -36,6 +36,10 @@ export default function DashboardShell({
   const router = useRouter();
 
   useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     if (blockedPathForFlags(pathname || "", featureFlags)) {
       router.replace("/dashboard/owner");
     }
@@ -63,35 +67,47 @@ export default function DashboardShell({
 
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
+      {/* Mobile top bar */}
       <div
-        className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-white/[0.06] bg-[#0D0D1A]/95 px-4 backdrop-blur-md md:hidden"
+        className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-white/[0.06] bg-[#0B0B16]/92 px-4 backdrop-blur-xl md:hidden"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           height: "calc(3.5rem + env(safe-area-inset-top))",
         }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-gercep.png" alt="" className="h-7 w-7 rounded-lg object-cover" />
-          <span className="text-base font-semibold">
-            Gercep<span className="holo-text">AI</span>
-          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-semibold leading-tight tracking-tight">
+              Gercep<span className="holo-text">AI</span>
+            </p>
+            {activeBusiness?.name ? (
+              <p className="truncate text-[10px] text-[#6B6A85]">{activeBusiness.name}</p>
+            ) : null}
+          </div>
         </div>
         <button
           type="button"
           aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
           onClick={() => setMobileOpen((v) => !v)}
-          className="rounded-lg p-2 transition-colors hover:bg-white/[0.05] active:bg-white/[0.08]"
+          className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06] active:bg-white/[0.08]"
         >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
       </div>
 
+      {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileOpen(false)}>
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            aria-label="Tutup menu"
+            className="absolute inset-0 bg-[#05050C]/70 backdrop-blur-[2px]"
+            onClick={() => setMobileOpen(false)}
+          />
           <div
-            className="fixed top-0 bottom-0 left-0 z-50 w-[min(18rem,85vw)] overflow-y-auto border-r border-white/[0.06] bg-[#0D0D1A]"
-            style={{ paddingTop: "calc(3.5rem + env(safe-area-inset-top))" }}
+            className="absolute bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] z-50 flex w-[min(19.5rem,88vw)] flex-col overflow-hidden border-r border-white/[0.08] bg-[#0B0B16] shadow-[8px_0_40px_rgba(0,0,0,0.45)]"
             onClick={(e) => e.stopPropagation()}
           >
             <Sidebar
@@ -114,7 +130,7 @@ export default function DashboardShell({
           "w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto bg-[#070711]",
           "pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]",
           "md:pt-0 md:pb-0",
-          expanded ? "md:ml-[220px]" : "md:ml-16",
+          expanded ? "md:ml-[232px]" : "md:ml-16",
           "md:transition-[margin-left] md:duration-[220ms] md:ease-[cubic-bezier(0.4,0,0.2,1)]",
         ].join(" ")}
       >

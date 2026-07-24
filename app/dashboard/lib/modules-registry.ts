@@ -22,17 +22,17 @@ export type DashboardModule = {
 };
 
 const BIZ_TYPE_LABELS: Record<string, string> = {
-  kuliner: "FITUR KULINER / F&B",
-  homeindustry: "FITUR HOME INDUSTRY",
-  ternak: "FITUR PETERNAKAN",
-  pertanian: "FITUR PERTANIAN",
-  retail: "FITUR RETAIL",
-  fashion: "FITUR FASHION",
-  jasa: "FITUR JASA",
-  wholesale: "FITUR GROSIR",
-  olshop: "FITUR ONLINE SHOP",
-  kesehatan: "FITUR KESEHATAN",
-  bengkel: "FITUR BENGKEL",
+  kuliner: "Kuliner / F&B",
+  homeindustry: "Home Industry",
+  ternak: "Peternakan",
+  pertanian: "Pertanian",
+  retail: "Retail",
+  fashion: "Fashion",
+  jasa: "Jasa",
+  wholesale: "Grosir",
+  olshop: "Online Shop",
+  kesehatan: "Kesehatan",
+  bengkel: "Bengkel",
 };
 
 /** Modul khusus per jenis bisnis — tampil di group terpisah di atas */
@@ -79,13 +79,13 @@ export const GERCEP_MODULES: DashboardModule[] = [
 ];
 
 const CATEGORY_LABELS: Record<ModuleCategory, string> = {
-  utama: "MENU UTAMA",
-  keuangan: "KEUANGAN DAN PAJAK",
-  operasional: "OPERASIONAL TOKO",
-  marketing: "MARKETPLACE DAN MARKETING",
-  platform: "PLATFORM DAN TIM",
-  manajemen: "MANAJEMEN",
-  aplikasi: "APLIKASI MODUL",
+  utama: "Utama",
+  keuangan: "Keuangan",
+  operasional: "Operasional",
+  marketing: "Marketing",
+  platform: "Platform",
+  manajemen: "Manajemen",
+  aplikasi: "Aplikasi",
 };
 
 export function getSidebarModules(
@@ -114,7 +114,7 @@ export function getSidebarModules(
     const bizSpecific = BIZ_MODULES.filter((m) => m.bizTypes?.includes(normalized) && keep(m));
     if (bizSpecific.length > 0) {
       result.push({
-        label: BIZ_TYPE_LABELS[normalized] || `FITUR ${normalized.toUpperCase()}`,
+        label: BIZ_TYPE_LABELS[normalized] || normalized.replace(/_/g, " "),
         modules: bizSpecific,
       });
     }

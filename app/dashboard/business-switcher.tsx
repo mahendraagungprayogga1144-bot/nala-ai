@@ -40,27 +40,28 @@ export default function BusinessSwitcher({ businesses, activeBusiness }: { busin
   const color = typeColor[activeBusiness?.type || ""] || "#8B8AA0";
 
   return (
-    <div className="relative px-3 pb-3">
+    <div className="relative px-0.5">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/8 transition-colors"
+        className="flex w-full items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] px-2.5 py-2 transition-colors hover:bg-white/[0.05]"
       >
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}25` }}>
-          <Icon size={14} style={{ color }} />
+        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: `${color}22` }}>
+          <Icon size={13} style={{ color }} />
         </div>
-        <div className="flex-1 min-w-0 text-left">
-          <p className="text-xs font-medium truncate">{activeBusiness?.name || "Pilih Bisnis"}</p>
-          <p className="text-[10px] text-[#8B8AA0] capitalize">{activeBusiness?.type || "—"}</p>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="truncate text-[12px] font-medium text-[#F0EFF8]">{activeBusiness?.name || "Pilih Bisnis"}</p>
+          <p className="truncate text-[10px] capitalize text-[#6B6A85]">{activeBusiness?.type || "—"}</p>
         </div>
-        <ChevronDown size={14} className={"text-[#8B8AA0] transition-transform " + (open ? "rotate-180" : "")} />
+        <ChevronDown size={13} className={"text-[#6B6A85] transition-transform " + (open ? "rotate-180" : "")} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0F0F1A] border border-white/10 rounded-xl overflow-hidden z-50 shadow-2xl">
-            <div className="px-3 py-2 border-b border-white/5">
-              <p className="text-[10px] text-[#8B8AA0] font-medium tracking-wide uppercase">Bisnis kamu</p>
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-white/10 bg-[#12121C] shadow-2xl">
+            <div className="border-b border-white/5 px-3 py-2">
+              <p className="text-[10px] font-medium tracking-wide text-[#6B6A85] uppercase">Bisnis kamu</p>
             </div>
             <div className="max-h-48 overflow-y-auto">
               {businesses.map((b) => {
@@ -68,7 +69,7 @@ export default function BusinessSwitcher({ businesses, activeBusiness }: { busin
                 const bColor = typeColor[b.type || ""] || "#8B8AA0";
                 const isActive = b.id === activeBusiness?.id;
                 return (
-                  <div key={b.id} className={"flex items-center gap-1 hover:bg-white/5 transition-colors " + (isActive ? "bg-white/5" : "")}>
+                  <div key={b.id} className={"flex items-center gap-1 transition-colors hover:bg-white/5 " + (isActive ? "bg-white/[0.04]" : "")}>
                     <button
                       disabled={loading === b.id}
                       onClick={async () => {
@@ -76,7 +77,7 @@ export default function BusinessSwitcher({ businesses, activeBusiness }: { busin
                         setOpen(false);
                         await switchBusiness(b.id);
                       }}
-                      className="flex-1 flex items-center gap-3 px-3 py-2.5"
+                      className="flex flex-1 items-center gap-3 px-3 py-2.5"
                     >
                       <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${bColor}25` }}>
                         <BIcon size={13} style={{ color: bColor }} />

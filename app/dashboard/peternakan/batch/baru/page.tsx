@@ -48,7 +48,16 @@ export default function BatchBaruPage() {
       status: "aktif",
     }).select("id").single();
 
-    if (error) { alert("Gagal buat batch: " + error.message); setLoading(false); return; }
+    if (error) {
+      const missingTable = /schema cache|Could not find the table/i.test(error.message);
+      alert(
+        missingTable
+          ? "Gagal buat batch: tabel farm_batches belum ada di database. Jalankan migrasi peternakan di Supabase SQL Editor, lalu Reload schema."
+          : "Gagal buat batch: " + error.message
+      );
+      setLoading(false);
+      return;
+    }
 
     router.push(`/dashboard/peternakan/batch/${batch.id}`);
   };

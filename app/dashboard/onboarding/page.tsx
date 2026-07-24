@@ -125,7 +125,7 @@ export default function OnboardingPage() {
               placeholder={
                 selectedType === "custom"
                   ? "Contoh: Toko Laundry Bu Ani"
-                  : `Contoh: ${selected?.label} Pak Budi`
+                  : `Contoh: ${selected?.label} Bu Sari`
               }
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}

@@ -167,7 +167,12 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs text-[#8B8AA0]">Password</label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs text-[#8B8AA0]">Password</label>
+              <a href="/forgot-password" className="text-[11px] text-[#2DD4BF] hover:underline">
+                Lupa kata sandi?
+              </a>
+            </div>
             <input
               type="password"
               required
@@ -199,13 +204,13 @@ function LoginForm() {
           {loading ? "Menyiapkan demo..." : "Masuk Akun Demo"}
         </button>
         <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
-          Demo: {DEMO_EMAIL} · {DEMO_PASSWORD}
+          Demo trial 5 hari · {DEMO_EMAIL}
         </p>
 
         <p className="mt-6 text-center text-sm text-[#8B8AA0]">
           Belum punya akun?{" "}
           <a href="/signup" className="text-[#2DD4BF]">
-            Daftar gratis
+            Daftar gratis · trial 5 hari
           </a>
         </p>
       </div>

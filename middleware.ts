@@ -167,22 +167,35 @@ export async function middleware(request: NextRequest) {
       });
     }
 
-    // Subscription check at most once per 5 minutes
+    // Subscription / trial check at most once per 5 minutes
     if (!request.cookies.get(SUB_CHECKED_COOKIE)?.value) {
       const { data: sub } = await supabase
         .from("subscriptions")
-        .select("plan, expired_at")
+        .select("plan, status, expired_at, trial_ends_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (sub?.expired_at && new Date(sub.expired_at) < new Date() && sub.plan !== "free") {
+      const endAt = sub?.trial_ends_at || sub?.expired_at;
+      const ended = endAt ? new Date(endAt) < new Date() : false;
+      const isPaidOrTrial = sub?.plan && sub.plan !== "free";
+
+      if (ended && isPaidOrTrial) {
         await supabase
           .from("subscriptions")
-          .update({ plan: "free", status: "expired" })
+          .update({ plan: "free", status: "expired", updated_at: new Date().toISOString() })
           .eq("user_id", user.id);
         response.cookies.set("sub_expired", "1", { path: "/", maxAge: 86400 });
-      } else if (sub?.plan && sub.plan !== "free") {
+      } else if (sub?.plan === "trial" && endAt) {
         response.cookies.delete("sub_expired");
+        const days = Math.ceil((new Date(endAt).getTime() - Date.now()) / 86400000);
+        response.cookies.set("trial_days_left", String(Math.max(0, days)), {
+          path: "/",
+          maxAge: 300,
+          sameSite: "lax",
+        });
+      } else if (isPaidOrTrial) {
+        response.cookies.delete("sub_expired");
+        response.cookies.delete("trial_days_left");
       }
 
       response.cookies.set(SUB_CHECKED_COOKIE, "1", {

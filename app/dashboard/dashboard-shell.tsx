@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Sidebar from "./sidebar";
+import TrialBanner from "./components/trial-banner";
 import { Menu, X } from "lucide-react";
 
 type Business = { id: string; name: string; type: string | null };
@@ -96,6 +97,7 @@ export default function DashboardShell({
           "md:transition-[margin-left] md:duration-[220ms] md:ease-[cubic-bezier(0.4,0,0.2,1)]",
         ].join(" ")}
       >
+        <TrialBanner />
         {children}
       </main>
     </div>

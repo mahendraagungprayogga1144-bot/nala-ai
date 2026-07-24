@@ -61,6 +61,21 @@ export async function registerAccount(
 
   if (data.user) {
     await supabase.from("profiles").upsert({ id: data.user.id, full_name: name }, { onConflict: "id" });
+    // Trial 5 hari — best-effort (RLS may block; register API is preferred path)
+    const ends = new Date();
+    ends.setDate(ends.getDate() + 5);
+    await supabase.from("subscriptions").upsert(
+      {
+        user_id: data.user.id,
+        plan: "trial",
+        status: "trial",
+        started_at: new Date().toISOString(),
+        expired_at: ends.toISOString(),
+        trial_ends_at: ends.toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
   }
 
   if (data.session) {

@@ -5,7 +5,7 @@ import AiKasirClient from "./ai-kasir-client";
 export type Product = {
   id: string; name: string; price: number; cost: number;
   stock: number; min_stock: number; category: string | null;
-  sku: string | null; barcode: string | null;
+  sku: string | null; barcode?: string | null;
 };
 
 export type KasirShift = {
@@ -50,7 +50,7 @@ export default async function AiKasirPage() {
 
   const [{ data: products }, { data: activeShift }, { data: todayTxs }, { data: todayShifts }] = await Promise.all([
     supabase.from("products")
-      .select("id, name, price, cost, stock, min_stock, category, sku, barcode")
+      .select("id, name, price, cost, stock, min_stock, category, sku")
       .eq("business_id", business.id)
       .order("category").order("name"),
     supabase.from("kasir_shifts")

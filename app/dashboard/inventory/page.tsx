@@ -72,7 +72,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
   const { data: products, error: productsErr } = await supabase
     .from("products")
-    .select("id, name, sku, barcode, stock, min_stock, price, cost, category, photo_url, unit, business_id, user_id, created_at")
+    .select("id, name, sku, stock, min_stock, price, cost, category, photo_url, unit, business_id, user_id, created_at")
     .eq("business_id", business?.id || "")
     .order("name", { ascending: true })
     .limit(2000);

@@ -180,6 +180,18 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         <p className="text-[#8B8AA0] mb-4 text-sm">Catat panen & biaya di Modul Pertanian → jual hasil panen di sini.</p>
       ) : business?.type === "ternak" ? (
         <p className="text-[#8B8AA0] mb-4 text-sm">Stok hewan & pakan — catat batch & P&L di Manajemen Ternak.</p>
+      ) : business?.type === "retail" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Stok toko fisik. Lihat ringkasan di <a href="/dashboard/retail" className="text-[#2DD4BF] hover:underline">Pusat Retail</a>.</p>
+      ) : business?.type === "jasa" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Aset/peralatan. Order klien & fee di <a href="/dashboard/jasa" className="text-[#2DD4BF] hover:underline">Order Jasa</a>.</p>
+      ) : business?.type === "wholesale" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Stok partai. Set harga grosir & MOQ di <a href="/dashboard/wholesale" className="text-[#2DD4BF] hover:underline">Pusat Grosir</a>.</p>
+      ) : business?.type === "olshop" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Stok online. Marketplace & laporan di <a href="/dashboard/olshop" className="text-[#2DD4BF] hover:underline">Pusat Online Shop</a>.</p>
+      ) : business?.type === "kesehatan" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Stok obat/alkes. Pantau kadaluarsa di <a href="/dashboard/kesehatan" className="text-[#2DD4BF] hover:underline">Pusat Kesehatan</a>.</p>
+      ) : business?.type === "bengkel" ? (
+        <p className="text-[#8B8AA0] mb-4 text-sm">Spare part. Antrian servis di <a href="/dashboard/bengkel" className="text-[#2DD4BF] hover:underline">Antrian Bengkel</a>.</p>
       ) : (
         <p className="text-[#8B8AA0] mb-8">{config.produkLabel} dan stok kamu.</p>
       )}

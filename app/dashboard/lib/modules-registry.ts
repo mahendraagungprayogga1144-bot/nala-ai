@@ -3,6 +3,7 @@ import {
   Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera,
   ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
+  Briefcase, Boxes, HeartPulse, Wrench,
 } from "lucide-react";
 
 export type ModuleStatus = "live" | "beta";
@@ -27,6 +28,10 @@ const BIZ_TYPE_LABELS: Record<string, string> = {
   retail: "FITUR RETAIL",
   fashion: "FITUR FASHION",
   jasa: "FITUR JASA",
+  wholesale: "FITUR GROSIR",
+  olshop: "FITUR ONLINE SHOP",
+  kesehatan: "FITUR KESEHATAN",
+  bengkel: "FITUR BENGKEL",
 };
 
 /** Modul khusus per jenis bisnis — tampil di group terpisah di atas */
@@ -37,8 +42,13 @@ const BIZ_MODULES: DashboardModule[] = [
   { id: "produksi", name: "Produksi", desc: "Resep dan produksi home industry.", href: "/dashboard/produksi", icon: Factory, category: "manajemen", status: "live", bizTypes: ["homeindustry"] },
   { id: "ternak", name: "Manajemen Ternak", desc: "Batch, pakan, panen ternak.", href: "/dashboard/peternakan", icon: Bird, category: "manajemen", status: "live", bizTypes: ["ternak"] },
   { id: "pertanian", name: "Modul Pertanian", desc: "Lahan, panen, saprotan.", href: "/dashboard/pertanian", icon: Sprout, category: "manajemen", status: "live", bizTypes: ["pertanian"] },
+  { id: "retail-hub", name: "Pusat Retail", desc: "Stok, kasir, barcode untuk toko fisik.", href: "/dashboard/retail", icon: Store, category: "manajemen", status: "live", bizTypes: ["retail"] },
+  { id: "jasa-orders", name: "Order Jasa", desc: "Catat order klien, fee, dan status.", href: "/dashboard/jasa", icon: Briefcase, category: "manajemen", status: "live", bizTypes: ["jasa"] },
+  { id: "wholesale-hub", name: "Pusat Grosir", desc: "Harga grosir & minimal order (MOQ).", href: "/dashboard/wholesale", icon: Boxes, category: "manajemen", status: "live", bizTypes: ["wholesale"] },
+  { id: "olshop-hub", name: "Pusat Online Shop", desc: "Stok + marketplace + laporan CSV.", href: "/dashboard/olshop", icon: ShoppingBag, category: "manajemen", status: "live", bizTypes: ["olshop"] },
+  { id: "kesehatan-hub", name: "Pusat Kesehatan", desc: "Pantau kadaluarsa & stok kritis.", href: "/dashboard/kesehatan", icon: HeartPulse, category: "manajemen", status: "live", bizTypes: ["kesehatan"] },
+  { id: "bengkel-hub", name: "Antrian Bengkel", desc: "Kendaraan, keluhan, status servis.", href: "/dashboard/bengkel", icon: Wrench, category: "manajemen", status: "live", bizTypes: ["bengkel"] },
 ];
-
 /** Modul universal — tampil untuk semua jenis bisnis */
 export const GERCEP_MODULES: DashboardModule[] = [
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },

@@ -77,17 +77,35 @@ export default async function AdminOverviewPage() {
 
   const uniqueUsers = new Set(users.map(u => u.user_id));
 
-  // Event-based DAU / top modules (if table exists)
+  // Event-based DAU / WAU / MAU / funnel / top modules
   let dau = activeToday;
+  let wau = 0;
+  let mau = 0;
+  let funnel = { signup: 0, business: 0, first_action: 0 };
   let topModules: { module: string; count: number }[] = [];
   if (admin) {
     const dayAgo = new Date(Date.now() - 86400000).toISOString();
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-    const { data: dayEvents } = await admin
-      .from("app_events")
-      .select("user_id, module")
-      .gte("created_at", dayAgo)
-      .limit(5000);
+    const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    const [{ data: dayEvents }, { data: weekEvents }, { data: monthEvents }, { data: funnelEvents }] =
+      await Promise.all([
+        admin.from("app_events").select("user_id, module").gte("created_at", dayAgo).limit(5000),
+        admin.from("app_events").select("user_id").gte("created_at", weekAgo).limit(8000),
+        admin.from("app_events").select("user_id").gte("created_at", monthAgo).limit(10000),
+        admin
+          .from("app_events")
+          .select("user_id, event")
+          .in("event", [
+            "signup",
+            "business_created",
+            "onboarding_complete",
+            "inventory_sell",
+            "ai_kasir_sale",
+            "payment_submit",
+          ])
+          .limit(8000),
+      ]);
+
     if (dayEvents?.length) {
       dau = new Set(dayEvents.map((e: { user_id: string | null }) => e.user_id).filter(Boolean)).size;
       const modCount: Record<string, number> = {};
@@ -99,8 +117,37 @@ export default async function AdminOverviewPage() {
         .slice(0, 5)
         .map(([module, count]) => ({ module, count }));
     }
-    void weekAgo;
+    wau = new Set((weekEvents || []).map((e: { user_id: string | null }) => e.user_id).filter(Boolean)).size;
+    mau = new Set((monthEvents || []).map((e: { user_id: string | null }) => e.user_id).filter(Boolean)).size;
+
+    const signupUsers = new Set<string>();
+    const bizUsers = new Set<string>();
+    const actionUsers = new Set<string>();
+    const firstActions = new Set([
+      "inventory_sell",
+      "ai_kasir_sale",
+      "payment_submit",
+      "onboarding_complete",
+    ]);
+    (funnelEvents || []).forEach((e: { user_id: string | null; event: string }) => {
+      if (!e.user_id) return;
+      if (e.event === "signup") signupUsers.add(e.user_id);
+      if (e.event === "business_created" || e.event === "onboarding_complete") bizUsers.add(e.user_id);
+      if (firstActions.has(e.event)) actionUsers.add(e.user_id);
+    });
+    funnel = {
+      signup: signupUsers.size || authUsers.length,
+      business: bizUsers.size || uniqueUsers.size,
+      first_action: actionUsers.size,
+    };
   }
+
+  const trialActive = subs.filter(
+    (s) =>
+      (s.plan === "trial" || s.status === "trial") &&
+      s.expired_at &&
+      new Date(s.expired_at) > now,
+  ).length;
 
   const userGrowth: { month: string; count: number }[] = [];
   const monthSet = new Set<string>();
@@ -137,6 +184,10 @@ export default async function AdminOverviewPage() {
     <AdminOverviewClient
       totalUsers={authUsers.length || uniqueUsers.size}
       activeToday={dau}
+      wau={wau}
+      mau={mau}
+      trialActive={trialActive}
+      funnel={funnel}
       newUsersThisMonth={newUsersThisMonth}
       revenueThisMonth={revenueThisMonth}
       revenueThisYear={revenueThisYear}

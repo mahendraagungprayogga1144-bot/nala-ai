@@ -95,6 +95,24 @@ export default function AdminHealthPage() {
                 </li>
               ))}
             </ul>
+            <p className="mt-3 text-[11px] leading-relaxed text-[#5A5B7A]">
+              Retention events dikontrol di Settings (`event_retention_days`). Purge lama: Settings → Purge, atau SQL:
+              {" "}
+              <code className="text-[#8B8AA0]">delete from app_events where created_at &lt; now() - interval &apos;90 days&apos;;</code>
+            </p>
+            <button
+              type="button"
+              className="mt-3 rounded-xl border border-[#EC4899]/30 px-3 py-2 text-xs text-[#EC4899] hover:bg-[#EC4899]/10"
+              onClick={async () => {
+                if (!confirm("Purge event lebih lama dari retention days?")) return;
+                const res = await fetch("/api/admin/purge-events", { method: "POST" });
+                const json = await res.json();
+                alert(res.ok ? `Deleted ${json.deleted ?? 0}` : json.error || "Gagal");
+                void load();
+              }}
+            >
+              Purge events lama
+            </button>
           </div>
 
           <div className="rounded-2xl border border-white/[0.08] p-4" style={{ background: "#0D0D1A" }}>

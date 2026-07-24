@@ -66,3 +66,20 @@ on conflict (key) do nothing;
 alter table app_events enable row level security;
 alter table app_errors enable row level security;
 alter table platform_settings enable row level security;
+
+-- No client policies: reads/writes go through Next.js APIs with service role.
+-- Explicit deny helpers (idempotent) so authenticated users cannot SELECT/INSERT directly.
+do $$ begin
+  create policy app_events_no_client on app_events for all to authenticated using (false) with check (false);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy app_errors_no_client on app_errors for all to authenticated using (false) with check (false);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy platform_settings_no_client on platform_settings for all to authenticated using (false) with check (false);
+exception when duplicate_object then null;
+end $$;

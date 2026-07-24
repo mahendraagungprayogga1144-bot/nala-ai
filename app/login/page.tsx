@@ -83,6 +83,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [demoEnabled, setDemoEnabled] = useState(true);
   const [trialDays, setTrialDays] = useState(5);
+  const [supportEmail, setSupportEmail] = useState("hellogercepai@gmail.com");
 
   useEffect(() => {
     fetch("/api/public/platform")
@@ -90,6 +91,7 @@ function LoginForm() {
       .then((d) => {
         if (typeof d.demo_enabled === "boolean") setDemoEnabled(d.demo_enabled);
         if (typeof d.trial_days === "number") setTrialDays(d.trial_days);
+        if (d.support_email) setSupportEmail(String(d.support_email));
       })
       .catch(() => {});
   }, []);
@@ -243,6 +245,12 @@ function LoginForm() {
           Belum punya akun?{" "}
           <a href="/signup" className="text-[#2DD4BF]">
             Daftar gratis · trial {trialDays} hari
+          </a>
+        </p>
+        <p className="mt-3 text-center text-[10px] text-[#5A5B7A]">
+          Bantuan:{" "}
+          <a href={`mailto:${supportEmail}`} className="text-[#8B8AA0] underline">
+            {supportEmail}
           </a>
         </p>
       </div>

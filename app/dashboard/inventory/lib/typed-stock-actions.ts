@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { todayWib } from "@/lib/date";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 export type ProductRow = {
   id: string;
@@ -217,6 +218,26 @@ export async function moveStock(supabase: SupabaseClient, input: MoveStockInput)
       description: `Jual ${input.product.name} x${q}`,
       amount: harga * q,
       transaction_date: date,
+    });
+  }
+
+  if (typeof window !== "undefined") {
+    const event =
+      input.mode === "jual" || isSellReason(reason)
+        ? "inventory_sell"
+        : isIn
+          ? "inventory_in"
+          : "inventory_out";
+    trackClientEvent({
+      event,
+      module: "inventory",
+      business_id: input.businessId,
+      meta: {
+        product_id: input.product.id,
+        qty: q,
+        mode: input.mode,
+        amount: harga * q,
+      },
     });
   }
 

@@ -1,8 +1,8 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Search, X, Clock, Plus, Ban } from "lucide-react";
+import { Search, X, Clock, Plus, Ban, Download } from "lucide-react";
 import type { AdminUser } from "./page";
 
 function fmtDate(d: string | null) { return d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
@@ -34,6 +34,13 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
   const [editDays, setEditDays] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("admin");
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setAdminEmail(data.user.email);
+    });
+  }, [supabase]);
 
   const filtered = useMemo(() => {
     return users.filter(u => {
@@ -79,7 +86,7 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
 
     if (!error) {
       await supabase.from("admin_logs").insert({
-        admin_email: "mahendraagungprayogga1144@gmail.com",
+        admin_email: adminEmail,
         action: "edit_subscription",
         target_user_id: editUser.user_id,
         detail: { plan: editPlan, days_added: daysToAdd, notes: editNotes },
@@ -97,7 +104,7 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
       user_id: u.user_id, plan: "free", status: "suspended", updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     await supabase.from("admin_logs").insert({
-      admin_email: "mahendraagungprayogga1144@gmail.com", action: "suspend_user", target_user_id: u.user_id, detail: {},
+      admin_email: adminEmail, action: "suspend_user", target_user_id: u.user_id, detail: {},
     });
     router.refresh();
   };
@@ -106,9 +113,17 @@ export default function AdminUsersClient({ users }: { users: AdminUser[] }) {
 
   return (
     <div className="px-4 py-6 sm:px-8">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold sm:text-2xl">Manajemen User</h1>
-        <p className="text-xs text-[#5A5B7A]">{users.length} total user terdaftar</p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Manajemen User</h1>
+          <p className="text-xs text-[#5A5B7A]">{users.length} total user terdaftar</p>
+        </div>
+        <a
+          href="/api/admin/export?type=users"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-xs text-[#8B8AA0] hover:text-[#F2F1F8]"
+        >
+          <Download size={12} /> Export CSV
+        </a>
       </div>
 
       {/* Filters */}

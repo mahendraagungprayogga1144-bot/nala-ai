@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { saveOnboardingBusiness, setActiveBusinessCookie } from "@/lib/onboarding/save-business";
 import { homeForBizType } from "@/lib/auth/post-login";
+import { trackClientEvent } from "@/lib/admin/track-event";
 import { Store, Bird, UtensilsCrossed, Factory, Briefcase, ShoppingBag, Truck, Heart, Leaf, Wrench, PenLine } from "lucide-react";
 
 const businessTypes = [
@@ -34,6 +35,7 @@ export default function OnboardingPage() {
         : selectedType;
     if (!finalType || !businessName.trim()) return;
     setLoading(true);
+    trackClientEvent({ event: "onboarding_start", module: "onboarding", meta: { type: finalType } });
 
     // getSession = local (cepat). getUser = network ke Supabase Auth (lambat).
     const {

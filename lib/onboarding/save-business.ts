@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { setFastGateCookies } from "@/lib/auth/post-login";
+import { trackClientEvent } from "@/lib/admin/track-event";
 
 export async function saveOnboardingBusiness(
   supabase: SupabaseClient,
@@ -9,6 +10,25 @@ export async function saveOnboardingBusiness(
   const name = opts.name.trim();
   const type = opts.type;
 
+  const trackCreated = (businessId: string, created: boolean) => {
+    if (typeof window === "undefined") return;
+    trackClientEvent({
+      event: created ? "business_created" : "business_updated",
+      module: "onboarding",
+      business_id: businessId,
+      meta: { type, name, is_new: !!opts.isNew },
+      path: "/onboarding",
+    });
+    if (created) {
+      trackClientEvent({
+        event: "onboarding_complete",
+        module: "onboarding",
+        business_id: businessId,
+        meta: { type },
+      });
+    }
+  };
+
   if (opts.isNew) {
     const { data, error } = await supabase
       .from("businesses")
@@ -16,6 +36,7 @@ export async function saveOnboardingBusiness(
       .select("id")
       .single();
     if (error) throw error;
+    trackCreated(data.id as string, true);
     return data.id as string;
   }
 
@@ -34,6 +55,7 @@ export async function saveOnboardingBusiness(
       .update({ name, type })
       .eq("id", existing.id);
     if (error) throw error;
+    trackCreated(existing.id as string, false);
     return existing.id as string;
   }
 
@@ -43,6 +65,7 @@ export async function saveOnboardingBusiness(
     .select("id")
     .single();
   if (error) throw error;
+  trackCreated(data.id as string, true);
   return data.id as string;
 }
 

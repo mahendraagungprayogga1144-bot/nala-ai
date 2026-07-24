@@ -13,25 +13,6 @@ type Ev = {
   created_at: string;
 };
 
-function downloadCsv(rows: Ev[]) {
-  const header = ["created_at", "event", "module", "user_id", "path", "meta"];
-  const lines = [
-    header.join(","),
-    ...rows.map((r) =>
-      [r.created_at, r.event, r.module || "", r.user_id || "", r.path || "", JSON.stringify(r.meta || {})]
-        .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-        .join(","),
-    ),
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `activity-${Date.now()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function AdminActivityClient() {
   const [events, setEvents] = useState<Ev[]>([]);
   const [eventFilter, setEventFilter] = useState("");
@@ -71,7 +52,12 @@ export default function AdminActivityClient() {
         </div>
         <button
           type="button"
-          onClick={() => downloadCsv(events)}
+          onClick={() => {
+            const params = new URLSearchParams({ type: "activity" });
+            if (eventFilter) params.set("event", eventFilter);
+            if (moduleFilter) params.set("module", moduleFilter);
+            window.location.href = `/api/admin/export?${params}`;
+          }}
           className="rounded-xl border border-white/10 px-3 py-2 text-xs text-[#8B8AA0] hover:text-[#F2F1F8]"
         >
           Export CSV

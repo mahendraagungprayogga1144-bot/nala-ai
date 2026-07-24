@@ -42,7 +42,14 @@ export function fmtRupiah(n: number) {
   return "Rp " + Math.round(n).toLocaleString("id-ID");
 }
 
-export function buildWaMessage(opts: { name: string; email: string; plan: string; amount: number; invoice: string }) {
+export function buildWaMessage(opts: {
+  name: string;
+  email: string;
+  plan: string;
+  amount: number;
+  invoice: string;
+  wa?: string;
+}) {
   const lines = [
     "Halo Admin Gercep AI! Saya mau upgrade paket.",
     "",
@@ -53,5 +60,6 @@ export function buildWaMessage(opts: { name: string; email: string; plan: string
     "",
     "Saya sudah transfer, berikut bukti transfernya. Mohon di-ACC ya, terima kasih!",
   ];
-  return `https://wa.me/${PAYMENT_WA}?text=${encodeURIComponent(lines.join("\n"))}`;
+  const wa = (opts.wa || PAYMENT_WA).replace(/\D/g, "") || PAYMENT_WA;
+  return `https://wa.me/${wa}?text=${encodeURIComponent(lines.join("\n"))}`;
 }

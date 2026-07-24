@@ -15,5 +15,8 @@ export async function GET() {
     maintenance_message: s.maintenance_message,
     // Needed so login can route admin team to /admin (emails are not secrets)
     admin_emails: s.admin_emails,
+    feature_flags: {
+      pwa_banner: s.feature_flags.pwa_banner,
+    },
   });
 }

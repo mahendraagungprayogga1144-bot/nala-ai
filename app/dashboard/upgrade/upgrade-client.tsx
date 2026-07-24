@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Check, Copy, MessageCircle, Clock, Crown, ShieldCheck } from "lucide-react";
-import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, type PlanKey } from "@/lib/payment/config";
+import { UPGRADE_PLANS, BANK_ACCOUNTS, fmtRupiah, buildWaMessage, PAYMENT_WA, type PlanKey } from "@/lib/payment/config";
+import { trackClientEvent } from "@/lib/admin/track-event";
 import type { CurrentSub, PendingPayment } from "./page";
 
 function fmtDate(d: string | null) {
@@ -26,10 +27,31 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState("");
   const [invoice, setInvoice] = useState("");
+  const [paymentWa, setPaymentWa] = useState(PAYMENT_WA);
+
+  useEffect(() => {
+    trackClientEvent({ event: "upgrade_view", module: "billing", path: "/dashboard/upgrade" });
+    fetch("/api/public/platform")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.payment_wa) setPaymentWa(String(d.payment_wa));
+      })
+      .catch(() => {});
+  }, []);
 
   const plan = UPGRADE_PLANS[selected];
   const currentPlan = currentSub?.plan || "free";
   const isActive = currentSub?.status === "active" && currentPlan !== "free";
+
+  const waLink = (opts: { plan: string; amount: number; invoice: string }) =>
+    buildWaMessage({
+      name: userName,
+      email: userEmail,
+      plan: opts.plan,
+      amount: opts.amount,
+      invoice: opts.invoice,
+      wa: paymentWa,
+    });
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -53,8 +75,13 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
       status: "pending",
       invoice_id: invoice,
     });
+    trackClientEvent({
+      event: "payment_submit",
+      module: "billing",
+      meta: { plan: selected, amount: plan.price, invoice },
+    });
     setLoading(false);
-    window.open(buildWaMessage({ name: userName, email: userEmail, plan: selected, amount: plan.price, invoice }), "_blank");
+    window.open(waLink({ plan: selected, amount: plan.price, invoice }), "_blank");
     router.refresh();
   };
 
@@ -72,7 +99,7 @@ export default function UpgradeClient({ userId, userEmail, userName, currentSub,
             Biasanya di-ACC dalam beberapa jam di jam kerja.
           </p>
           <p className="text-[10px] font-mono text-[#5A5B7A] mb-6">Invoice: {pendingPayment.invoice_id} · {fmtDate(pendingPayment.created_at)}</p>
-          <a href={buildWaMessage({ name: userName, email: userEmail, plan: pendingPayment.plan, amount: Number(pendingPayment.amount), invoice: pendingPayment.invoice_id || "-" })}
+          <a href={waLink({ plan: pendingPayment.plan, amount: Number(pendingPayment.amount), invoice: pendingPayment.invoice_id || "-" })}
             target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-xl bg-[#4ADE80]/10 border border-[#4ADE80]/30 px-5 py-2.5 text-xs font-bold text-[#4ADE80] hover:bg-[#4ADE80]/20 transition-all">
             <MessageCircle size={14} /> Kirim Bukti Transfer via WA

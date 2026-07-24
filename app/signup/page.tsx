@@ -20,6 +20,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [signupOpen, setSignupOpen] = useState(true);
   const [trialDays, setTrialDays] = useState(TRIAL_DAYS);
+  const [supportEmail, setSupportEmail] = useState("hellogercepai@gmail.com");
 
   useEffect(() => {
     fetch("/api/public/platform")
@@ -27,6 +28,7 @@ export default function SignupPage() {
       .then((d) => {
         if (typeof d.signup_open === "boolean") setSignupOpen(d.signup_open);
         if (typeof d.trial_days === "number") setTrialDays(d.trial_days);
+        if (d.support_email) setSupportEmail(String(d.support_email));
       })
       .catch(() => {});
   }, []);
@@ -224,6 +226,12 @@ export default function SignupPage() {
         </button>
         <p className="mt-2 text-center text-[10px] text-[#5A5B7A]">
           Demo juga terbatas trial {trialDays} hari — data contoh untuk eksplorasi.
+        </p>
+        <p className="mt-3 text-center text-[10px] text-[#5A5B7A]">
+          Bantuan:{" "}
+          <a href={`mailto:${supportEmail}`} className="underline">
+            {supportEmail}
+          </a>
         </p>
       </div>
     </main>

@@ -24,9 +24,17 @@ export default async function AdminBusinessesPage() {
 
   return (
     <div className="px-4 py-6 sm:px-8">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold sm:text-2xl">Bisnis</h1>
-        <p className="text-xs text-[#5A5B7A]">{rows.length} bisnis terdaftar</p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Bisnis</h1>
+          <p className="text-xs text-[#5A5B7A]">{rows.length} bisnis terdaftar</p>
+        </div>
+        <a
+          href="/api/admin/export?type=businesses"
+          className="rounded-xl border border-white/10 px-3 py-2 text-xs text-[#8B8AA0] hover:text-[#F2F1F8]"
+        >
+          Export CSV
+        </a>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/[0.08]" style={{ background: "#0D0D1A" }}>

@@ -21,11 +21,14 @@ function timeAgo(d: string | null) {
 const PLAN_COLORS: Record<string, string> = { free: "#8B8AA0", starter: "#38BDF8", pro: "#2DD4BF", enterprise: "#A78BFA" };
 
 export default function AdminOverviewClient({
-  totalUsers, activeToday, newUsersThisMonth, revenueThisMonth, revenueThisYear,
+  totalUsers, activeToday, wau = 0, mau = 0, trialActive = 0, funnel,
+  newUsersThisMonth, revenueThisMonth, revenueThisYear,
   churnRate, planCounts, userGrowth, revenueByMonth, totalBusinesses, recentUsers,
   topModules = [],
 }: {
-  totalUsers: number; activeToday: number; newUsersThisMonth: number;
+  totalUsers: number; activeToday: number; wau?: number; mau?: number; trialActive?: number;
+  funnel?: { signup: number; business: number; first_action: number };
+  newUsersThisMonth: number;
   revenueThisMonth: number; revenueThisYear: number;
   churnRate: number; planCounts: Record<string, number>;
   userGrowth: { month: string; count: number }[];
@@ -36,7 +39,10 @@ export default function AdminOverviewClient({
 }) {
   const kpis = [
     { label: "Total User", value: String(totalUsers), icon: Users, color: "#2DD4BF" },
-    { label: "Aktif Hari Ini", value: String(activeToday), icon: UserCheck, color: "#4ADE80" },
+    { label: "DAU", value: String(activeToday), icon: UserCheck, color: "#4ADE80" },
+    { label: "WAU", value: String(wau), icon: UserCheck, color: "#38BDF8" },
+    { label: "MAU", value: String(mau), icon: Users, color: "#A78BFA" },
+    { label: "Trial Aktif", value: String(trialActive), icon: UserPlus, color: "#F59E0B" },
     { label: "User Baru Bulan Ini", value: String(newUsersThisMonth), icon: UserPlus, color: "#38BDF8" },
     { label: "Revenue Bulan Ini", value: fmtRp(revenueThisMonth), icon: DollarSign, color: "#F59E0B" },
     { label: "Revenue Tahun Ini", value: fmtRp(revenueThisYear), icon: TrendingUp, color: "#A78BFA" },
@@ -47,6 +53,8 @@ export default function AdminOverviewClient({
   const maxGrowth = Math.max(...userGrowth.map(g => g.count), 1);
   const maxRevenue = Math.max(...revenueByMonth.map(r => r.revenue), 1);
   const totalSubs = Object.values(planCounts).reduce((s, v) => s + v, 0) || 1;
+  const funnelData = funnel || { signup: totalUsers, business: totalBusinesses, first_action: 0 };
+  const funnelMax = Math.max(funnelData.signup, funnelData.business, funnelData.first_action, 1);
 
   return (
     <div className="px-4 py-6 sm:px-8">
@@ -56,7 +64,7 @@ export default function AdminOverviewClient({
       </div>
 
       {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         {kpis.map(k => (
           <div key={k.label} className="rounded-2xl border p-4" style={{ borderColor: k.color + "33", background: "#0D0D1A" }}>
             <div className="mb-2 flex items-center gap-1.5">
@@ -66,6 +74,30 @@ export default function AdminOverviewClient({
             <p className="text-lg font-bold" style={{ color: k.color, fontFamily: "'JetBrains Mono', monospace" }}>{k.value}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-white/[0.08] p-5" style={{ background: "#0D0D1A" }}>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8B8AA0]">Funnel signup → bisnis → first action</p>
+        <div className="space-y-3">
+          {[
+            { label: "Signup", value: funnelData.signup },
+            { label: "Punya bisnis", value: funnelData.business },
+            { label: "First action", value: funnelData.first_action },
+          ].map((step) => (
+            <div key={step.label}>
+              <div className="mb-1 flex justify-between text-xs">
+                <span className="text-[#8B8AA0]">{step.label}</span>
+                <span className="font-mono text-[#F2F1F8]">{step.value}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                <div
+                  className="h-full rounded-full bg-[#2DD4BF]"
+                  style={{ width: `${Math.round((step.value / funnelMax) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {topModules.length > 0 && (

@@ -1,8 +1,9 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Search, X, CheckCircle } from "lucide-react";
+import { Search, X, CheckCircle, Download } from "lucide-react";
+import { trackClientEvent } from "@/lib/admin/track-event";
 import type { AdminPayment } from "./page";
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
@@ -17,6 +18,13 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [loading, setLoading] = useState("");
+  const [adminEmail, setAdminEmail] = useState("admin");
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setAdminEmail(data.user.email);
+    });
+  }, [supabase]);
 
   const filtered = useMemo(() => {
     return payments.filter(p => {
@@ -37,7 +45,7 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
 
     await supabase.from("payments").update({
       status: "paid",
-      confirmed_by: "mahendraagungprayogga1144@gmail.com",
+      confirmed_by: adminEmail,
       confirmed_at: now.toISOString(),
       period_start: now.toISOString().slice(0, 10),
     }).eq("id", p.id);
@@ -68,10 +76,16 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
     }).eq("id", p.id);
 
     await supabase.from("admin_logs").insert({
-      admin_email: "mahendraagungprayogga1144@gmail.com",
+      admin_email: adminEmail,
       action: "confirm_payment",
       target_user_id: p.user_id,
       detail: { payment_id: p.id, plan: p.plan, amount: p.amount, expired_at: expiredAt.toISOString() },
+    });
+
+    trackClientEvent({
+      event: "subscription_change",
+      module: "billing",
+      meta: { plan: p.plan, amount: p.amount, payment_id: p.id, action: "confirm" },
     });
 
     setLoading("");
@@ -84,12 +98,12 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
 
     await supabase.from("payments").update({
       status: "failed",
-      confirmed_by: "mahendraagungprayogga1144@gmail.com",
+      confirmed_by: adminEmail,
       confirmed_at: new Date().toISOString(),
     }).eq("id", p.id);
 
     await supabase.from("admin_logs").insert({
-      admin_email: "mahendraagungprayogga1144@gmail.com",
+      admin_email: adminEmail,
       action: "reject_payment",
       target_user_id: p.user_id,
       detail: { payment_id: p.id, plan: p.plan, amount: p.amount },
@@ -101,9 +115,17 @@ export default function AdminPaymentsClient({ payments }: { payments: AdminPayme
 
   return (
     <div className="px-4 py-6 sm:px-8">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold sm:text-2xl">Manajemen Pembayaran</h1>
-        <p className="text-xs text-[#5A5B7A]">{payments.length} total · {totalPending} pending · Total paid: {fmtRp(totalPaid)}</p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">Manajemen Pembayaran</h1>
+          <p className="text-xs text-[#5A5B7A]">{payments.length} total · {totalPending} pending · Total paid: {fmtRp(totalPaid)}</p>
+        </div>
+        <a
+          href="/api/admin/export?type=payments"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-xs text-[#8B8AA0] hover:text-[#F2F1F8]"
+        >
+          <Download size={12} /> Export CSV
+        </a>
       </div>
 
       {/* Filters */}

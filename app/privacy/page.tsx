@@ -86,7 +86,7 @@ export default function PrivacyPage() {
 
       <H>10. Kontak</H>
       <P>
-        Untuk pertanyaan privasi, hubungi: mahendraagungprayogga1144@gmail.com — PT Henima Collection Indonesia.
+        Untuk pertanyaan privasi, hubungi: hellogercepai@gmail.com — PT Henima Collection Indonesia.
       </P>
     </LegalShell>
   );

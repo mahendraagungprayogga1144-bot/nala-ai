@@ -96,7 +96,7 @@ export default function TermsPage() {
       </P>
 
       <H>11. Kontak</H>
-      <P>Hubungi: mahendraagungprayogga1144@gmail.com — PT Henima Collection Indonesia.</P>
+      <P>Hubungi: hellogercepai@gmail.com — PT Henima Collection Indonesia.</P>
     </LegalShell>
   );
 }

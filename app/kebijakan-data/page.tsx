@@ -97,7 +97,7 @@ export default function KebijakanDataPage() {
 
       <H>10. Kontak permintaan data</H>
       <P>
-        Email: mahendraagungprayogga1144@gmail.com · Subjek disarankan: “Permintaan Data / Gercep AI” · Perusahaan: PT
+        Email: hellogercepai@gmail.com · Subjek disarankan: “Permintaan Data / Gercep AI” · Perusahaan: PT
         Henima Collection Indonesia.
       </P>
     </LegalShell>

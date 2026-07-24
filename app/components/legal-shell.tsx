@@ -60,8 +60,8 @@ export default function LegalShell({
           <p>Produk: Gercep AI · Domain: gercepos.id</p>
           <p className="mt-2">
             Pertanyaan legal:{" "}
-            <a href="mailto:mahendraagungprayogga1144@gmail.com" className="text-[#2DD4BF] hover:underline">
-              mahendraagungprayogga1144@gmail.com
+            <a href="mailto:hellogercepai@gmail.com" className="text-[#2DD4BF] hover:underline">
+              hellogercepai@gmail.com
             </a>
           </p>
         </div>

@@ -56,7 +56,7 @@ insert into platform_settings (key, value) values
   ('signup_open', 'true'::jsonb),
   ('demo_enabled', 'true'::jsonb),
   ('payment_wa', '"6281234567890"'::jsonb),
-  ('support_email', '"mahendraagungprayogga1144@gmail.com"'::jsonb),
+  ('support_email', '"hellogercepai@gmail.com"'::jsonb),
   ('app_url', '"https://www.gercepos.id"'::jsonb),
   ('admin_emails', '["mahendraagungprayogga1144@gmail.com"]'::jsonb),
   ('feature_flags', '{"ai_kasir":true,"ai_jual_beli":true,"pwa_banner":true,"marketplace":true,"pajak":true}'::jsonb),

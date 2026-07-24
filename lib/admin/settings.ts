@@ -31,7 +31,7 @@ const DEFAULTS: PlatformSettingsMap = {
   signup_open: true,
   demo_enabled: true,
   payment_wa: PAYMENT_WA,
-  support_email: FALLBACK_ADMIN_EMAIL,
+  support_email: "hellogercepai@gmail.com",
   app_url: "https://www.gercepos.id",
   admin_emails: [FALLBACK_ADMIN_EMAIL],
   feature_flags: {

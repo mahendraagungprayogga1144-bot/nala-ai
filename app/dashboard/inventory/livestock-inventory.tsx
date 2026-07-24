@@ -51,7 +51,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
   const handleAdd = async (defaultCat: string, cats: string[]) => {
     if (!name || !stock) return;
     setFormLoading(true);
-    await supabase.from("products").insert({
+    const { error } = await supabase.from("products").insert({
       user_id: userId, business_id: businessId,
       name, category: category || defaultCat,
       stock: Number(stock), min_stock: Number(minStock),
@@ -59,6 +59,10 @@ export default function LivestockInventory({ products, userId, businessId }: { p
       cost: cost ? Number(cost) : null,
     });
     setFormLoading(false);
+    if (error) {
+      alert("Gagal tambah: " + error.message);
+      return;
+    }
     setName(""); setStock(""); setMinStock("5"); setPrice(""); setCost(""); setCategory("");
     setShowForm(null);
     router.refresh();
@@ -155,8 +159,11 @@ export default function LivestockInventory({ products, userId, businessId }: { p
       ? -product.cost * Number(moveQty) : null;
 
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setMovingId(null)}>
-        <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={() => setMovingId(null)}>
+        <div
+          className="max-h-[min(92dvh,560px)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-t-2xl border border-white/10 bg-[#0F0F1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">Catat Pergerakan — {product.name}</h3>
             <button onClick={() => setMovingId(null)} className="text-[#8B8AA0] text-lg">✕</button>
@@ -199,28 +206,49 @@ export default function LivestockInventory({ products, userId, businessId }: { p
     const satuan = isHewan ? "ekor" : PAKAN_CATS.includes(p.category || "") ? "kg" : "pcs";
     const isKritis = p.stock <= p.min_stock;
     return (
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#38BDF8]/15 to-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
-            {p.photo_url ? <img src={p.photo_url} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span className="text-lg">{isHewan ? "🐄" : PAKAN_CATS.includes(p.category || "") ? "🌾" : "💊"}</span>}
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <p className="text-sm font-medium">{p.name}</p>
-              {p.category && <span className="text-[10px] text-[#8B8AA0] bg-white/5 px-1.5 py-0.5 rounded">{p.category}</span>}
-            </div>
-            <p className="text-[11px] text-[#8B8AA0]">
-              {p.cost ? `Beli Rp${Number(p.cost).toLocaleString("id-ID")}` : ""}
-              {p.price ? ` · Jual Rp${Number(p.price).toLocaleString("id-ID")}` : ""}
-            </p>
-          </div>
+      <div className="relative flex items-center gap-2 border-b border-white/[0.04] px-3 py-3 last:border-0 sm:gap-3 sm:px-4">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#38BDF8]/15 to-[#8B5CF6]/15">
+          {p.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={p.photo_url} alt={p.name} className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-lg">{isHewan ? "🐄" : PAKAN_CATS.includes(p.category || "") ? "🌾" : "💊"}</span>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className={"font-mono font-semibold text-sm " + (isKritis ? "text-[#EC4899]" : "text-[#F2F1F8]")}>{p.stock} {satuan}</p>
-            {isKritis && <p className="text-[10px] text-[#EC4899]">Stok kritis!</p>}
+        <div className="min-w-0 flex-1">
+          <div className="mb-0.5 flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-medium">{p.name}</p>
+            {p.category && (
+              <span className="hidden shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-[#8B8AA0] sm:inline">
+                {p.category}
+              </span>
+            )}
           </div>
-          <button onClick={() => { setMovingId(p.id); setMoveType("masuk"); setMoveReason("dijual"); }} className="text-[#8B8AA0] hover:text-[#2DD4BF] transition-colors p-1"><ArrowLeftRight size={14} /></button>
+          <p className="truncate text-[11px] text-[#8B8AA0]">
+            {p.cost ? `Beli Rp${Number(p.cost).toLocaleString("id-ID")}` : ""}
+            {p.price ? ` · Jual Rp${Number(p.price).toLocaleString("id-ID")}` : ""}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="text-right">
+            <p className={"font-mono text-sm font-semibold " + (isKritis ? "text-[#EC4899]" : "text-[#F2F1F8]")}>
+              {p.stock}
+              <span className="ml-0.5 text-[10px] font-normal text-[#8B8AA0]">{satuan}</span>
+            </p>
+            {isKritis && <p className="text-[9px] text-[#EC4899]">Kritis</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setMovingId(p.id);
+              setMoveType("masuk");
+              setMoveReason("dijual");
+            }}
+            className="rounded-lg p-2 text-[#8B8AA0] transition-colors hover:bg-white/[0.04] hover:text-[#2DD4BF]"
+            aria-label="Pergerakan stok"
+          >
+            <ArrowLeftRight size={16} />
+          </button>
           <EditProductModal product={p} />
           <DeleteTransactionButton id={p.id} table="products" />
         </div>

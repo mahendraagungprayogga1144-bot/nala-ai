@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./sidebar";
 import TrialBanner from "./components/trial-banner";
+import SyncActiveBusiness from "./components/sync-active-business";
 import { Menu, X } from "lucide-react";
 import { blockedPathForFlags } from "@/lib/admin/feature-gate";
 
@@ -67,6 +68,7 @@ export default function DashboardShell({
 
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
+      <SyncActiveBusiness businessId={activeBusiness?.id} />
       {/* Mobile top bar */}
       <div
         className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-white/[0.06] bg-[#0B0B16]/92 px-4 backdrop-blur-xl md:hidden"

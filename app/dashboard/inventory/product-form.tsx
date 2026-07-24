@@ -31,17 +31,21 @@ export default function ProductForm({ userId, businessId, nextSkuNumber, config 
     if (photoFile) {
       const path = `${userId}/${Date.now()}-${photoFile.name}`;
       const { error: uploadError } = await supabase.storage.from("product-photos").upload(path, photoFile);
-      if (!uploadError) {
+      if (uploadError) {
+        // Foto gagal tidak membatalkan simpan produk — tapi beri tahu
+        console.warn(uploadError.message);
+      } else {
         const { data } = supabase.storage.from("product-photos").getPublicUrl(path);
         photoUrl = data.publicUrl;
       }
     }
-    await supabase.from("products").insert({
+    const finalCategory = category === "custom" ? "" : category;
+    const { error } = await supabase.from("products").insert({
       user_id: userId,
       business_id: businessId,
       name,
       sku,
-      category: category || null,
+      category: finalCategory || null,
       photo_url: photoUrl,
       stock: Number(stock),
       min_stock: Number(minStock),
@@ -49,6 +53,10 @@ export default function ProductForm({ userId, businessId, nextSkuNumber, config 
       cost: cost ? Number(cost) : null,
     });
     setLoading(false);
+    if (error) {
+      alert("Gagal simpan produk: " + error.message);
+      return;
+    }
     setName(""); setSku(`SKU-${String(nextSkuNumber + 1).padStart(3, "0")}`); setStock(""); setPrice(""); setCost(""); setCategory(""); setPhotoFile(null); setPhotoPreview("");
     router.refresh();
   };

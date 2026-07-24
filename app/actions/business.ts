@@ -11,6 +11,28 @@ const COOKIE_OPTS = {
   path: "/",
 };
 
+/** Safe cookie sync from client (Server Action) — never call cookies().set in RSC. */
+export async function syncActiveBusinessCookie(businessId: string) {
+  if (!businessId) return;
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: biz } = await supabase
+    .from("businesses")
+    .select("id")
+    .eq("id", businessId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!biz) return;
+
+  const cookieStore = await cookies();
+  cookieStore.set("active_business_id", businessId, COOKIE_OPTS);
+}
+
 export async function switchBusiness(businessId: string) {
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();

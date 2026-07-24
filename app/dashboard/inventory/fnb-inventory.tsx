@@ -121,9 +121,15 @@ export default function FnBInventory({ products, userId, businessId, businessNam
       price: fHargaJual ? Number(fHargaJual) : null,
       sku: fSku || null, unit: fSatuan || "kg",
     };
-    if (editProduct) { await supabase.from("products").update(payload).eq("id", editProduct.id); }
-    else { await supabase.from("products").insert(payload); }
-    setFormLoading(false); resetForm(); setShowForm(null); router.refresh();
+    const { error } = editProduct
+      ? await supabase.from("products").update(payload).eq("id", editProduct.id)
+      : await supabase.from("products").insert(payload);
+    setFormLoading(false);
+    if (error) {
+      alert("Gagal simpan: " + error.message);
+      return;
+    }
+    resetForm(); setShowForm(null); router.refresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -185,7 +191,7 @@ export default function FnBInventory({ products, userId, businessId, businessNam
 
       <div className={FNB_VIVID_CARD}>
         <FnbGradientLine />
-        <div className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#13131F]/95 backdrop-blur-md md:static md:bg-transparent md:backdrop-blur-none">
+        <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 border-b border-white/[0.08] bg-[#13131F]/95 backdrop-blur-md md:static md:top-auto md:bg-transparent md:backdrop-blur-none">
           <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-4 md:py-3">
             <div className="relative min-w-0 flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8AA0]" />
@@ -339,7 +345,7 @@ export default function FnBInventory({ products, userId, businessId, businessNam
       />
 
       {movingProduct && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setMovingProduct(null)}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={() => setMovingProduct(null)}>
           <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-sm">{"Stok — " + movingProduct.name}</h3>
@@ -368,8 +374,8 @@ export default function FnBInventory({ products, userId, businessId, businessNam
       )}
 
       {quickOpen && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/60 md:items-center md:justify-center" onClick={() => setQuickOpen(false)}>
-          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0F0F1A] p-5 md:max-w-md md:rounded-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/60 md:items-center md:justify-center" onClick={() => setQuickOpen(false)}>
+          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0F0F1A] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:max-w-md md:rounded-2xl" onClick={e => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-semibold">Tambah Bahan — 3 langkah</h3>
               <button type="button" onClick={() => setQuickOpen(false)} className="text-[#8B8AA0]"><X size={20} /></button>

@@ -5,18 +5,13 @@ import Link from "next/link";
 
 export type ActiveBusiness = { id: string; name: string; type: string | null };
 
-const COOKIE_OPTS = {
-  httpOnly: false,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  maxAge: 60 * 60 * 24 * 30,
-  path: "/",
-};
-
 /**
  * Resolve active business. When `expectedType` is set (hub pages), prefer a
  * business of that type over a mismatched cookie — fixes "ga masuk" when the
  * user has multiple businesses (e.g. demo kuliner + ternak).
+ *
+ * Do NOT set cookies here — Next.js throws if cookies().set runs in a Server
+ * Component (mobile hubs → ERROR 1621801304). Sync via SyncActiveBusiness.
  */
 export async function getActiveBusiness(expectedType?: string) {
   const supabase = await createClient();
@@ -50,11 +45,6 @@ export async function getActiveBusiness(expectedType?: string) {
     }
   } else {
     business = byCookie || list[0] || null;
-  }
-
-  // Align cookie when hub auto-picked a matching business
-  if (business && business.id !== activeId) {
-    cookieStore.set("active_business_id", business.id, COOKIE_OPTS);
   }
 
   return { supabase, user, business };

@@ -169,11 +169,11 @@ export function StockActionSheet({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-3xl border border-white/10 bg-[#12121f] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl"
+        className="flex max-h-[min(92dvh,640px)] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#12121f] sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20 sm:hidden" />
-        <div className="mb-4 flex items-start justify-between gap-2">
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/20 sm:hidden" />
+        <div className="mb-2 flex shrink-0 items-start justify-between gap-2 px-5 pt-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-[#5A5B7A]">{title}</p>
             <p className="font-semibold text-[#F0EFF8]">{product.name}</p>
@@ -186,7 +186,7 @@ export function StockActionSheet({
           </button>
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="mb-1 block text-[11px] text-[#8B8AA0]">Jumlah *</label>

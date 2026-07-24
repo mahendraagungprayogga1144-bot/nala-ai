@@ -136,9 +136,15 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
       ? (recipeHpp > 0 ? recipeHpp : (fHargaBeli ? Number(fHargaBeli) : null))
       : (fHargaBeli ? Number(fHargaBeli) : null);
     const payload = { user_id: userId, business_id: businessId, name: fNama, category: fKategori, stock: Number(fStok), min_stock: Number(fMinStok), cost: costValue, price: fHargaJual ? Number(fHargaJual) : null, sku: fSku || null };
-    if (editProduct) { await supabase.from("products").update(payload).eq("id", editProduct.id); }
-    else { await supabase.from("products").insert(payload); }
-    setFormLoading(false); resetForm(); setShowForm(null); router.refresh();
+    const { error } = editProduct
+      ? await supabase.from("products").update(payload).eq("id", editProduct.id)
+      : await supabase.from("products").insert(payload);
+    setFormLoading(false);
+    if (error) {
+      alert("Gagal simpan: " + error.message);
+      return;
+    }
+    resetForm(); setShowForm(null); router.refresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -478,7 +484,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
         ))}
       </div>
       {movingProduct && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setMovingProduct(null)}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={() => setMovingProduct(null)}>
           <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-sm">{"Stok — " + movingProduct.name}</h3>
@@ -517,7 +523,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
         const totalHpp = qty * hpp;
         const laba = total - totalHpp;
         return (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSellingProduct(null)}>
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={() => setSellingProduct(null)}>
             <div className="rounded-2xl border border-white/10 p-5 w-full max-w-sm" style={{ background: "#0D0D1A" }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -577,7 +583,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
       <button
         type="button"
         onClick={() => setQuickOpen(true)}
-        className="md:hidden fixed bottom-6 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95"
+        className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-4 z-[70] flex h-14 w-14 items-center justify-center rounded-full shadow-lg active:scale-95 md:hidden"
         style={{ ...BTN_GRAD, boxShadow: "0 8px 32px rgba(45,212,191,0.25)" }}
         aria-label="Tambah bahan"
       >
@@ -585,7 +591,7 @@ export default function HomeIndustryInventory({ products, recipes, userId, busin
       </button>
 
       {quickOpen && (
-        <div className="fixed inset-0 z-50 md:hidden bg-black/60" onClick={() => setQuickOpen(false)}>
+        <div className="fixed inset-0 z-[80] bg-black/60 md:hidden" onClick={() => setQuickOpen(false)}>
           <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl border border-white/10 p-5 pb-8" style={{ background: "#0D0D1A" }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-medium text-[#F0EFF8]">Tambah cepat</p>

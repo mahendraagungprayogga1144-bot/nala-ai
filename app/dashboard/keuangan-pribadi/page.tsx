@@ -3,11 +3,7 @@ import TransactionForm from "../transaction-form";
 import DeleteTransactionButton from "../delete-transaction-button";
 import MonthYearFilter from "../month-year-filter";
 import { Suspense } from "react";
-import dynamic from "next/dynamic";
-
-const CashFlowChart = dynamic(() => import("../cash-flow-chart"), {
-  loading: () => <div className="mb-6 h-48 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
+import CashFlowChartLazy from "../cash-flow-chart-lazy";
 
 export default async function KeuanganPribadiPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
@@ -76,7 +72,7 @@ export default async function KeuanganPribadiPage({ searchParams }: { searchPara
 
       <Suspense><MonthYearFilter /></Suspense>
 
-      <CashFlowChart transactions={(transactions as never) || []} />
+      <CashFlowChartLazy transactions={(transactions as never) || []} />
 
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
         <TransactionForm userId={user.id} scope="pribadi" businessId={business?.id} />

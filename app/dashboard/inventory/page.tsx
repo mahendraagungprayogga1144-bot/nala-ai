@@ -5,7 +5,6 @@ import ProfitIndicator from "./profit-indicator";
 import MonthYearFilter from "../month-year-filter";
 import { Package, AlertTriangle, Wallet, TrendingUp } from "lucide-react";
 import { Suspense } from "react";
-import dynamic from "next/dynamic";
 import { getConfig } from "./business-config";
 import LivestockInventory from "./livestock-inventory";
 import HomeIndustryInventory from "./home-industry-inventory";
@@ -20,22 +19,13 @@ import OlshopInventory from "./olshop-inventory";
 import KesehatanInventory from "./kesehatan-inventory";
 import BengkelInventory from "./bengkel-inventory";
 import { normalizeBizType } from "@/lib/auth/post-login";
-
-const InventoryCharts = dynamic(() => import("./inventory-charts"), {
-  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
-const TrendChart = dynamic(() => import("./trend-chart"), {
-  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
-const RecentMovements = dynamic(() => import("./recent-movements"), {
-  loading: () => <div className="mb-4 h-32 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
-const MovementsChart = dynamic(() => import("./movements-chart"), {
-  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
-const LossBreakdownChart = dynamic(() => import("./loss-breakdown-chart"), {
-  loading: () => <div className="mb-4 h-40 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
+import {
+  InventoryChartsLazy,
+  TrendChartLazy,
+  RecentMovementsLazy,
+  MovementsChartLazy,
+  LossBreakdownChartLazy,
+} from "./inventory-charts-lazy";
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
@@ -351,10 +341,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       {!specialized && (
         <>
-          <TrendChart history={history || []} />
+          <TrendChartLazy history={history || []} />
           <ProfitIndicator totalProfit={totalRealizedProfit} totalAssetValue={totalValue} />
-          <LossBreakdownChart movements={(allMovements as never) || []} />
-          <InventoryCharts products={products || []} />
+          <LossBreakdownChartLazy movements={(allMovements as never) || []} />
+          <InventoryChartsLazy products={products || []} />
 
           <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl px-5 pt-4 pb-2 mb-4">
             <div className="flex items-center justify-between">
@@ -363,8 +353,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             </div>
           </div>
 
-          <MovementsChart movements={(movements as never) || []} />
-          <RecentMovements movements={(movements as never) || []} />
+          <MovementsChartLazy movements={(movements as never) || []} />
+          <RecentMovementsLazy movements={(movements as never) || []} />
         </>
       )}
     </div>

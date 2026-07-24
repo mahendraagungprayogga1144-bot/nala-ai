@@ -1,15 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import dynamic from "next/dynamic";
 import type { KasirTodaySummary } from "./owner-kasir-summary";
 import type { LiveKasirRow } from "./owner-kasir-live";
 import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-report";
 import { computeKasirKpis } from "@/app/dashboard/keuangan-bisnis/lib/kasir-export";
 import { shortOrderNo } from "@/app/dashboard/fnb/lib/receipt-thermal";
 import { parseMejaFromCatatan, mejaLabel } from "@/app/dashboard/fnb/lib/kasir-order-meta";
-
-const DashboardOwnerClient = dynamic(() => import("./dashboard-owner-client"), {
-  loading: () => <div className="px-4 py-8 sm:px-8"><div className="h-64 animate-pulse rounded-2xl bg-white/[0.04]" /></div>,
-});
+import OwnerClientLazy from "./owner-client-lazy";
 
 export type TopProduct = { id: string; name: string; sold: number; revenue: number; emoji: string };
 export type RecentTransaction = {
@@ -398,7 +394,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
   }
 
   return (
-    <DashboardOwnerClient
+    <OwnerClientLazy
       businesses={businessData}
       topProducts={topProducts}
       recentTransactions={recentTransactions}

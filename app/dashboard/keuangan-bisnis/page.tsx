@@ -3,14 +3,10 @@ import TransactionForm from "../transaction-form";
 import DeleteTransactionButton from "../delete-transaction-button";
 import MonthYearFilter from "../month-year-filter";
 import { Suspense, Fragment } from "react";
-import dynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import { sortBisnisTransactions, formatTxDateLabel, formatTxTimeWib } from "@/lib/finance/sort-transactions";
 import KasirTransactionsPanel, { type KasirOrderRow } from "./kasir-transactions-panel";
-
-const CashFlowChart = dynamic(() => import("../cash-flow-chart"), {
-  loading: () => <div className="mb-6 h-48 animate-pulse rounded-2xl bg-white/[0.04]" />,
-});
+import CashFlowChartLazy from "../cash-flow-chart-lazy";
 
 export default async function KeuanganBisnisPage({ searchParams }: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   const supabase = await createClient();
@@ -118,7 +114,7 @@ export default async function KeuanganBisnisPage({ searchParams }: { searchParam
 
       <Suspense><MonthYearFilter /></Suspense>
 
-      <CashFlowChart transactions={(transactions as never) || []} />
+      <CashFlowChartLazy transactions={(transactions as never) || []} />
 
       {business?.type === "kuliner" && (
         <KasirTransactionsPanel

@@ -214,7 +214,16 @@ export default function FnbMenuClient({ menus, products, userId, businessId, bus
   const handleSaveMenu = async () => {
     if (!fNama || !fHarga) return;
     setMenuLoading(true);
-    const payload = { user_id: userId, business_id: businessId, nama: fNama, kategori: fKategori, harga_jual: Number(fHarga), status: fStatus, yield_quantity: Number(fYield) || 1, photo_url: fFotoUrl || null };
+    const payload = {
+      user_id: userId,
+      business_id: businessId,
+      nama: fNama,
+      kategori: fKategori,
+      harga_jual: Number(fHarga),
+      status: fStatus || "aktif",
+      yield_quantity: Number(fYield) || 1,
+      photo_url: fFotoUrl || null,
+    };
     const { error } = editMenu
       ? await supabase.from("menus").update(payload).eq("id", editMenu.id)
       : await supabase.from("menus").insert(payload);
@@ -249,7 +258,7 @@ export default function FnbMenuClient({ menus, products, userId, businessId, bus
 
   const startEdit = (m: FnbMenu) => {
     setEditMenu(m); setFNama(m.nama); setFKategori(m.kategori || "Makanan");
-    setFHarga(m.harga_jual.toString()); setFStatus(m.status || "aktif"); setFYield((m.yield_quantity || 1).toString()); setFFotoUrl(m.foto_url || ""); setShowMenuForm(true);
+    setFHarga(m.harga_jual.toString()); setFStatus(m.status || "aktif"); setFYield((m.yield_quantity || 1).toString()); setFFotoUrl(m.foto_url || (m as { photo_url?: string | null }).photo_url || ""); setShowMenuForm(true);
   };
 
   const totalMenu = menus.length;

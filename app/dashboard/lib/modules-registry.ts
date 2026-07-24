@@ -96,7 +96,7 @@ export function getSidebarModules(
   const hide = new Set<string>();
   if (flags?.ai_kasir === false) {
     hide.add("kasir");
-    hide.add("fnb-kasir");
+    // F&B POS is separate from AI Kasir — keep fnb-kasir visible
   }
   if (flags?.ai_jual_beli === false) hide.add("ai-jual-beli");
   if (flags?.marketplace === false) {

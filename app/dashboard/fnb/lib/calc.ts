@@ -31,7 +31,7 @@ export function normalizeMenu(menu: Record<string, unknown> & { menu_recipes?: A
     harga_jual: Number(menu.harga_jual),
     yield_quantity: Number(menu.yield_quantity) || 1,
     status: menu.status as string | undefined,
-    foto_url: menu.foto_url as string | null | undefined,
+    foto_url: (menu.foto_url ?? menu.photo_url) as string | null | undefined,
     menu_recipes: recipes,
   };
 }

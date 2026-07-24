@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import KasirClient from "./kasir-client";
 import { normalizeMenus } from "../lib/calc";
+import { loadActiveMenusForKasir } from "../lib/load-active-menus";
 import { todayWib } from "@/lib/date";
 import { normalizeBizType } from "@/lib/auth/post-login";
 
@@ -31,13 +32,8 @@ export default async function FnbKasirPage() {
 
   const today = todayWib();
 
-  const [{ data: menus }, { data: employees }, { data: products }, { data: todayOrders }] = await Promise.all([
-    supabase
-      .from("menus")
-      .select("*, menu_recipes(*, products(id, name, cost, stock))")
-      .eq("business_id", business.id)
-      .eq("status", "aktif")
-      .order("kategori"),
+  const [{ menus, error: menusErr }, { data: employees }, { data: products }, { data: todayOrders }] = await Promise.all([
+    loadActiveMenusForKasir(supabase, business.id),
     supabase
       .from("employees")
       .select("*, checkins(id, tanggal, jam_masuk, jam_keluar)")
@@ -57,6 +53,15 @@ export default async function FnbKasirPage() {
       .eq("order_date", today),
   ]);
 
+  if (menusErr) {
+    return (
+      <div className="px-4 py-10 text-center sm:px-8">
+        <p className="mb-2 text-[#EC4899]">Gagal memuat menu kasir.</p>
+        <p className="text-xs text-[#8B8AA0]">{menusErr}</p>
+      </div>
+    );
+  }
+
   const omzetHariIni = todayOrders?.reduce((s, o) => s + Number(o.total || 0), 0) || 0;
   const labaHariIni = todayOrders?.reduce((s, o) => s + Number(o.laba || 0), 0) || 0;
   const totalOrder = todayOrders?.length || 0;
@@ -71,7 +76,7 @@ export default async function FnbKasirPage() {
       </div>
       <p className="mb-3 hidden px-3 text-sm text-[#8B8AA0] sm:mb-6 sm:block sm:px-0">Kasir kuliner — menu, order meja, struk, tutup shift.</p>
       <KasirClient
-        menus={normalizeMenus(menus || [])}
+        menus={normalizeMenus(menus as Parameters<typeof normalizeMenus>[0])}
         products={products || []}
         employees={employees || []}
         userId={user.id}

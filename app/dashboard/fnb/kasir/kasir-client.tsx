@@ -305,13 +305,12 @@ export default function KasirClient({ menus, products, employees, userId, busine
       return;
     }
 
+    // Order + catatan already saved. Stock/finance failures warn only (old UX) —
+    // do not delete the order after items are persisted.
+    const warnings: string[] = [];
     const stockResult = await deductStockForSale(supabase, cart, userId, { today, notePrefix: "Kasir" });
     if (!stockResult.ok) {
-      await supabase.from("order_items").delete().eq("order_id", order.id);
-      await supabase.from("orders").delete().eq("id", order.id);
-      alert("Penjualan dibatalkan — stok gagal dipotong: " + stockResult.errors.join(", "));
-      setLoading(false);
-      return;
+      warnings.push("Stok sebagian gagal dipotong: " + stockResult.errors.join(", "));
     }
 
     const { error: txErr } = await supabase.from("transactions").insert({
@@ -322,13 +321,12 @@ export default function KasirClient({ menus, products, employees, userId, busine
       amount: total, transaction_date: today,
     });
     if (txErr) {
-      await restoreStockApplies(supabase, stockResult.applied);
-      await supabase.from("order_items").delete().eq("order_id", order.id);
-      await supabase.from("orders").delete().eq("id", order.id);
-      alert("Penjualan dibatalkan — keuangan gagal: " + txErr.message);
-      setLoading(false);
-      return;
+      if (stockResult.ok && stockResult.applied.length) {
+        await restoreStockApplies(supabase, stockResult.applied);
+      }
+      warnings.push("Keuangan gagal dicatat: " + txErr.message);
     }
+    if (warnings.length) alert(warnings.join("\n"));
 
     const bayarNum = Number(bayar) || 0;
     const kembali = metodeBayar === "tunai" && bayarNum > total ? bayarNum - total : 0;

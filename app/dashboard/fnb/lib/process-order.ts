@@ -16,8 +16,9 @@ export async function restoreStockApplies(
 
 /**
  * Deduct recipe BOM stock with optimistic concurrency.
- * On any failure, returns ok:false — caller must NOT print receipt / claim success.
- * On later finance failure, caller should restoreStockApplies(result.applied).
+ * Returns ok:false with errors when any line fails (caller may warn and still keep the order).
+ * On failure, applied stock is restored and applied[] is empty.
+ * On later finance failure after ok:true, caller should restoreStockApplies(result.applied).
  */
 export async function deductStockForSale(
   supabase: SupabaseClient,

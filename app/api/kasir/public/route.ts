@@ -90,16 +90,50 @@ export async function POST(request: Request) {
       const { data: ci } = await db.from("checkins").select("jam_masuk").eq("id", checkinId).eq("employee_id", employee.id).maybeSingle();
       jamMasuk = ci?.jam_masuk || "—";
     }
-    const { data: orderRows } = await db
+    const withEmbed = await db
       .from("orders")
-      .select("id, total, created_at, order_items(qty, menus(nama))")
+      .select("id, total, created_at, order_items(qty, menu_id, menus(nama))")
       .eq("business_id", business.id)
       .eq("user_id", employee.id)
       .eq("order_date", today)
       .order("created_at", { ascending: false });
 
+    let orderRows = withEmbed.data;
+    if (withEmbed.error) {
+      const plain = await db
+        .from("orders")
+        .select("id, total, created_at, order_items(qty, menu_id)")
+        .eq("business_id", business.id)
+        .eq("user_id", employee.id)
+        .eq("order_date", today)
+        .order("created_at", { ascending: false });
+      const menuIds = [
+        ...new Set(
+          (plain.data || []).flatMap((o) =>
+            ((o.order_items || []) as { menu_id?: string }[]).map((i) => i.menu_id).filter(Boolean),
+          ),
+        ),
+      ] as string[];
+      const nameById = new Map<string, string>();
+      if (menuIds.length) {
+        const { data: menuRows } = await db.from("menus").select("id, nama").in("id", menuIds);
+        for (const m of menuRows || []) nameById.set(m.id, m.nama);
+      }
+      const orders = (plain.data || []).map((o) => {
+        const items = (o.order_items || []) as { qty: number; menu_id?: string }[];
+        const itemsSummary = items
+          .map((i) => `${nameById.get(i.menu_id || "") || "Menu"} x${i.qty}`)
+          .join(", ");
+        return { id: o.id, total: Number(o.total), created_at: o.created_at, itemsSummary };
+      });
+      return NextResponse.json({ jamMasuk, orders });
+    }
+
     const orders = (orderRows || []).map((o) => {
-      const items = (o.order_items || []) as { qty: number; menus: { nama: string } | { nama: string }[] | null }[];
+      const items = (o.order_items || []) as {
+        qty: number;
+        menus: { nama: string } | { nama: string }[] | null;
+      }[];
       const itemsSummary = items
         .map((i) => {
           const m = i.menus;
@@ -168,6 +202,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gagal simpan item: " + itemsErr.message }, { status: 400 });
     }
 
+    // Keep order + catatan even if stock/finance steps warn (legacy F&B UX).
+    const warnings: string[] = [];
     const stockResult = await deductStockForSale(
       db,
       cartItems.map((c) => ({ menu: c.menu, qty: c.qty })),
@@ -175,12 +211,7 @@ export async function POST(request: Request) {
       { today, notePrefix: `Kasir ${employee.nama}` },
     );
     if (!stockResult.ok) {
-      await db.from("order_items").delete().eq("order_id", order.id);
-      await db.from("orders").delete().eq("id", order.id);
-      return NextResponse.json(
-        { error: "Penjualan dibatalkan — stok gagal: " + stockResult.errors.join(", ") },
-        { status: 400 },
-      );
+      warnings.push("Stok sebagian gagal dipotong: " + stockResult.errors.join(", "));
     }
 
     const { error: txErr } = await db.from("transactions").insert({
@@ -194,13 +225,10 @@ export async function POST(request: Request) {
       transaction_date: today,
     });
     if (txErr) {
-      await restoreStockApplies(db, stockResult.applied);
-      await db.from("order_items").delete().eq("order_id", order.id);
-      await db.from("orders").delete().eq("id", order.id);
-      return NextResponse.json(
-        { error: "Penjualan dibatalkan — keuangan gagal: " + txErr.message },
-        { status: 400 },
-      );
+      if (stockResult.ok && stockResult.applied.length) {
+        await restoreStockApplies(db, stockResult.applied);
+      }
+      warnings.push("Keuangan gagal dicatat: " + txErr.message);
     }
 
     return NextResponse.json({
@@ -208,6 +236,7 @@ export async function POST(request: Request) {
       total,
       laba: Math.round(laba),
       totalHpp,
+      warnings,
     });
   }
 

@@ -1,6 +1,7 @@
 import { createPublicKasirDb, resolveEmployeeByToken } from "@/lib/kasir/public-db";
 import KasirPublicClient from "./kasir-public-client";
 import { normalizeMenus } from "@/app/dashboard/fnb/lib/calc";
+import { loadActiveMenusForKasir } from "@/app/dashboard/fnb/lib/load-active-menus";
 import { todayWib } from "@/lib/date";
 
 export default async function KasirPublicPage({ params }: { params: Promise<{ token: string }> }) {
@@ -53,13 +54,8 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
   const business = businessData;
   const today = todayWib();
 
-  const [{ data: menus }, { data: todayOrders }] = await Promise.all([
-    db
-      .from("menus")
-      .select("*, menu_recipes(*, products(id, name, cost, stock))")
-      .eq("business_id", business.id)
-      .eq("status", "aktif")
-      .order("kategori"),
+  const [{ menus, error: menusErr }, { data: todayOrders }] = await Promise.all([
+    loadActiveMenusForKasir(db, business.id),
     db
       .from("orders")
       .select("total, hpp, laba")
@@ -67,6 +63,17 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
       .eq("user_id", employee.id)
       .eq("order_date", today),
   ]);
+
+  if (menusErr) {
+    return (
+      <div style={{ background: "#070711", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif", color: "#F0EFF8" }}>
+        <div style={{ textAlign: "center", maxWidth: 360, padding: 16 }}>
+          <div style={{ fontSize: "18px", fontWeight: 600, marginBottom: ".5rem" }}>Gagal memuat menu</div>
+          <div style={{ fontSize: "12px", color: "#EC4899" }}>{menusErr}</div>
+        </div>
+      </div>
+    );
+  }
 
   const omzet = todayOrders?.reduce((s, o) => s + Number(o.total || 0), 0) || 0;
   const laba = todayOrders?.reduce((s, o) => s + Number(o.laba || 0), 0) || 0;
@@ -85,7 +92,7 @@ export default async function KasirPublicPage({ params }: { params: Promise<{ to
       }}
       business={business}
       ownerUserId={business.user_id}
-      menus={normalizeMenus(menus || [])}
+      menus={normalizeMenus(menus as Parameters<typeof normalizeMenus>[0])}
       initialStats={{ omzet, laba, totalOrders, foodCost }}
       today={today}
     />

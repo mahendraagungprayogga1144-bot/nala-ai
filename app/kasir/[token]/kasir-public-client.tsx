@@ -286,6 +286,8 @@ export default function KasirPublicClient({ employee: emp, business, ownerUserId
       const orderId = result.orderId as string;
       const saleTotal = Number(result.total);
       const saleLaba = Number(result.laba);
+      const saleWarnings = Array.isArray(result.warnings) ? (result.warnings as string[]) : [];
+      if (saleWarnings.length) alert(saleWarnings.join("\n"));
 
       const bayarNum = Number(bayar) || 0;
       const kembali = metodeBayar === "tunai" && bayarNum > saleTotal ? bayarNum - saleTotal : 0;

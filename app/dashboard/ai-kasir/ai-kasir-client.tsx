@@ -68,8 +68,11 @@ export default function AiKasirClient({
     setBoot(false);
   }, [businessId]);
 
-  const omzetHariIni = todaySales.reduce((s, t) => s + Number(t.total), 0);
-  const totalOrder = todaySales.length;
+  const activeSales = todaySales.filter(
+    (t) => t.status !== "voided" && !(t.catatan || "").startsWith("[VOID]"),
+  );
+  const omzetHariIni = activeSales.reduce((s, t) => s + Number(t.total), 0);
+  const totalOrder = activeSales.length;
   const displayName = storeName || businessName;
   const activeStaff = staff.filter((s) => s.aktif);
 
@@ -332,11 +335,15 @@ export default function AiKasirClient({
         )}
         {tab === "rekap" && (
           <KasirRekap
+            userId={userId}
+            businessId={businessId}
+            businessName={displayName}
             todaySales={todaySales}
             todayShifts={todayShifts}
             omzetHariIni={omzetHariIni}
             totalOrder={totalOrder}
             today={today}
+            activeShiftId={activeShift?.id || null}
           />
         )}
         {tab === "tim" && (

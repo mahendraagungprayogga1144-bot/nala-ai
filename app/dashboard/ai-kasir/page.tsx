@@ -17,8 +17,8 @@ export type KasirShift = {
 };
 
 export type TodaySale = {
-  id: string; total: number; catatan: string | null;
-  metode_bayar: string | null; created_at: string;
+  id: string; total: number; diskon: number | null; catatan: string | null;
+  metode_bayar: string | null; created_at: string; status?: string | null;
 };
 
 export type RetailStaff = {
@@ -76,7 +76,7 @@ export default async function AiKasirPage() {
       .limit(1)
       .maybeSingle(),
     supabase.from("orders")
-      .select("id, total, catatan, metode_bayar, created_at")
+      .select("id, total, diskon, catatan, metode_bayar, created_at, status")
       .eq("business_id", business.id)
       .eq("order_date", today)
       .eq("source", "retail_kasir")
@@ -101,7 +101,7 @@ export default async function AiKasirPage() {
   if (todaySalesRes.error) {
     const { data: fallback } = await supabase
       .from("orders")
-      .select("id, total, catatan, metode_bayar, created_at")
+      .select("id, total, diskon, catatan, metode_bayar, created_at, status")
       .eq("business_id", business.id)
       .eq("order_date", today)
       .ilike("catatan", "%AI Kasir%")

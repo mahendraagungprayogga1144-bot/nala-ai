@@ -1,19 +1,33 @@
 "use client";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Search, Plus, Minus, Trash2, X, Check, ShoppingCart,
-  DollarSign, AlertTriangle, Package,
+  DollarSign, AlertTriangle, Package, Pause, Play,
 } from "lucide-react";
 import type { Product, KasirShift } from "../page";
 import { trackClientEvent } from "@/lib/admin/track-event";
 import { checkoutProductSale } from "@/lib/pos/checkout-product-sale";
 import { isRetailSellable } from "@/lib/pos/retail-sellable";
+import { printRetailReceipt } from "@/lib/pos/retail-receipt";
 
 type CartItem = { product: Product; qty: number };
 
+type HeldOrder = {
+  id: string;
+  label: string;
+  lines: { productId: string; qty: number }[];
+  diskon: string;
+  metodeBayar: string;
+  heldAt: string;
+};
+
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
+
+function holdsKey(businessId: string) {
+  return `retail_kasir_holds_${businessId}`;
+}
 
 const METODE_BAYAR = [
   { val: "tunai", lbl: "Tunai" },
@@ -47,6 +61,21 @@ export default function KasirPOS({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   /** Retail POS: default hanya SKU siap jual (harga > 0, bukan bahan baku). */
   const [showAllStock, setShowAllStock] = useState(false);
+  const [holds, setHolds] = useState<HeldOrder[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(holdsKey(businessId));
+      if (raw) setHolds(JSON.parse(raw) as HeldOrder[]);
+    } catch { /* ignore */ }
+  }, [businessId]);
+
+  const persistHolds = (next: HeldOrder[]) => {
+    setHolds(next);
+    try {
+      localStorage.setItem(holdsKey(businessId), JSON.stringify(next));
+    } catch { /* ignore */ }
+  };
 
   const sellablePool = useMemo(
     () => (showAllStock ? products : products.filter(isRetailSellable)),
@@ -114,6 +143,61 @@ export default function KasirPOS({
     setCart([]); setDiskon(""); setBayar(""); setMetodeBayar("tunai"); setCartOpen(false);
   };
 
+  const holdOrder = () => {
+    if (cart.length === 0) return;
+    const label = cart.map((c) => c.product.name).slice(0, 2).join(", ") +
+      (cart.length > 2 ? ` +${cart.length - 2}` : "");
+    const next: HeldOrder = {
+      id: crypto.randomUUID(),
+      label,
+      lines: cart.map((c) => ({ productId: c.product.id, qty: c.qty })),
+      diskon,
+      metodeBayar,
+      heldAt: new Date().toISOString(),
+    };
+    persistHolds([next, ...holds].slice(0, 12));
+    resetOrder();
+    setSuccessMsg("Order diparkir. Panggil lagi kapan saja.");
+    setTimeout(() => setSuccessMsg(null), 2500);
+  };
+
+  const recallHold = (h: HeldOrder) => {
+    const restored: CartItem[] = [];
+    const missing: string[] = [];
+    for (const line of h.lines) {
+      const product = products.find((p) => p.id === line.productId);
+      if (!product) {
+        missing.push(line.productId.slice(0, 6));
+        continue;
+      }
+      const qty = Math.min(line.qty, Math.max(0, product.stock));
+      if (qty <= 0) {
+        missing.push(product.name);
+        continue;
+      }
+      restored.push({ product, qty });
+    }
+    if (restored.length === 0) {
+      alert("Tidak bisa panggil hold — produk hilang atau stok habis.");
+      return;
+    }
+    if (cart.length > 0 && !confirm("Keranjang sekarang akan diganti dengan order yang diparkir. Lanjut?")) {
+      return;
+    }
+    setCart(restored);
+    setDiskon(h.diskon || "");
+    setMetodeBayar(h.metodeBayar || "tunai");
+    setBayar("");
+    persistHolds(holds.filter((x) => x.id !== h.id));
+    if (missing.length) {
+      alert(`Sebagian item tidak dimuat (stok/produk): ${missing.slice(0, 3).join(", ")}`);
+    }
+  };
+
+  const dropHold = (id: string) => {
+    persistHolds(holds.filter((x) => x.id !== id));
+  };
+
   const handleProses = async () => {
     if (loading) return;
     if (cart.length === 0) return;
@@ -170,29 +254,19 @@ export default function KasirPOS({
     });
 
     // Struk retail sederhana (window print) — bukan struk F&B
-    try {
-      const w = window.open("", "_blank", "width=320,height=600");
-      if (w) {
-        const rows = cart
-          .map(
-            (c) =>
-              `<tr><td>${c.product.name} x${c.qty}</td><td style="text-align:right">${fmtRp((c.product.price || 0) * c.qty)}</td></tr>`,
-          )
-          .join("");
-        w.document.write(`<!DOCTYPE html><html><head><title>Struk</title>
-<style>body{font-family:monospace;font-size:12px;padding:12px;max-width:280px}table{width:100%}td{padding:2px 0}h1{font-size:14px;margin:0 0 8px}</style></head><body>
-<h1>${businessName || "AI Kasir"}</h1>
-<p>${today} · ${metodeBayar}${staffName ? ` · ${staffName}` : ""}</p>
-<table>${rows}</table>
-<hr/>
-<p><strong>Total ${fmtRp(total)}</strong>${diskonNum ? ` (diskon ${fmtRp(diskonNum)})` : ""}</p>
-<p style="margin-top:16px;text-align:center">Terima kasih</p>
-<script>window.print()</script></body></html>`);
-        w.document.close();
-      }
-    } catch {
-      /* ignore print blockers */
-    }
+    printRetailReceipt({
+      storeName: businessName || "AI Kasir",
+      today,
+      metodeBayar,
+      staffName,
+      lines: cart.map((c) => ({
+        name: c.product.name,
+        qty: c.qty,
+        price: c.product.price || 0,
+      })),
+      total,
+      diskon: diskonNum,
+    });
 
     setSuccessMsg(`Transaksi ${fmtRp(total)} berhasil!`);
     setTimeout(() => setSuccessMsg(null), 3000);
@@ -240,6 +314,44 @@ export default function KasirPOS({
       {!activeShift && (
         <div className="mb-4 rounded-xl border border-dashed border-[#B45309]/35 bg-[#B45309]/8 p-3 text-center text-xs text-[#B45309]">
           Belum buka shift. Buka shift dulu di tab Shift untuk tracking kas.
+        </div>
+      )}
+
+      {/* Held / parked orders */}
+      {holds.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-[#C5D4CB] bg-white p-3 shadow-sm">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#5C6B63]">
+            Order diparkir ({holds.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {holds.map((h) => (
+              <div
+                key={h.id}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#007A4D]/25 bg-[#F2FBF6] px-2.5 py-1.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => recallHold(h)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#007A4D]"
+                  title="Panggil ke keranjang"
+                >
+                  <Play size={11} />
+                  {h.label}
+                  <span className="font-mono font-normal text-[#5C6B63]">
+                    · {new Date(h.heldAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dropHold(h.id)}
+                  className="rounded p-0.5 text-[#8A9A90] hover:text-[#B42318]"
+                  title="Buang hold"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -383,6 +495,7 @@ export default function KasirPOS({
             metodeBayar={metodeBayar} setMetodeBayar={setMetodeBayar}
             bayar={bayar} setBayar={setBayar} kembali={kembali}
             loading={loading} onProses={handleProses} onReset={resetOrder}
+            onHold={holdOrder}
             onAdd={addToCart} onDec={decFromCart} onRemove={removeFromCart}
             inputCls={inputCls}
           />
@@ -420,6 +533,7 @@ export default function KasirPOS({
               metodeBayar={metodeBayar} setMetodeBayar={setMetodeBayar}
               bayar={bayar} setBayar={setBayar} kembali={kembali}
               loading={loading} onProses={handleProses} onReset={resetOrder}
+              onHold={holdOrder}
               onAdd={addToCart} onDec={decFromCart} onRemove={removeFromCart}
               inputCls={inputCls} compact
             />
@@ -440,13 +554,13 @@ export default function KasirPOS({
 function CartPanel({
   cart, subtotal, total, totalHpp, laba, margin, diskon, setDiskon,
   metodeBayar, setMetodeBayar, bayar, setBayar, kembali,
-  loading, onProses, onReset, onAdd, onDec, onRemove, inputCls, compact,
+  loading, onProses, onReset, onHold, onAdd, onDec, onRemove, inputCls, compact,
 }: {
   cart: CartItem[]; subtotal: number; total: number; totalHpp: number;
   laba: number; margin: number; diskon: string; setDiskon: (v: string) => void;
   metodeBayar: string; setMetodeBayar: (v: string) => void;
   bayar: string; setBayar: (v: string) => void; kembali: number;
-  loading: boolean; onProses: () => void; onReset: () => void;
+  loading: boolean; onProses: () => void; onReset: () => void; onHold: () => void;
   onAdd: (p: Product) => void; onDec: (id: string) => void; onRemove: (id: string) => void;
   inputCls: string; compact?: boolean;
 }) {
@@ -483,14 +597,14 @@ function CartPanel({
           </div>
         )}
 
-        <div className="h-px bg-white/[0.06] mb-2" />
+        <div className="h-px bg-[#E3EBE6] mb-2" />
         <div className="flex justify-between text-xs mb-1"><span className="text-[#5C6B63]">Subtotal</span><span className="font-mono text-[#3D4F45]">{fmtRp(subtotal)}</span></div>
         <div className="flex justify-between items-center text-xs mb-2">
           <span className="text-[#5C6B63]">Diskon</span>
           <input type="number" placeholder="0" value={diskon} onChange={e => setDiskon(e.target.value)}
             className="w-24 text-right text-xs px-2 py-1 rounded-lg border border-[#C5D4CB] bg-white text-[#0F1F17] focus:outline-none font-mono" />
         </div>
-        <div className="h-px bg-white/[0.06] mb-2" />
+        <div className="h-px bg-[#E3EBE6] mb-2" />
         <div className="flex justify-between items-baseline mb-1">
           <span className="text-sm font-medium text-[#0F1F17]">Total</span>
           <span className="text-base font-semibold text-[#007A4D]" style={{ fontFamily: "ui-monospace, monospace" }}>{fmtRp(total)}</span>
@@ -507,7 +621,7 @@ function CartPanel({
               className="py-2 rounded-lg border text-center text-[11px] font-medium"
               style={metodeBayar === m.val
                 ? { borderColor: "rgba(0,122,77,.45)", color: "#007A4D", background: "rgba(0,122,77,.08)" }
-                : { borderColor: "rgba(255,255,255,.06)", color: "#5A5B7A" }}>
+                : { borderColor: "#C5D4CB", color: "#5C6B63" }}>
               {m.lbl}
             </button>
           ))}
@@ -559,11 +673,18 @@ function CartPanel({
           <Check size={15} />
           {loading ? "Memproses..." : `Bayar — ${fmtRp(total)}`}
         </button>
-        <button type="button" onClick={onReset}
-          className="w-full py-2 rounded-xl text-xs border font-medium"
-          style={{ borderColor: "rgba(236,72,153,.25)", color: "#EC4899", background: "rgba(236,72,153,.05)" }}>
-          Batal order
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onHold} disabled={cart.length === 0}
+            className="w-full py-2 rounded-xl text-xs border font-medium inline-flex items-center justify-center gap-1 disabled:opacity-40"
+            style={{ borderColor: "rgba(0,122,77,.35)", color: "#007A4D", background: "rgba(0,122,77,.06)" }}>
+            <Pause size={12} /> Parkir order
+          </button>
+          <button type="button" onClick={onReset}
+            className="w-full py-2 rounded-xl text-xs border font-medium"
+            style={{ borderColor: "rgba(180,35,24,.25)", color: "#B42318", background: "rgba(180,35,24,.05)" }}>
+            Batal order
+          </button>
+        </div>
       </div>
     </div>
   );

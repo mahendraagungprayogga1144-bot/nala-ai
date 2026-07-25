@@ -84,7 +84,7 @@ export async function checkoutProductSale(
 
   const items = opts.lines.map((c) => ({
     order_id: order.id,
-    product_id: c.productId,
+    product_id: String(c.productId),
     qty: c.qty,
     harga_jual: c.price,
     hpp: c.cost || 0,

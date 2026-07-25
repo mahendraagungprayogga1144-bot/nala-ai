@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   ResponsiveContainer,
@@ -18,9 +20,15 @@ import {
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Minus, FileSpreadsheet,
-  Lightbulb, AlertTriangle, CheckCircle2, Info,
+  Lightbulb, AlertTriangle, CheckCircle2, Info, FileText,
 } from "lucide-react";
-import type { AnalitikKpi, DailyPoint, MonthlyPoint, PlRow, BizSlice, AnalitikInsight } from "./page";
+import type { AnalitikKpi, DailyPoint, MonthlyPoint, PlRow, BizSlice, AnalitikInsight, AnalitikTxDetail } from "./page";
+import { buildAnalitikPdfHtml } from "./lib/pdf-report";
+
+const InventoryPrintPreview = dynamic(
+  () => import("@/app/dashboard/inventory/components/inventory-print-preview"),
+  { ssr: false },
+);
 
 const fmtRpSigned = (n: number) => {
   const s = "Rp" + Math.round(Math.abs(n)).toLocaleString("id-ID");
@@ -87,12 +95,17 @@ export default function AnalitikClient({
   byIncome,
   byBusiness,
   insights,
+  recentTx,
   businesses,
   selectedBiz,
   selectedMonth,
   monthLabel,
   prevMonthLabel,
   monthOptions,
+  ownerName,
+  reportAddress,
+  reportNo,
+  businessLabel,
   deltas,
 }: {
   kpi: AnalitikKpi;
@@ -103,15 +116,21 @@ export default function AnalitikClient({
   byIncome: CatRow[];
   byBusiness: BizSlice[];
   insights: AnalitikInsight[];
+  recentTx: AnalitikTxDetail[];
   businesses: { id: string; name: string; type: string | null }[];
   selectedBiz: string;
   selectedMonth: string;
   monthLabel: string;
   prevMonthLabel: string;
   monthOptions: { value: string; label: string }[];
+  ownerName: string;
+  reportAddress: string;
+  reportNo: string;
+  businessLabel: string;
   deltas: { omzet: number; beban: number; laba: number; order: number };
 }) {
   const router = useRouter();
+  const [pdfPreviewHtml, setPdfPreviewHtml] = useState<string | null>(null);
   const navigate = (biz: string, bulan: string) => {
     const q = new URLSearchParams();
     if (biz !== "all") q.set("biz", biz);
@@ -120,10 +139,7 @@ export default function AnalitikClient({
   };
 
   const hasData = kpi.omzet > 0 || kpi.beban > 0;
-  const bizName =
-    selectedBiz === "all"
-      ? "Semua bisnis"
-      : businesses.find((b) => b.id === selectedBiz)?.name || "Bisnis";
+  const bizName = businessLabel;
 
   const kpiStrip = [
     {
@@ -173,6 +189,28 @@ export default function AnalitikClient({
 
   const pieData = byCategory.filter((c) => c.amount > 0).map((c) => ({ name: c.name, value: c.amount }));
 
+  const openPdfReport = () => {
+    setPdfPreviewHtml(
+      buildAnalitikPdfHtml({
+        businessLabel: bizName,
+        ownerName,
+        reportAddress,
+        reportNo,
+        monthLabel,
+        previousMonthLabel: prevMonthLabel,
+        kpi,
+        insights,
+        plRows,
+        daily,
+        monthly,
+        categories: byCategory,
+        incomes: byIncome,
+        businesses: byBusiness,
+        recentTx,
+      }),
+    );
+  };
+
   return (
     <div className="min-h-full bg-[#0A0A12]">
       {/* Accurate-style toolbar */}
@@ -190,6 +228,15 @@ export default function AnalitikClient({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={openPdfReport}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#7CB3E8]/30 bg-[#1E3A5F]/30 px-2.5 py-1.5 text-xs font-medium text-[#9CC8EE] hover:border-[#7CB3E8]/55 hover:bg-[#1E3A5F]/50"
+              title="Unduh laporan PDF formal"
+            >
+              <FileText size={13} />
+              Unduh PDF
+            </button>
             <label className="text-[11px] text-[#8B8AA0]">Bisnis</label>
             <select
               value={selectedBiz}
@@ -590,6 +637,14 @@ export default function AnalitikClient({
           Void AI Kasir tidak dihitung. Angka dalam kurung = negatif.
         </p>
       </div>
+
+      {pdfPreviewHtml && (
+        <InventoryPrintPreview
+          html={pdfPreviewHtml}
+          title={`Laporan Analitik · ${monthLabel} · ${bizName}`}
+          onClose={() => setPdfPreviewHtml(null)}
+        />
+      )}
     </div>
   );
 }

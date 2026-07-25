@@ -57,7 +57,17 @@ type TxRow = {
   type: string;
   amount: number | string;
   category: string | null;
+  description?: string | null;
   transaction_date: string | null;
+};
+
+export type AnalitikTxDetail = {
+  date: string;
+  type: "pemasukan" | "pengeluaran" | "penjualan";
+  category: string;
+  description: string;
+  amount: number;
+  businessName: string;
 };
 
 type OrderRow = {
@@ -133,6 +143,13 @@ export default async function AnalitikPage({
       );
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    const ownerName = profile?.full_name || user.email?.split("@")[0] || "Owner";
+
     const now = new Date();
     let year = now.getFullYear();
     let month = now.getMonth();
@@ -176,15 +193,45 @@ export default async function AnalitikPage({
       }
     }
 
-    const { data: txRaw } = await supabase
-      .from("transactions")
-      .select("business_id, type, amount, category, transaction_date")
-      .in("business_id", bizIds)
-      .eq("scope", "bisnis")
-      .gte("transaction_date", ymd(twelveStart))
-      .lte("transaction_date", ymd(monthEnd));
+    let tx: TxRow[] = [];
+    {
+      const full = await supabase
+        .from("transactions")
+        .select("business_id, type, amount, category, description, transaction_date")
+        .in("business_id", bizIds)
+        .eq("scope", "bisnis")
+        .gte("transaction_date", ymd(twelveStart))
+        .lte("transaction_date", ymd(monthEnd));
+      if (full.error) {
+        const basic = await supabase
+          .from("transactions")
+          .select("business_id, type, amount, category, transaction_date")
+          .in("business_id", bizIds)
+          .eq("scope", "bisnis")
+          .gte("transaction_date", ymd(twelveStart))
+          .lte("transaction_date", ymd(monthEnd));
+        tx = (basic.data || []) as TxRow[];
+      } else {
+        tx = (full.data || []) as TxRow[];
+      }
+    }
 
-    const tx = (txRaw || []) as TxRow[];
+    // Alamat struk (opsional) untuk identitas laporan
+    let reportAddress = "";
+    {
+      const settingsRes = await supabase
+        .from("retail_kasir_settings")
+        .select("business_id, store_name, receipt_address")
+        .in("business_id", bizIds)
+        .limit(8);
+      if (!settingsRes.error && settingsRes.data?.length) {
+        const pick =
+          selectedBiz !== "all"
+            ? settingsRes.data.find((s) => s.business_id === selectedBiz) || settingsRes.data[0]
+            : settingsRes.data.find((s) => s.receipt_address) || settingsRes.data[0];
+        reportAddress = (pick?.receipt_address || "").trim();
+      }
+    }
     const activeOrders = orders.filter((o) => !isVoided(o));
     const retailAll = activeOrders.filter(isRetailKasir);
 
@@ -416,6 +463,39 @@ export default async function AnalitikPage({
       timeZone: "UTC",
     });
 
+    const bizNameMap: Record<string, string> = {};
+    businesses.forEach((b) => {
+      bizNameMap[b.id] = b.name;
+    });
+
+    const recentTx: AnalitikTxDetail[] = [
+      ...cur.map((t) => ({
+        date: (t.transaction_date || "").split("T")[0],
+        type: (t.type === "pengeluaran" ? "pengeluaran" : "pemasukan") as "pemasukan" | "pengeluaran",
+        category: (t.category || "Lainnya").trim() || "Lainnya",
+        description: (t.description || t.category || "—").trim() || "—",
+        amount: Number(t.amount),
+        businessName: bizNameMap[t.business_id] || "Bisnis",
+      })),
+      ...retailCur.map((o) => ({
+        date: (o.order_date || "").split("T")[0],
+        type: "penjualan" as const,
+        category: "Penjualan AI Kasir",
+        description: (o.catatan || "AI Kasir retail").replace(/^\[VOID\]\s*/i, "").slice(0, 80),
+        amount: Number(o.total),
+        businessName: bizNameMap[o.business_id] || "Bisnis",
+      })),
+    ]
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount) || b.date.localeCompare(a.date))
+      .slice(0, 20);
+
+    const selectedMonthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const reportNo = `ANA-${selectedMonthKey.replace("-", "")}-${user.id.slice(0, 4).toUpperCase()}`;
+    const businessLabel =
+      selectedBiz === "all"
+        ? `Semua bisnis (${businesses.length})`
+        : businesses.find((b) => b.id === selectedBiz)?.name || "Bisnis";
+
     return (
       <AnalitikClient
         kpi={kpi}
@@ -426,9 +506,10 @@ export default async function AnalitikPage({
         byIncome={byIncome}
         byBusiness={byBusiness}
         insights={insights}
+        recentTx={recentTx}
         businesses={businesses}
         selectedBiz={selectedBiz}
-        selectedMonth={`${year}-${String(month + 1).padStart(2, "0")}`}
+        selectedMonth={selectedMonthKey}
         monthLabel={monthStart.toLocaleDateString("id-ID", {
           month: "long",
           year: "numeric",
@@ -436,6 +517,10 @@ export default async function AnalitikPage({
         })}
         prevMonthLabel={prevMonthLabel}
         monthOptions={monthOptions}
+        ownerName={ownerName}
+        reportAddress={reportAddress}
+        reportNo={reportNo}
+        businessLabel={businessLabel}
         deltas={{
           omzet: pct(omzet, omzetPrev),
           beban: pct(beban, bebanPrev),

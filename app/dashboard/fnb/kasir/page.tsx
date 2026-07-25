@@ -69,14 +69,20 @@ export default async function FnbKasirPage() {
   const totalOrder = todayOrders?.length || 0;
 
   return (
-    <div className="w-full min-w-0 px-0 py-0 sm:px-8 sm:py-8">
-      <div className="mb-1 flex items-center justify-between gap-2 px-3 pt-3 sm:px-0 sm:pt-0">
-        <h1 className="text-xl font-semibold sm:text-2xl">
-          <span className="bg-gradient-to-r from-[#2DD4BF] to-[#A78BFA] bg-clip-text text-transparent">Kasir F&B</span>
-        </h1>
-        {business?.name && <span className="max-w-[40%] truncate rounded-full border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-3 py-1 text-xs text-[#2DD4BF]">{business.name}</span>}
+    <div className="w-full min-w-0 px-0 py-0 md:px-6 md:py-5 lg:px-8">
+      <div className="mb-3 hidden items-center justify-between gap-3 md:mb-4 md:flex">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold lg:text-2xl">
+            <span className="bg-gradient-to-r from-[#2DD4BF] to-[#A78BFA] bg-clip-text text-transparent">Kasir F&B</span>
+          </h1>
+          <p className="mt-0.5 text-xs text-[#8B8AA0]">Menu, order meja, struk, tutup shift.</p>
+        </div>
+        {business?.name ? (
+          <span className="max-w-[40%] shrink-0 truncate rounded-full border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-3 py-1 text-xs text-[#2DD4BF]">
+            {business.name}
+          </span>
+        ) : null}
       </div>
-      <p className="mb-3 hidden px-3 text-sm text-[#8B8AA0] sm:mb-6 sm:block sm:px-0">Kasir kuliner — menu, order meja, struk, tutup shift.</p>
       <KasirClient
         menus={normalizeMenus(menus as Parameters<typeof normalizeMenus>[0])}
         products={products || []}

@@ -46,7 +46,7 @@ export default function FnbHubNav() {
   const pathname = usePathname();
   return (
     <>
-      <nav className="mb-6 hidden gap-2 overflow-x-auto pb-1 scrollbar-none md:flex">
+      <nav className="mb-3 hidden gap-2 overflow-x-auto pb-1 scrollbar-none md:mb-4 md:flex">
         {LINKS.map(l => (
           <NavLink key={l.href} l={l} active={pathname.includes(l.match)} />
         ))}

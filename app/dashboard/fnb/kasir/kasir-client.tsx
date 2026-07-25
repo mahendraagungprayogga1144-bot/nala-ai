@@ -369,160 +369,257 @@ export default function KasirClient({ menus, products, employees, userId, busine
     onAddItem: addToCart, onDecItem: removeFromCart,
   };
 
+  const onShift = todayCheckins.filter((e) => e.checkedIn).length;
+
   return (
     <div
-      className="relative w-full min-w-0 max-w-full max-md:-mx-3 max-md:px-3 max-md:pb-[calc(56px+env(safe-area-inset-bottom))] max-md:pt-1 lg:pb-0"
+      className="relative w-full min-w-0 max-w-full max-md:px-3 max-md:pb-[calc(56px+env(safe-area-inset-bottom))] max-md:pt-1 lg:pb-0"
       style={{ background: KASIR.bg.mesh }}
     >
       <FnbHubNav />
-      <FnbKpiRow variant="vivid" items={[
-        { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
-        { label: "Total order", value: String(totalOrder), color: "#8B5CF6" },
-        { label: "Laba hari ini", value: fmtRp(labaHariIni), color: "#F59E0B" },
-        { label: "Margin", value: omzetHariIni > 0 ? dayMargin + "%" : "—", color: "#38BDF8" },
-      ]} />
+
+      {/* Compact KPI — scroll chips on mobile, 4-col on desktop */}
+      <div className="mb-3 md:mb-4">
+        <FnbKpiRow
+          variant="vivid"
+          items={[
+            { label: "Omzet hari ini", value: fmtRp(omzetHariIni), color: "#2DD4BF" },
+            { label: "Total order", value: String(totalOrder), color: "#8B5CF6" },
+            { label: "Laba hari ini", value: fmtRp(labaHariIni), color: "#F59E0B" },
+            { label: "Margin", value: omzetHariIni > 0 ? dayMargin + "%" : "—", color: "#38BDF8" },
+          ]}
+        />
+      </div>
 
       <div className="mb-3 hidden md:block">
-        <FnbStockAlerts products={products.map(p => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
+        <FnbStockAlerts products={products.map((p) => ({ ...p, min_stock: p.min_stock ?? 5 }))} />
       </div>
 
-      <div className="mb-4 overflow-hidden rounded-2xl border border-[#2DD4BF]/25 bg-[#13131F]/95 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-md lg:mb-6">
-        <div className="h-[2px] shrink-0" style={{ background: KASIR.gradient.headerLine }} />
-        <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-2 md:px-4">
+      {/* Toolbar: shift (collapsible) + printer actions — no overflow trap */}
+      <div className="mb-3 rounded-2xl border border-white/[0.08] bg-[#13131F] md:mb-4">
+        <div className="flex items-center gap-2 px-3 py-2 md:px-4">
           <button
             type="button"
-            onClick={() => setShiftOpen(v => !v)}
-            className="flex min-w-0 flex-1 items-center justify-between md:cursor-default"
+            onClick={() => setShiftOpen((v) => !v)}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
           >
-            <p className="text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">Shift karyawan — {today}</p>
-            <span className="text-[#8B8AA0] md:hidden">{shiftOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
+            <p className="truncate text-[10px] font-medium uppercase tracking-widest text-[#2DD4BF]">
+              Shift · {today}
+            </p>
+            <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-[#8B8AA0]">
+              {onShift}/{employees.length} aktif
+            </span>
+            <span className="ml-auto text-[#8B8AA0]">
+              {shiftOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
           </button>
-          <div className="flex items-center gap-2">
-            <KasirReprintBar refreshKey={receiptVersion} />
-            <KasirPrintSettingsButton />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <KasirReprintBar refreshKey={receiptVersion} compact />
+            <KasirPrintSettingsButton compact />
           </div>
         </div>
-        <div className={`border-t border-white/[0.06] px-3 pb-3 md:block md:border-0 md:px-4 md:pb-4 ${shiftOpen ? "block" : "hidden md:block"}`}>
-        {employees.length === 0 ? (
-          <FnbEmptyState
-            icon={Users}
-            title="Belum ada tim kasir"
-            subtitle="Tambah karyawan dulu biar bisa catat shift masuk/pulang."
-            actionLabel="Kelola Tim"
-            actionHref="/dashboard/karyawan-toko"
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {todayCheckins.map(emp => (
-              <div key={emp.id} className="flex items-center gap-3 bg-[#0A0A12] rounded-xl px-3 py-2.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold flex-shrink-0" style={{ background: emp.checkedIn ? "rgba(45,212,191,.12)" : "rgba(255,255,255,.04)", color: emp.checkedIn ? "#2DD4BF" : "#5A5B7A" }}>
-                  {emp.nama.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#F0EFF8]">{emp.nama}</p>
-                  <p className="text-[10px] text-[#5A5B7A]">
-                    {emp.jabatan || "Karyawan"}
-                    {emp.checkinTime && <span style={{ color: "#8B8AA0", fontFamily: "monospace" }}> · masuk {emp.checkinTime}</span>}
-                  </p>
-                </div>
-                <div className="w-2 h-2 rounded-full" style={{ background: emp.checkedIn ? "#2DD4BF" : "#F59E0B" }}></div>
-                <button
-                  onClick={() => handleCheckin(emp)}
-                  disabled={checkinLoading === emp.id}
-                  className="text-xs px-3 py-1.5 rounded-lg border font-medium"
-                  style={emp.checkedIn
-                    ? { borderColor: "rgba(236,72,153,.3)", color: "#EC4899", background: "rgba(236,72,153,.06)" }
-                    : { borderColor: "rgba(45,212,191,.3)", color: "#2DD4BF", background: "rgba(45,212,191,.06)" }
-                  }
-                >
-                  {checkinLoading === emp.id ? "..." : emp.checkedIn ? "Pulang" : "Masuk shift"}
-                </button>
+
+        {shiftOpen && (
+          <div className="border-t border-white/[0.06] px-3 py-3 md:px-4">
+            {employees.length === 0 ? (
+              <FnbEmptyState
+                icon={Users}
+                title="Belum ada tim kasir"
+                subtitle="Tambah karyawan dulu biar bisa catat shift masuk/pulang."
+                actionLabel="Kelola Tim"
+                actionHref="/dashboard/karyawan-toko"
+              />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {todayCheckins.map((emp) => (
+                  <div key={emp.id} className="flex items-center gap-3 rounded-xl bg-[#0A0A12] px-3 py-2.5">
+                    <div
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-semibold"
+                      style={{
+                        background: emp.checkedIn ? "rgba(45,212,191,.12)" : "rgba(255,255,255,.04)",
+                        color: emp.checkedIn ? "#2DD4BF" : "#5A5B7A",
+                      }}
+                    >
+                      {emp.nama.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[#F0EFF8]">{emp.nama}</p>
+                      <p className="text-[10px] text-[#5A5B7A]">
+                        {emp.jabatan || "Karyawan"}
+                        {emp.checkinTime && (
+                          <span className="font-mono text-[#8B8AA0]"> · masuk {emp.checkinTime}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: emp.checkedIn ? "#2DD4BF" : "#F59E0B" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCheckin(emp)}
+                      disabled={checkinLoading === emp.id}
+                      className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium"
+                      style={
+                        emp.checkedIn
+                          ? { borderColor: "rgba(236,72,153,.3)", color: "#EC4899", background: "rgba(236,72,153,.06)" }
+                          : { borderColor: "rgba(45,212,191,.3)", color: "#2DD4BF", background: "rgba(45,212,191,.06)" }
+                      }
+                    >
+                      {checkinLoading === emp.id ? "..." : emp.checkedIn ? "Pulang" : "Masuk"}
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px] lg:gap-6">
-        <div className="overflow-hidden rounded-2xl border border-[#2DD4BF]/25 bg-[#13131F]/95 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-md">
-          <div className="h-[2px] shrink-0 md:hidden" style={{ background: KASIR.gradient.headerLine }} />
-          <div className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#13131F]/95 backdrop-blur-md lg:static lg:bg-transparent">
-            <div className="mx-3 mt-2.5 flex items-center gap-3 rounded-xl border border-white/[0.08] bg-[#0A0A14]/80 px-3 py-2.5 md:mx-4 md:mt-3 md:rounded-none md:border-0 md:bg-transparent md:px-4 md:py-3">
+      {/* POS: menu + order — sticky order on desktop */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-5">
+        <div className="rounded-2xl border border-white/[0.08] bg-[#13131F]">
+          <div className="border-b border-white/[0.08]">
+            <div className="flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3">
               <Search size={14} className="flex-shrink-0 text-[#2DD4BF]" />
-              <input type="text" placeholder="Cari menu..." value={search} onChange={e => setSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-[#FAFAFE] placeholder:text-[#5E5D78] focus:outline-none" />
+              <input
+                type="text"
+                placeholder="Cari menu..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 bg-transparent text-sm text-[#FAFAFE] placeholder:text-[#5E5D78] focus:outline-none"
+              />
             </div>
-            <div className="flex gap-2 overflow-x-auto px-3 py-2.5 scrollbar-none md:px-4 md:py-2.5">
-            {categories.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={"text-[11px] px-3.5 py-1.5 rounded-full border whitespace-nowrap font-medium transition-colors " + (activeTab === tab ? "border-[#2DD4BF]/50 text-[#2DD4BF] bg-[#2DD4BF]/15" : "border-white/[0.08] text-[#5E5D78] bg-white/[0.03]")}>
-                {tab}
-              </button>
-            ))}
+            <div className="flex gap-2 overflow-x-auto px-3 pb-2.5 scrollbar-none md:px-4">
+              {categories.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={
+                    "whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-colors " +
+                    (activeTab === tab
+                      ? "border-[#2DD4BF]/50 bg-[#2DD4BF]/15 text-[#2DD4BF]"
+                      : "border-white/[0.08] bg-white/[0.03] text-[#5E5D78]")
+                  }
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
           </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4">
+
+          <div className="grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4 xl:grid-cols-4">
             {filtered.length === 0 ? (
               <div className="col-span-full">
                 <FnbEmptyState
                   icon={UtensilsCrossed}
                   title="Belum ada menu aktif"
-                  subtitle={menuHint || "Buat menu di Master Menu untuk bisnis yang sama, pastikan status Aktif, lalu kembali ke Kasir."}
+                  subtitle={
+                    menuHint ||
+                    "Buat menu di Master Menu untuk bisnis yang sama, pastikan status Aktif, lalu kembali ke Kasir."
+                  }
                   actionLabel="Buka Master Menu"
                   actionHref="/dashboard/master-menu"
                 />
               </div>
-            ) : filtered.map(m => {
-              const hpp = calcHpp(m);
-              const itemMargin = m.harga_jual > 0 ? Math.round((m.harga_jual - hpp) / m.harga_jual * 100) : 0;
-              const qty = getQty(m.id);
-              const kat = m.kategori || "Lainnya";
-              const color = KATEGORI_COLOR[kat] || "#8B8AA0";
-              const icon = KATEGORI_ICON[kat] || "ti-dots";
-              return (
-                <div key={m.id} className="cursor-pointer overflow-hidden rounded-2xl border bg-[#13131F] active:scale-[0.98] transition-shadow"
-                  style={{
-                    borderColor: qty > 0 ? "rgba(45,212,191,.45)" : "rgba(255,255,255,0.08)",
-                    boxShadow: qty > 0 ? "0 0 0 1px rgba(45,212,191,.35), 0 12px 32px rgba(45,212,191,.12)" : "0 8px 24px rgba(0,0,0,.3)",
-                  }}
-                  onClick={() => addToCart(m)}>
-                  {m.foto_url ? (
-                    <div className="h-20 overflow-hidden sm:h-24">
-                      <img src={m.foto_url} alt={m.nama} className="h-full w-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center py-5 sm:py-6" style={{ background: `linear-gradient(160deg, ${color}30, ${color}08)` }}>
-                      <i className={"ti " + icon} style={{ fontSize: "34px", color, filter: `drop-shadow(0 2px 10px ${color}66)` }} aria-hidden="true"></i>
-                    </div>
-                  )}
-                  <div className="p-2.5 sm:p-3">
-                    <span className="mb-1.5 inline-block rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]" style={{ background: color + "15", color }}>{kat}</span>
-                    <p className="mb-1 truncate text-sm font-medium text-[#F0EFF8]">{m.nama}</p>
-                    <p className="mb-2 text-[9px] text-[#5A5B7A] sm:text-[10px]">HPP {fmtRp(Math.round(hpp))}</p>
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-semibold sm:text-sm" style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}>Rp{m.harga_jual.toLocaleString("id-ID")}</p>
-                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => removeFromCart(m.id)} className="flex h-8 w-8 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
-                          style={qty > 0 ? { borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" } : { borderColor: "rgba(255,255,255,.08)", color: "#5A5B7A" }}>
-                          <Minus size={12} />
-                        </button>
-                        <span className="w-5 text-center text-xs font-medium sm:w-4" style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52", fontFamily: "monospace" }}>{qty}</span>
-                        <button onClick={() => addToCart(m)} className="flex h-8 w-8 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
-                          style={{ borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }}>
-                          <Plus size={12} />
-                        </button>
+            ) : (
+              filtered.map((m) => {
+                const hpp = calcHpp(m);
+                const qty = getQty(m.id);
+                const kat = m.kategori || "Lainnya";
+                const color = KATEGORI_COLOR[kat] || "#8B8AA0";
+                const icon = KATEGORI_ICON[kat] || "ti-dots";
+                return (
+                  <div
+                    key={m.id}
+                    className="cursor-pointer overflow-hidden rounded-2xl border bg-[#0F0F1A] transition-shadow active:scale-[0.98]"
+                    style={{
+                      borderColor: qty > 0 ? "rgba(45,212,191,.45)" : "rgba(255,255,255,0.08)",
+                      boxShadow: qty > 0
+                        ? "0 0 0 1px rgba(45,212,191,.35), 0 12px 32px rgba(45,212,191,.12)"
+                        : "none",
+                    }}
+                    onClick={() => addToCart(m)}
+                  >
+                    {m.foto_url ? (
+                      <div className="h-20 overflow-hidden sm:h-24">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={m.foto_url} alt={m.nama} className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div
+                        className="flex items-center justify-center py-5 sm:py-6"
+                        style={{ background: `linear-gradient(160deg, ${color}30, ${color}08)` }}
+                      >
+                        <i
+                          className={"ti " + icon}
+                          style={{ fontSize: "34px", color, filter: `drop-shadow(0 2px 10px ${color}66)` }}
+                          aria-hidden="true"
+                        />
+                      </div>
+                    )}
+                    <div className="p-2.5 sm:p-3">
+                      <span
+                        className="mb-1.5 inline-block rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]"
+                        style={{ background: color + "15", color }}
+                      >
+                        {kat}
+                      </span>
+                      <p className="mb-1 truncate text-sm font-medium text-[#F0EFF8]">{m.nama}</p>
+                      <p className="mb-2 text-[9px] text-[#5A5B7A] sm:text-[10px]">HPP {fmtRp(Math.round(hpp))}</p>
+                      <div className="flex items-center justify-between gap-1">
+                        <p
+                          className="text-xs font-semibold sm:text-sm"
+                          style={{ color: "#2DD4BF", fontFamily: "JetBrains Mono, monospace" }}
+                        >
+                          Rp{m.harga_jual.toLocaleString("id-ID")}
+                        </p>
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(m.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
+                            style={
+                              qty > 0
+                                ? { borderColor: "rgba(45,212,191,.4)", color: "#2DD4BF", background: "rgba(45,212,191,.08)" }
+                                : { borderColor: "rgba(255,255,255,.08)", color: "#5A5B7A" }
+                            }
+                          >
+                            <Minus size={12} />
+                          </button>
+                          <span
+                            className="w-5 text-center text-xs font-medium sm:w-4"
+                            style={{ color: qty > 0 ? "#2DD4BF" : "#3A3B52", fontFamily: "monospace" }}
+                          >
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => addToCart(m)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border sm:h-6 sm:w-6"
+                            style={{
+                              borderColor: "rgba(45,212,191,.4)",
+                              color: "#2DD4BF",
+                              background: "rgba(45,212,191,.08)",
+                            }}
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
-        <div className="hidden lg:block bg-[#0F0F1A] border border-white/[0.06] rounded-2xl overflow-hidden h-fit">
-          <OrderPanel {...orderPanelProps} />
+        <div className="hidden lg:sticky lg:top-4 lg:block lg:self-start">
+          <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0F0F1A]">
+            <OrderPanel {...orderPanelProps} />
+          </div>
         </div>
       </div>
 

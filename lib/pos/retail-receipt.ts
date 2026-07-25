@@ -1,4 +1,10 @@
-/** Shared retail receipt print (AI Kasir) — thermal-style modern struk. */
+/** Shared AI Kasir receipt print — thermal-style, wording follows receipt_style. */
+
+import {
+  getReceiptCopy,
+  normalizeReceiptStyle,
+  type ReceiptStyle,
+} from "./receipt-style";
 
 export type ReceiptLine = {
   name: string;
@@ -19,10 +25,23 @@ export function printRetailReceipt(opts: {
   bayar?: number | null;
   kembali?: number | null;
   printedAt?: Date;
+  /** toko | cafe | jasa | umum */
+  style?: ReceiptStyle | string | null;
+  /** Alamat / cabang (opsional, di bawah nama usaha) */
+  address?: string | null;
+  /** Catatan footer kustom (override default style) */
+  footerNote?: string | null;
+  /** No. meja — ditampilkan untuk style cafe */
+  tableNo?: string | null;
 }) {
   try {
     const w = window.open("", "_blank", "width=360,height=720");
     if (!w) return;
+
+    const style = normalizeReceiptStyle(opts.style);
+    const copy = getReceiptCopy(style, opts.footerNote);
+    const address = (opts.address || "").trim();
+    const tableNo = (opts.tableNo || "").trim();
 
     const now = opts.printedAt || new Date();
     const waktu = now.toLocaleString("id-ID", {
@@ -66,6 +85,8 @@ export function printRetailReceipt(opts: {
            <div class="row"><span>Kembali</span><span class="amt">${fmtRp(Number(opts.kembali) || 0)}</span></div>`
         : `<div class="row"><span>Metode</span><span class="amt">${escapeHtml(metodeLabel)}</span></div>`;
 
+    const footerHtml = escapeHtml(copy.footerNote).replace(/\n/g, "<br/>");
+
     w.document.write(`<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -105,6 +126,13 @@ export function printRetailReceipt(opts: {
     letter-spacing: -0.02em;
     text-transform: uppercase;
     line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .address {
+    text-align: center;
+    font-size: 10px;
+    color: #444;
+    line-height: 1.35;
     margin-bottom: 4px;
   }
   .tagline {
@@ -197,14 +225,16 @@ export function printRetailReceipt(opts: {
   <div class="ticket">
     <div class="brand">GERCEP · AI KASIR</div>
     <div class="store">${escapeHtml(opts.storeName || "Toko")}</div>
-    <div class="tagline">Struk penjualan retail</div>
+    ${address ? `<div class="address">${escapeHtml(address)}</div>` : ""}
+    <div class="tagline">${escapeHtml(copy.tagline)}</div>
     ${voidBanner}
     <hr class="dash"/>
     <div class="meta">
       <div class="row"><span class="lbl">No. Struk</span><span>${escapeHtml(receiptNo)}</span></div>
       <div class="row"><span class="lbl">Tanggal</span><span>${escapeHtml(waktu)}</span></div>
       <div class="row"><span class="lbl">Kasir</span><span>${escapeHtml(opts.staffName || "Owner")}</span></div>
-      <div class="row"><span class="lbl">Item</span><span>${itemCount} pcs</span></div>
+      ${copy.showTable && tableNo ? `<div class="row"><span class="lbl">Meja</span><span>${escapeHtml(tableNo)}</span></div>` : ""}
+      <div class="row"><span class="lbl">Item</span><span>${itemCount} ${escapeHtml(copy.qtyUnit)}</span></div>
     </div>
     <hr class="dash"/>
     ${rows}
@@ -218,7 +248,7 @@ export function printRetailReceipt(opts: {
     <hr class="dash"/>
     <div class="footer">
       <div class="thanks">TERIMA KASIH</div>
-      <div class="note">Barang yang sudah dibeli<br/>tidak dapat dikembalikan.<br/>Simpan struk ini sebagai bukti.</div>
+      <div class="note">${footerHtml}</div>
       <div class="barcode">*${escapeHtml(receiptNo)}*</div>
       <div class="powered">Supported by Gercep AI</div>
     </div>

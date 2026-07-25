@@ -2,6 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import AiKasirClient from "./ai-kasir-client";
 import { guardPage } from "../lib/page-guard";
+import {
+  normalizeReceiptStyle,
+  receiptStyleFromBizType,
+  type ReceiptStyle,
+} from "@/lib/pos/receipt-style";
 
 export type Product = {
   id: string; name: string; price: number; cost: number;
@@ -23,6 +28,13 @@ export type TodaySale = {
 
 export type RetailStaff = {
   id: string; nama: string; pin: string; aktif: boolean;
+};
+
+export type AiKasirSettings = {
+  storeName: string;
+  receiptStyle: ReceiptStyle;
+  receiptAddress: string;
+  receiptNote: string;
 };
 
 export default async function AiKasirPage() {
@@ -87,7 +99,7 @@ export default async function AiKasirPage() {
       .gte("opened_at", today + "T00:00:00")
       .order("opened_at", { ascending: false }),
     supabase.from("retail_kasir_settings")
-      .select("store_name")
+      .select("store_name, receipt_style, receipt_note, receipt_address")
       .eq("business_id", business.id)
       .maybeSingle(),
     supabase.from("retail_kasir_staff")
@@ -109,12 +121,42 @@ export default async function AiKasirPage() {
     todaySales = (fallback || []) as TodaySale[];
   }
 
+  // Settings fallback jika kolom receipt_* belum dimigrasi
+  let kasirSettings: AiKasirSettings = {
+    storeName: "",
+    receiptStyle: receiptStyleFromBizType(business.type),
+    receiptAddress: "",
+    receiptNote: "",
+  };
+  if (!settingsRes.error && settingsRes.data) {
+    kasirSettings = {
+      storeName: settingsRes.data.store_name || "",
+      receiptStyle: settingsRes.data.receipt_style
+        ? normalizeReceiptStyle(settingsRes.data.receipt_style)
+        : receiptStyleFromBizType(business.type),
+      receiptAddress: settingsRes.data.receipt_address || "",
+      receiptNote: settingsRes.data.receipt_note || "",
+    };
+  } else if (settingsRes.error) {
+    const { data: legacy } = await supabase
+      .from("retail_kasir_settings")
+      .select("store_name")
+      .eq("business_id", business.id)
+      .maybeSingle();
+    kasirSettings = {
+      storeName: legacy?.store_name || "",
+      receiptStyle: receiptStyleFromBizType(business.type),
+      receiptAddress: "",
+      receiptNote: "",
+    };
+  }
+
   return (
     <AiKasirClient
       userId={user.id}
       businessId={business.id}
       businessName={business.name}
-      storeName={settingsRes.error ? "" : (settingsRes.data?.store_name || "")}
+      settings={kasirSettings}
       products={(productsRes.data || []) as Product[]}
       activeShift={(activeShiftRes.data || null) as KasirShift | null}
       todaySales={todaySales}

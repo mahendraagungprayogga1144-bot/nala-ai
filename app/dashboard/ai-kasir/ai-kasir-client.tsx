@@ -6,12 +6,13 @@ import {
   Package, Maximize2, Minimize2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Product, KasirShift, TodaySale, RetailStaff } from "./page";
+import type { Product, KasirShift, TodaySale, RetailStaff, AiKasirSettings } from "./page";
 import KasirPOS from "./components/kasir-pos";
 import KasirShiftPanel from "./components/kasir-shift";
 import KasirRekap from "./components/kasir-rekap";
 import KasirTim from "./components/kasir-tim";
 import KasirProduk from "./components/kasir-produk";
+import { RECEIPT_STYLES } from "@/lib/pos/receipt-style";
 
 const TABS = [
   { id: "kasir", label: "Kasir", icon: ShoppingCart },
@@ -39,10 +40,11 @@ const shell: CSSProperties = {
 };
 
 export default function AiKasirClient({
-  userId, businessId, businessName, storeName: initialStoreName,
+  userId, businessId, businessName, settings: initialSettings,
   products, activeShift, todaySales, todayShifts, staff, today,
 }: {
-  userId: string; businessId: string; businessName: string; storeName: string;
+  userId: string; businessId: string; businessName: string;
+  settings: AiKasirSettings;
   products: Product[]; activeShift: KasirShift | null;
   todaySales: TodaySale[]; todayShifts: KasirShift[];
   staff: RetailStaff[]; today: string;
@@ -50,8 +52,8 @@ export default function AiKasirClient({
   const router = useRouter();
   const supabase = createClient();
   const [tab, setTab] = useState<TabId>("kasir");
-  const [storeName, setStoreName] = useState(initialStoreName);
-  const [storeDraft, setStoreDraft] = useState(initialStoreName || businessName || "");
+  const [settings, setSettings] = useState(initialSettings);
+  const [storeDraft, setStoreDraft] = useState(initialSettings.storeName || businessName || "");
   const [session, setSession] = useState<StaffSession | null>(null);
   const [pin, setPin] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -59,6 +61,11 @@ export default function AiKasirClient({
   const [savingStore, setSavingStore] = useState(false);
   const [loginErr, setLoginErr] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    setSettings(initialSettings);
+    setStoreDraft(initialSettings.storeName || businessName || "");
+  }, [initialSettings, businessName]);
 
   useEffect(() => {
     try {
@@ -73,26 +80,50 @@ export default function AiKasirClient({
   );
   const omzetHariIni = activeSales.reduce((s, t) => s + Number(t.total), 0);
   const totalOrder = activeSales.length;
-  const displayName = storeName || businessName;
+  const displayName = settings.storeName || businessName;
   const activeStaff = staff.filter((s) => s.aktif);
+  const styleLabel =
+    RECEIPT_STYLES.find((s) => s.id === settings.receiptStyle)?.label || "Toko / retail";
+
+  const upsertSettings = async (next: AiKasirSettings) => {
+    const payload: Record<string, unknown> = {
+      business_id: businessId,
+      user_id: userId,
+      store_name: next.storeName,
+      updated_at: new Date().toISOString(),
+      receipt_style: next.receiptStyle,
+      receipt_address: next.receiptAddress || null,
+      receipt_note: next.receiptNote || null,
+    };
+    let { error } = await supabase.from("retail_kasir_settings").upsert(payload);
+    // Fallback jika kolom receipt_* belum ada di DB
+    if (error && /receipt_/i.test(error.message)) {
+      ({ error } = await supabase.from("retail_kasir_settings").upsert({
+        business_id: businessId,
+        user_id: userId,
+        store_name: next.storeName,
+        updated_at: new Date().toISOString(),
+      }));
+    }
+    if (error) throw new Error(error.message);
+    setSettings(next);
+    router.refresh();
+  };
 
   const saveStoreName = async () => {
     const name = storeDraft.trim();
     if (!name) return;
     setSavingStore(true);
-    const { error } = await supabase.from("retail_kasir_settings").upsert({
-      business_id: businessId,
-      user_id: userId,
-      store_name: name,
-      updated_at: new Date().toISOString(),
-    });
-    setSavingStore(false);
-    if (error) {
-      alert("Gagal simpan nama usaha: " + error.message + "\nPastikan SQL migrasi retail_kasir sudah dijalankan.");
-      return;
+    try {
+      await upsertSettings({ ...settings, storeName: name });
+    } catch (e) {
+      alert(
+        "Gagal simpan nama usaha: " +
+          (e instanceof Error ? e.message : String(e)) +
+          "\nPastikan SQL migrasi retail_kasir sudah dijalankan.",
+      );
     }
-    setStoreName(name);
-    router.refresh();
+    setSavingStore(false);
   };
 
   const loginStaff = () => {
@@ -127,7 +158,7 @@ export default function AiKasirClient({
   }
 
   // Gate 1: nama usaha di dalam modul kasir
-  if (!storeName.trim()) {
+  if (!settings.storeName.trim()) {
     return (
       <div className="-mx-3 -mt-3 min-h-[70vh] sm:-mx-8 sm:-mt-6" style={shell}>
         <div className="mx-auto flex max-w-md flex-col justify-center px-6 py-16">
@@ -135,16 +166,16 @@ export default function AiKasirClient({
             <Store size={28} />
           </div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#007A4D]">AI Kasir</p>
-          <h1 className="mb-2 text-3xl font-bold tracking-tight text-[#0F1F17]">Nama usaha toko</h1>
+          <h1 className="mb-2 text-3xl font-bold tracking-tight text-[#0F1F17]">Nama usaha</h1>
           <p className="mb-6 text-sm leading-relaxed text-[#5C6B63]">
-            Ini aplikasi kasir retail mandiri — bukan Kasir F&B dan tidak otomatis masuk Keuangan Bisnis.
-            Isi nama toko yang tampil di struk.
+            Kasir mandiri — tidak otomatis masuk Keuangan Bisnis. Isi nama yang tampil di struk.
+            Jenis struk (toko / cafe / jasa) bisa diatur nanti di tab Tim.
           </p>
           <label className="mb-1.5 block text-xs font-medium text-[#3D4F45]">Nama toko / usaha</label>
           <input
             value={storeDraft}
             onChange={(e) => setStoreDraft(e.target.value)}
-            placeholder="Contoh: Toko Sembako Maju"
+            placeholder="Contoh: Toko Sembako Maju / Cafe Kopi Kita"
             className="mb-4 w-full rounded-xl border border-[#C5D4CB] bg-white px-4 py-3 text-sm text-[#0F1F17] outline-none ring-[#007A4D]/30 focus:ring-2"
           />
           <button
@@ -260,7 +291,8 @@ export default function AiKasirClient({
               {displayName}
             </h1>
             <p className="text-[11px] text-[#5C6B63]">
-              AI Kasir retail · kasir <span className="font-semibold text-[#007A4D]">{session.nama}</span>
+              AI Kasir · {styleLabel} · kasir{" "}
+              <span className="font-semibold text-[#007A4D]">{session.nama}</span>
               {" · "}tidak sync Keuangan Bisnis
             </p>
           </div>
@@ -315,6 +347,9 @@ export default function AiKasirClient({
             omzetHariIni={omzetHariIni}
             totalOrder={totalOrder}
             staffName={session.nama}
+            receiptStyle={settings.receiptStyle}
+            receiptAddress={settings.receiptAddress}
+            receiptNote={settings.receiptNote}
             onGoProduk={() => setTab("produk")}
           />
         )}
@@ -344,6 +379,9 @@ export default function AiKasirClient({
             totalOrder={totalOrder}
             today={today}
             activeShiftId={activeShift?.id || null}
+            receiptStyle={settings.receiptStyle}
+            receiptAddress={settings.receiptAddress}
+            receiptNote={settings.receiptNote}
           />
         )}
         {tab === "tim" && (
@@ -351,20 +389,18 @@ export default function AiKasirClient({
             userId={userId}
             businessId={businessId}
             staff={staff}
-            storeName={displayName}
-            onRenameStore={async (name) => {
-              const { error } = await supabase.from("retail_kasir_settings").upsert({
-                business_id: businessId,
-                user_id: userId,
-                store_name: name,
-                updated_at: new Date().toISOString(),
-              });
-              if (error) {
-                alert(error.message);
-                return;
+            settings={{
+              storeName: displayName,
+              receiptStyle: settings.receiptStyle,
+              receiptAddress: settings.receiptAddress,
+              receiptNote: settings.receiptNote,
+            }}
+            onSaveSettings={async (next) => {
+              try {
+                await upsertSettings(next);
+              } catch (e) {
+                alert(e instanceof Error ? e.message : String(e));
               }
-              setStoreName(name);
-              router.refresh();
             }}
           />
         )}

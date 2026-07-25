@@ -11,6 +11,7 @@ import { trackClientEvent } from "@/lib/admin/track-event";
 import { checkoutProductSale } from "@/lib/pos/checkout-product-sale";
 import { isRetailSellable } from "@/lib/pos/retail-sellable";
 import { printRetailReceipt } from "@/lib/pos/retail-receipt";
+import { getReceiptCopy, type ReceiptStyle } from "@/lib/pos/receipt-style";
 
 type CartItem = { product: Product; qty: number };
 
@@ -20,6 +21,7 @@ type HeldOrder = {
   lines: { productId: string; qty: number }[];
   diskon: string;
   metodeBayar: string;
+  meja?: string;
   heldAt: string;
 };
 
@@ -40,12 +42,16 @@ const BTN_GRAD = { background: "#007A4D", color: "#FFFFFF" } as const;
 
 export default function KasirPOS({
   userId, businessId, businessName, products, activeShift, today, omzetHariIni, totalOrder, staffName, onGoProduk,
+  receiptStyle = "toko", receiptAddress = "", receiptNote = "",
 }: {
   userId: string; businessId: string; businessName: string;
   products: Product[]; activeShift: KasirShift | null;
   today: string; omzetHariIni: number; totalOrder: number;
   staffName?: string | null;
   onGoProduk?: () => void;
+  receiptStyle?: ReceiptStyle;
+  receiptAddress?: string;
+  receiptNote?: string;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -56,12 +62,14 @@ export default function KasirPOS({
   const [diskon, setDiskon] = useState("");
   const [metodeBayar, setMetodeBayar] = useState("tunai");
   const [bayar, setBayar] = useState("");
+  const [meja, setMeja] = useState("");
   const [loading, setLoading] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   /** Retail POS: default hanya SKU siap jual (harga > 0, bukan bahan baku). */
   const [showAllStock, setShowAllStock] = useState(false);
   const [holds, setHolds] = useState<HeldOrder[]>([]);
+  const showMeja = getReceiptCopy(receiptStyle).showTable;
 
   useEffect(() => {
     try {
@@ -140,7 +148,7 @@ export default function KasirPOS({
   const lowStockProducts = products.filter(p => p.stock > 0 && p.stock <= p.min_stock);
 
   const resetOrder = () => {
-    setCart([]); setDiskon(""); setBayar(""); setMetodeBayar("tunai"); setCartOpen(false);
+    setCart([]); setDiskon(""); setBayar(""); setMetodeBayar("tunai"); setMeja(""); setCartOpen(false);
   };
 
   const holdOrder = () => {
@@ -153,6 +161,7 @@ export default function KasirPOS({
       lines: cart.map((c) => ({ productId: c.product.id, qty: c.qty })),
       diskon,
       metodeBayar,
+      meja,
       heldAt: new Date().toISOString(),
     };
     persistHolds([next, ...holds].slice(0, 12));
@@ -187,6 +196,7 @@ export default function KasirPOS({
     setCart(restored);
     setDiskon(h.diskon || "");
     setMetodeBayar(h.metodeBayar || "tunai");
+    setMeja(h.meja || "");
     setBayar("");
     persistHolds(holds.filter((x) => x.id !== h.id));
     if (missing.length) {
@@ -253,7 +263,7 @@ export default function KasirPOS({
       meta: { total, items: cart.length, metode: metodeBayar },
     });
 
-    // Struk retail modern (thermal 80mm)
+    // Struk modern (thermal 80mm) — wording ikut jenis usaha
     printRetailReceipt({
       storeName: businessName || "AI Kasir",
       today,
@@ -269,6 +279,10 @@ export default function KasirPOS({
       orderId: result.orderId,
       bayar: metodeBayar === "tunai" ? (bayarNum || total) : null,
       kembali: metodeBayar === "tunai" ? kembali : null,
+      style: receiptStyle,
+      address: receiptAddress,
+      footerNote: receiptNote,
+      tableNo: showMeja ? meja : null,
     });
 
     setSuccessMsg(`Transaksi ${fmtRp(total)} berhasil!`);
@@ -497,6 +511,7 @@ export default function KasirPOS({
             laba={laba} margin={margin} diskon={diskon} setDiskon={setDiskon}
             metodeBayar={metodeBayar} setMetodeBayar={setMetodeBayar}
             bayar={bayar} setBayar={setBayar} kembali={kembali}
+            showMeja={showMeja} meja={meja} setMeja={setMeja}
             loading={loading} onProses={handleProses} onReset={resetOrder}
             onHold={holdOrder}
             onAdd={addToCart} onDec={decFromCart} onRemove={removeFromCart}
@@ -535,6 +550,7 @@ export default function KasirPOS({
               laba={laba} margin={margin} diskon={diskon} setDiskon={setDiskon}
               metodeBayar={metodeBayar} setMetodeBayar={setMetodeBayar}
               bayar={bayar} setBayar={setBayar} kembali={kembali}
+              showMeja={showMeja} meja={meja} setMeja={setMeja}
               loading={loading} onProses={handleProses} onReset={resetOrder}
               onHold={holdOrder}
               onAdd={addToCart} onDec={decFromCart} onRemove={removeFromCart}
@@ -557,12 +573,14 @@ export default function KasirPOS({
 function CartPanel({
   cart, subtotal, total, totalHpp, laba, margin, diskon, setDiskon,
   metodeBayar, setMetodeBayar, bayar, setBayar, kembali,
+  showMeja, meja, setMeja,
   loading, onProses, onReset, onHold, onAdd, onDec, onRemove, inputCls, compact,
 }: {
   cart: CartItem[]; subtotal: number; total: number; totalHpp: number;
   laba: number; margin: number; diskon: string; setDiskon: (v: string) => void;
   metodeBayar: string; setMetodeBayar: (v: string) => void;
   bayar: string; setBayar: (v: string) => void; kembali: number;
+  showMeja?: boolean; meja?: string; setMeja?: (v: string) => void;
   loading: boolean; onProses: () => void; onReset: () => void; onHold: () => void;
   onAdd: (p: Product) => void; onDec: (id: string) => void; onRemove: (id: string) => void;
   inputCls: string; compact?: boolean;
@@ -614,6 +632,19 @@ function CartPanel({
         </div>
         <p className="text-[10px] text-[#5C6B63]">Laba <span className="text-[#007A4D]">{fmtRp(laba)}</span> · margin {margin}%</p>
       </div>
+
+      {showMeja && setMeja ? (
+        <div className={compact ? "pt-3" : "px-4 py-3 border-b border-[#E3EBE6]"}>
+          <p className="text-[10px] text-[#5C6B63] uppercase tracking-widest mb-2">No. meja (opsional)</p>
+          <input
+            type="text"
+            placeholder="Contoh: 12 / A1"
+            value={meja || ""}
+            onChange={(e) => setMeja(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+      ) : null}
 
       {/* Metode bayar */}
       <div className={compact ? "pt-3" : "px-4 py-3 border-b border-[#E3EBE6]"}>

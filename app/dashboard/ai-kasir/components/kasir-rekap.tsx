@@ -8,6 +8,7 @@ import {
 import type { TodaySale, KasirShift } from "../page";
 import { voidRetailSale } from "@/lib/pos/void-retail-sale";
 import { printRetailReceipt } from "@/lib/pos/retail-receipt";
+import type { ReceiptStyle } from "@/lib/pos/receipt-style";
 
 function fmtRp(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 
@@ -18,11 +19,15 @@ function isVoided(t: TodaySale) {
 export default function KasirRekap({
   userId, businessId, businessName, todaySales, todayShifts,
   omzetHariIni, totalOrder, today, activeShiftId,
+  receiptStyle = "toko", receiptAddress = "", receiptNote = "",
 }: {
   userId: string; businessId: string; businessName: string;
   todaySales: TodaySale[]; todayShifts: KasirShift[];
   omzetHariIni: number; totalOrder: number; today: string;
   activeShiftId?: string | null;
+  receiptStyle?: ReceiptStyle;
+  receiptAddress?: string;
+  receiptNote?: string;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -92,6 +97,9 @@ export default function KasirRekap({
       diskon: Number(sale.diskon) || 0,
       voided: isVoided(sale),
       orderId: sale.id,
+      style: receiptStyle,
+      address: receiptAddress,
+      footerNote: receiptNote,
     });
   };
 

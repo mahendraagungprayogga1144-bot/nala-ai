@@ -128,7 +128,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
 
   const inputCls = "w-full px-3 py-2.5 rounded-lg bg-[#0A0A12] border border-white/10 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:outline-none focus:border-[#2DD4BF]/50 text-sm";
 
-  const AddForm = ({ type, cats, defaultCat, label, satuanHarga, satuanStok }: { type: string; cats: string[]; defaultCat: string; label: string; satuanHarga: string; satuanStok: string }) => (
+  const renderAddForm = ({ cats, defaultCat, label, satuanHarga, satuanStok }: { cats: string[]; defaultCat: string; label: string; satuanHarga: string; satuanStok: string }) => (
     <div className="bg-[#0A0A12] border border-[#2DD4BF]/20 rounded-xl p-4 mb-3">
       <p className="text-xs font-medium text-[#2DD4BF] mb-3">Tambah {label} Baru</p>
       <div className="grid grid-cols-2 gap-2 mb-2">
@@ -154,7 +154,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
     </div>
   );
 
-  const MoveModal = ({ product }: { product: Product }) => {
+  const renderMoveModal = (product: Product) => {
     const isHewan = HEWAN_CATS.includes(product.category || "");
     const isPakan = PAKAN_CATS.includes(product.category || "");
     const keluarOptions = isHewan
@@ -211,12 +211,12 @@ export default function LivestockInventory({ products, userId, businessId }: { p
     );
   };
 
-  const ItemRow = ({ p }: { p: Product }) => {
+  const renderItemRow = (p: Product) => {
     const isHewan = HEWAN_CATS.includes(p.category || "");
     const satuan = isHewan ? "ekor" : PAKAN_CATS.includes(p.category || "") ? "kg" : "pcs";
     const isKritis = p.stock <= p.min_stock;
     return (
-      <div className="relative flex items-center gap-2 border-b border-white/[0.04] px-3 py-3 last:border-0 sm:gap-3 sm:px-4">
+      <div key={p.id} className="relative flex items-center gap-2 border-b border-white/[0.04] px-3 py-3 last:border-0 sm:gap-3 sm:px-4">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#38BDF8]/15 to-[#8B5CF6]/15">
           {p.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -262,12 +262,12 @@ export default function LivestockInventory({ products, userId, businessId }: { p
           <EditProductModal product={p} />
           <DeleteTransactionButton id={p.id} table="products" />
         </div>
-        {movingId === p.id && <MoveModal product={p} />}
+        {movingId === p.id && renderMoveModal(p)}
       </div>
     );
   };
 
-  const Section = ({ title, items, color, formKey, cats, defaultCat, satuanHarga, satuanStok }: { title: string; items: Product[]; color: string; formKey: string; cats: string[]; defaultCat: string; satuanHarga: string; satuanStok: string }) => (
+  const renderSection = ({ title, items, color, formKey, cats, defaultCat, satuanHarga, satuanStok }: { title: string; items: Product[]; color: string; formKey: string; cats: string[]; defaultCat: string; satuanHarga: string; satuanStok: string }) => (
     <div className="mb-4">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]" style={{ background: `${color}08` }}>
         <span className="text-[11px] font-semibold tracking-wide uppercase" style={{ color }}>{title} ({items.length})</span>
@@ -277,7 +277,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
       </div>
       {showForm === formKey && (
         <div className="px-4 py-3">
-          <AddForm type={formKey} cats={cats} defaultCat={defaultCat} label={title} satuanHarga={satuanHarga} satuanStok={satuanStok} />
+          {renderAddForm({ cats, defaultCat, label: title, satuanHarga, satuanStok })}
         </div>
       )}
       {items.length === 0 ? (
@@ -290,7 +290,7 @@ export default function LivestockInventory({ products, userId, businessId }: { p
           onAction={formKey !== "hewan" ? () => setShowForm(formKey) : undefined}
         />
       ) : (
-        items.map((p) => <ItemRow key={p.id} p={p} />)
+        items.map((p) => renderItemRow(p))
       )}
     </div>
   );
@@ -333,11 +333,11 @@ export default function LivestockInventory({ products, userId, businessId }: { p
         <a href="/dashboard/chat" className="text-xs px-3 py-2 rounded-lg bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] text-[#0A0A12] font-medium whitespace-nowrap">+ Tanya Gercep</a>
       </div>
 
-      <Section title="Hewan Ternak" items={hewan} color="#2DD4BF" formKey="hewan" cats={HEWAN_CATS} defaultCat="Ayam Broiler" satuanHarga="ekor" satuanStok="ekor" />
-      <Section title="Pakan" items={pakan} color="#F59E0B" formKey="pakan" cats={["Pakan"]} defaultCat="Pakan" satuanHarga="kg" satuanStok="kg" />
-      <Section title="Obat & Vitamin" items={obat} color="#8B5CF6" formKey="obat" cats={["Obat", "Vitamin", "Vaksin"]} defaultCat="Obat" satuanHarga="pcs" satuanStok="pcs" />
-      <Section title="Peralatan" items={alat} color="#6366F1" formKey="alat" cats={["Peralatan"]} defaultCat="Peralatan" satuanHarga="unit" satuanStok="unit" />
-      {lainnya.length > 0 && <Section title="Lainnya" items={lainnya} color="#8B8AA0" formKey="lainnya" cats={["Lainnya"]} defaultCat="Lainnya" satuanHarga="pcs" satuanStok="pcs" />}
+      {renderSection({ title: "Hewan Ternak", items: hewan, color: "#2DD4BF", formKey: "hewan", cats: HEWAN_CATS, defaultCat: "Ayam Broiler", satuanHarga: "ekor", satuanStok: "ekor" })}
+      {renderSection({ title: "Pakan", items: pakan, color: "#F59E0B", formKey: "pakan", cats: ["Pakan"], defaultCat: "Pakan", satuanHarga: "kg", satuanStok: "kg" })}
+      {renderSection({ title: "Obat & Vitamin", items: obat, color: "#8B5CF6", formKey: "obat", cats: ["Obat", "Vitamin", "Vaksin"], defaultCat: "Obat", satuanHarga: "pcs", satuanStok: "pcs" })}
+      {renderSection({ title: "Peralatan", items: alat, color: "#6366F1", formKey: "alat", cats: ["Peralatan"], defaultCat: "Peralatan", satuanHarga: "unit", satuanStok: "unit" })}
+      {lainnya.length > 0 && renderSection({ title: "Lainnya", items: lainnya, color: "#8B8AA0", formKey: "lainnya", cats: ["Lainnya"], defaultCat: "Lainnya", satuanHarga: "pcs", satuanStok: "pcs" })}
     </div>
     </div>
   );

@@ -2,8 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import KaryawanClient from "../fnb/karyawan/karyawan-client";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function KaryawanTokoPage() {
+  return guardPage("Karyawan Toko", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -37,4 +39,5 @@ export default async function KaryawanTokoPage() {
       <KaryawanClient employees={employees || []} userId={user.id} businessId={business.id} businessName={business.name} />
     </div>
   );
+  });
 }

@@ -53,6 +53,19 @@ export default function DashboardShell({
     }
   }, []);
 
+  // Desktop fix: number inputs eat the mouse wheel (scroll changes the value
+  // instead of the page). Blur the focused number input on wheel so the page
+  // scrolls normally and the typed value isn't accidentally changed.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onWheel = () => {
+      const el = document.activeElement as HTMLInputElement | null;
+      if (el && el.tagName === "INPUT" && el.type === "number") el.blur();
+    };
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
+
   const sidebarProps = {
     businesses,
     activeBusiness,

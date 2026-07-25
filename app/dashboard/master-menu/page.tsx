@@ -3,8 +3,10 @@ import { cookies } from "next/headers";
 import FnbMenuClient from "../fnb/menu/menu-client";
 import { normalizeMenus } from "../fnb/lib/calc";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../lib/page-guard";
 
 export default async function MasterMenuPage() {
+  return guardPage("Master Menu", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -45,4 +47,5 @@ export default async function MasterMenuPage() {
       <FnbMenuClient menus={normalizeMenus(menus || [])} products={products || []} userId={user.id} businessId={business.id} businessName={business.name} />
     </div>
   );
+  });
 }

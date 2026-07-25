@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import MarketplaceCenterClient from "./marketplace-center-client";
+import { guardPage } from "../lib/page-guard";
 
 export type MpStore = {
   id: string; platform: string; nama_toko: string;
@@ -15,6 +16,7 @@ export type MpOrder = {
 };
 
 export default async function MarketplaceCenterPage() {
+  return guardPage("Marketplace Center", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -36,4 +38,5 @@ export default async function MarketplaceCenterPage() {
       orders={(orders || []) as MpOrder[]}
     />
   );
+  });
 }

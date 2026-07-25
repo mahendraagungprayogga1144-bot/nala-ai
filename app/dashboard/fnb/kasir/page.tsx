@@ -5,8 +5,10 @@ import { normalizeMenus } from "../lib/calc";
 import { loadActiveMenusForKasir } from "../lib/load-active-menus";
 import { todayWib } from "@/lib/date";
 import { normalizeBizType } from "@/lib/auth/post-login";
+import { guardPage } from "../../lib/page-guard";
 
 export default async function FnbKasirPage() {
+  return guardPage("Kasir F&B", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -100,4 +102,5 @@ export default async function FnbKasirPage() {
       />
     </div>
   );
+  });
 }

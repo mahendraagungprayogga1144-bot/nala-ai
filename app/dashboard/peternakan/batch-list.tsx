@@ -95,7 +95,7 @@ export default function BatchList({ batches, userId, businessId }: { batches: Ba
     setHarvestData((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
-  const BatchCard = ({ batch }: { batch: Batch }) => {
+  const renderBatchCard = (batch: Batch) => {
     const days = getDaysActive(batch.entry_date);
     const isExpanded = expandedId === batch.id;
     const profit = getProfit(batch);
@@ -103,7 +103,7 @@ export default function BatchList({ batches, userId, businessId }: { batches: Ba
     const estFeedCost = getEstimatedFeedCost(batch);
 
     return (
-      <div className="bg-[#0A0A12] border border-white/10 rounded-xl overflow-hidden mb-3">
+      <div key={batch.id} className="bg-[#0A0A12] border border-white/10 rounded-xl overflow-hidden mb-3">
         <div className="flex items-center justify-between px-4 py-3 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : batch.id)}>
           <div>
             <div className="flex items-center gap-2 mb-0.5">
@@ -240,13 +240,13 @@ export default function BatchList({ batches, userId, businessId }: { batches: Ba
       {activeBatches.length === 0 ? (
         <div className="bg-[#0F0F1A] border border-white/10 rounded-2xl p-8 text-center text-sm text-[#8B8AA0]">Belum ada batch aktif. Mulai batch panen baru di form di atas.</div>
       ) : (
-        activeBatches.map((b) => <BatchCard key={b.id} batch={b} />)
+        activeBatches.map((b) => renderBatchCard(b))
       )}
 
       {doneBatches.length > 0 && (
         <>
           <h2 className="text-sm font-medium text-[#8B8AA0] uppercase tracking-wide mb-4 mt-6">Riwayat Panen ({doneBatches.length})</h2>
-          {doneBatches.map((b) => <BatchCard key={b.id} batch={b} />)}
+          {doneBatches.map((b) => renderBatchCard(b))}
         </>
       )}
     </div>

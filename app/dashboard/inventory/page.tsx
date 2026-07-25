@@ -5,7 +5,6 @@ import ProfitIndicator from "./profit-indicator";
 import MonthYearFilter from "../month-year-filter";
 import { Package, AlertTriangle, Wallet, TrendingUp } from "lucide-react";
 import { Suspense } from "react";
-import { unstable_rethrow } from "next/navigation";
 import { getConfig } from "./business-config";
 import type { HiRecipe } from "./home-industry-calc";
 import { todayWib } from "./home-industry-calc";
@@ -32,17 +31,29 @@ import {
 
 const DISTINCT_INVENTORY_TYPES = ["retail", "jasa", "wholesale", "olshop", "kesehatan", "bengkel"];
 
+function isNextNavigationError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const digest = "digest" in err ? String((err as { digest?: unknown }).digest ?? "") : "";
+  if (digest.startsWith("NEXT_")) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /NEXT_REDIRECT|NEXT_NOT_FOUND|NEXT_HTTP_ERROR_FALLBACK/.test(msg);
+}
+
 export default async function InventoryPage(props: { searchParams: Promise<{ bulan?: string; tahun?: string }> }) {
   try {
     return await InventoryPageInner(props);
   } catch (err) {
-    unstable_rethrow(err);
+    // Only real Next navigation (redirect/notFound) should bubble. Do NOT
+    // unstable_rethrow — it re-bubbles cookie/RSC digests (ERROR 1621801304)
+    // into dashboard/error.tsx and blanks the page on reload.
+    if (isNextNavigationError(err)) throw err;
     const message = err instanceof Error ? err.message : String(err);
     console.error("[inventory]", err);
     return (
       <div className="px-4 py-10 text-center sm:px-8">
-        <p className="mb-2 text-[#EC4899]">Inventory error</p>
-        <p className="break-words font-mono text-xs text-[#8B8AA0]">{message}</p>
+        <p className="mb-2 text-[#EC4899]">Inventory gagal dimuat</p>
+        <p className="mb-4 break-words font-mono text-xs text-[#8B8AA0]">{message}</p>
+        <a href="/dashboard/inventory" className="text-sm text-[#2DD4BF] underline">Muat ulang</a>
       </div>
     );
   }

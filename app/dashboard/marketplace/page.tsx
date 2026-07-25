@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import MarketplaceClient from "./marketplace-client";
+import { guardPage } from "../lib/page-guard";
 
 export type MpReport = {
   id: string;
@@ -27,6 +28,7 @@ export type MpParsedOrder = {
 };
 
 export default async function MarketplacePage() {
+  return guardPage("Marketplace", async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -56,4 +58,5 @@ export default async function MarketplacePage() {
       parsedOrders={allOrders}
     />
   );
+  });
 }

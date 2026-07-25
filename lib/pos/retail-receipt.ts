@@ -178,6 +178,15 @@ export function printRetailReceipt(opts: {
     letter-spacing: 0.22em;
     font-weight: 700;
   }
+  .powered {
+    text-align: center;
+    margin-top: 10px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #007A4D;
+    font-weight: 700;
+  }
   @media print {
     body { background: #fff; }
     .ticket { padding: 4px 6px 10px; }
@@ -211,6 +220,7 @@ export function printRetailReceipt(opts: {
       <div class="thanks">TERIMA KASIH</div>
       <div class="note">Barang yang sudah dibeli<br/>tidak dapat dikembalikan.<br/>Simpan struk ini sebagai bukti.</div>
       <div class="barcode">*${escapeHtml(receiptNo)}*</div>
+      <div class="powered">Supported by Gercep AI</div>
     </div>
   </div>
   <script>

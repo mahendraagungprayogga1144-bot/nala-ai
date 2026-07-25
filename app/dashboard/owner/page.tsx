@@ -21,11 +21,27 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [{ data: profile }, { data: businesses }] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    supabase.from("businesses").select("id, name, type").eq("user_id", user.id).order("created_at", { ascending: true }),
-  ]);
+  let profile: { full_name?: string | null; avatar_url?: string | null } | null = null;
+  {
+    const withAvatar = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (withAvatar.error) {
+      const basic = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+      profile = basic.data;
+    } else {
+      profile = withAvatar.data;
+    }
+  }
+  const { data: businesses } = await supabase
+    .from("businesses")
+    .select("id, name, type")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true });
   const userName = profile?.full_name || user?.email?.split("@")[0] || "Owner";
+  const avatarUrl = profile?.avatar_url || null;
 
   if (!businesses || businesses.length === 0) {
     return <div className="px-4 sm:px-8 py-8 text-[#8B8AA0]">Belum ada bisnis. Buat bisnis dulu di onboarding.</div>;
@@ -243,7 +259,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
       }));
   }
 
-  let recentTransactions: RecentTransaction[] = (recentTxRaw || []).map(tx => {
+  const recentTransactions: RecentTransaction[] = (recentTxRaw || []).map(tx => {
     const created = tx.created_at ? new Date(tx.created_at) : new Date();
     const customer = tx.description?.split(",")[0]?.split(" x")[0] || tx.category || "Pelanggan";
     return {
@@ -414,6 +430,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
       tahun={tahun}
       userId={user.id}
       userName={userName}
+      avatarUrl={avatarUrl}
     />
   );
   });

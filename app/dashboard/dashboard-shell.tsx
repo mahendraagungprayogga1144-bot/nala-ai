@@ -19,6 +19,7 @@ export default function DashboardShell({
   activeBusiness,
   userName,
   userEmail,
+  avatarUrl,
   featureFlags,
   announcement,
 }: {
@@ -27,31 +28,30 @@ export default function DashboardShell({
   activeBusiness: Business | null;
   userName?: string;
   userEmail?: string;
+  avatarUrl?: string | null;
   featureFlags?: Flags;
   announcement?: { enabled: boolean; message: string; link: string };
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [announceDismissed, setAnnounceDismissed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  const [expanded, setExpanded] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobilePath, setMobilePath] = useState(pathname);
+  const [announceDismissed, setAnnounceDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return sessionStorage.getItem("gercep_announce_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const drawerOpen = mobileOpen && mobilePath === pathname;
 
   useEffect(() => {
     if (blockedPathForFlags(pathname || "", featureFlags)) {
       router.replace("/dashboard/owner");
     }
   }, [pathname, featureFlags, router]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (sessionStorage.getItem("gercep_announce_dismissed") === "1") {
-      setAnnounceDismissed(true);
-    }
-  }, []);
 
   // Desktop fix: number inputs eat the mouse wheel (scroll changes the value
   // instead of the page). Blur the focused number input on wheel so the page
@@ -71,6 +71,7 @@ export default function DashboardShell({
     activeBusiness,
     userName,
     userEmail,
+    avatarUrl,
     featureFlags,
   };
 
@@ -104,16 +105,19 @@ export default function DashboardShell({
         </div>
         <button
           type="button"
-          aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
-          onClick={() => setMobileOpen((v) => !v)}
+          aria-label={drawerOpen ? "Tutup menu" : "Buka menu"}
+          onClick={() => {
+            setMobilePath(pathname);
+            setMobileOpen((v) => !v);
+          }}
           className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06] active:bg-white/[0.08]"
         >
-          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+          {drawerOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
       </div>
 
       {/* Mobile drawer */}
-      {mobileOpen && (
+      {drawerOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"

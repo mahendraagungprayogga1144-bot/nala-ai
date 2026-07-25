@@ -7,8 +7,9 @@ import {
   Search, ChevronDown, ChevronRight, X, Pencil, AlertTriangle,
   Printer, Plus, Calendar, Bell, Building2,
   TrendingUp, TrendingDown, ShoppingBag, Receipt, DollarSign,
-  ArrowUpRight, ArrowDownRight,
+  ArrowUpRight, ArrowDownRight, Camera, LogOut, Sparkles, Layers, BarChart3, Check,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -17,6 +18,20 @@ import type { TopProduct, RecentTransaction } from "./owner-types";
 import OwnerKasirSummary, { type KasirTodaySummary } from "./owner-kasir-summary";
 import OwnerKasirLive, { type LiveKasirRow } from "./owner-kasir-live";
 import type { DayCloseData } from "@/app/dashboard/fnb/lib/day-close-types";
+import {
+  buildMonthlyReportPdfHtml,
+  buildMonthlyWhatsAppText,
+  type MonthlyReportData,
+} from "./lib/monthly-report";
+import { openWhatsAppShare } from "@/app/dashboard/fnb/lib/shift-report";
+import { useOwnerLiveAlerts } from "./use-owner-live-alerts";
+import { trackClientEvent } from "@/lib/admin/track-event";
+import { clearFastGateCookies } from "@/lib/auth/post-login";
+
+const InventoryPrintPreview = dynamic(
+  () => import("@/app/dashboard/inventory/components/inventory-print-preview"),
+  { ssr: false },
+);
 
 type Business = {
   id: string; name: string; type: string;
@@ -51,7 +66,7 @@ function fmtRp(n: number) {
 function fmtFull(n: number) { return "Rp" + Math.round(n).toLocaleString("id-ID"); }
 
 export default function DashboardOwnerClient({
-  businesses, topProducts, recentTransactions, kasirSummary, kasirBusinessName, liveKasir, dayCloseData, bulan, tahun, userId, userName,
+  businesses, topProducts, recentTransactions, kasirSummary, kasirBusinessName, liveKasir, dayCloseData, bulan, tahun, userId, userName: initialUserName, avatarUrl: initialAvatarUrl,
 }: {
   businesses: Business[];
   topProducts: TopProduct[];
@@ -61,6 +76,7 @@ export default function DashboardOwnerClient({
   liveKasir: LiveKasirRow[] | null;
   dayCloseData: DayCloseData | null;
   bulan: number; tahun: number; userId: string; userName: string;
+  avatarUrl?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -73,28 +89,48 @@ export default function DashboardOwnerClient({
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [targetInput, setTargetInput] = useState("");
   const [savingTarget, setSavingTarget] = useState(false);
-  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [selectedBiz, setSelectedBiz] = useState<string>("all");
   const [showBizDropdown, setShowBizDropdown] = useState(false);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [pdfPreviewHtml, setPdfPreviewHtml] = useState<string | null>(null);
   const [chartTab, setChartTab] = useState("Harian");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [chartsReady, setChartsReady] = useState(false);
+  const [userName, setUserName] = useState(initialUserName);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl || null);
+  const [nameDraft, setNameDraft] = useState(initialUserName);
+  const [editingName, setEditingName] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const dateRef = useRef<HTMLDivElement>(null);
   const bizRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const alertsSectionRef = useRef<HTMLDivElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setChartsReady(true); }, []);
+  const liveNotif = useOwnerLiveAlerts(businesses.map((b) => ({ id: b.id, name: b.name })));
+  const visibleAlerts = liveNotif.alerts;
 
   const closeDropdowns = () => {
     setShowDatePicker(false);
     setShowBizDropdown(false);
+    setShowNotifDropdown(false);
+    setShowProfileDropdown(false);
   };
 
   useEffect(() => {
-    if (!showDatePicker && !showBizDropdown) return;
+    if (!showDatePicker && !showBizDropdown && !showNotifDropdown && !showProfileDropdown) return;
     const onPointerDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (dateRef.current?.contains(t) || bizRef.current?.contains(t)) return;
+      if (
+        dateRef.current?.contains(t) ||
+        bizRef.current?.contains(t) ||
+        notifRef.current?.contains(t) ||
+        profileRef.current?.contains(t)
+      ) return;
       closeDropdowns();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeDropdowns(); };
@@ -104,7 +140,139 @@ export default function DashboardOwnerClient({
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [showDatePicker, showBizDropdown]);
+  }, [showDatePicker, showBizDropdown, showNotifDropdown, showProfileDropdown]);
+
+  const handleLogout = async () => {
+    trackClientEvent({ event: "logout", module: "auth" });
+    await supabase.auth.signOut();
+    clearFastGateCookies();
+    window.location.assign("/login");
+  };
+
+  const saveDisplayName = async () => {
+    const next = nameDraft.trim();
+    if (!next || next === userName) {
+      setEditingName(false);
+      setNameDraft(userName);
+      return;
+    }
+    setSavingProfile(true);
+    setProfileMsg(null);
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, full_name: next, updated_at: new Date().toISOString() }, { onConflict: "id" });
+    setSavingProfile(false);
+    if (error) {
+      setProfileMsg("Gagal simpan nama: " + error.message);
+      return;
+    }
+    setUserName(next);
+    setEditingName(false);
+    setProfileMsg("Nama tersimpan");
+    router.refresh();
+  };
+
+  const compressAvatar = async (file: File): Promise<Blob> => {
+    const bitmap = await createImageBitmap(file);
+    const max = 512;
+    const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      throw new Error("Canvas tidak tersedia");
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.85),
+    );
+    if (!blob) throw new Error("Gagal kompres foto");
+    return blob;
+  };
+
+  const uploadAvatar = async (file: File) => {
+    const okType =
+      file.type.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name);
+    if (!okType) {
+      setProfileMsg("Pilih file gambar (JPG/PNG/WebP)");
+      return;
+    }
+    // Foto HP sering 3–8 MB — kita kompres dulu, jadi limit awal 12 MB.
+    if (file.size > 12 * 1024 * 1024) {
+      setProfileMsg("Fotonya terlalu besar. Pilih yang di bawah 12 MB.");
+      return;
+    }
+    setUploadingAvatar(true);
+    setProfileMsg("Mengompres & mengunggah…");
+    try {
+      let uploadBlob: Blob;
+      let contentType = "image/jpeg";
+      try {
+        uploadBlob = await compressAvatar(file);
+      } catch {
+        // Fallback: kirim asli kalau browser gagal kompres
+        if (file.size > 2 * 1024 * 1024) {
+          setUploadingAvatar(false);
+          setProfileMsg("Gagal kompres. Coba foto lain yang lebih kecil.");
+          return;
+        }
+        uploadBlob = file;
+        contentType = file.type || "image/jpeg";
+      }
+
+      const path = `${userId}/avatar.jpg`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, uploadBlob, {
+        upsert: true,
+        contentType,
+        cacheControl: "3600",
+      });
+      if (upErr) {
+        setUploadingAvatar(false);
+        setProfileMsg("Gagal upload: " + upErr.message);
+        return;
+      }
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${pub.publicUrl}?v=${uploadBlob.size}-${file.lastModified}`;
+      const { error: dbErr } = await supabase
+        .from("profiles")
+        .upsert(
+          { id: userId, full_name: userName, avatar_url: url, updated_at: new Date().toISOString() },
+          { onConflict: "id" },
+        );
+      setUploadingAvatar(false);
+      if (dbErr) {
+        setProfileMsg("Foto terupload, tapi gagal simpan profil: " + dbErr.message);
+        setAvatarUrl(url);
+        return;
+      }
+      setAvatarUrl(url);
+      setProfileMsg("Foto profil diperbarui");
+      router.refresh();
+    } catch (e) {
+      setUploadingAvatar(false);
+      setProfileMsg(e instanceof Error ? e.message : "Gagal unggah foto");
+    }
+  };
+
+  const renderAvatar = (size = 36, className = "") => (
+    <span
+      className={`inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 font-bold text-white ${className}`}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+    >
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt={userName} className="h-full w-full object-cover" />
+      ) : (
+        (userName[0] || "O").toUpperCase()
+      )}
+    </span>
+  );
 
   const filteredBusinesses = selectedBiz === "all" ? businesses : businesses.filter(b => b.id === selectedBiz);
   const totalOmzet = filteredBusinesses.reduce((s, b) => s + b.omzetBulan, 0);
@@ -119,18 +287,55 @@ export default function DashboardOwnerClient({
   const topProfit = ranked[0];
   const topLoss = [...filteredBusinesses].sort((a, b) => a.labaBulan - b.labaBulan)[0];
 
-  const alerts = businesses.filter(b => b.stokKritis.length > 0).map(b => ({
-    id: "stok-" + b.id,
-    title: b.name + " — " + b.stokKritis.length + " bahan hampir habis",
-    sub: b.stokKritis.slice(0, 3).map(p => p.name).join(", "),
-  }));
-  const visibleAlerts = alerts.filter(a => !dismissedAlerts.includes(a.id));
-
   const allExpenses: Record<string, number> = {};
-  businesses.forEach(b => Object.entries(b.pengeluaranByCategory).forEach(([cat, amt]) => {
+  filteredBusinesses.forEach(b => Object.entries(b.pengeluaranByCategory).forEach(([cat, amt]) => {
     allExpenses[cat] = (allExpenses[cat] || 0) + amt;
   }));
   const totalExpense = Object.values(allExpenses).reduce((s, v) => s + v, 0);
+
+  const buildMonthlyData = (): MonthlyReportData => {
+    const expenses = Object.entries(allExpenses)
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount);
+    return {
+      ownerName: userName,
+      periodLabel: `${BULAN[bulan - 1]} ${tahun}`,
+      filterLabel:
+        selectedBiz === "all"
+          ? `Semua bisnis (${filteredBusinesses.length})`
+          : filteredBusinesses[0]?.name || "Bisnis",
+      totalOmzet,
+      totalLaba,
+      totalRugi,
+      totalOrder,
+      avgOrder,
+      businesses: filteredBusinesses.map((b) => ({
+        name: b.name,
+        type: TYPE_LABEL[b.type] || b.type,
+        omzet: b.omzetBulan,
+        laba: b.labaBulan,
+        orderCount: b.totalOrderBulan,
+        margin: b.margin,
+        growthPct: b.growthPct,
+        targetOmzet: b.targetOmzet,
+        stokKritis: b.stokKritis.map((p) => p.name),
+      })),
+      expenses,
+      topProducts: topProducts.map((p) => ({
+        name: p.name,
+        sold: p.sold,
+        revenue: p.revenue,
+      })),
+    };
+  };
+
+  const openMonthlyPdf = () => {
+    setPdfPreviewHtml(buildMonthlyReportPdfHtml(buildMonthlyData()));
+  };
+
+  const shareMonthlyWa = () => {
+    openWhatsAppShare(buildMonthlyWhatsAppText(buildMonthlyData()));
+  };
 
   const setRange = (r: string) => { router.push("/dashboard/owner?range=" + r); setShowDatePicker(false); };
   const applyCustom = () => {
@@ -175,7 +380,7 @@ export default function DashboardOwnerClient({
   return (
     <div className="min-h-screen bg-[#0b0e14] text-slate-100">
 
-      {(showDatePicker || showBizDropdown) && (
+      {(showDatePicker || showBizDropdown || showNotifDropdown || showProfileDropdown) && (
         <div
           className="no-print fixed inset-0 z-[35] bg-[#0b0e14]/50 backdrop-blur-[2px]"
           onClick={closeDropdowns}
@@ -187,7 +392,7 @@ export default function DashboardOwnerClient({
       <header className="no-print sticky top-0 z-40 overflow-visible border-b border-white/[0.06] bg-[#0b0e14]/95 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:px-8 lg:py-5">
           <div className="min-w-0 flex-shrink-0">
-            <h1 className="truncate text-xl font-bold text-white lg:text-2xl">Halo, {userName} 👋</h1>
+            <h1 className="truncate text-xl font-bold text-white lg:text-2xl">Halo, {userName}</h1>
             <p className="mt-1 text-sm text-slate-500">Berikut ringkasan performa bisnismu · {BULAN[bulan - 1]} {tahun}</p>
           </div>
 
@@ -224,8 +429,8 @@ export default function DashboardOwnerClient({
                     <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="dash-date-input" />
                   </label>
                   <button type="button" onClick={applyCustom} className="mb-2 w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 py-2 text-xs font-bold text-white">Terapkan</button>
-                  <button type="button" onClick={() => window.print()} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] py-2 text-xs text-slate-400 hover:text-slate-200">
-                    <Printer size={12} /> Cetak
+                  <button type="button" onClick={() => { setShowDatePicker(false); openMonthlyPdf(); }} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] py-2 text-xs text-slate-400 hover:text-slate-200">
+                    <Printer size={12} /> PDF rekap bulanan
                   </button>
                 </div>
               )}
@@ -259,15 +464,264 @@ export default function DashboardOwnerClient({
               )}
             </div>
 
-            <button type="button" className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-[#151921] text-slate-400 hover:border-white/[0.12] hover:text-slate-300">
-              <Bell size={15} />
-              {visibleAlerts.length > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">{visibleAlerts.length}</span>
-              )}
+            <button
+              type="button"
+              onClick={openMonthlyPdf}
+              className="hidden h-9 flex-shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.07] bg-[#151921] px-3 text-xs font-medium text-slate-400 hover:border-violet-500/40 hover:text-slate-200 sm:inline-flex"
+              title="Unduh PDF rekap bulanan"
+            >
+              <Printer size={14} />
+              PDF
             </button>
 
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-xs font-bold text-white">
-              {userName[0].toUpperCase()}
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDatePicker(false);
+                  setShowBizDropdown(false);
+                  setShowNotifDropdown((v) => !v);
+                  void liveNotif.refresh();
+                }}
+                className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-[#151921] text-slate-400 hover:border-white/[0.12] hover:text-slate-300"
+                aria-label="Notifikasi live"
+                title={liveNotif.live ? "Notifikasi live" : "Menyambungkan notifikasi…"}
+              >
+                <Bell size={15} />
+                <span
+                  className={`absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full ${
+                    liveNotif.live ? "bg-emerald-400 shadow-[0_0_6px_#34d399]" : "bg-slate-600"
+                  }`}
+                />
+                {visibleAlerts.length > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                    {visibleAlerts.length}
+                  </span>
+                )}
+              </button>
+              {showNotifDropdown && (
+                <div className="dash-dropdown scale-in absolute right-0 top-[calc(100%+8px)] z-[60] w-[320px] max-w-[calc(100vw-2rem)] p-2">
+                  <div className="mb-2 flex items-center justify-between px-2 pt-1">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-200">Notifikasi</p>
+                      <p className="text-[10px] text-slate-500">
+                        {liveNotif.live ? (
+                          <span className="text-emerald-400">● Live</span>
+                        ) : (
+                          <span>● Menyambung…</span>
+                        )}
+                        {liveNotif.lastSyncAt
+                          ? ` · update ${new Date(liveNotif.lastSyncAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                          : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void liveNotif.refresh()}
+                      className="rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-200"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {visibleAlerts.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs text-slate-500">Semua aman — tidak ada alert live.</div>
+                  ) : (
+                    <div className="max-h-72 space-y-1 overflow-y-auto">
+                      {visibleAlerts.map((a) => (
+                        <div key={a.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle size={13} className="mt-0.5 shrink-0 text-red-400" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium text-slate-200">{a.title}</p>
+                              <p className="truncate text-[10px] text-slate-500">{a.sub}</p>
+                              <div className="mt-1.5 flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowNotifDropdown(false);
+                                    router.push(a.href);
+                                  }}
+                                  className="rounded-md bg-red-500/15 px-2 py-0.5 text-[10px] text-red-300 hover:bg-red-500/25"
+                                >
+                                  Lihat stok
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => liveNotif.dismiss(a)}
+                                  className="rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-200"
+                                >
+                                  Tutup
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotifDropdown(false);
+                      alertsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className="mt-2 w-full rounded-lg border border-white/[0.08] py-1.5 text-[11px] text-slate-400 hover:text-slate-200"
+                  >
+                    Buka panel Perlu Perhatian
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="relative" ref={profileRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDatePicker(false);
+                  setShowBizDropdown(false);
+                  setShowNotifDropdown(false);
+                  setShowProfileDropdown((v) => !v);
+                  setProfileMsg(null);
+                  setNameDraft(userName);
+                  setEditingName(false);
+                }}
+                className={[
+                  "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-all hover:ring-2 hover:ring-violet-400/40",
+                  showProfileDropdown ? "ring-2 ring-violet-400/60" : "",
+                ].join(" ")}
+                aria-label="Menu profil"
+                title="Profil"
+              >
+                {renderAvatar(36)}
+              </button>
+              {showProfileDropdown && (
+                <div className="dash-dropdown scale-in absolute right-0 top-[calc(100%+8px)] z-[60] w-[280px] p-3">
+                  <div className="mb-3 flex items-start gap-3 border-b border-white/[0.06] pb-3">
+                    <div className="relative">
+                      {renderAvatar(48)}
+                      <button
+                        type="button"
+                        disabled={uploadingAvatar}
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-[#151921] text-slate-300 hover:text-white disabled:opacity-50"
+                        title="Ganti foto"
+                      >
+                        <Camera size={12} />
+                      </button>
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void uploadAvatar(f);
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {editingName ? (
+                        <div className="space-y-1.5">
+                          <input
+                            value={nameDraft}
+                            onChange={(e) => setNameDraft(e.target.value)}
+                            maxLength={60}
+                            autoFocus
+                            className="w-full rounded-lg border border-white/15 bg-[#0b0e14] px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
+                            placeholder="Nama tampilan"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void saveDisplayName();
+                              if (e.key === "Escape") {
+                                setEditingName(false);
+                                setNameDraft(userName);
+                              }
+                            }}
+                          />
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              disabled={savingProfile}
+                              onClick={() => void saveDisplayName()}
+                              className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-violet-600 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+                            >
+                              <Check size={12} /> Simpan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingName(false);
+                                setNameDraft(userName);
+                              }}
+                              className="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-slate-400"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-slate-200">{userName}</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNameDraft(userName);
+                                setEditingName(true);
+                              }}
+                              className="rounded-md p-0.5 text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                              title="Ubah nama"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-slate-500">Owner · {businesses.length} bisnis</p>
+                          <button
+                            type="button"
+                            disabled={uploadingAvatar}
+                            onClick={() => avatarInputRef.current?.click()}
+                            className="mt-1 text-[10px] text-violet-300 hover:text-violet-200 disabled:opacity-50"
+                          >
+                            {uploadingAvatar ? "Mengunggah…" : "Ganti foto profil"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {profileMsg && (
+                    <p className="mb-2 rounded-lg bg-white/[0.04] px-2 py-1.5 text-[10px] text-slate-400">{profileMsg}</p>
+                  )}
+
+                  {[
+                    { label: "Upgrade paket", href: "/dashboard/upgrade", icon: Sparkles },
+                    { label: "Kelola bisnis", href: "/dashboard/multi-bisnis", icon: Layers },
+                    { label: "Dashboard Analitik", href: "/dashboard/analitik", icon: BarChart3 },
+                  ].map((item) => (
+                    <button
+                      key={item.href}
+                      type="button"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        router.push(item.href);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
+                    >
+                      <item.icon size={14} className="text-slate-500" />
+                      {item.label}
+                    </button>
+                  ))}
+                  <div className="my-1.5 border-t border-white/[0.06]" />
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10"
+                  >
+                    <LogOut size={14} />
+                    Keluar akun
+                  </button>
+                </div>
+              )}
             </div>
 
             <button type="button" onClick={() => router.push("/dashboard/onboarding")}
@@ -343,7 +797,6 @@ export default function DashboardOwnerClient({
                 ))}
               </div>
             </div>
-            {chartsReady ? (
             <ResponsiveContainer width="100%" height={210}>
               <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                 <defs>
@@ -360,9 +813,6 @@ export default function DashboardOwnerClient({
                 <Area type="monotone" dataKey="omzet" stroke="#7c3aed" strokeWidth={2.5} fill="url(#omzetGrad)" dot={false} activeDot={{ r: 5, fill: "#7c3aed" }} />
               </AreaChart>
             </ResponsiveContainer>
-            ) : (
-              <div className="h-[210px] animate-pulse rounded-xl bg-white/[0.04]" />
-            )}
             <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-4 sm:grid-cols-4">
               {[
                 { label: "Omzet Tertinggi", value: fmtRp(Math.max(...chartData.map(d => d.omzet), 0) * 1000), dot: "#ef4444" },
@@ -381,10 +831,12 @@ export default function DashboardOwnerClient({
             </div>
           </div>
 
-          <div className="dashboard-card flex min-h-[340px] flex-col p-5">
+          <div ref={alertsSectionRef} className="dashboard-card flex min-h-[340px] flex-col p-5">
             <div className="mb-4 flex items-center justify-between border-b border-white/[0.06] pb-4">
               <h2 className="dash-card-title">Perlu Perhatian</h2>
-              <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-[11px] font-medium text-red-400">{visibleAlerts.length} alert</span>
+              <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-[11px] font-medium text-red-400">
+                {visibleAlerts.length} alert {liveNotif.live ? "· live" : ""}
+              </span>
             </div>
             <div className="flex flex-1 flex-col">
             {visibleAlerts.length === 0 ? (
@@ -401,8 +853,8 @@ export default function DashboardOwnerClient({
                   <p className="truncate text-sm font-medium text-slate-200">{a.title}</p>
                   <p className="truncate text-[11px] text-slate-500">{a.sub}</p>
                 </div>
-                <button onClick={() => router.push("/dashboard/inventory")} className="rounded-lg bg-red-500/10 px-2 py-1 text-[10px] text-red-400 hover:bg-red-500/20">Lihat</button>
-                <button onClick={() => setDismissedAlerts(p => [...p, a.id])} className="flex h-6 w-6 items-center justify-center rounded-lg border border-white/[0.08] text-slate-500 hover:text-slate-300">
+                <button onClick={() => router.push(a.href)} className="rounded-lg bg-red-500/10 px-2 py-1 text-[10px] text-red-400 hover:bg-red-500/20">Lihat</button>
+                <button onClick={() => liveNotif.dismiss(a)} className="flex h-6 w-6 items-center justify-center rounded-lg border border-white/[0.08] text-slate-500 hover:text-slate-300">
                   <X size={11} />
                 </button>
               </div>
@@ -475,9 +927,7 @@ export default function DashboardOwnerClient({
               <button type="button" className="dash-card-link">Detail</button>
             </div>
             <div className="flex flex-1 flex-col items-center justify-center">
-            {donutData.length === 0 ? <p className="text-sm text-slate-600">Belum ada data</p> : !chartsReady ? (
-              <div className="h-[130px] w-[130px] animate-pulse rounded-full bg-white/[0.04]" />
-            ) : (
+            {donutData.length === 0 ? <p className="text-sm text-slate-600">Belum ada data</p> : (
               <>
                 <div className="relative mx-auto mb-3" style={{ width: 130, height: 130 }}>
                   <PieChart width={130} height={130}>
@@ -682,20 +1132,48 @@ export default function DashboardOwnerClient({
 
             <div className="dashboard-card p-5">
               <p className="dash-card-title mb-4 border-b border-white/[0.06] pb-3">Ekspor Rekap</p>
-              {[
-                { icon: "📊", label: "Excel · semua bisnis" },
-                { icon: "📄", label: "PDF · laporan bulanan" },
-                { icon: "💬", label: "Kirim ke WhatsApp" },
-                { icon: "⏰", label: "Jadwalkan otomatis" },
-              ].map((item, i) => (
-                <div key={i} className={["flex cursor-pointer items-center justify-between py-2 hover:text-slate-300", i < 3 ? "border-b border-white/[0.04]" : ""].join(" ")}>
-                  <span className="text-xs text-slate-400">{item.icon} {item.label}</span>
-                  <ChevronRight size={11} className="text-slate-600" />
-                </div>
-              ))}
+              <button
+                type="button"
+                onClick={openMonthlyPdf}
+                className="flex w-full cursor-pointer items-center justify-between border-b border-white/[0.04] py-2 text-left hover:text-slate-300"
+              >
+                <span className="text-xs text-slate-400">📄 PDF · laporan bulanan</span>
+                <ChevronRight size={11} className="text-slate-600" />
+              </button>
+              <button
+                type="button"
+                onClick={shareMonthlyWa}
+                className="flex w-full cursor-pointer items-center justify-between border-b border-white/[0.04] py-2 text-left hover:text-slate-300"
+              >
+                <span className="text-xs text-slate-400">💬 Kirim ke WhatsApp</span>
+                <ChevronRight size={11} className="text-slate-600" />
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/analitik")}
+                className="flex w-full cursor-pointer items-center justify-between py-2 text-left hover:text-slate-300"
+              >
+                <span className="text-xs text-slate-400">📈 Buka Dashboard Analitik</span>
+                <ChevronRight size={11} className="text-slate-600" />
+              </button>
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-600">
+                PDF memakai filter bisnis &amp; periode yang sedang dipilih di atas.
+              </p>
               <div className="mt-3 flex gap-2">
-                <button type="button" className="flex-1 rounded-lg border border-white/[0.08] bg-[#151921] py-2 text-xs text-slate-400 hover:border-white/15">Preview</button>
-                <button type="button" className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 py-2 text-xs font-bold text-white hover:opacity-90">Unduh</button>
+                <button
+                  type="button"
+                  onClick={openMonthlyPdf}
+                  className="flex-1 rounded-lg border border-white/[0.08] bg-[#151921] py-2 text-xs text-slate-400 hover:border-white/15"
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={openMonthlyPdf}
+                  className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 py-2 text-xs font-bold text-white hover:opacity-90"
+                >
+                  Unduh PDF
+                </button>
               </div>
             </div>
           </div>
@@ -703,6 +1181,14 @@ export default function DashboardOwnerClient({
           )}
         </div>
       </div>
+
+      {pdfPreviewHtml && (
+        <InventoryPrintPreview
+          html={pdfPreviewHtml}
+          title={`Rekap bulanan · ${BULAN[bulan - 1]} ${tahun}`}
+          onClose={() => setPdfPreviewHtml(null)}
+        />
+      )}
     </div>
   );
 }

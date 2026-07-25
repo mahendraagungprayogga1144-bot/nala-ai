@@ -228,7 +228,7 @@ export default async function DashboardOwnerPage({ searchParams }: { searchParam
     .order("created_at", { ascending: false })
     .limit(6);
 
-  let recentTransactions: RecentTransaction[] = (recentTxRaw || []).map(tx => {
+  const recentTransactions: RecentTransaction[] = (recentTxRaw || []).map(tx => {
     const created = tx.created_at ? new Date(tx.created_at) : new Date();
     const customer = tx.description?.split(",")[0]?.split(" x")[0] || tx.category || "Pelanggan";
     return {

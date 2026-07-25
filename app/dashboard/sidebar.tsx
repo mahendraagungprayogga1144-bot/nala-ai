@@ -18,6 +18,7 @@ export default function Sidebar({
   activeBusiness,
   userName,
   userEmail,
+  avatarUrl,
   onNavigate,
   embedded,
   featureFlags,
@@ -28,6 +29,7 @@ export default function Sidebar({
   activeBusiness: Business | null;
   userName?: string;
   userEmail?: string;
+  avatarUrl?: string | null;
   onNavigate?: () => void;
   embedded?: boolean;
   featureFlags?: { ai_kasir?: boolean; ai_jual_beli?: boolean; marketplace?: boolean; pajak?: boolean };
@@ -186,8 +188,13 @@ export default function Sidebar({
         <div className={expanded ? "flex items-center gap-2.5 rounded-xl bg-white/[0.03] px-2.5 py-2" : "flex justify-center py-1"}>
           {expanded ? (
             <>
-              <div className="gercep-gradient-btn flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold">
-                {userName ? userName[0].toUpperCase() : "M"}
+              <div className="gercep-gradient-btn flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt={userName || "Owner"} className="h-full w-full object-cover" />
+                ) : (
+                  userName ? userName[0].toUpperCase() : "M"
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12px] font-semibold text-[#F0EFF8]">{userName || "Owner"}</p>

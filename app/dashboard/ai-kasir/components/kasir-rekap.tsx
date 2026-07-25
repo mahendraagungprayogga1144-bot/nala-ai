@@ -91,6 +91,7 @@ export default function KasirRekap({
       total: Number(sale.total),
       diskon: Number(sale.diskon) || 0,
       voided: isVoided(sale),
+      orderId: sale.id,
     });
   };
 

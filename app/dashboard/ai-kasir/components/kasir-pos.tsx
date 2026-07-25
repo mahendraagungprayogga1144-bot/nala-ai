@@ -253,7 +253,7 @@ export default function KasirPOS({
       meta: { total, items: cart.length, metode: metodeBayar },
     });
 
-    // Struk retail sederhana (window print) — bukan struk F&B
+    // Struk retail modern (thermal 80mm)
     printRetailReceipt({
       storeName: businessName || "AI Kasir",
       today,
@@ -266,6 +266,9 @@ export default function KasirPOS({
       })),
       total,
       diskon: diskonNum,
+      orderId: result.orderId,
+      bayar: metodeBayar === "tunai" ? (bayarNum || total) : null,
+      kembali: metodeBayar === "tunai" ? kembali : null,
     });
 
     setSuccessMsg(`Transaksi ${fmtRp(total)} berhasil!`);

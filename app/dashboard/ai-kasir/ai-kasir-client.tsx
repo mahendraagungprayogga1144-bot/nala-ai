@@ -3,6 +3,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShoppingCart, Clock, BarChart3, Users, LogOut, Store, KeyRound,
+  Package, Maximize2, Minimize2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, KasirShift, TodaySale, RetailStaff } from "./page";
@@ -10,9 +11,11 @@ import KasirPOS from "./components/kasir-pos";
 import KasirShiftPanel from "./components/kasir-shift";
 import KasirRekap from "./components/kasir-rekap";
 import KasirTim from "./components/kasir-tim";
+import KasirProduk from "./components/kasir-produk";
 
 const TABS = [
   { id: "kasir", label: "Kasir", icon: ShoppingCart },
+  { id: "produk", label: "Produk", icon: Package },
   { id: "shift", label: "Shift", icon: Clock },
   { id: "rekap", label: "Rekap", icon: BarChart3 },
   { id: "tim", label: "Tim", icon: Users },
@@ -55,6 +58,7 @@ export default function AiKasirClient({
   const [boot, setBoot] = useState(true);
   const [savingStore, setSavingStore] = useState(false);
   const [loginErr, setLoginErr] = useState("");
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     try {
@@ -235,7 +239,14 @@ export default function AiKasirClient({
   }
 
   return (
-    <div className="-mx-3 -mt-3 min-h-[70vh] pb-16 sm:-mx-8 sm:-mt-6" style={shell}>
+    <div
+      className={
+        fullscreen
+          ? "fixed inset-0 z-[90] overflow-y-auto pb-16"
+          : "-mx-3 -mt-3 min-h-[70vh] pb-16 sm:-mx-8 sm:-mt-6"
+      }
+      style={shell}
+    >
       <header className="sticky top-0 z-20 border-b border-[#C5D4CB]/80 bg-[#F2F6F4]/90 backdrop-blur-md">
         <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#007A4D] text-white">
@@ -250,6 +261,15 @@ export default function AiKasirClient({
               {" · "}tidak sync Keuangan Bisnis
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setFullscreen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#C5D4CB] bg-white px-3 py-2 text-xs font-medium text-[#3D4F45]"
+            title={fullscreen ? "Keluar layar penuh" : "Mode layar penuh (sembunyikan menu Gercep)"}
+          >
+            {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            <span className="hidden sm:inline">{fullscreen ? "Keluar" : "Layar penuh"}</span>
+          </button>
           <button
             type="button"
             onClick={logoutStaff}
@@ -292,7 +312,11 @@ export default function AiKasirClient({
             omzetHariIni={omzetHariIni}
             totalOrder={totalOrder}
             staffName={session.nama}
+            onGoProduk={() => setTab("produk")}
           />
+        )}
+        {tab === "produk" && (
+          <KasirProduk userId={userId} businessId={businessId} products={products} />
         )}
         {tab === "shift" && (
           <KasirShiftPanel

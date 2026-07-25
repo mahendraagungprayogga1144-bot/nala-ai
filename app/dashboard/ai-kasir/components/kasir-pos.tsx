@@ -25,12 +25,13 @@ const METODE_BAYAR = [
 const BTN_GRAD = { background: "#007A4D", color: "#FFFFFF" } as const;
 
 export default function KasirPOS({
-  userId, businessId, businessName, products, activeShift, today, omzetHariIni, totalOrder, staffName,
+  userId, businessId, businessName, products, activeShift, today, omzetHariIni, totalOrder, staffName, onGoProduk,
 }: {
   userId: string; businessId: string; businessName: string;
   products: Product[]; activeShift: KasirShift | null;
   today: string; omzetHariIni: number; totalOrder: number;
   staffName?: string | null;
+  onGoProduk?: () => void;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -294,12 +295,24 @@ export default function KasirPOS({
 
           <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4 max-h-[60vh] overflow-y-auto scrollbar-none">
             {filtered.length === 0 ? (
-              <div className="col-span-full py-10 text-center text-sm text-[#8A9A90]">
-                {products.length === 0
-                  ? "Belum ada produk. Tambah di Inventory."
-                  : showAllStock
-                    ? "Tidak ditemukan."
-                    : "Belum ada SKU siap jual. Isi harga jual di Inventory, atau aktifkan Mode: semua stok."}
+              <div className="col-span-full py-10 text-center">
+                <Package size={28} className="mx-auto mb-2 text-[#8A9A90]" />
+                <p className="mb-3 text-sm text-[#5C6B63]">
+                  {products.length === 0
+                    ? "Belum ada produk di toko ini."
+                    : showAllStock
+                      ? "Tidak ditemukan."
+                      : "Belum ada produk siap jual (harga > 0)."}
+                </p>
+                {onGoProduk && (
+                  <button
+                    type="button"
+                    onClick={onGoProduk}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#007A4D] px-4 py-2.5 text-xs font-semibold text-white"
+                  >
+                    <Plus size={13} /> Tambah produk dulu →
+                  </button>
+                )}
               </div>
             ) : filtered.map((p) => {
               const qty = getQty(p.id);
@@ -505,6 +518,31 @@ function CartPanel({
       {metodeBayar === "tunai" && cart.length > 0 && (
         <div className={compact ? "pt-3" : "px-4 py-3 border-b border-[#E3EBE6]"}>
           <p className="text-[10px] text-[#5C6B63] uppercase tracking-widest mb-2">Bayar Tunai (Rp)</p>
+          <div className="mb-2 grid grid-cols-4 gap-1.5">
+            {[
+              { lbl: "Uang pas", val: total },
+              { lbl: "20rb", val: 20000 },
+              { lbl: "50rb", val: 50000 },
+              { lbl: "100rb", val: 100000 },
+            ].map((q) => {
+              const active = Number(bayar) === q.val;
+              const disabled = q.val < total && q.lbl !== "Uang pas";
+              return (
+                <button
+                  key={q.lbl}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setBayar(String(q.val))}
+                  className="rounded-lg border py-2 text-[10px] font-semibold disabled:opacity-30"
+                  style={active
+                    ? { borderColor: "rgba(0,122,77,.5)", color: "#007A4D", background: "rgba(0,122,77,.1)" }
+                    : { borderColor: "#C5D4CB", color: "#5C6B63", background: "#fff" }}
+                >
+                  {q.lbl}
+                </button>
+              );
+            })}
+          </div>
           <input type="number" placeholder={String(Math.ceil(total / 1000) * 1000)}
             value={bayar} onChange={e => setBayar(e.target.value)} className={inputCls + " font-mono"} />
           {kembali > 0 && (

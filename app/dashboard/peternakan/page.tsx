@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Plus, Bird } from "lucide-react";
 import PeternakanHubNav from "./peternakan-hub-nav";
-import FnbEmptyState from "../fnb/components/fnb-empty-state";
 import { getActiveBusiness, WrongBizType } from "../lib/get-active-business";
 import { normalizeBizType } from "@/lib/auth/post-login";
 import { guardPage } from "../lib/page-guard";
@@ -260,13 +259,22 @@ export default async function PeternakanPage() {
         )}
 
         {batches.length === 0 && !batchErr && (
-          <FnbEmptyState
-            icon={Bird}
-            title="Belum ada batch ternak"
-            subtitle="Satu batch = satu siklus pemeliharaan. Catat bibit, pakan, mortalitas, dan panen di satu tempat."
-            actionLabel="Buat Batch Baru"
-            actionHref="/dashboard/peternakan/batch/baru"
-          />
+          <div className="flex flex-col items-center px-6 py-10 text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03]">
+              <Bird size={24} className="text-[#5A5B7A]" />
+            </div>
+            <p className="mb-1 text-sm font-medium text-[#F0EFF8]">Belum ada batch ternak</p>
+            <p className="mb-4 max-w-xs text-xs leading-relaxed text-[#5A5B7A]">
+              Satu batch = satu siklus pemeliharaan. Catat bibit, pakan, mortalitas, dan panen di satu tempat.
+            </p>
+            <Link
+              href="/dashboard/peternakan/batch/baru"
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold"
+              style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
+            >
+              Buat Batch Baru
+            </Link>
+          </div>
         )}
       </div>
     );

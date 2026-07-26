@@ -20,6 +20,8 @@ type InvDelta = {
   namaItem: string | null;
   harga: number | null;
   jenisTernak: string;
+  /** HPP penuh per ekor (bibit+pakan+obat+ops) ÷ populasi awal. Dipakai saat panen. */
+  hppPerEkor?: number | null;
 };
 
 /** Apply or reverse inventory effect of one farm transaction. sign: +1 apply, -1 reverse */
@@ -108,10 +110,14 @@ export async function syncFarmInventoryDelta(
     if (existing) {
       // mortalitas/panen reduce stock on apply → reverse adds back
       const stockDelta = -signed;
-      const patch: { stock: number; price?: number | null; category?: string } = {
+      const patch: { stock: number; price?: number | null; cost?: number | null; category?: string } = {
         stock: Math.max(0, Number(existing.stock) + stockDelta),
       };
       if (delta.jenis === "panen" && sign > 0 && delta.harga) patch.price = delta.harga;
+      // HPP penuh (bibit+pakan+obat+ops) per ekor, bukan cuma harga bibit.
+      if (delta.jenis === "panen" && sign > 0 && delta.hppPerEkor && delta.hppPerEkor > 0) {
+        patch.cost = Math.round(delta.hppPerEkor);
+      }
       if (sign > 0) patch.category = hewanInventoryCategory(delta.jenisTernak);
       await supabase.from("products").update(patch).eq("id", existing.id);
     }

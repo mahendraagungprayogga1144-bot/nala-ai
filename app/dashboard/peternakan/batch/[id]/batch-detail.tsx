@@ -173,6 +173,7 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
         namaItem: namaItem || null,
         harga: hargaNum || null,
         jenisTernak: batch.jenis_ternak,
+        hppPerEkor: bibitEkor > 0 ? modalForHpp / bibitEkor : null,
       },
       sign: 1,
     });
@@ -307,7 +308,14 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
     </div>
   );
 
-  const renderFormPanen = () => (
+  const renderFormPanen = () => {
+    // HPP penuh = seluruh biaya batch (bibit+pakan+obat+ops) dibagi populasi awal.
+    const hppPerEkor = totalBibit > 0 ? totalModal / totalBibit : 0;
+    const qtyPanen = Number(qty) || 0;
+    const hppPanen = hppPerEkor * qtyPanen;
+    const pendapatan = calcTotal("panen");
+    const labaKotor = pendapatan - hppPanen;
+    return (
     <div className="bg-[#0A0A12] border border-[#2DD4BF]/20 rounded-xl p-4 mb-4">
       <p className="text-xs font-medium text-[#2DD4BF] mb-3">{editingId ? "Edit" : "Catat"} Panen</p>
       <div className="grid grid-cols-2 gap-2 mb-2">
@@ -318,14 +326,26 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
         <div><label className="text-[10px] text-[#8B8AA0] mb-1 block">Harga Jual/ekor (Rp)</label><input type="number" placeholder="50000" value={harga} onChange={e => setHarga(e.target.value)} className={inputCls} /></div>
         <div><label className="text-[10px] text-[#8B8AA0] mb-1 block">Berat Total (kg, opsional)</label><input type="number" placeholder="180" value={satuan} onChange={e => setSatuan(e.target.value)} className={inputCls} /></div>
       </div>
-      <div className="bg-[#0F0F1A] rounded-lg px-3 py-2 mb-3">
+      <div className="bg-[#0F0F1A] rounded-lg px-3 py-2.5 mb-3">
         <div className="flex justify-between items-center">
           <span className="text-[10px] text-[#8B8AA0]">Populasi hidup saat ini</span>
           <span className="text-sm font-mono">{populasiHidup} ekor</span>
         </div>
-        <div className="flex justify-between items-center mt-1">
+        <div className="flex justify-between items-center mt-1.5">
+          <span className="text-[10px] text-[#8B8AA0]">HPP/ekor (bibit+pakan+obat+ops)</span>
+          <span className="text-sm font-mono text-[#F59E0B]">Rp{Math.round(hppPerEkor).toLocaleString("id-ID")}</span>
+        </div>
+        <div className="flex justify-between items-center mt-1.5">
+          <span className="text-[10px] text-[#8B8AA0]">HPP panen ({qtyPanen} ekor)</span>
+          <span className="text-sm font-mono text-[#EC4899]">Rp{Math.round(hppPanen).toLocaleString("id-ID")}</span>
+        </div>
+        <div className="flex justify-between items-center mt-1.5">
           <span className="text-[10px] text-[#8B8AA0]">Pendapatan</span>
-          <span className="text-sm font-mono text-[#2DD4BF]">Rp{calcTotal("panen").toLocaleString("id-ID")}</span>
+          <span className="text-sm font-mono text-[#2DD4BF]">Rp{pendapatan.toLocaleString("id-ID")}</span>
+        </div>
+        <div className="mt-2 pt-2 border-t border-white/[0.06] flex justify-between items-center">
+          <span className="text-[11px] font-semibold" style={{ color: labaKotor >= 0 ? "#2DD4BF" : "#EC4899" }}>Laba kotor panen ini</span>
+          <span className="text-sm font-mono font-bold" style={{ color: labaKotor >= 0 ? "#2DD4BF" : "#EC4899" }}>{labaKotor >= 0 ? "+" : ""}Rp{Math.round(labaKotor).toLocaleString("id-ID")}</span>
         </div>
       </div>
       <input placeholder="Catatan (opsional)" value={catatan} onChange={e => setCatatan(e.target.value)} className={inputCls + " mb-3"} />
@@ -334,7 +354,8 @@ export default function BatchDetail({ batch, transactions, userId, businessId }:
         <button onClick={() => { resetForm(); setActiveForm(null); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm text-[#8B8AA0]">Batal</button>
       </div>
     </div>
-  );
+    );
+  };
 
   // Group transactions by date for timeline
   const grouped: Record<string, Transaction[]> = {};

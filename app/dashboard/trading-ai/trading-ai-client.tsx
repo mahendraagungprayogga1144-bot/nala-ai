@@ -8,6 +8,7 @@ import {
   Radar,
   Shield,
   Sparkles,
+  Upload,
   Zap,
 } from "lucide-react";
 import {
@@ -15,6 +16,9 @@ import {
   DEFAULT_TRADING_AI_CONFIG,
   decideTradingAction,
   journal,
+  parseCandlesFile,
+  backtest,
+  type BacktestResult,
   type Candle,
   type TradeDecision,
   type TradingDecisionResult,
@@ -95,6 +99,57 @@ export default function TradingAiClient({ userLabel }: { userLabel: string }) {
   const [result, setResult] = useState<TradingDecisionResult | null>(null);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState(journal.listJournal(8));
+  const [m5Candles, setM5Candles] = useState<Candle[] | null>(null);
+  const [m1Candles, setM1Candles] = useState<Candle[] | null>(null);
+  const [m5Label, setM5Label] = useState("Belum upload M5");
+  const [m1Label, setM1Label] = useState("Belum upload M1");
+  const [btRunning, setBtRunning] = useState(false);
+  const [btResult, setBtResult] = useState<BacktestResult | null>(null);
+  const [btMsg, setBtMsg] = useState<string | null>(null);
+
+  const onCsv = async (kind: "m5" | "m1", file: File | null) => {
+    if (!file) return;
+    setBtMsg(null);
+    const parsed = await parseCandlesFile(file);
+    if (!parsed.ok) {
+      setBtMsg(parsed.error);
+      return;
+    }
+    if (kind === "m5") {
+      setM5Candles(parsed.candles);
+      setM5Label(`${file.name} · ${parsed.candles.length} bar`);
+    } else {
+      setM1Candles(parsed.candles);
+      setM1Label(`${file.name} · ${parsed.candles.length} bar`);
+    }
+    if (parsed.warnings[0]) setBtMsg(parsed.warnings.join(" · "));
+  };
+
+  const runCsvBacktest = () => {
+    if (!m5Candles?.length || !m1Candles?.length) {
+      setBtMsg("Upload CSV M5 dan M1 dulu (export dari MT5).");
+      return;
+    }
+    setBtRunning(true);
+    setBtMsg(null);
+    setTimeout(() => {
+      try {
+        const out = backtest.runBacktest({
+          symbol: "XAUUSD",
+          m5Candles,
+          m1Candles,
+          config: DEFAULT_TRADING_AI_CONFIG,
+          maxSteps: 4000,
+        });
+        setBtResult(out);
+        setBtMsg(out.notes.join(" "));
+      } catch (e) {
+        setBtMsg(e instanceof Error ? e.message : "Backtest gagal.");
+      } finally {
+        setBtRunning(false);
+      }
+    }, 30);
+  };
 
   const runDemo = () => {
     setRunning(true);
@@ -376,6 +431,106 @@ export default function TradingAiClient({ userLabel }: { userLabel: string }) {
           </div>
         </div>
 
+        {/* CSV Backtest */}
+        <div className="cp-panel mt-4 rounded-2xl p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[#FF3D9A]/90">
+              CSV backtest · otak tidak diubah
+            </p>
+            <p className="text-[10px] text-[#6A8A99]">MT5 export · belum order live</p>
+          </div>
+          <p className="mb-4 text-[11px] leading-relaxed text-[#8FB8C9]">
+            Upload candle M5 + M1 (CSV). Format MT5 OK:{" "}
+            <span className="text-[#5CE1FF]">DATE,TIME,OPEN,HIGH,LOW,CLOSE</span> atau header{" "}
+            <span className="text-[#5CE1FF]">time,open,high,low,close</span>. Brain yang sama dipakai replay.
+          </p>
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <label className="cursor-pointer rounded-xl border border-dashed border-[#5CE1FF]/35 bg-black/25 px-4 py-4 transition hover:border-[#5CE1FF]/70">
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#5CE1FF]">
+                <Upload size={14} /> CSV M5
+              </div>
+              <p className="text-[10px] text-[#7FA4B3]">{m5Label}</p>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => onCsv("m5", e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <label className="cursor-pointer rounded-xl border border-dashed border-[#FF3D9A]/35 bg-black/25 px-4 py-4 transition hover:border-[#FF3D9A]/70">
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#FF3D9A]">
+                <Upload size={14} /> CSV M1
+              </div>
+              <p className="text-[10px] text-[#7FA4B3]">{m1Label}</p>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => onCsv("m1", e.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={runCsvBacktest}
+            disabled={btRunning}
+            className="cp-btn mb-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold tracking-wide disabled:opacity-55"
+          >
+            {btRunning ? (
+              <>
+                <Radar size={16} className="animate-spin" /> Rewinding tape…
+              </>
+            ) : (
+              <>
+                <Activity size={16} /> Jalankan backtest CSV
+              </>
+            )}
+          </button>
+          {btMsg && <p className="mb-3 text-[11px] leading-relaxed text-[#9BC5D4]">{btMsg}</p>}
+          {btResult && (
+            <>
+              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ["Trades", String(btResult.trades.length)],
+                  ["Wins", String(btResult.wins)],
+                  ["Losses", String(btResult.losses)],
+                  ["PnL≈", btResult.totalPnl.toFixed(2)],
+                  ["Max DD≈", btResult.maxDrawdown.toFixed(2)],
+                  [
+                    "Winrate",
+                    btResult.trades.length
+                      ? `${Math.round((btResult.wins / btResult.trades.length) * 100)}%`
+                      : "—",
+                  ],
+                ].map(([k, v]) => (
+                  <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">{v}</p>
+                  </div>
+                ))}
+              </div>
+              {btResult.trades.length > 0 && (
+                <div className="max-h-56 overflow-auto divide-y divide-white/5 rounded-xl border border-white/5">
+                  {btResult.trades.slice(0, 30).map((t, i) => (
+                    <div key={`${t.entryTime}-${i}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[11px]">
+                      <span className="font-bold" style={{ color: decisionColor(t.side) }}>
+                        {t.side}
+                      </span>
+                      <span className="text-[#7FA4B3]">
+                        {t.entryPrice.toFixed(2)} → {t.exitPrice?.toFixed(2) ?? "—"}
+                      </span>
+                      <span style={{ color: (t.pnl ?? 0) >= 0 ? "#00F0A8" : "#FF3D7F" }}>
+                        {(t.pnl ?? 0) >= 0 ? "+" : ""}
+                        {(t.pnl ?? 0).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Journal */}
         <div className="cp-panel mt-4 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -402,7 +557,7 @@ export default function TradingAiClient({ userLabel }: { userLabel: string }) {
         </div>
 
         <p className="mt-4 text-center text-[10px] tracking-wide text-[#4E6A78]">
-          Phase UI · demo only · Supported by Gercep AI
+          Phase UI · CSV backtest · otak kamu utuh · Supported by Gercep AI
         </p>
       </div>
     </div>

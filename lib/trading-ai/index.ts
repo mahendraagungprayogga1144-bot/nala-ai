@@ -37,6 +37,8 @@ export type {
 
 export { decideTradingAction, type DecideOptions } from "./decide";
 
+export { parseCandlesCsv, parseCandlesFile, type ParseCandlesResult } from "./csv-candles";
+
 export * as brain from "./brain";
 export * as risk from "./risk";
 export * as validator from "./validator";

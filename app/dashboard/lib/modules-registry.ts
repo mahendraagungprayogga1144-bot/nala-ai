@@ -3,7 +3,7 @@ import {
   Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera,
   ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
-  Briefcase, Boxes, HeartPulse, Wrench,
+  Briefcase, Boxes, HeartPulse, Wrench, Crosshair,
 } from "lucide-react";
 import { normalizeBizType } from "@/lib/auth/post-login";
 
@@ -54,6 +54,7 @@ const BIZ_MODULES: DashboardModule[] = [
 export const GERCEP_MODULES: DashboardModule[] = [
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },
   { id: "analitik", name: "Dashboard Analitik", desc: "KPI omzet, laba, beban, arus kas — satu layar.", href: "/dashboard/analitik", icon: BarChart3, category: "utama", status: "live" },
+  { id: "trading-ai", name: "Trading AI Brain", desc: "XAUUSD price-action brain — M5 bias, M1 entry.", href: "/dashboard/trading-ai", icon: Crosshair, category: "utama", status: "beta" },
   { id: "chat", name: "Gercep Chat", desc: "Pusat kendali semua modul lewat chat.", href: "/dashboard/chat", icon: MessageCircle, category: "utama", status: "live" },
 
   { id: "keuangan-pribadi", name: "Keuangan Pribadi", desc: "Catat pemasukan-pengeluaran, target tabungan.", href: "/dashboard/keuangan-pribadi", icon: Wallet, category: "keuangan", status: "live" },

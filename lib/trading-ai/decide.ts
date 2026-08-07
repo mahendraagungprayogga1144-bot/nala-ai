@@ -2,10 +2,9 @@
  * Trading AI Brain — orchestrator.
  * Combines brain + risk + validator into BUY | SELL | WAIT | CLOSE.
  *
- * Phase 1 guarantees:
+ * Guarantees:
  * - executable is always false
  * - no MT5 / broker calls
- * - incomplete detectors → WAIT
  */
 
 import {
@@ -13,10 +12,8 @@ import {
   analyzeTrend,
   decideEntry,
   decideExit,
-  detectMomentum,
-  detectPullback,
-  detectRejection,
 } from "./brain";
+import { detectSequencedSetup } from "./brain/setup-sequence";
 import {
   DEFAULT_TRADING_AI_CONFIG,
   HARD_RULES,
@@ -55,12 +52,27 @@ export function decideTradingAction(
     config,
     ctx.market.bid,
   );
-  const pullback = detectPullback(ctx.m1Candles, trend.direction, config);
-  const rejection = detectRejection(ctx.m1Candles, trend.direction, pullback.nearLevel);
-  const momentum = detectMomentum(ctx.m1Candles, trend.direction);
+
+  // Sequenced M1: pullback → rejection → momentum (not same-bar AND).
+  const setup = detectSequencedSetup(
+    ctx.m1Candles,
+    trend.direction,
+    config,
+    supportResistance,
+  );
+  const { pullback, rejection, momentum } = setup;
 
   const exit = decideExit({ positions: ctx.openPositions, trend });
-  const entry = decideEntry({ trend, pullback, rejection, momentum, config });
+  const entryPrice = trend.direction === "bearish" ? ctx.market.bid : ctx.market.ask;
+  const entry = decideEntry({
+    trend,
+    pullback,
+    rejection,
+    momentum,
+    supportResistance,
+    marketPrice: entryPrice,
+    config,
+  });
 
   const spreadOk = checkSpread(ctx.market, config);
   const positionOk = checkPositionLimit(ctx.openPositions, entry.decision, config);
@@ -114,6 +126,7 @@ export function decideTradingAction(
   }
 
   reasons.push(...trend.notes.filter(Boolean).slice(0, 2));
+  if (pullback.notes[0]) reasons.push(pullback.notes[0]);
 
   return {
     decision,

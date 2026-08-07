@@ -6,7 +6,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.1.0-phase1";
+export const TRADING_AI_VERSION = "0.2.0-brain-logic";
 
 /** Hard product rules — never override from UI without deliberate change. */
 export const HARD_RULES = {
@@ -45,6 +45,15 @@ export type TradingAiConfig = {
     pullbackMaxDepth: number;
     /** Min confidence (0–100) to allow BUY/SELL instead of WAIT. */
     minConfidenceToEnter: number;
+    /** Swing pivot left/right bars (price action structure). */
+    swingLeft: number;
+    swingRight: number;
+    /** S/R cluster width as multiple of ATR. */
+    srAtrMult: number;
+    /** How close price must be to level (ATR mult) for pullback/rejection. */
+    levelTouchAtrMult: number;
+    /** Reward:risk for suggested TP from SL distance. */
+    takeProfitRr: number;
   };
 };
 
@@ -65,8 +74,13 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
     minM5Candles: 50,
     minM1Candles: 30,
     pullbackMinDepth: 0.2,
-    pullbackMaxDepth: 0.7,
+    pullbackMaxDepth: 0.85,
     minConfidenceToEnter: 65,
+    swingLeft: 2,
+    swingRight: 2,
+    srAtrMult: 0.35,
+    levelTouchAtrMult: 0.4,
+    takeProfitRr: 1.5,
   },
 };
 

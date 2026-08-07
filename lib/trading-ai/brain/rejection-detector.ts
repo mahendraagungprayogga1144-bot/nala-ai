@@ -1,37 +1,25 @@
 /**
- * Rejection Detector — wick / absorption at S/R after pullback.
- * Phase 1 stub.
+ * Rejection Detector — thin wrapper over sequenced M1 setup.
+ * `nearLevel` kept for signature compatibility; sequence uses SR via decide().
  */
 
+import type { TradingAiConfig } from "../config";
 import type { Candle, RejectionAnalysis, TrendDirection } from "../types";
+import { detectSequencedSetup } from "./setup-sequence";
 
 export function detectRejection(
   m1Candles: Candle[],
   trendDirection: TrendDirection,
-  nearLevel: number | null,
+  nearLevelPrice: number | null,
+  config: TradingAiConfig,
 ): RejectionAnalysis {
-  if (!nearLevel || trendDirection === "unknown" || trendDirection === "ranging") {
-    return {
-      detected: false,
-      side: null,
-      atPrice: null,
-      notes: ["No level / bias for rejection check."],
-    };
-  }
-  if (m1Candles.length < 3) {
-    return {
-      detected: false,
-      side: null,
-      atPrice: null,
-      notes: ["Not enough M1 candles for rejection pattern."],
-    };
-  }
-
-  // TODO(phase-2): pinbar / engulfing / rejection wick vs S/R.
-  return {
-    detected: false,
-    side: null,
-    atPrice: null,
-    notes: ["Rejection Detector scaffold — not implemented yet."],
-  };
+  const sr = nearLevelPrice
+    ? {
+        timeframe: config.entryTimeframe,
+        levels: [],
+        nearestSupport: trendDirection === "bullish" ? nearLevelPrice : null,
+        nearestResistance: trendDirection === "bearish" ? nearLevelPrice : null,
+      }
+    : null;
+  return detectSequencedSetup(m1Candles, trendDirection, config, sr).rejection;
 }

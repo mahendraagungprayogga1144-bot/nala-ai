@@ -12,6 +12,7 @@ import {
   Shield,
   Sparkles,
   Upload,
+  MessageSquareText,
   Zap,
 } from "lucide-react";
 import {
@@ -146,6 +147,9 @@ export default function TradingAiClient({
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyFlash, setKeyFlash] = useState<string | null>(null);
   const [bridgeMsg, setBridgeMsg] = useState<string | null>(schemaError);
+  const [explainText, setExplainText] = useState<string | null>(null);
+  const [explainBusy, setExplainBusy] = useState(false);
+  const [explainErr, setExplainErr] = useState<string | null>(null);
 
   const refreshFeed = async () => {
     const [m5, m1] = await Promise.all([
@@ -225,12 +229,41 @@ export default function TradingAiClient({
         openPositions: [],
       });
       setResult(out);
+      setExplainText(null);
+      setExplainErr(null);
       journal.appendJournal(journal.buildJournalEntry(out, { notes: "MT5 feed" }));
       setLog(journal.listJournal(8));
     } catch (e) {
       setBridgeMsg(e instanceof Error ? e.message : "Gagal baca feed MT5");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const runExplain = async () => {
+    if (!result) {
+      setExplainErr("Jalankan otak dulu (demo / MT5 / CSV) supaya ada keputusan.");
+      return;
+    }
+    setExplainBusy(true);
+    setExplainErr(null);
+    try {
+      const res = await fetch("/api/trading-ai/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: result }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setExplainErr(data.error || "Gagal minta penjelasan AI");
+        setExplainText(null);
+        return;
+      }
+      setExplainText(data.explanation || "");
+    } catch (e) {
+      setExplainErr(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setExplainBusy(false);
     }
   };
 
@@ -312,6 +345,8 @@ export default function TradingAiClient({
         },
       );
       setResult(out);
+      setExplainText(null);
+      setExplainErr(null);
       journal.appendJournal(journal.buildJournalEntry(out, { notes: "Demo pulse" }));
       setLog(journal.listJournal(8));
       setRunning(false);
@@ -624,6 +659,31 @@ export default function TradingAiClient({
                 </div>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={runExplain}
+              disabled={!result || explainBusy}
+              className="relative z-[1] mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#5CE1FF]/40 bg-[#5CE1FF]/10 py-3 text-sm font-semibold text-[#5CE1FF] disabled:opacity-45"
+            >
+              {explainBusy ? (
+                <>
+                  <Radar size={16} className="animate-spin" /> Claude menjelaskan…
+                </>
+              ) : (
+                <>
+                  <MessageSquareText size={16} /> Jelaskan sinyal (Claude)
+                </>
+              )}
+            </button>
+            {explainErr && (
+              <p className="relative z-[1] mt-2 text-[11px] text-[#FFB4D4]">{explainErr}</p>
+            )}
+            {explainText && (
+              <div className="relative z-[1] mt-3 whitespace-pre-wrap rounded-xl border border-[#5CE1FF]/20 bg-black/40 px-3 py-3 text-[11px] leading-relaxed text-[#C8E7F2]">
+                {explainText}
+              </div>
+            )}
           </div>
 
           {/* Side intel */}

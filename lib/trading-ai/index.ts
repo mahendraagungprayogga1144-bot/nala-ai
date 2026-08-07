@@ -47,6 +47,8 @@ export {
   type CandleFeedStatus,
 } from "./mt5-feed";
 
+export { explainTradingDecision, type ExplainResult } from "./ai-explain";
+
 export * as brain from "./brain";
 export * as risk from "./risk";
 export * as validator from "./validator";

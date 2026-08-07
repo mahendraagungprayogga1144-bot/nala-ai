@@ -39,6 +39,14 @@ export { decideTradingAction, type DecideOptions } from "./decide";
 
 export { parseCandlesCsv, parseCandlesFile, type ParseCandlesResult } from "./csv-candles";
 
+export {
+  generateBridgeApiKey,
+  loadCandles,
+  getCandleFeedStatus,
+  type BridgeKeyRow,
+  type CandleFeedStatus,
+} from "./mt5-feed";
+
 export * as brain from "./brain";
 export * as risk from "./risk";
 export * as validator from "./validator";

@@ -1,0 +1,129 @@
+//+------------------------------------------------------------------
+//| GercepCandlePush.mq5
+//| Push XAUUSD M5 + M1 candles to Gercep Trading AI (read-only).
+//| DOES NOT PLACE ORDERS.
+//|
+//| Setup:
+//| 1. Dashboard Gercep → Trading AI Brain → buat API key (gea_...)
+//| 2. Paste key to InpApiKey below
+//| 3. Set InpBaseUrl = https://gercepos.id  (or your domain)
+//| 4. MT5 → Tools → Options → Expert Advisors
+//|    ☑ Allow WebRequest for listed URL → add same base URL
+//| 5. Attach EA to XAUUSD chart (any TF). Enable Algo Trading.
+//+------------------------------------------------------------------
+#property copyright "Gercep AI"
+#property version   "1.00"
+
+input string InpBaseUrl   = "https://gercepos.id"; // no trailing slash
+input string InpApiKey    = "gea_PASTE_YOUR_KEY";
+input string InpSymbol    = "XAUUSD";
+input int    InpBarsM5    = 80;
+input int    InpBarsM1    = 120;
+input int    InpTimerSec  = 30; // push interval
+
+string Endpoint()
+{
+   return InpBaseUrl + "/api/trading-ai/ingest";
+}
+
+string EscapeJson(const string s)
+{
+   string o = s;
+   StringReplace(o, "\\", "\\\\");
+   StringReplace(o, "\"", "\\\"");
+   return o;
+}
+
+string BuildCandleJson(const string symbol, ENUM_TIMEFRAMES tf, const int bars)
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, bars, rates);
+   if(copied <= 0) return "";
+
+   string tfStr = (tf == PERIOD_M5 ? "M5" : "M1");
+   string json = "{";
+   json += "\"symbol\":\"" + EscapeJson(symbol) + "\",";
+   json += "\"timeframe\":\"" + tfStr + "\",";
+   json += "\"candles\":[";
+
+   // oldest → newest
+   for(int i = copied - 1; i >= 0; i--)
+   {
+      if(i < copied - 1) json += ",";
+      json += "{";
+      json += "\"time\":" + IntegerToString((long)rates[i].time) + ",";
+      json += "\"open\":" + DoubleToString(rates[i].open, 3) + ",";
+      json += "\"high\":" + DoubleToString(rates[i].high, 3) + ",";
+      json += "\"low\":" + DoubleToString(rates[i].low, 3) + ",";
+      json += "\"close\":" + DoubleToString(rates[i].close, 3) + ",";
+      json += "\"volume\":" + DoubleToString((double)rates[i].tick_volume, 0);
+      json += "}";
+   }
+   json += "]}";
+   return json;
+}
+
+bool PostJson(const string payload)
+{
+   char data[];
+   char result[];
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpApiKey + "\r\n";
+   StringToCharArray(payload, data, 0, WHOLE_ARRAY, CP_UTF8);
+   // remove trailing null from StringToCharArray
+   int len = ArraySize(data);
+   if(len > 0 && data[len - 1] == 0) ArrayResize(data, len - 1);
+
+   string result_headers;
+   int code = WebRequest("POST", Endpoint(), headers, 8000, data, result, result_headers);
+   if(code == -1)
+   {
+      Print("Gercep WebRequest failed. Err=", GetLastError(),
+            " — add URL to Tools→Options→Expert Advisors→Allow WebRequest: ", InpBaseUrl);
+      return false;
+   }
+   string body = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   Print("Gercep ingest HTTP ", code, " ", body);
+   return (code >= 200 && code < 300);
+}
+
+void PushAll()
+{
+   if(StringFind(InpApiKey, "gea_") != 0)
+   {
+      Print("Set InpApiKey from Gercep dashboard (starts with gea_).");
+      return;
+   }
+
+   string j5 = BuildCandleJson(InpSymbol, PERIOD_M5, InpBarsM5);
+   string j1 = BuildCandleJson(InpSymbol, PERIOD_M1, InpBarsM1);
+   if(j5 == "" || j1 == "")
+   {
+      Print("CopyRates failed — check symbol ", InpSymbol);
+      return;
+   }
+   PostJson(j5);
+   PostJson(j1);
+}
+
+int OnInit()
+{
+   EventSetTimer(MathMax(10, InpTimerSec));
+   PushAll();
+   return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+}
+
+void OnTimer()
+{
+   PushAll();
+}
+
+void OnTick()
+{
+   // timer-driven; keep OnTick empty (no trading)
+}

@@ -3,9 +3,12 @@
 import { useState } from "react";
 import {
   Activity,
+  Copy,
   Crosshair,
+  Link2,
   Lock,
   Radar,
+  Radio,
   Shield,
   Sparkles,
   Upload,
@@ -18,11 +21,16 @@ import {
   journal,
   parseCandlesFile,
   backtest,
+  generateBridgeApiKey,
+  loadCandles,
   type BacktestResult,
+  type BridgeKeyRow,
   type Candle,
+  type CandleFeedStatus,
   type TradeDecision,
   type TradingDecisionResult,
 } from "@/lib/trading-ai";
+import { createClient } from "@/lib/supabase/client";
 
 function candle(i: number, o: number, h: number, l: number, c: number): Candle {
   return { time: 1_700_000_000 + i * 60, open: o, high: h, low: l, close: c };
@@ -95,7 +103,34 @@ const RULES = [
   "Live order OFF · MT5 OFF",
 ];
 
-export default function TradingAiClient({ userLabel }: { userLabel: string }) {
+function fmtTs(sec: number | null) {
+  if (!sec) return "—";
+  return new Date(sec * 1000).toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default function TradingAiClient({
+  userId,
+  userLabel,
+  initialFeed,
+  initialKeys,
+  ingestUrl,
+  schemaReady,
+  schemaError,
+}: {
+  userId: string;
+  userLabel: string;
+  initialFeed: CandleFeedStatus;
+  initialKeys: BridgeKeyRow[];
+  ingestUrl: string;
+  schemaReady: boolean;
+  schemaError: string | null;
+}) {
+  const supabase = createClient();
   const [result, setResult] = useState<TradingDecisionResult | null>(null);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState(journal.listJournal(8));
@@ -106,6 +141,98 @@ export default function TradingAiClient({ userLabel }: { userLabel: string }) {
   const [btRunning, setBtRunning] = useState(false);
   const [btResult, setBtResult] = useState<BacktestResult | null>(null);
   const [btMsg, setBtMsg] = useState<string | null>(null);
+  const [keys, setKeys] = useState(initialKeys);
+  const [feed, setFeed] = useState(initialFeed);
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyFlash, setKeyFlash] = useState<string | null>(null);
+  const [bridgeMsg, setBridgeMsg] = useState<string | null>(schemaError);
+
+  const refreshFeed = async () => {
+    const [m5, m1] = await Promise.all([
+      loadCandles(supabase, { userId, timeframe: "M5", limit: 500 }),
+      loadCandles(supabase, { userId, timeframe: "M1", limit: 500 }),
+    ]);
+    setFeed({
+      symbol: "XAUUSD",
+      m5Count: m5.length,
+      m1Count: m1.length,
+      m5LastTime: m5.length ? m5[m5.length - 1].time : null,
+      m1LastTime: m1.length ? m1[m1.length - 1].time : null,
+    });
+    return { m5, m1 };
+  };
+
+  const createKey = async () => {
+    if (!schemaReady) {
+      setBridgeMsg("Jalankan SQL migrasi Trading AI di Supabase dulu.");
+      return;
+    }
+    setKeyBusy(true);
+    setBridgeMsg(null);
+    const api_key = generateBridgeApiKey();
+    const { data, error } = await supabase
+      .from("trading_ai_bridge_keys")
+      .insert({ user_id: userId, api_key, label: "MT5 EA" })
+      .select("id, api_key, label, last_seen_at, created_at, revoked_at")
+      .single();
+    setKeyBusy(false);
+    if (error) {
+      setBridgeMsg(error.message);
+      return;
+    }
+    setKeys((k) => [data as BridgeKeyRow, ...k]);
+    setKeyFlash(api_key);
+  };
+
+  const revokeKey = async (id: string) => {
+    if (!confirm("Cabut API key ini? EA MT5 akan berhenti tersambung.")) return;
+    const { error } = await supabase
+      .from("trading_ai_bridge_keys")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) {
+      setBridgeMsg(error.message);
+      return;
+    }
+    setKeys((k) => k.filter((x) => x.id !== id));
+  };
+
+  const runFromMt5 = async () => {
+    setRunning(true);
+    setBridgeMsg(null);
+    try {
+      const { m5, m1 } = await refreshFeed();
+      if (m5.length < DEFAULT_TRADING_AI_CONFIG.brain.minM5Candles ||
+          m1.length < DEFAULT_TRADING_AI_CONFIG.brain.minM1Candles) {
+        setBridgeMsg(
+          `Data MT5 belum cukup. M5=${m5.length} (min ${DEFAULT_TRADING_AI_CONFIG.brain.minM5Candles}), M1=${m1.length} (min ${DEFAULT_TRADING_AI_CONFIG.brain.minM1Candles}). Pastikan EA sudah push.`,
+        );
+        setRunning(false);
+        return;
+      }
+      const last = m1[m1.length - 1].close;
+      const out = decideTradingAction({
+        symbol: "XAUUSD",
+        m5Candles: m5,
+        m1Candles: m1,
+        market: {
+          symbol: "XAUUSD",
+          bid: last,
+          ask: last + 0.2,
+          spread: 20,
+          at: Date.now(),
+        },
+        openPositions: [],
+      });
+      setResult(out);
+      journal.appendJournal(journal.buildJournalEntry(out, { notes: "MT5 feed" }));
+      setLog(journal.listJournal(8));
+    } catch (e) {
+      setBridgeMsg(e instanceof Error ? e.message : "Gagal baca feed MT5");
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const onCsv = async (kind: "m5" | "m1", file: File | null) => {
     if (!file) return;
@@ -315,8 +442,8 @@ export default function TradingAiClient({ userLabel }: { userLabel: string }) {
               Trading AI Brain
             </h1>
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#8FB8C9] sm:text-sm">
-              Brain XAUUSD mirip gaya manual kamu. Demo pulse memakai candle sintetis —
-              belum terhubung MT5, belum bisa order.
+              Otak XAUUSD gaya manual kamu. Sambung MT5 lewat EA (read-only candle) —
+              belum order. Demo / CSV tetap tersedia.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest">
@@ -328,6 +455,124 @@ export default function TradingAiClient({ userLabel }: { userLabel: string }) {
               <Shield size={11} /> max 1 pos
             </span>
           </div>
+        </div>
+
+        {/* MT5 bridge */}
+        <div className="cp-panel mb-4 rounded-2xl p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#00F0A8]/90">
+              <Radio size={13} /> MT5 bridge · read-only
+            </p>
+            <p className="text-[10px] text-[#6A8A99]">tidak kirim order</p>
+          </div>
+
+          {!schemaReady && (
+            <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+              Jalankan SQL migrasi <code className="text-amber-200">20260807_trading_ai_mt5_ingest.sql</code> di Supabase dulu.
+              {schemaError ? ` (${schemaError})` : ""}
+            </div>
+          )}
+
+          <div className="mb-4 grid gap-2 sm:grid-cols-4">
+            {[
+              ["M5 bars", String(feed.m5Count)],
+              ["M1 bars", String(feed.m1Count)],
+              ["M5 last", fmtTs(feed.m5LastTime)],
+              ["M1 last", fmtTs(feed.m1LastTime)],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+                <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
+                <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">{v}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-3 rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-[11px] text-[#9BC5D4]">
+            <div className="mb-1 flex items-center gap-2 text-[#5CE1FF]">
+              <Link2 size={12} /> Ingest URL
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="break-all text-[#E8F7FF]">{ingestUrl}</code>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-lg border border-[#5CE1FF]/30 px-2 py-1 text-[10px] text-[#5CE1FF]"
+                onClick={() => navigator.clipboard.writeText(ingestUrl)}
+              >
+                <Copy size={11} /> copy
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={keyBusy || !schemaReady}
+              onClick={createKey}
+              className="rounded-xl border border-[#00F0A8]/40 bg-[#00F0A8]/10 px-3 py-2 text-xs font-semibold text-[#00F0A8] disabled:opacity-50"
+            >
+              {keyBusy ? "..." : "+ Buat API key EA"}
+            </button>
+            <button
+              type="button"
+              onClick={() => refreshFeed()}
+              className="rounded-xl border border-white/15 px-3 py-2 text-xs text-[#9BC5D4]"
+            >
+              Refresh feed
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={runFromMt5}
+              className="cp-btn rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-55"
+            >
+              Jalankan otak dari data MT5
+            </button>
+          </div>
+
+          {keyFlash && (
+            <div className="mb-3 rounded-xl border border-[#00F0A8]/35 bg-[#00F0A8]/10 px-3 py-2 text-[11px] text-[#B8FFE8]">
+              Key baru (simpan sekarang):{" "}
+              <code className="break-all text-white">{keyFlash}</code>
+              <button
+                type="button"
+                className="ml-2 underline"
+                onClick={() => navigator.clipboard.writeText(keyFlash)}
+              >
+                copy
+              </button>
+            </div>
+          )}
+
+          {keys.length > 0 && (
+            <div className="mb-3 divide-y divide-white/5 rounded-xl border border-white/5">
+              {keys.map((k) => (
+                <div key={k.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[11px]">
+                  <div>
+                    <p className="font-semibold text-[#E8F7FF]">{k.label}</p>
+                    <p className="text-[#6A8A99]">
+                      {k.api_key.slice(0, 12)}… · last seen {k.last_seen_at ? new Date(k.last_seen_at).toLocaleString("id-ID") : "belum"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => revokeKey(k.id)}
+                    className="text-[#FF3D7F] underline"
+                  >
+                    cabut
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-[#8FB8C9]">
+            <li>Jalankan SQL migrasi Trading AI di Supabase (kalau belum).</li>
+            <li>Buat API key di sini, paste ke EA <code className="text-[#5CE1FF]">GercepCandlePush.mq5</code>.</li>
+            <li>MT5 → Options → Expert Advisors → Allow WebRequest → tambah domain Gercep.</li>
+            <li>Attach EA ke chart XAUUSD, nyalakan Algo Trading. EA push M5+M1 tiap ~30 detik.</li>
+            <li>Tekan <strong>Jalankan otak dari data MT5</strong> — masih saran saja, bukan order.</li>
+          </ol>
+          {bridgeMsg && <p className="mt-3 text-[11px] text-[#FFB4D4]">{bridgeMsg}</p>}
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">

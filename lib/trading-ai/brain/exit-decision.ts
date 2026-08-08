@@ -1,6 +1,7 @@
 /**
- * Exit Decision Engine — CLOSE when M5 bias flips against the open side.
- * Still advisory only (orchestrator sets executable: false).
+ * Exit Decision Engine — HOLD | CLOSE.
+ * CLOSE when M5 bias flips against the open side.
+ * Still advisory on server (orchestrator sets executable: false).
  */
 
 import type { ExitSignal, OpenPosition, TrendAnalysis } from "../types";
@@ -13,7 +14,7 @@ export function decideExit(input: {
 
   if (!positions.length) {
     return {
-      decision: "WAIT",
+      decision: "HOLD",
       reason: "No open position.",
       positionId: null,
     };
@@ -37,7 +38,7 @@ export function decideExit(input: {
   }
 
   return {
-    decision: "WAIT",
+    decision: "HOLD",
     reason: `Hold ${pos.side} — M5 still ${trend.direction}.`,
     positionId: pos.id,
   };

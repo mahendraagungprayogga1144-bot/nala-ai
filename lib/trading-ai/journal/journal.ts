@@ -30,6 +30,7 @@ export function buildJournalEntry(
     ].join(" · "),
     outcome: extras?.outcome ?? null,
     notes: extras?.notes,
+    audit: result.audit,
   };
 }
 

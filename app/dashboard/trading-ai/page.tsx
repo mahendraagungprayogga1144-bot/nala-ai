@@ -52,6 +52,9 @@ export default async function TradingAiPage() {
     const ingestUrl =
       (process.env.NEXT_PUBLIC_APP_URL || "https://gercepos.id").replace(/\/$/, "") +
       "/api/trading-ai/ingest";
+    const signalUrl =
+      (process.env.NEXT_PUBLIC_APP_URL || "https://gercepos.id").replace(/\/$/, "") +
+      "/api/trading-ai/signal";
 
     return (
       <TradingAiClient
@@ -60,6 +63,7 @@ export default async function TradingAiPage() {
         initialFeed={feed}
         initialKeys={keys}
         ingestUrl={ingestUrl}
+        signalUrl={signalUrl}
         schemaReady={schemaReady}
         schemaError={schemaError}
       />

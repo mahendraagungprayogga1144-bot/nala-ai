@@ -1,17 +1,22 @@
 /**
- * Trading AI Brain — public API (phase 1 architecture).
+ * Trading AI Brain — public API.
  *
- * Usage:
- *   import { decideTradingAction, DEFAULT_TRADING_AI_CONFIG } from "@/lib/trading-ai";
- *
- * No MT5, no live orders. `executable` is always false.
+ * Server never places MT5 orders. EA polls /api/trading-ai/signal.
  */
 
-export { TRADING_AI_VERSION, HARD_RULES, DEFAULT_TRADING_AI_CONFIG, mergeTradingAiConfig } from "./config";
+export {
+  TRADING_AI_VERSION,
+  HARD_RULES,
+  DEFAULT_TRADING_AI_CONFIG,
+  mergeTradingAiConfig,
+  isEaSignalExecutionEnabled,
+} from "./config";
 export type { TradingAiConfig } from "./config";
 
 export type {
   TradeDecision,
+  EntryDecision,
+  ExitDecision,
   TrendDirection,
   Timeframe,
   SymbolCode,
@@ -28,14 +33,19 @@ export type {
   EntrySignal,
   ExitSignal,
   RiskCheck,
+  ConfidenceFeature,
+  ConfidenceBreakdown,
   ValidationResult,
   TradingDecisionResult,
+  DecisionAuditLog,
   JournalEntry,
   BacktestTrade,
   BacktestResult,
 } from "./types";
 
 export { decideTradingAction, type DecideOptions } from "./decide";
+export { buildDecisionAudit } from "./audit";
+export { toEaTradeSignal, type EaTradeSignal } from "./signal";
 
 export { parseCandlesCsv, parseCandlesFile, type ParseCandlesResult } from "./csv-candles";
 

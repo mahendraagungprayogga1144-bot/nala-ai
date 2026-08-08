@@ -1,24 +1,38 @@
 /**
  * Trading AI Brain — rule configuration.
  * Tunable defaults for XAUUSD M5 trend / M1 entry style.
- * Phase 1: no broker coupling.
  */
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.2.0-brain-logic";
+export const TRADING_AI_VERSION = "0.3.0-mt5-signal";
 
-/** Hard product rules — never override from UI without deliberate change. */
+/**
+ * Hard product rules — never weaken from UI.
+ * Named aliases match product language (MAX_POSITION, NO_*).
+ */
 export const HARD_RULES = {
   maxOpenPositions: 1,
   allowAveraging: false,
   allowMartingale: false,
   allowGrid: false,
   allowHedge: false,
-  /** Phase 1 never sends orders. */
+  /** Server never places broker orders. EA may execute on demo only. */
   liveTradingEnabled: false,
+  /** Server-side MT5 order API disabled; signal poll is separate. */
   mt5Enabled: false,
+  /** Explicit aliases for validators / audit. */
+  MAX_POSITION: 1,
+  NO_AVERAGING: true,
+  NO_MARTINGALE: true,
+  NO_GRID: true,
+  NO_HEDGE: true,
 } as const;
+
+/** Env gate: when "1", signal responses set eaMayExecute=true (EA still demo-gated). */
+export function isEaSignalExecutionEnabled(): boolean {
+  return process.env.TRADING_AI_EA_SIGNALS === "1";
+}
 
 export type TradingAiConfig = {
   symbol: SymbolCode;
@@ -64,7 +78,7 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
   primaryApproach: "price_action",
   useIndicatorsAsPrimary: false,
   risk: {
-    maxOpenPositions: HARD_RULES.maxOpenPositions,
+    maxOpenPositions: HARD_RULES.MAX_POSITION,
     defaultLot: 0.01,
     maxLot: 0.1,
     maxFloatingRiskPct: 2,
@@ -90,13 +104,17 @@ export function mergeTradingAiConfig(
     brain?: Partial<TradingAiConfig["brain"]>;
   },
 ): TradingAiConfig {
-  if (!partial) return { ...DEFAULT_TRADING_AI_CONFIG, risk: { ...DEFAULT_TRADING_AI_CONFIG.risk }, brain: { ...DEFAULT_TRADING_AI_CONFIG.brain } };
+  if (!partial)
+    return {
+      ...DEFAULT_TRADING_AI_CONFIG,
+      risk: { ...DEFAULT_TRADING_AI_CONFIG.risk },
+      brain: { ...DEFAULT_TRADING_AI_CONFIG.brain },
+    };
   return {
     ...DEFAULT_TRADING_AI_CONFIG,
     ...partial,
     risk: { ...DEFAULT_TRADING_AI_CONFIG.risk, ...partial.risk },
     brain: { ...DEFAULT_TRADING_AI_CONFIG.brain, ...partial.brain },
-    // Hard overrides — cannot be weakened by partial config.
     useIndicatorsAsPrimary: false,
     primaryApproach: "price_action",
   };

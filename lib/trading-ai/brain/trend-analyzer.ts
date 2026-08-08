@@ -43,7 +43,7 @@ export function analyzeTrend(
   const hl = lows[lows.length - 1].price > lows[lows.length - 2].price;
   const ll = lows[lows.length - 1].price < lows[lows.length - 2].price;
 
-  let direction: TrendDirection = "ranging";
+  let direction: TrendDirection = "sideways";
   let strength = 0.35;
 
   if (hh && hl) {
@@ -63,7 +63,7 @@ export function analyzeTrend(
       notes.push("Third swing continues LL — stronger bearish structure.");
     }
   } else {
-    notes.push("M5 mixed swings — ranging / unclear. Prefer WAIT.");
+    notes.push("M5 mixed swings — sideways / unclear. Prefer WAIT.");
   }
 
   return {

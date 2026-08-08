@@ -10,7 +10,7 @@ export function detectMomentum(
   m1Candles: Candle[],
   trendDirection: TrendDirection,
 ): MomentumAnalysis {
-  if (trendDirection === "unknown" || trendDirection === "ranging") {
+  if (trendDirection === "unknown" || trendDirection === "sideways") {
     return {
       alignedWithTrend: false,
       direction: "unknown",

@@ -175,5 +175,8 @@ assert(
   blocked.decision === "WAIT" || blocked.decision === "CLOSE",
   "open position must block new entry",
 );
+assert(blocked.exit.decision === "HOLD" || blocked.exit.decision === "CLOSE", "exit is HOLD|CLOSE");
+assert(blocked.audit != null && blocked.audit.decision === blocked.decision, "audit attached");
+assert(Array.isArray(blocked.validation.breakdown.features), "confidence features present");
 
 console.log("smoke ok");

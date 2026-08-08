@@ -24,10 +24,10 @@ export function decideEntry(input: {
 }): EntrySignal {
   const { trend, pullback, rejection, momentum, supportResistance, marketPrice, config } = input;
 
-  if (trend.direction === "unknown" || trend.direction === "ranging") {
+  if (trend.direction === "unknown" || trend.direction === "sideways") {
     return {
       decision: "WAIT",
-      reason: "M5 bias not clear — no entry.",
+      reason: "M5 bias not clear (sideways/unknown) — no entry.",
       suggestedStopLoss: null,
       suggestedTakeProfit: null,
       suggestedLot: null,

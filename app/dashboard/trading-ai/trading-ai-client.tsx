@@ -101,7 +101,7 @@ const RULES = [
   "M5 bearish → SELL only",
   "Pullback → rejection → momentum",
   "Max 1 posisi · no avg / grid / hedge",
-  "Live order OFF · MT5 OFF",
+  "Live order OFF · MT5 signal demo-only",
 ];
 
 function fmtTs(sec: number | null) {
@@ -120,6 +120,7 @@ export default function TradingAiClient({
   initialFeed,
   initialKeys,
   ingestUrl,
+  signalUrl,
   schemaReady,
   schemaError,
 }: {
@@ -128,6 +129,7 @@ export default function TradingAiClient({
   initialFeed: CandleFeedStatus;
   initialKeys: BridgeKeyRow[];
   ingestUrl: string;
+  signalUrl: string;
   schemaReady: boolean;
   schemaError: string | null;
 }) {
@@ -496,9 +498,9 @@ export default function TradingAiClient({
         <div className="cp-panel mb-4 rounded-2xl p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#00F0A8]/90">
-              <Radio size={13} /> MT5 bridge · read-only
+              <Radio size={13} /> MT5 bridge · candle + signal
             </p>
-            <p className="text-[10px] text-[#6A8A99]">tidak kirim order</p>
+            <p className="text-[10px] text-[#6A8A99]">server tidak OrderSend · EA demo-only</p>
           </div>
 
           {!schemaReady && (
@@ -522,19 +524,36 @@ export default function TradingAiClient({
             ))}
           </div>
 
-          <div className="mb-3 rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-[11px] text-[#9BC5D4]">
-            <div className="mb-1 flex items-center gap-2 text-[#5CE1FF]">
-              <Link2 size={12} /> Ingest URL
+          <div className="mb-3 space-y-2">
+            <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-[11px] text-[#9BC5D4]">
+              <div className="mb-1 flex items-center gap-2 text-[#5CE1FF]">
+                <Link2 size={12} /> Ingest URL (candle push)
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="break-all text-[#E8F7FF]">{ingestUrl}</code>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#5CE1FF]/30 px-2 py-1 text-[10px] text-[#5CE1FF]"
+                  onClick={() => navigator.clipboard.writeText(ingestUrl)}
+                >
+                  <Copy size={11} /> copy
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <code className="break-all text-[#E8F7FF]">{ingestUrl}</code>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-lg border border-[#5CE1FF]/30 px-2 py-1 text-[10px] text-[#5CE1FF]"
-                onClick={() => navigator.clipboard.writeText(ingestUrl)}
-              >
-                <Copy size={11} /> copy
-              </button>
+            <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-[11px] text-[#9BC5D4]">
+              <div className="mb-1 flex items-center gap-2 text-[#FFB14A]">
+                <Link2 size={12} /> Signal URL (EA executor poll)
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="break-all text-[#E8F7FF]">{signalUrl}</code>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#FFB14A]/30 px-2 py-1 text-[10px] text-[#FFB14A]"
+                  onClick={() => navigator.clipboard.writeText(signalUrl)}
+                >
+                  <Copy size={11} /> copy
+                </button>
+              </div>
             </div>
           </div>
 
@@ -602,10 +621,11 @@ export default function TradingAiClient({
 
           <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-[#8FB8C9]">
             <li>Jalankan SQL migrasi Trading AI di Supabase (kalau belum).</li>
-            <li>Buat API key di sini, paste ke EA <code className="text-[#5CE1FF]">GercepCandlePush.mq5</code>.</li>
-            <li>MT5 → Options → Expert Advisors → Allow WebRequest → tambah domain Gercep.</li>
-            <li>Attach EA ke chart XAUUSD, nyalakan Algo Trading. EA push M5+M1 tiap ~30 detik.</li>
-            <li>Tekan <strong>Jalankan otak dari data MT5</strong> — masih saran saja, bukan order.</li>
+            <li>Buat API key, paste ke <code className="text-[#5CE1FF]">GercepCandlePush.mq5</code> + <code className="text-[#FFB14A]">GercepTradeExecutor.mq5</code>.</li>
+            <li>MT5 → Allow WebRequest → domain Gercep. Attach kedua EA ke XAUUSD (akun DEMO).</li>
+            <li>Server: set env <code className="text-[#FFB14A]">TRADING_AI_EA_SIGNALS=1</code> supaya <code>eaMayExecute</code> true.</li>
+            <li>Executor: biarkan <code>InpRequireDemo=true</code>. Flip <code>InpAllowTrading=true</code> hanya setelah sinyal terlihat benar.</li>
+            <li>Max 1 posisi · no averaging / grid / hedge. Live account diblok EA.</li>
           </ol>
           {bridgeMsg && <p className="mt-3 text-[11px] text-[#FFB4D4]">{bridgeMsg}</p>}
         </div>

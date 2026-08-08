@@ -40,7 +40,7 @@ export function detectSequencedSetup(
   sr: SupportResistanceAnalysis | null,
 ): SequencedSetup {
   const empty = emptySetup("No directional bias — skip M1 hunt.");
-  if (trendDirection === "unknown" || trendDirection === "ranging") {
+  if (trendDirection === "unknown" || trendDirection === "sideways") {
     return empty;
   }
   if (m1Candles.length < config.brain.minM1Candles) {

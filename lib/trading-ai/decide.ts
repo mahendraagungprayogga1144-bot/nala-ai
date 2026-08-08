@@ -3,8 +3,8 @@
  * Combines brain + risk + validator into BUY | SELL | WAIT | CLOSE.
  *
  * Guarantees:
- * - executable is always false
- * - no MT5 / broker calls
+ * - Server never places broker orders (executable stays false).
+ * - Audit log attached to every decision.
  */
 
 import {
@@ -14,6 +14,7 @@ import {
   decideExit,
 } from "./brain";
 import { detectSequencedSetup } from "./brain/setup-sequence";
+import { buildDecisionAudit } from "./audit";
 import {
   DEFAULT_TRADING_AI_CONFIG,
   HARD_RULES,
@@ -40,10 +41,10 @@ export function decideTradingAction(
 ): TradingDecisionResult {
   const config: TradingAiConfig = mergeTradingAiConfig(opts.config ?? DEFAULT_TRADING_AI_CONFIG);
   const reasons: string[] = [];
+  const generatedAt = Date.now();
 
-  // Absolute safety — even if someone flips flags later by mistake.
   if (HARD_RULES.liveTradingEnabled || HARD_RULES.mt5Enabled) {
-    reasons.push("Misconfigured: live trading / MT5 must stay disabled in phase 1.");
+    reasons.push("Misconfigured: server liveTrading/mt5 order flags must stay disabled.");
   }
 
   const trend = analyzeTrend(ctx.m5Candles, config);
@@ -53,7 +54,6 @@ export function decideTradingAction(
     ctx.market.bid,
   );
 
-  // Sequenced M1: pullback → rejection → momentum (not same-bar AND).
   const setup = detectSequencedSetup(
     ctx.m1Candles,
     trend.direction,
@@ -96,7 +96,6 @@ export function decideTradingAction(
 
   let decision: TradeDecision = "WAIT";
 
-  // Prefer close advice when exit engine says so (still not executed).
   if (exit.decision === "CLOSE") {
     decision = "CLOSE";
     reasons.push(exit.reason);
@@ -128,7 +127,7 @@ export function decideTradingAction(
   reasons.push(...trend.notes.filter(Boolean).slice(0, 2));
   if (pullback.notes[0]) reasons.push(pullback.notes[0]);
 
-  return {
+  const shell = {
     decision,
     symbol: ctx.symbol,
     confidence: validation.confidence,
@@ -142,7 +141,14 @@ export function decideTradingAction(
     exit,
     risk,
     validation,
+  };
+
+  const audit = buildDecisionAudit({ ...shell, timestamp: generatedAt });
+
+  return {
+    ...shell,
+    audit,
     executable: false,
-    generatedAt: Date.now(),
+    generatedAt,
   };
 }

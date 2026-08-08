@@ -1,3 +1,9 @@
 /** AI Validator barrel. */
 
-export { validateRules, scoreConfidence, runAiValidator } from "./rule-validator";
+export {
+  validateRules,
+  scoreConfidence,
+  runAiValidator,
+  buildConfidenceFeatures,
+  scoreFromFeatures,
+} from "./rule-validator";

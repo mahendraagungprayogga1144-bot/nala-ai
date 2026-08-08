@@ -197,8 +197,9 @@ export function runBacktest(input: BacktestInput): BacktestResult {
 
   notes.push(`Steps M1: ${endIdx - startIdx + 1} (cap ${maxSteps}).`);
   notes.push(`Signals BUY=${signalsBuy} SELL=${signalsSell}. Trades closed=${trades.length}.`);
+  notes.push("No look-ahead: each step uses only M1[:i] and M5 with time<=bar.time.");
   notes.push("Otak rule tidak diubah — backtest hanya replay decideTradingAction.");
-  notes.push("PnL approx (bukan kontrak broker). MT5 belum tersambung.");
+  notes.push("PnL approx (bukan kontrak broker). Server tidak OrderSend.");
 
   return {
     symbol: input.symbol,

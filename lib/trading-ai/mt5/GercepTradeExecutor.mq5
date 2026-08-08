@@ -22,7 +22,7 @@
 
 #include <Trade/Trade.mqh>
 
-input string InpBaseUrl      = "https://gercepos.id"; // no trailing slash
+input string InpBaseUrl      = "https://www.gercepos.id"; // MUST use www (bare domain 308-redirects)
 input string InpApiKey       = "gea_PASTE_YOUR_KEY";
 input string InpSymbol       = "XAUUSD";
 input int    InpMagic        = 26080701;

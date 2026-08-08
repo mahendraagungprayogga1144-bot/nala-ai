@@ -49,12 +49,10 @@ export default async function TradingAiPage() {
       schemaError = e instanceof Error ? e.message : "Schema Trading AI belum siap";
     }
 
-    const ingestUrl =
-      (process.env.NEXT_PUBLIC_APP_URL || "https://gercepos.id").replace(/\/$/, "") +
-      "/api/trading-ai/ingest";
-    const signalUrl =
-      (process.env.NEXT_PUBLIC_APP_URL || "https://gercepos.id").replace(/\/$/, "") +
-      "/api/trading-ai/signal";
+    const appBase =
+      (process.env.NEXT_PUBLIC_APP_URL || "https://www.gercepos.id").replace(/\/$/, "");
+    const ingestUrl = appBase + "/api/trading-ai/ingest";
+    const signalUrl = appBase + "/api/trading-ai/signal";
 
     return (
       <TradingAiClient

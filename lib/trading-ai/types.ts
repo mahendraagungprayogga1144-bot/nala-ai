@@ -1,18 +1,22 @@
 /**
  * Trading AI Brain — shared types.
- * Phase 1: architecture only. No MT5 / live orders.
+ * Deterministic, auditable. No MT5 orders from this module.
  */
 
-/** Final decision surface — never open a live order from phase 1. */
+/** Final orchestrator surface. */
 export type TradeDecision = "BUY" | "SELL" | "WAIT" | "CLOSE";
 
-export type TrendDirection = "bullish" | "bearish" | "ranging" | "unknown";
+export type EntryDecision = "BUY" | "SELL" | "WAIT";
+export type ExitDecision = "HOLD" | "CLOSE";
+
+/** M5 market structure labels. */
+export type TrendDirection = "bullish" | "bearish" | "sideways" | "unknown";
 
 export type Timeframe = "M1" | "M5" | "M15" | "H1" | "H4" | "D1";
 
 export type SymbolCode = "XAUUSD";
 
-/** OHLC candle — provider-agnostic (MT5 later). */
+/** OHLC candle — provider-agnostic. */
 export type Candle = {
   time: number; // unix seconds
   open: number;
@@ -40,14 +44,13 @@ export type OpenPosition = {
   stopLoss: number | null;
   takeProfit: number | null;
   openedAt: number;
-  /** Floating P/L in account currency (placeholder). */
   floatingPnl: number;
 };
 
 export type TrendAnalysis = {
   timeframe: Timeframe;
   direction: TrendDirection;
-  /** 0–1 how clear the structure is. */
+  /** 0–1 how clear the structure is (from swings only). */
   strength: number;
   notes: string[];
 };
@@ -55,7 +58,6 @@ export type TrendAnalysis = {
 export type SrLevel = {
   price: number;
   kind: "support" | "resistance";
-  /** Touches / how many times price respected this zone. */
   touches: number;
   strength: number;
 };
@@ -69,7 +71,7 @@ export type SupportResistanceAnalysis = {
 
 export type PullbackAnalysis = {
   detected: boolean;
-  /** Depth of pullback vs swing (0–1). */
+  /** Depth from OHLC path into S/R (0–1+). */
   depth: number;
   nearLevel: number | null;
   notes: string[];
@@ -98,7 +100,7 @@ export type BrainContext = {
 };
 
 export type EntrySignal = {
-  decision: Extract<TradeDecision, "BUY" | "SELL" | "WAIT">;
+  decision: EntryDecision;
   reason: string;
   suggestedStopLoss: number | null;
   suggestedTakeProfit: number | null;
@@ -106,7 +108,7 @@ export type EntrySignal = {
 };
 
 export type ExitSignal = {
-  decision: Extract<TradeDecision, "CLOSE" | "WAIT">;
+  decision: ExitDecision;
   reason: string;
   positionId: string | null;
 };
@@ -116,14 +118,31 @@ export type RiskCheck = {
   reasons: string[];
 };
 
-export type ValidationResult = {
-  valid: boolean;
-  confidence: number; // 0–100
-  failedRules: string[];
-  notes: string[];
+/** One auditable confidence feature (rule engine only — never Claude). */
+export type ConfidenceFeature = {
+  id: string;
+  label: string;
+  passed: boolean;
+  points: number;
+  detail: string;
 };
 
-/** Full orchestrator output — safe for UI / journal / future executor. */
+export type ConfidenceBreakdown = {
+  score: number; // 0–100
+  maxPossible: number;
+  features: ConfidenceFeature[];
+};
+
+export type ValidationResult = {
+  valid: boolean;
+  confidence: number; // 0–100 from ConfidenceBreakdown.score
+  failedRules: string[];
+  passedRules: string[];
+  notes: string[];
+  breakdown: ConfidenceBreakdown;
+};
+
+/** Full orchestrator output. */
 export type TradingDecisionResult = {
   decision: TradeDecision;
   symbol: SymbolCode;
@@ -138,9 +157,33 @@ export type TradingDecisionResult = {
   exit: ExitSignal;
   risk: RiskCheck;
   validation: ValidationResult;
-  /** Always false in phase 1 — no broker execution. */
+  audit: DecisionAuditLog;
+  /** Always false until explicit live trading is enabled. */
   executable: false;
   generatedAt: number;
+};
+
+/** Deterministic audit snapshot for every decision. */
+export type DecisionAuditLog = {
+  timestamp: number;
+  symbol: SymbolCode;
+  m5Trend: TrendDirection;
+  m5TrendStrength: number;
+  support: number | null;
+  resistance: number | null;
+  m1Pullback: boolean;
+  pullbackDepth: number;
+  rejection: boolean;
+  rejectionSide: "bullish" | "bearish" | null;
+  momentum: boolean;
+  confidence: number;
+  confidenceFeatures: ConfidenceFeature[];
+  decision: TradeDecision;
+  entryDecision: EntryDecision;
+  exitDecision: ExitDecision;
+  rulesPassed: string[];
+  rulesFailed: string[];
+  reasons: string[];
 };
 
 export type JournalEntry = {
@@ -150,10 +193,10 @@ export type JournalEntry = {
   symbol: SymbolCode;
   confidence: number;
   reasons: string[];
-  /** Snapshot summary for later review / AI style learning. */
   contextSummary: string;
   outcome?: "win" | "loss" | "breakeven" | "skipped" | null;
   notes?: string;
+  audit?: DecisionAuditLog;
 };
 
 export type BacktestTrade = {

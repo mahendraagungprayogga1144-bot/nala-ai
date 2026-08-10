@@ -105,7 +105,7 @@ const RULES = [
   "M5 bearish → SELL only",
   "Pullback → rejection → momentum",
   "Max 1 posisi · no avg / grid / hedge",
-  "Live order OFF · MT5 signal demo-only",
+  "Auto-execute DEMO · akun live diblokir",
 ];
 
 type ControlState = {
@@ -564,8 +564,8 @@ export default function TradingAiClient({
               Trading AI Brain
             </h1>
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#8FB8C9] sm:text-sm">
-              Otak XAUUSD gaya manual kamu. Sambung MT5 lewat EA (read-only candle) —
-              belum order. Demo / CSV tetap tersedia.
+              Otak XAUUSD gaya manual kamu. EA mengeksekusi order di akun MT5 DEMO
+              saat autotrade dinyalakan. Akun live tetap diblokir.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest">

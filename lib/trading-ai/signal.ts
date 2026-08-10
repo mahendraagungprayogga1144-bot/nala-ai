@@ -4,6 +4,7 @@
  */
 
 import { isEaSignalExecutionEnabled, TRADING_AI_VERSION } from "./config";
+import type { AccountMode } from "./execution-gate";
 import type { DecisionAuditLog, TradeDecision, TradingDecisionResult } from "./types";
 
 export type EaTradeSignal = {
@@ -13,8 +14,18 @@ export type EaTradeSignal = {
   symbol: string;
   decision: TradeDecision;
   confidence: number;
-  /** Always false on server — EA decides whether to OrderSend. */
-  serverExecutable: false;
+  /**
+   * Izin eksekusi dari server. true HANYA kalau:
+   * BUY/SELL/CLOSE + confidence >= minimum + akun DEMO + env aktif.
+   * EA tetap wajib cek InpRequireDemo + InpAllowTrading sendiri.
+   */
+  serverExecutable: boolean;
+  /** Mode akun yang dipakai server saat evaluasi (dari EA). */
+  accountMode: AccountMode;
+  /** Ambang confidence yang dipakai gate. */
+  minConfidence: number;
+  /** Alasan kenapa serverExecutable=false. Kosong kalau boleh eksekusi. */
+  executionBlockedBy: string[];
   /**
    * True only when env TRADING_AI_EA_SIGNALS=1.
    * EA must still enforce demo-only + InpAllowTrading.
@@ -61,7 +72,11 @@ export function toEaTradeSignal(result: TradingDecisionResult): EaTradeSignal {
     symbol: result.symbol,
     decision: result.decision,
     confidence: result.confidence,
-    serverExecutable: false,
+    // Sumber tunggal: execution gate di decideTradingAction. Jangan hitung ulang di sini.
+    serverExecutable: result.executable,
+    accountMode: result.execution.accountMode,
+    minConfidence: result.execution.minConfidence,
+    executionBlockedBy: result.execution.blockedBy,
     eaMayExecute,
     lot: result.entry.suggestedLot,
     stopLoss: result.entry.suggestedStopLoss,

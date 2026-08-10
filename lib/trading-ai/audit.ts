@@ -21,6 +21,7 @@ export function buildDecisionAudit(input: {
   entry: TradingDecisionResult["entry"];
   exit: TradingDecisionResult["exit"];
   validation: TradingDecisionResult["validation"];
+  execution: TradingDecisionResult["execution"];
   reasons: string[];
   timestamp?: number;
 }): DecisionAuditLog {
@@ -44,5 +45,8 @@ export function buildDecisionAudit(input: {
     rulesPassed: input.validation.passedRules,
     rulesFailed: input.validation.failedRules,
     reasons: input.reasons,
+    executable: input.execution.executable,
+    accountMode: input.execution.accountMode,
+    executionBlockedBy: input.execution.blockedBy,
   };
 }

@@ -7,11 +7,21 @@
 export {
   TRADING_AI_VERSION,
   HARD_RULES,
+  EXECUTION_MIN_CONFIDENCE,
   DEFAULT_TRADING_AI_CONFIG,
   mergeTradingAiConfig,
   isEaSignalExecutionEnabled,
 } from "./config";
 export type { TradingAiConfig } from "./config";
+
+export {
+  evaluateExecutionGate,
+  parseAccountMode,
+  blockedGate,
+  type AccountMode,
+  type ExecutionGate,
+  type ExecutionGateInput,
+} from "./execution-gate";
 
 export type {
   TradeDecision,
@@ -37,6 +47,7 @@ export type {
   ConfidenceBreakdown,
   ValidationResult,
   TradingDecisionResult,
+  ExecutionGateSummary,
   DecisionAuditLog,
   JournalEntry,
   BacktestTrade,

@@ -3,7 +3,9 @@
  * Combines brain + risk + validator into BUY | SELL | WAIT | CLOSE.
  *
  * Guarantees:
- * - Server never places broker orders (executable stays false).
+ * - Server itself never calls a broker API. EA is the only executor.
+ * - executable=true hanya lewat execution-gate (akun DEMO + env aktif).
+ * - Default accountMode "unknown" => executable false (fail-closed).
  * - Audit log attached to every decision.
  */
 
@@ -21,6 +23,7 @@ import {
   mergeTradingAiConfig,
   type TradingAiConfig,
 } from "./config";
+import { evaluateExecutionGate, type AccountMode } from "./execution-gate";
 import {
   checkFloatingRisk,
   checkPositionLimit,
@@ -33,6 +36,13 @@ export type DecideOptions = {
   config?: Parameters<typeof mergeTradingAiConfig>[0];
   /** Optional account balance for floating-risk gate. */
   balance?: number | null;
+  /**
+   * Mode akun yang dilaporkan EA. Default "unknown" supaya semua pemanggil
+   * lama (dashboard, backtest) tetap dapat executable=false.
+   */
+  accountMode?: AccountMode;
+  /** Override env kill switch. Default: TRADING_AI_EA_SIGNALS === "1". */
+  executionEnabled?: boolean;
 };
 
 export function decideTradingAction(
@@ -42,6 +52,7 @@ export function decideTradingAction(
   const config: TradingAiConfig = mergeTradingAiConfig(opts.config ?? DEFAULT_TRADING_AI_CONFIG);
   const reasons: string[] = [];
   const generatedAt = Date.now();
+  const accountMode: AccountMode = opts.accountMode ?? "unknown";
 
   if (HARD_RULES.liveTradingEnabled || HARD_RULES.mt5Enabled) {
     reasons.push("Misconfigured: server liveTrading/mt5 order flags must stay disabled.");
@@ -62,7 +73,11 @@ export function decideTradingAction(
   );
   const { pullback, rejection, momentum } = setup;
 
-  const exit = decideExit({ positions: ctx.openPositions, trend });
+  const exit = decideExit({
+    positions: ctx.openPositions,
+    trend,
+    execution: { accountMode, executionEnabled: opts.executionEnabled },
+  });
   const entryPrice = trend.direction === "bearish" ? ctx.market.bid : ctx.market.ask;
   const entry = decideEntry({
     trend,
@@ -127,6 +142,20 @@ export function decideTradingAction(
   reasons.push(...trend.notes.filter(Boolean).slice(0, 2));
   if (pullback.notes[0]) reasons.push(pullback.notes[0]);
 
+  const execution = evaluateExecutionGate({
+    decision,
+    confidence: validation.confidence,
+    accountMode,
+    validationValid: validation.valid,
+    riskAllowed: risk.allowed,
+    executionEnabled: opts.executionEnabled,
+    configMinConfidence: config.brain.minConfidenceToEnter,
+  });
+
+  if (!execution.executable && decision !== "WAIT") {
+    reasons.push(...execution.blockedBy);
+  }
+
   const shell = {
     decision,
     symbol: ctx.symbol,
@@ -141,6 +170,7 @@ export function decideTradingAction(
     exit,
     risk,
     validation,
+    execution,
   };
 
   const audit = buildDecisionAudit({ ...shell, timestamp: generatedAt });
@@ -148,7 +178,7 @@ export function decideTradingAction(
   return {
     ...shell,
     audit,
-    executable: false,
+    executable: execution.executable,
     generatedAt,
   };
 }

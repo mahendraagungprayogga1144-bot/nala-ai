@@ -4,6 +4,7 @@
  */
 
 import { analyzeTrend } from "./brain/trend-analyzer";
+import { decideExit } from "./brain/exit-decision";
 import { detectSequencedSetup } from "./brain/setup-sequence";
 import { decideTradingAction } from "./decide";
 import { DEFAULT_TRADING_AI_CONFIG, mergeTradingAiConfig } from "./config";
@@ -129,10 +130,12 @@ const result = decideTradingAction(
 );
 
 console.log("decision:", result.decision, "confidence:", result.confidence);
-console.log("executable:", result.executable);
+console.log("executable:", result.executable, "accountMode:", result.execution.accountMode);
 console.log("reasons:", result.reasons.slice(0, 4));
 
-assert(result.executable === false, "must never be executable");
+// Default (tanpa accountMode) = fail-closed: advisory saja.
+assert(result.executable === false, "default caller must not be executable");
+assert(result.execution.accountMode === "unknown", "default account mode is unknown");
 assert(result.decision === "BUY", `expected BUY on synthetic setup, got ${result.decision} conf=${result.confidence}`);
 assert(result.entry.suggestedStopLoss != null, "BUY should suggest SL");
 assert(result.entry.suggestedLot === config.risk.defaultLot, "default lot");
@@ -147,6 +150,65 @@ const waitResult = decideTradingAction({
 });
 assert(waitResult.decision === "WAIT", "thin data must WAIT");
 assert(waitResult.executable === false, "WAIT must not execute");
+
+// WAIT tetap tidak executable walau akun demo + eksekusi diaktifkan.
+const waitDemo = decideTradingAction(
+  {
+    symbol: "XAUUSD",
+    m5Candles: m5.slice(0, 5),
+    m1Candles: m1.slice(0, 5),
+    market: market(2300),
+    openPositions: [],
+  },
+  { accountMode: "demo", executionEnabled: true },
+);
+assert(waitDemo.decision === "WAIT", "thin data must WAIT on demo too");
+assert(waitDemo.executable === false, "WAIT must never be executable, even on demo");
+
+// DEMO + eksekusi aktif → BUY boleh executable.
+const demoBuy = decideTradingAction(
+  {
+    symbol: "XAUUSD",
+    m5Candles: m5,
+    m1Candles: m1,
+    market: market(m1[m1.length - 1].close),
+    openPositions: [],
+  },
+  { config, accountMode: "demo", executionEnabled: true },
+);
+assert(demoBuy.decision === "BUY", `demo BUY expected, got ${demoBuy.decision}`);
+assert(demoBuy.confidence >= 65, `demo BUY confidence too low: ${demoBuy.confidence}`);
+assert(demoBuy.executable === true, `demo BUY must be executable: ${demoBuy.execution.blockedBy.join(" | ")}`);
+assert(demoBuy.audit.executable === true, "audit records executable");
+
+// LIVE / contest / unknown → tidak pernah executable.
+for (const mode of ["real", "contest", "unknown"] as const) {
+  const live = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: m5,
+      m1Candles: m1,
+      market: market(m1[m1.length - 1].close),
+      openPositions: [],
+    },
+    { config, accountMode: mode, executionEnabled: true },
+  );
+  assert(live.executable === false, `${mode} account must never be executable`);
+  assert(live.execution.blockedBy.length > 0, `${mode} must record a block reason`);
+}
+
+// Env kill switch: demo tapi TRADING_AI_EA_SIGNALS mati → tetap blocked.
+const demoEnvOff = decideTradingAction(
+  {
+    symbol: "XAUUSD",
+    m5Candles: m5,
+    m1Candles: m1,
+    market: market(m1[m1.length - 1].close),
+    openPositions: [],
+  },
+  { config, accountMode: "demo", executionEnabled: false },
+);
+assert(demoEnvOff.executable === false, "env kill switch must block execution");
 
 // Max 1 position: with open BUY, no second entry
 const blocked = decideTradingAction(
@@ -178,5 +240,49 @@ assert(
 assert(blocked.exit.decision === "HOLD" || blocked.exit.decision === "CLOSE", "exit is HOLD|CLOSE");
 assert(blocked.audit != null && blocked.audit.decision === blocked.decision, "audit attached");
 assert(Array.isArray(blocked.validation.breakdown.features), "confidence features present");
+
+// Exit engine: HOLD tidak pernah executable; CLOSE executable hanya di demo.
+const closeDemo = decideExit({
+  positions: [
+    {
+      id: "p1",
+      symbol: "XAUUSD",
+      side: "SELL",
+      lot: 0.01,
+      openPrice: 2310,
+      stopLoss: null,
+      takeProfit: null,
+      openedAt: Date.now(),
+      floatingPnl: 0,
+    },
+  ],
+  trend: { ...trend, direction: "bullish" },
+  execution: { accountMode: "demo", executionEnabled: true },
+});
+assert(closeDemo.decision === "CLOSE", "flipped bias must CLOSE");
+assert(closeDemo.executable === true, "CLOSE on demo must be executable");
+
+const closeLive = decideExit({
+  positions: [
+    {
+      id: "p1",
+      symbol: "XAUUSD",
+      side: "SELL",
+      lot: 0.01,
+      openPrice: 2310,
+      stopLoss: null,
+      takeProfit: null,
+      openedAt: Date.now(),
+      floatingPnl: 0,
+    },
+  ],
+  trend: { ...trend, direction: "bullish" },
+  execution: { accountMode: "real", executionEnabled: true },
+});
+assert(closeLive.decision === "CLOSE", "flipped bias must CLOSE on live too");
+assert(closeLive.executable === false, "CLOSE on live account must not be executable");
+
+const holdSignal = decideExit({ positions: [], trend, execution: { accountMode: "demo", executionEnabled: true } });
+assert(holdSignal.decision === "HOLD" && holdSignal.executable === false, "HOLD never executable");
 
 console.log("smoke ok");

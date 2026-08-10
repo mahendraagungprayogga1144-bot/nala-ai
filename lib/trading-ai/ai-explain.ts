@@ -18,6 +18,11 @@ function buildContext(decision: TradingDecisionResult): string {
       symbol: decision.symbol,
       confidence: decision.confidence,
       executable: decision.executable,
+      execution: {
+        accountMode: decision.execution?.accountMode ?? "unknown",
+        minConfidence: decision.execution?.minConfidence ?? null,
+        blockedBy: decision.execution?.blockedBy?.slice(0, 4) ?? [],
+      },
       reasons: decision.reasons.slice(0, 8),
       trend: {
         direction: decision.trend.direction,
@@ -52,6 +57,7 @@ function buildContext(decision: TradingDecisionResult): string {
       exit: {
         decision: decision.exit.decision,
         reason: decision.exit.reason,
+        executable: decision.exit.executable,
       },
       risk: decision.risk,
       validation: {
@@ -71,13 +77,16 @@ ATURAN KERAS:
 - Keputusan BUY/SELL/WAIT/CLOSE sudah final dari rule engine. Exit engine memakai HOLD/CLOSE. JANGAN mengubah atau merekomendasikan keputusan berbeda.
 - Confidence dan audit sudah dihitung rule engine — jangan ubah angka confidence.
 - Jangan sarankan averaging, martingale, grid, atau hedge.
-- Jangan bilang ini sinyal untuk auto-order. Sistem ini advisory / executable=false.
+- Field "executable" datang dari rule engine, bukan dari kamu. Jangan menyimpulkan sendiri.
+  executable=true berarti sinyal ini boleh dieksekusi EA di akun DEMO.
+  executable=false berarti hanya advisory; sebutkan alasannya dari execution.blockedBy kalau ada.
+- Eksekusi otomatis hanya untuk akun demo. Jangan pernah menyarankan menjalankan ini di akun live/real.
 - Jelaskan dalam Bahasa Indonesia, singkat, jelas, tanpa markdown tebal/bintang.
 - Format jawaban:
   1) Ringkas keputusan (1 kalimat)
   2) Kenapa (M5 bias + M1 pullback/rejection/momentum) 3-5 bullet pendek pakai strip "-"
   3) Risiko / yang perlu diwaspadai (1-3 poin)
-  4) Satu kalimat penutup: ini penjelasan, bukan perintah order.`;
+  4) Satu kalimat penutup: status eksekusi (demo auto-execute atau advisory saja).`;
 
 export async function explainTradingDecision(
   decision: TradingDecisionResult,

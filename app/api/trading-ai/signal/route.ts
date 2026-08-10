@@ -3,9 +3,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   decideTradingAction,
   DEFAULT_TRADING_AI_CONFIG,
+  EXECUTION_MIN_CONFIDENCE,
   HARD_RULES,
   isEaSignalExecutionEnabled,
   loadCandles,
+  parseAccountMode,
   toEaTradeSignal,
   TRADING_AI_VERSION,
   type OpenPosition,
@@ -34,14 +36,17 @@ function num(v: string | null): number | null {
  *
  * Query:
  *   symbol=XAUUSD
+ *   account_mode=demo|contest|real   <-- WAJIB "demo" agar serverExecutable bisa true
  *   bid, ask, spread (optional — defaults from last M1 close)
  *   open_side=BUY|SELL|none
  *   open_price, open_lot, open_ticket, balance (optional)
  *
- * Server never places orders. EA may OrderSend only when:
+ * Server tidak pernah memanggil API broker. EA satu-satunya eksekutor,
+ * dan hanya boleh OrderSend saat SEMUA ini benar:
+ *   - serverExecutable=true (gate demo-only di server)
  *   - eaMayExecute (env TRADING_AI_EA_SIGNALS=1)
  *   - EA InpAllowTrading=true
- *   - account is DEMO (EA hard rule)
+ *   - EA InpRequireDemo lolos (ACCOUNT_TRADE_MODE == DEMO)
  */
 export async function GET(request: Request) {
   const apiKey = bearer(request);
@@ -59,6 +64,12 @@ export async function GET(request: Request) {
         NO_HEDGE: HARD_RULES.NO_HEDGE,
       },
       eaSignalsEnv: isEaSignalExecutionEnabled(),
+      execution: {
+        demoOnly: true,
+        allowLiveExecution: HARD_RULES.ALLOW_LIVE_EXECUTION,
+        minConfidence: EXECUTION_MIN_CONFIDENCE,
+        requiredParam: "account_mode=demo",
+      },
       note: "GET with API key to receive Brain decision for EA.",
     });
   }
@@ -92,6 +103,10 @@ export async function GET(request: Request) {
   const symbol = ((url.searchParams.get("symbol") || "XAUUSD").trim().toUpperCase() ||
     "XAUUSD") as SymbolCode;
 
+  // TITIK KRITIS DEMO-ONLY (server-side).
+  // Param hilang / typo / "real" -> "unknown" -> execution gate menolak.
+  const accountMode = parseAccountMode(url.searchParams.get("account_mode"));
+
   const [m5, m1] = await Promise.all([
     loadCandles(admin, {
       userId: keyRow.user_id,
@@ -119,6 +134,9 @@ export async function GET(request: Request) {
       decision: "WAIT",
       confidence: 0,
       serverExecutable: false,
+      accountMode,
+      minConfidence: EXECUTION_MIN_CONFIDENCE,
+      executionBlockedBy: ["Candle feed belum cukup — WAIT tidak pernah executable."],
       eaMayExecute: false,
       lot: null,
       stopLoss: null,
@@ -171,7 +189,7 @@ export async function GET(request: Request) {
       market: { symbol, bid, ask, spread, at: Date.now() },
       openPositions,
     },
-    { balance },
+    { balance, accountMode },
   );
 
   await admin

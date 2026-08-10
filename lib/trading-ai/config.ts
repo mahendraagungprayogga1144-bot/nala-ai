@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.3.0-mt5-signal";
+export const TRADING_AI_VERSION = "0.4.0-demo-execute";
 
 /**
  * Hard product rules — never weaken from UI.
@@ -17,10 +17,16 @@ export const HARD_RULES = {
   allowMartingale: false,
   allowGrid: false,
   allowHedge: false,
-  /** Server never places broker orders. EA may execute on demo only. */
+  /** Server itself never calls a broker API. EA is the only executor. */
   liveTradingEnabled: false,
   /** Server-side MT5 order API disabled; signal poll is separate. */
   mt5Enabled: false,
+  /**
+   * SATU-SATUNYA pintu untuk membuka eksekusi di akun non-demo.
+   * Selama false, execution-gate menolak account mode real/contest/unknown.
+   * Jangan diubah tanpa task khusus live trading.
+   */
+  ALLOW_LIVE_EXECUTION: false,
   /** Explicit aliases for validators / audit. */
   MAX_POSITION: 1,
   NO_AVERAGING: true,
@@ -29,7 +35,23 @@ export const HARD_RULES = {
   NO_HEDGE: true,
 } as const;
 
-/** Env gate: when "1", signal responses set eaMayExecute=true (EA still demo-gated). */
+/**
+ * Lantai confidence untuk eksekusi otomatis (samakan dengan EA InpMinConfidence).
+ * Config brain boleh diturunkan untuk riset/backtest, tapi gate eksekusi
+ * tidak pernah turun di bawah angka ini.
+ */
+export const EXECUTION_MIN_CONFIDENCE = 65;
+
+/**
+ * Gerbang tunggal untuk eksekusi non-demo.
+ * Untuk membuka live nanti: ubah HARD_RULES.ALLOW_LIVE_EXECUTION menjadi true
+ * DAN sesuaikan execution-gate.ts agar mode "real" ikut diterima.
+ */
+export function isLiveExecutionAllowed(): boolean {
+  return HARD_RULES.ALLOW_LIVE_EXECUTION as boolean;
+}
+
+/** Env gate: when "1", signal responses may mark executable (demo only). */
 export function isEaSignalExecutionEnabled(): boolean {
   return process.env.TRADING_AI_EA_SIGNALS === "1";
 }

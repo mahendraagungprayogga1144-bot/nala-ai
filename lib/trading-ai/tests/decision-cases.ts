@@ -5,7 +5,13 @@
 
 import { analyzeTrend } from "../brain/trend-analyzer";
 import { decideTradingAction } from "../decide";
-import { DEFAULT_TRADING_AI_CONFIG, HARD_RULES, mergeTradingAiConfig } from "../config";
+import {
+  DEFAULT_TRADING_AI_CONFIG,
+  EXECUTION_MIN_CONFIDENCE,
+  HARD_RULES,
+  mergeTradingAiConfig,
+} from "../config";
+import { evaluateExecutionGate, parseAccountMode } from "../execution-gate";
 import type { Candle, MarketSnapshot } from "../types";
 
 function candle(i: number, o: number, h: number, l: number, c: number): Candle {
@@ -112,7 +118,25 @@ function buildBearishM1(): Candle[] {
   assert(r.executable === false, "WAIT must not be executable");
   assert(r.audit.m5Trend === "unknown" || r.audit.decision === "WAIT", "audit WAIT");
   assert(HARD_RULES.MAX_POSITION === 1 && HARD_RULES.NO_HEDGE === true, "hard rules");
+  assert(HARD_RULES.ALLOW_LIVE_EXECUTION === false, "live execution must stay closed");
   console.log("PASS WAIT", r.decision, "conf=", r.confidence, "trend=", r.trend.direction);
+}
+
+// --- WAIT tetap non-executable walau demo + eksekusi aktif ---
+{
+  const r = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBullishM5().slice(0, 5),
+      m1Candles: buildBullishM1().slice(0, 5),
+      market: market(2300),
+      openPositions: [],
+    },
+    { accountMode: "demo", executionEnabled: true },
+  );
+  assert(r.decision === "WAIT", `WAIT/demo case failed: ${r.decision}`);
+  assert(r.executable === false, "WAIT must never be executable, even on demo");
+  console.log("PASS WAIT demo non-executable");
 }
 
 // --- BUY ---
@@ -135,7 +159,100 @@ function buildBearishM1(): Candle[] {
   assert(r.audit.decision === "BUY", "audit decision BUY");
   assert(r.pullback.detected && r.rejection.detected && r.momentum.alignedWithTrend, "setup");
   assert(r.validation.breakdown.features.some((f) => f.id === "m5_bias_clear" && f.passed), "feature audit");
+  assert(r.executable === false, "BUY without account mode must stay advisory");
   console.log("PASS BUY", r.decision, "conf=", r.confidence);
+}
+
+// --- BUY di akun DEMO: boleh executable ---
+{
+  const r = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBullishM5(),
+      m1Candles: buildBullishM1(),
+      market: market(buildBullishM1().at(-1)!.close),
+      openPositions: [],
+    },
+    { config, accountMode: "demo", executionEnabled: true },
+  );
+  assert(r.decision === "BUY", `demo BUY failed: ${r.decision}`);
+  assert(r.confidence >= EXECUTION_MIN_CONFIDENCE, `confidence ${r.confidence} < ${EXECUTION_MIN_CONFIDENCE}`);
+  assert(r.executable === true, `demo BUY must be executable: ${r.execution.blockedBy.join(" | ")}`);
+  assert(r.execution.accountMode === "demo", "gate records demo");
+  assert(r.audit.executable === true, "audit records executable");
+  console.log("PASS BUY demo executable", "conf=", r.confidence);
+}
+
+// --- SAFETY NET: akun LIVE / contest / unknown tidak pernah executable ---
+{
+  for (const mode of ["real", "contest", "unknown"] as const) {
+    const r = decideTradingAction(
+      {
+        symbol: "XAUUSD",
+        m5Candles: buildBullishM5(),
+        m1Candles: buildBullishM1(),
+        market: market(buildBullishM1().at(-1)!.close),
+        openPositions: [],
+      },
+      { config, accountMode: mode, executionEnabled: true },
+    );
+    assert(r.decision === "BUY", `${mode} setup should still decide BUY, got ${r.decision}`);
+    assert(r.executable === false, `${mode} account must never be executable`);
+    assert(r.audit.executable === false, `${mode} audit must record non-executable`);
+    assert(
+      r.execution.blockedBy.some((b) => b.toLowerCase().includes("demo")),
+      `${mode} must be blocked by demo-only rule`,
+    );
+  }
+  console.log("PASS live/contest/unknown blocked");
+}
+
+// --- Confidence di bawah ambang: demo pun tidak executable ---
+{
+  const gate = evaluateExecutionGate({
+    decision: "BUY",
+    confidence: EXECUTION_MIN_CONFIDENCE - 1,
+    accountMode: "demo",
+    validationValid: true,
+    riskAllowed: true,
+    executionEnabled: true,
+  });
+  assert(gate.executable === false, "confidence below threshold must block");
+
+  const ok = evaluateExecutionGate({
+    decision: "BUY",
+    confidence: EXECUTION_MIN_CONFIDENCE,
+    accountMode: "demo",
+    validationValid: true,
+    riskAllowed: true,
+    executionEnabled: true,
+  });
+  assert(ok.executable === true, "confidence at threshold must pass on demo");
+
+  // Config brain yang lebih longgar tidak boleh menurunkan ambang eksekusi.
+  const lowered = evaluateExecutionGate({
+    decision: "BUY",
+    confidence: 50,
+    accountMode: "demo",
+    validationValid: true,
+    riskAllowed: true,
+    executionEnabled: true,
+    configMinConfidence: 10,
+  });
+  assert(lowered.executable === false, "gate must not go below EXECUTION_MIN_CONFIDENCE");
+  console.log("PASS confidence threshold");
+}
+
+// --- parseAccountMode fail-closed ---
+{
+  assert(parseAccountMode("demo") === "demo", "demo parsed");
+  assert(parseAccountMode("DEMO") === "demo", "case-insensitive demo");
+  assert(parseAccountMode("real") === "real", "real parsed");
+  assert(parseAccountMode("live") === "real", "live maps to real");
+  assert(parseAccountMode(null) === "unknown", "missing param is unknown");
+  assert(parseAccountMode("demo ") === "demo", "trimmed");
+  assert(parseAccountMode("demo-ish") === "unknown", "no fuzzy match to demo");
+  console.log("PASS parseAccountMode");
 }
 
 // --- SELL ---
@@ -157,6 +274,32 @@ function buildBearishM1(): Candle[] {
   assert(r.decision === "SELL", `SELL case failed: ${r.decision} conf=${r.confidence} reasons=${r.reasons.join(" | ")}`);
   assert(r.audit.decision === "SELL", "audit decision SELL");
   console.log("PASS SELL", r.decision, "conf=", r.confidence);
+
+  const demo = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: m5,
+      m1Candles: m1,
+      market: market(m1[m1.length - 1].close),
+      openPositions: [],
+    },
+    { config, accountMode: "demo", executionEnabled: true },
+  );
+  assert(demo.decision === "SELL", `demo SELL failed: ${demo.decision}`);
+  assert(demo.executable === true, `demo SELL must be executable: ${demo.execution.blockedBy.join(" | ")}`);
+
+  const live = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: m5,
+      m1Candles: m1,
+      market: market(m1[m1.length - 1].close),
+      openPositions: [],
+    },
+    { config, accountMode: "real", executionEnabled: true },
+  );
+  assert(live.executable === false, "live SELL must never be executable");
+  console.log("PASS SELL demo executable / live blocked");
 }
 
 console.log("decision-cases ok");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { explainTradingDecision } from "@/lib/trading-ai/ai-explain";
-import type { TradingDecisionResult } from "@/lib/trading-ai";
+import { EXECUTION_MIN_CONFIDENCE, type TradingDecisionResult } from "@/lib/trading-ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,10 +36,18 @@ export async function POST(request: Request) {
     );
   }
 
-  // Never trust client to mark executable
+  // Never trust client to mark executable. Endpoint ini dashboard-only
+  // (tidak ada account mode dari EA), jadi selalu advisory.
   const safe: TradingDecisionResult = {
     ...decision,
     executable: false,
+    execution: {
+      executable: false,
+      accountMode: "unknown",
+      minConfidence: EXECUTION_MIN_CONFIDENCE,
+      passed: [],
+      blockedBy: ["Explain endpoint bersifat advisory — bukan jalur eksekusi EA."],
+    },
   };
 
   const out = await explainTradingDecision(safe);

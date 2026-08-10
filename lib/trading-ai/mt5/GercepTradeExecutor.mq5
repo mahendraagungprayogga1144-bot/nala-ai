@@ -8,6 +8,7 @@
 //|  - LIVE account blocked when InpRequireDemo=true (default)
 //|  - Orders OFF until InpAllowTrading=true
 //|  - Also requires server eaMayExecute (TRADING_AI_EA_SIGNALS=1)
+//|  - Also requires server serverExecutable=true (server demo-only gate)
 //|
 //| Setup:
 //|  1. Keep GercepCandlePush.mq5 running (candle feed)
@@ -51,6 +52,17 @@ bool IsDemoAccount()
 {
    long mode = AccountInfoInteger(ACCOUNT_TRADE_MODE);
    return (mode == ACCOUNT_TRADE_MODE_DEMO);
+}
+
+//| Reported to server as account_mode. Server only marks a signal
+//| executable when this is exactly "demo".
+string AccountModeString()
+{
+   long mode = AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode == ACCOUNT_TRADE_MODE_DEMO)    return "demo";
+   if(mode == ACCOUNT_TRADE_MODE_CONTEST) return "contest";
+   if(mode == ACCOUNT_TRADE_MODE_REAL)    return "real";
+   return "unknown";
 }
 
 int CountOurPositions()
@@ -248,8 +260,8 @@ void PollAndAct()
    }
 
    string qs = StringFormat(
-      "symbol=%s&bid=%.5f&ask=%.5f&spread=%.0f&balance=%.2f%s",
-      InpSymbol, bid, ask, spreadPts, balance, open_qs
+      "symbol=%s&account_mode=%s&bid=%.5f&ask=%.5f&spread=%.0f&balance=%.2f%s",
+      InpSymbol, AccountModeString(), bid, ask, spreadPts, balance, open_qs
    );
 
    string body;
@@ -258,14 +270,15 @@ void PollAndAct()
    string decision = ExtractJsonString(body, "decision");
    string signalId = ExtractJsonString(body, "signalId");
    bool eaMay = ExtractJsonBool(body, "eaMayExecute", false);
+   bool srvExec = ExtractJsonBool(body, "serverExecutable", false);
    double confidence = ExtractJsonNumber(body, "confidence", 0);
    double lot = ExtractJsonNumber(body, "lot", InpLotFallback);
    double sl = ExtractJsonNumber(body, "stopLoss", 0);
    double tp = ExtractJsonNumber(body, "takeProfit", 0);
 
    Print("Signal id=", signalId, " decision=", decision,
-         " conf=", confidence, " eaMay=", eaMay,
-         " allow=", InpAllowTrading);
+         " conf=", confidence, " srvExec=", srvExec, " eaMay=", eaMay,
+         " mode=", AccountModeString(), " allow=", InpAllowTrading);
 
    if(signalId != "" && signalId == g_lastSignalId)
       return; // de-dupe identical id
@@ -286,6 +299,23 @@ void PollAndAct()
    if(!eaMay)
    {
       Print("Server eaMayExecute=false — set TRADING_AI_EA_SIGNALS=1 on Gercep host.");
+      g_lastSignalId = signalId;
+      return;
+   }
+
+   // Server-side demo gate. Independent from InpRequireDemo above:
+   // both must agree before any OrderSend.
+   if(!srvExec)
+   {
+      Print("Server serverExecutable=false — signal advisory only. mode=", AccountModeString());
+      g_lastSignalId = signalId;
+      return;
+   }
+
+   // Belt and braces: never trade a non-demo account from this EA.
+   if(!IsDemoAccount())
+   {
+      Print("Non-demo account detected at execution time — abort.");
       g_lastSignalId = signalId;
       return;
    }

@@ -625,7 +625,11 @@ export default function TradingAiClient({
             <li>MT5 → Allow WebRequest → domain Gercep. Attach kedua EA ke XAUUSD (akun DEMO).</li>
             <li>Server: set env <code className="text-[#FFB14A]">TRADING_AI_EA_SIGNALS=1</code> supaya <code>eaMayExecute</code> true.</li>
             <li>Executor: biarkan <code>InpRequireDemo=true</code>. Flip <code>InpAllowTrading=true</code> hanya setelah sinyal terlihat benar.</li>
-            <li>Max 1 posisi · no averaging / grid / hedge. Live account diblok EA.</li>
+            <li>
+              Max 1 posisi · no averaging / grid / hedge. Auto-execute hanya akun DEMO —
+              server menolak <code>account_mode</code> selain <code>demo</code>, dan EA memblok live via{" "}
+              <code>InpRequireDemo</code>.
+            </li>
           </ol>
           {bridgeMsg && <p className="mt-3 text-[11px] text-[#FFB4D4]">{bridgeMsg}</p>}
         </div>
@@ -636,7 +640,10 @@ export default function TradingAiClient({
             <div className="cp-scanline" />
             <div className="relative z-[1] mb-5 flex items-center justify-between gap-3">
               <p className="text-[10px] uppercase tracking-[0.3em] text-[#5CE1FF]/70">Decision core</p>
-              <span className="text-[10px] text-[#6A8A99]">executable: false</span>
+              <span className="text-[10px] text-[#6A8A99]">
+                executable: {String(result?.executable ?? false)}
+                {result?.execution?.accountMode ? ` · ${result.execution.accountMode}` : ""}
+              </span>
             </div>
 
             <div className="relative z-[1] mb-6 text-center">

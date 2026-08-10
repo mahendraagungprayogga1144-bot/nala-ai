@@ -111,6 +111,10 @@ export type ExitSignal = {
   decision: ExitDecision;
   reason: string;
   positionId: string | null;
+  /** CLOSE boleh dieksekusi EA hanya kalau execution gate lolos (demo-only). */
+  executable: boolean;
+  /** Alasan CLOSE tidak boleh dieksekusi — kosong kalau executable. */
+  executionBlockedBy: string[];
 };
 
 export type RiskCheck = {
@@ -158,9 +162,23 @@ export type TradingDecisionResult = {
   risk: RiskCheck;
   validation: ValidationResult;
   audit: DecisionAuditLog;
-  /** Always false until explicit live trading is enabled. */
-  executable: false;
+  /**
+   * true HANYA kalau execution gate lolos: akun demo + env aktif +
+   * decision BUY/SELL/CLOSE + confidence cukup. Lihat execution-gate.ts.
+   */
+  executable: boolean;
+  /** Rincian kenapa executable true/false — untuk audit dan debugging. */
+  execution: ExecutionGateSummary;
   generatedAt: number;
+};
+
+/** Ringkasan hasil execution gate yang ikut disimpan di hasil & audit. */
+export type ExecutionGateSummary = {
+  executable: boolean;
+  accountMode: "demo" | "contest" | "real" | "unknown";
+  minConfidence: number;
+  passed: string[];
+  blockedBy: string[];
 };
 
 /** Deterministic audit snapshot for every decision. */
@@ -184,6 +202,10 @@ export type DecisionAuditLog = {
   rulesPassed: string[];
   rulesFailed: string[];
   reasons: string[];
+  /** Jejak izin eksekusi pada saat keputusan dibuat. */
+  executable: boolean;
+  accountMode: "demo" | "contest" | "real" | "unknown";
+  executionBlockedBy: string[];
 };
 
 export type JournalEntry = {

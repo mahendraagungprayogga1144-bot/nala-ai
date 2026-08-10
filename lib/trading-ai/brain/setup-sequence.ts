@@ -68,6 +68,24 @@ type CandleLike = {
   volume?: number;
 };
 
+/**
+ * Pilih tolok ukur depth.
+ * Pada basis "level", depth diukur ke S/R yang juga harus disentuh, sehingga
+ * nilainya selalu mendekati 1 — batas atas dinaikkan ke 1 supaya detektor
+ * tidak menolak semua pullback. Basis "impulse" memakai panjang kaki impuls,
+ * sehingga pullbackMaxDepth benar-benar menyaring retracement penuh.
+ */
+function depthBasis(
+  config: TradingAiConfig,
+  levelRange: number,
+  impulseRange: number,
+): { depthRange: number; maxDepth: number } {
+  if (config.brain.pullbackDepthBasis === "impulse") {
+    return { depthRange: impulseRange, maxDepth: config.brain.pullbackMaxDepth };
+  }
+  return { depthRange: levelRange, maxDepth: Math.max(config.brain.pullbackMaxDepth, 1) };
+}
+
 function emptySetup(note: string): SequencedSetup {
   return {
     pullback: { detected: false, depth: 0, nearLevel: null, notes: [note] },
@@ -112,17 +130,20 @@ function bullishSequence(
   const target = sr?.nearestSupport ?? (lows.length ? lows[lows.length - 1].price : priorLow);
   // Depth vs path from impulse high → support (not micro-chop range).
   const range = Math.max(swingHigh - target, atrApprox(candles) * 3, swingHigh * 0.001);
+  const { depthRange, maxDepth } = depthBasis(
+    config,
+    range,
+    Math.max(swingHigh - priorLow, atrApprox(candles) * 3, swingHigh * 0.001),
+  );
 
   // 1) Pullback AFTER impulse high into support
   let pullIdx = -1;
   let pullDepth = 0;
   for (let i = swingHighIdx + 1; i <= closed; i++) {
     const c = candles[i];
-    const depth = (swingHigh - c.low) / range;
+    const depth = (swingHigh - c.low) / depthRange;
     const touching = nearLevel(c.low, target, touchTol);
-    const inBand =
-      depth >= config.brain.pullbackMinDepth &&
-      depth <= Math.max(config.brain.pullbackMaxDepth, 1);
+    const inBand = depth >= config.brain.pullbackMinDepth && depth <= maxDepth;
     if (touching && inBand) {
       pullIdx = i;
       pullDepth = depth;
@@ -132,7 +153,7 @@ function bullishSequence(
 
   if (pullIdx < 0) {
     const last = candles[closed];
-    const depth = (swingHigh - last.low) / range;
+    const depth = (swingHigh - last.low) / depthRange;
     return {
       pullback: {
         detected: false,
@@ -276,16 +297,19 @@ function bearishSequence(
 
   const target = sr?.nearestResistance ?? (highs.length ? highs[highs.length - 1].price : priorHigh);
   const range = Math.max(target - swingLow, atrApprox(candles) * 3, swingLow * 0.001);
+  const { depthRange, maxDepth } = depthBasis(
+    config,
+    range,
+    Math.max(priorHigh - swingLow, atrApprox(candles) * 3, swingLow * 0.001),
+  );
 
   let pullIdx = -1;
   let pullDepth = 0;
   for (let i = swingLowIdx + 1; i <= closed; i++) {
     const c = candles[i];
-    const depth = (c.high - swingLow) / range;
+    const depth = (c.high - swingLow) / depthRange;
     const touching = nearLevel(c.high, target, touchTol);
-    const inBand =
-      depth >= config.brain.pullbackMinDepth &&
-      depth <= Math.max(config.brain.pullbackMaxDepth, 1);
+    const inBand = depth >= config.brain.pullbackMinDepth && depth <= maxDepth;
     if (touching && inBand) {
       pullIdx = i;
       pullDepth = depth;
@@ -295,7 +319,7 @@ function bearishSequence(
 
   if (pullIdx < 0) {
     const last = candles[closed];
-    const depth = (last.high - swingLow) / range;
+    const depth = (last.high - swingLow) / depthRange;
     return {
       pullback: {
         detected: false,

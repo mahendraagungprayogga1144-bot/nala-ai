@@ -79,6 +79,13 @@ export type TradingAiConfig = {
     /** Pullback depth band that still counts as valid (fraction of last swing). */
     pullbackMinDepth: number;
     pullbackMaxDepth: number;
+    /**
+     * Tolok ukur depth pullback.
+     * "level"   — vs jarak ke S/R target (perilaku lama; depth ~1.0 saat menyentuh level,
+     *             sehingga pullbackMaxDepth praktis tidak berlaku).
+     * "impulse" — vs panjang kaki impuls (retracement klasik; pullbackMaxDepth berlaku).
+     */
+    pullbackDepthBasis: "level" | "impulse";
     /** Min confidence (0–100) to allow BUY/SELL instead of WAIT. */
     minConfidenceToEnter: number;
     /** Swing pivot left/right bars (price action structure). */
@@ -111,6 +118,7 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
     minM1Candles: 30,
     pullbackMinDepth: 0.2,
     pullbackMaxDepth: 0.85,
+    pullbackDepthBasis: "level",
     minConfidenceToEnter: 65,
     swingLeft: 2,
     swingRight: 2,

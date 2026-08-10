@@ -83,6 +83,11 @@ async function main() {
 
   const config = DEFAULT_TRADING_AI_CONFIG;
   const startIdx = Math.max(config.brain.minM1Candles, 10);
+  const spread = Number(process.argv[3] ?? 20);
+  console.log(
+    `spread diasumsikan: ${spread} points (maxSpreadPoints=${config.risk.maxSpreadPoints})` +
+      (spread > config.risk.maxSpreadPoints ? "  <-- DI ATAS BATAS: semua entry diblokir" : ""),
+  );
 
   let steps = 0;
   let biasClear = 0;
@@ -103,7 +108,7 @@ async function main() {
       symbol,
       m5Candles: m5.slice(Math.max(0, m5End - 119), m5End + 1),
       m1Candles: m1.slice(Math.max(0, i - 119), i + 1),
-      market: { symbol, bid: bar.close, ask: bar.close + 0.2, spread: 20, at: bar.time * 1000 },
+      market: { symbol, bid: bar.close, ask: bar.close + 0.2, spread, at: bar.time * 1000 },
       openPositions: [],
     });
 

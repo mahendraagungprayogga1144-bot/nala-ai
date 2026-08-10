@@ -125,7 +125,7 @@ export function decideTradingAction(
   } else {
     decision = "WAIT";
     reasons.push(entry.reason || "Setup not valid — WAIT.");
-    if (!risk.allowed) reasons.push(...risk.reasons);
+    // risk.reasons sudah masuk lewat validation.failedRules — jangan digandakan.
     if (!validation.valid) reasons.push(...validation.failedRules);
     if (
       validation.valid &&

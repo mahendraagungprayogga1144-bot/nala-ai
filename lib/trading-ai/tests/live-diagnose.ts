@@ -6,7 +6,7 @@
  */
 
 import { decideTradingAction } from "../decide";
-import { EXECUTION_MIN_CONFIDENCE } from "../config";
+import { DEFAULT_TRADING_AI_CONFIG, EXECUTION_MIN_CONFIDENCE } from "../config";
 import type { Candle, SymbolCode } from "../types";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -78,13 +78,18 @@ async function main() {
     );
   }
 
+  // Spread tidak tersimpan di feed, jadi harus diberikan. Nilai ini menentukan
+  // lolos/tidaknya risk filter, jadi jangan diam-diam pakai angka optimistis.
+  const spread = Number(process.argv[3] ?? 20);
+  console.log(`spread diasumsikan: ${spread} points (maxSpreadPoints=${DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints})`);
+
   const bid = m1[m1.length - 1].close;
   const result = decideTradingAction(
     {
       symbol,
       m5Candles: m5,
       m1Candles: m1,
-      market: { symbol, bid, ask: bid + 0.2, spread: 20, at: Date.now() },
+      market: { symbol, bid, ask: bid + 0.2, spread, at: Date.now() },
       openPositions: [],
     },
     { accountMode: "demo", executionEnabled: true },

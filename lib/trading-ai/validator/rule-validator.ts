@@ -171,9 +171,13 @@ export function validateRules(input: {
     else passed.push("Rejection detected.");
     if (!input.momentum.alignedWithTrend) failed.push("Entry without momentum alignment.");
     else passed.push("Momentum aligned with M5.");
-    if (!input.risk.allowed) failed.push(...input.risk.reasons);
-    else passed.push("Risk checks allowed.");
   }
+
+  // Risk dicatat terlepas dari keputusan entry. Sebelumnya hanya dicatat saat
+  // entry sudah BUY/SELL, sehingga blokir spread tidak pernah muncul di audit
+  // dan penyebab WAIT jadi tak terlihat.
+  if (!input.risk.allowed) failed.push(...input.risk.reasons);
+  else passed.push("Risk checks allowed.");
 
   if (input.trend.direction === "sideways" || input.trend.direction === "unknown") {
     if (input.entry.decision !== "WAIT") {

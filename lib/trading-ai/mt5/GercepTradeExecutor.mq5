@@ -277,7 +277,8 @@ void PollAndAct()
    double tp = ExtractJsonNumber(body, "takeProfit", 0);
 
    Print("Signal id=", signalId, " decision=", decision,
-         " conf=", confidence, " srvExec=", srvExec, " eaMay=", eaMay,
+         " conf=", confidence, " spread=", DoubleToString(spreadPts, 0),
+         " srvExec=", srvExec, " eaMay=", eaMay,
          " mode=", AccountModeString(), " allow=", InpAllowTrading);
 
    if(signalId != "" && signalId == g_lastSignalId)

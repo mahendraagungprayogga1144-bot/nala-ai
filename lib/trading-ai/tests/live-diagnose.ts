@@ -46,9 +46,10 @@ async function fetchCandles(
 async function main() {
   const symbol = (process.argv[2] || "XAUUSD").toUpperCase() as SymbolCode;
 
+  // nullslast: kunci yang belum pernah dipakai jangan menang urutan.
   const keys = await rest<{ user_id: string; last_seen_at: string | null }[]>(
     "trading_ai_bridge_keys?select=user_id,last_seen_at&revoked_at=is.null" +
-      "&order=last_seen_at.desc&limit=1",
+      "&order=last_seen_at.desc.nullslast&limit=1",
   );
   const userId = keys[0]?.user_id;
   if (!userId) throw new Error("Tidak ada bridge key aktif.");
@@ -60,6 +61,22 @@ async function main() {
   ]);
   console.log(`candles: M5=${m5.length} M1=${m1.length}`);
   if (!m5.length || !m1.length) throw new Error("Feed kosong — pastikan GercepCandlePush jalan.");
+
+  // bar_time memakai jam server broker, jadi tidak bisa dibandingkan dengan jam lokal.
+  // updated_at adalah waktu tulis sungguhan — itu yang dipakai mengukur basi.
+  const [latest] = await rest<{ updated_at: string }[]>(
+    `trading_ai_candles?select=updated_at&symbol=eq.${symbol}` +
+      "&timeframe=eq.M1&order=bar_time.desc&limit=1",
+  );
+  const ageMin = latest ? (Date.now() - Date.parse(latest.updated_at)) / 60000 : Infinity;
+  console.log(`ingest terakhir: ${latest?.updated_at ?? "?"} (${ageMin.toFixed(0)} menit lalu)`);
+  if (ageMin > 5) {
+    console.log(
+      `WARNING feed basi ${ageMin.toFixed(0)} menit — GercepCandlePush tidak mengirim.\n` +
+        "         Ingat: satu chart MT5 hanya bisa menjalankan satu EA.\n" +
+        "         Butuh chart XAUUSD terpisah untuk CandlePush dan TradeExecutor.",
+    );
+  }
 
   const bid = m1[m1.length - 1].close;
   const result = decideTradingAction(

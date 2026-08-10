@@ -2,14 +2,21 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   decideTradingAction,
+  DEFAULT_EXECUTION_CONTROL,
   DEFAULT_TRADING_AI_CONFIG,
+  evaluateExecutionGate,
+  evaluateRuntimeControl,
   EXECUTION_MIN_CONFIDENCE,
+  EXECUTION_MODE,
   HARD_RULES,
   isEaSignalExecutionEnabled,
   loadCandles,
   parseAccountMode,
+  parseExecutionControlRow,
+  buildSignalId,
   toEaTradeSignal,
   TRADING_AI_VERSION,
+  type ExecutionControlState,
   type OpenPosition,
   type SymbolCode,
 } from "@/lib/trading-ai";
@@ -65,6 +72,7 @@ export async function GET(request: Request) {
       },
       eaSignalsEnv: isEaSignalExecutionEnabled(),
       execution: {
+        mode: EXECUTION_MODE,
         demoOnly: true,
         allowLiveExecution: HARD_RULES.ALLOW_LIVE_EXECUTION,
         minConfidence: EXECUTION_MIN_CONFIDENCE,
@@ -106,6 +114,24 @@ export async function GET(request: Request) {
   // TITIK KRITIS DEMO-ONLY (server-side).
   // Param hilang / typo / "real" -> "unknown" -> execution gate menolak.
   const accountMode = parseAccountMode(url.searchParams.get("account_mode"));
+  const accountLogin = num(url.searchParams.get("account_login"));
+
+  // Kontrol runtime dari dashboard. Tabel belum ada / query gagal => default OFF.
+  let control: ExecutionControlState = { ...DEFAULT_EXECUTION_CONTROL };
+  let controlReady = true;
+  try {
+    const { data: ctlRow, error: ctlErr } = await admin
+      .from("trading_ai_execution_control")
+      .select(
+        "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, last_entry_at, last_entry_signal_id",
+      )
+      .eq("user_id", keyRow.user_id)
+      .maybeSingle();
+    if (ctlErr) controlReady = false;
+    else control = parseExecutionControlRow(ctlRow);
+  } catch {
+    controlReady = false;
+  }
 
   const [m5, m1] = await Promise.all([
     loadCandles(admin, {
@@ -138,6 +164,12 @@ export async function GET(request: Request) {
       minConfidence: EXECUTION_MIN_CONFIDENCE,
       executionBlockedBy: ["Candle feed belum cukup — WAIT tidak pernah executable."],
       eaMayExecute: false,
+      executionMode: EXECUTION_MODE,
+      autotrade: control.autotradeEnabled,
+      emergencyStop: control.emergencyStop,
+      cooldownRemaining: 0,
+      m5Bias: "unknown",
+      m1Direction: "unknown",
       lot: null,
       stopLoss: null,
       takeProfit: null,
@@ -197,6 +229,54 @@ export async function GET(request: Request) {
     .update({ last_seen_at: new Date().toISOString() })
     .eq("id", keyRow.id);
 
-  const signal = toEaTradeSignal(result);
-  return NextResponse.json(signal);
+  const barTime = m1[m1.length - 1]?.time ?? null;
+  const signalId = buildSignalId(result, barTime);
+
+  const runtime = evaluateRuntimeControl({
+    decision: result.decision,
+    state: control,
+    hasOpenPosition: openPositions.length > 0,
+    signalId,
+  });
+
+  const controlBlockedBy = [...runtime.blockedBy];
+  if (!controlReady) {
+    controlBlockedBy.push(
+      "Tabel execution control belum ada — jalankan migrasi 20260810_trading_ai_demo_autotrade.sql.",
+    );
+  }
+
+  let signal = toEaTradeSignal(result, {
+    barTime,
+    autotrade: control.autotradeEnabled,
+    emergencyStop: control.emergencyStop,
+    cooldownRemaining: runtime.cooldownRemainingSec,
+    controlBlockedBy,
+  });
+
+  // EMERGENCY STOP + close-all: lapisan eksekusi memaksa CLOSE.
+  // Trading Brain tidak diubah — override hanya terjadi di sini dan tercatat.
+  if (runtime.forceClose && openPositions.length > 0 && signal.decision !== "CLOSE") {
+    const closeGate = evaluateExecutionGate({
+      decision: "CLOSE",
+      confidence: result.confidence,
+      accountMode,
+      validationValid: true,
+      riskAllowed: true,
+      configMinConfidence: DEFAULT_TRADING_AI_CONFIG.brain.minConfidenceToEnter,
+    });
+    signal = {
+      ...signal,
+      decision: "CLOSE",
+      signalId: `${signal.signalId}_estop`,
+      serverExecutable: closeGate.executable,
+      executionBlockedBy: closeGate.blockedBy,
+      reasons: [
+        "EMERGENCY STOP + close-all aktif — tutup posisi berjalan.",
+        ...signal.reasons,
+      ].slice(0, 8),
+    };
+  }
+
+  return NextResponse.json({ ...signal, accountLogin });
 }

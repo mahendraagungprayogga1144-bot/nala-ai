@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.4.0-demo-execute";
+export const TRADING_AI_VERSION = "0.5.0-demo-autotrade";
 
 /**
  * Hard product rules — never weaken from UI.
@@ -108,7 +108,8 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
   useIndicatorsAsPrimary: false,
   risk: {
     maxOpenPositions: HARD_RULES.MAX_POSITION,
-    defaultLot: 0.01,
+    /** Lot tetap untuk DEMO_AUTOTRADE. Tidak ada scaling/martingale. */
+    defaultLot: 0.1,
     maxLot: 0.1,
     maxFloatingRiskPct: 2,
     /**

@@ -12,6 +12,13 @@ import {
   mergeTradingAiConfig,
 } from "../config";
 import { evaluateExecutionGate, parseAccountMode } from "../execution-gate";
+import {
+  DEFAULT_EXECUTION_CONTROL,
+  evaluateRuntimeControl,
+  parseExecutionControlRow,
+  type ExecutionControlState,
+} from "../execution-control";
+import { toEaTradeSignal } from "../signal";
 import type { Candle, MarketSnapshot } from "../types";
 
 function candle(i: number, o: number, h: number, l: number, c: number): Candle {
@@ -300,6 +307,145 @@ function buildBearishM1(): Candle[] {
   );
   assert(live.executable === false, "live SELL must never be executable");
   console.log("PASS SELL demo executable / live blocked");
+}
+
+// --- Execution control: tombol autotrade, emergency stop, cooldown ---
+{
+  const on: ExecutionControlState = {
+    ...DEFAULT_EXECUTION_CONTROL,
+    autotradeEnabled: true,
+  };
+
+  assert(
+    DEFAULT_EXECUTION_CONTROL.autotradeEnabled === false,
+    "default autotrade harus OFF",
+  );
+  assert(
+    parseExecutionControlRow(null).autotradeEnabled === false,
+    "baris DB hilang harus jatuh ke OFF",
+  );
+  assert(
+    parseExecutionControlRow({ autotrade_enabled: true }).autotradeEnabled === true,
+    "baris DB ON terbaca",
+  );
+
+  // Autotrade OFF memblokir semua eksekusi.
+  const off = evaluateRuntimeControl({
+    decision: "BUY",
+    state: DEFAULT_EXECUTION_CONTROL,
+  });
+  assert(off.allowed === false, "autotrade OFF harus memblokir BUY");
+
+  // Autotrade ON tanpa cooldown meloloskan entry.
+  const clear = evaluateRuntimeControl({ decision: "BUY", state: on });
+  assert(clear.allowed === true, `autotrade ON harus lolos: ${clear.blockedBy.join(" | ")}`);
+
+  // Emergency stop menghentikan entry baru, tapi CLOSE tetap boleh.
+  const stopped: ExecutionControlState = { ...on, emergencyStop: true };
+  assert(
+    evaluateRuntimeControl({ decision: "BUY", state: stopped }).allowed === false,
+    "emergency stop harus memblokir entry",
+  );
+  assert(
+    evaluateRuntimeControl({ decision: "CLOSE", state: stopped }).allowed === true,
+    "CLOSE tetap boleh saat emergency stop",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "CLOSE",
+      state: { ...stopped, closeAllOnStop: true },
+      hasOpenPosition: true,
+    }).forceClose === true,
+    "close-all harus memicu forceClose",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "CLOSE",
+      state: { ...stopped, closeAllOnStop: true },
+      hasOpenPosition: false,
+    }).forceClose === false,
+    "forceClose butuh posisi terbuka",
+  );
+
+  // Cooldown menahan entry, tidak menahan CLOSE.
+  const now = 1_800_000_000_000;
+  const cooling: ExecutionControlState = {
+    ...on,
+    cooldownSeconds: 900,
+    lastEntryAt: now - 300_000,
+  };
+  const cooled = evaluateRuntimeControl({ decision: "BUY", state: cooling, now });
+  assert(cooled.allowed === false, "cooldown harus memblokir entry");
+  assert(cooled.cooldownRemainingSec === 600, `sisa cooldown salah: ${cooled.cooldownRemainingSec}`);
+  assert(
+    evaluateRuntimeControl({ decision: "CLOSE", state: cooling, now }).allowed === true,
+    "cooldown tidak boleh menahan CLOSE",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "BUY",
+      state: { ...cooling, lastEntryAt: now - 900_001 },
+      now,
+    }).allowed === true,
+    "cooldown lewat harus lolos",
+  );
+  // Satu signal = satu attempt, ditegakkan server (tahan restart EA).
+  const replayed: ExecutionControlState = {
+    ...on,
+    lastEntrySignalId: "sig_XAUUSD_1700000000_BUY_80",
+  };
+  assert(
+    evaluateRuntimeControl({
+      decision: "BUY",
+      state: replayed,
+      signalId: "sig_XAUUSD_1700000000_BUY_80",
+    }).allowed === false,
+    "signal yang sudah dieksekusi tidak boleh diulang",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "BUY",
+      state: replayed,
+      signalId: "sig_XAUUSD_1700000060_BUY_80",
+    }).allowed === true,
+    "signal dari bar baru tetap boleh",
+  );
+  console.log("PASS execution control (autotrade / emergency stop / cooldown)");
+}
+
+// --- Control layer hanya boleh MEMPERSEMPIT izin execution gate ---
+{
+  const m5 = buildBullishM5();
+  const m1 = buildBullishM1();
+  const r = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: m5,
+      m1Candles: m1,
+      market: market(m1[m1.length - 1].close),
+      openPositions: [],
+    },
+    { config, accountMode: "demo", executionEnabled: true },
+  );
+  assert(r.executable === true, "prasyarat: demo BUY executable");
+
+  const allowed = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time, autotrade: true });
+  assert(allowed.serverExecutable === true, "tanpa blocker runtime harus tetap executable");
+  assert(allowed.executionMode === "DEMO_AUTOTRADE", "mode harus DEMO_AUTOTRADE");
+  assert(allowed.m5Bias === "bullish", "m5Bias ikut dikirim ke EA");
+
+  const blocked = toEaTradeSignal(r, {
+    barTime: m1[m1.length - 1].time,
+    controlBlockedBy: ["DEMO AUTOTRADE OFF"],
+  });
+  assert(blocked.serverExecutable === false, "blocker runtime harus mematikan eksekusi");
+
+  // signalId stabil dalam satu bar M1 → satu signal = satu order attempt.
+  const again = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time });
+  assert(allowed.signalId === again.signalId, "signalId harus stabil dalam bar yang sama");
+  const nextBar = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time + 60 });
+  assert(allowed.signalId !== nextBar.signalId, "bar baru harus menghasilkan signalId baru");
+  console.log("PASS control layer + signalId stabil");
 }
 
 console.log("decision-cases ok");

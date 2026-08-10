@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   Copy,
   Crosshair,
   Link2,
   Lock,
+  OctagonAlert,
+  Power,
   Radar,
   Radio,
   Shield,
   Sparkles,
+  Timer,
   Upload,
   MessageSquareText,
   Zap,
@@ -28,6 +31,7 @@ import {
   type BridgeKeyRow,
   type Candle,
   type CandleFeedStatus,
+  EXECUTION_MODE,
   type TradeDecision,
   type TradingDecisionResult,
 } from "@/lib/trading-ai";
@@ -40,7 +44,7 @@ function candle(i: number, o: number, h: number, l: number, c: number): Candle {
 /** Demo M5 bullish structure (enough bars for analyzer). */
 function demoBullishM5(): Candle[] {
   const out: Candle[] = [];
-  let base = 2300;
+  const base = 2300;
   for (let i = 0; i < 60; i++) {
     const wave = Math.sin(i / 4) * 1.2;
     const drift = i * 0.15;
@@ -104,6 +108,40 @@ const RULES = [
   "Live order OFF · MT5 signal demo-only",
 ];
 
+type ControlState = {
+  autotradeEnabled: boolean;
+  emergencyStop: boolean;
+  closeAllOnStop: boolean;
+  cooldownSeconds: number;
+  cooldownRemaining: number;
+  lastEntryAt: number | null;
+};
+
+type ControlAction =
+  | "autotrade_on"
+  | "autotrade_off"
+  | "emergency_stop"
+  | "resume"
+  | "settings";
+
+const COOLDOWN_CHOICES = [
+  ["5 menit", 300],
+  ["15 menit", 900],
+  ["30 menit", 1800],
+  ["60 menit", 3600],
+] as const;
+
+/** Dibungkus supaya pemanggilan jam tidak dianggap impure di dalam komponen. */
+function nowMs(): number {
+  return Date.now();
+}
+
+function fmtCooldown(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
 function fmtTs(sec: number | null) {
   if (!sec) return "—";
   return new Date(sec * 1000).toLocaleString("id-ID", {
@@ -119,6 +157,8 @@ export default function TradingAiClient({
   userLabel,
   initialFeed,
   initialKeys,
+  initialControl,
+  initialControlReady,
   ingestUrl,
   signalUrl,
   schemaReady,
@@ -128,6 +168,8 @@ export default function TradingAiClient({
   userLabel: string;
   initialFeed: CandleFeedStatus;
   initialKeys: BridgeKeyRow[];
+  initialControl: ControlState;
+  initialControlReady: boolean;
   ingestUrl: string;
   signalUrl: string;
   schemaReady: boolean;
@@ -152,6 +194,49 @@ export default function TradingAiClient({
   const [explainText, setExplainText] = useState<string | null>(null);
   const [explainBusy, setExplainBusy] = useState(false);
   const [explainErr, setExplainErr] = useState<string | null>(null);
+  // Status awal datang dari server component — tidak ada fetch saat mount.
+  const [control, setControl] = useState<ControlState>(initialControl);
+  const [controlBusy, setControlBusy] = useState(false);
+  const [controlMsg, setControlMsg] = useState<string | null>(null);
+  const [controlReady, setControlReady] = useState(initialControlReady);
+
+  // Cooldown dihitung server; hitung mundur lokal cuma untuk tampilan.
+  useEffect(() => {
+    if (control.cooldownRemaining <= 0) return;
+    const t = setInterval(() => {
+      setControl((c) => ({
+        ...c,
+        cooldownRemaining: Math.max(0, c.cooldownRemaining - 1),
+      }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [control.cooldownRemaining]);
+
+  const sendControl = async (
+    action: ControlAction,
+    extra: { closeAllOnStop?: boolean; cooldownSeconds?: number } = {},
+  ) => {
+    setControlBusy(true);
+    setControlMsg(null);
+    try {
+      const res = await fetch("/api/trading-ai/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setControlMsg(json?.error || "Gagal mengubah kontrol eksekusi.");
+        return;
+      }
+      if (json?.control) setControl(json.control as ControlState);
+      setControlReady(true);
+    } catch (e) {
+      setControlMsg(e instanceof Error ? e.message : "Gagal menghubungi server.");
+    } finally {
+      setControlBusy(false);
+    }
+  };
 
   const refreshFeed = async () => {
     const [m5, m1] = await Promise.all([
@@ -226,7 +311,7 @@ export default function TradingAiClient({
           bid: last,
           ask: last + 0.2,
           spread: 20,
-          at: Date.now(),
+          at: nowMs(),
         },
         openPositions: [],
       });
@@ -492,6 +577,125 @@ export default function TradingAiClient({
               <Shield size={11} /> max 1 pos
             </span>
           </div>
+        </div>
+
+        {/* Execution control */}
+        <div className="cp-panel mb-4 rounded-2xl p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#FFB14A]">
+              <Power size={13} /> execution mode · {EXECUTION_MODE}
+            </p>
+            <p className="text-[10px] text-[#6A8A99]">
+              order sungguhan ke akun DEMO · live tetap diblokir
+            </p>
+          </div>
+
+          {!controlReady && (
+            <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+              Jalankan SQL migrasi{" "}
+              <code className="text-amber-200">20260810_trading_ai_demo_autotrade.sql</code> di
+              Supabase. Sebelum itu autotrade dipaksa OFF.
+            </div>
+          )}
+
+          <div className="mb-3 grid gap-2 sm:grid-cols-4">
+            {[
+              ["Autotrade", control.autotradeEnabled ? "ON" : "OFF"],
+              ["Emergency", control.emergencyStop ? "STOP" : "normal"],
+              ["Cooldown", control.cooldownRemaining > 0 ? fmtCooldown(control.cooldownRemaining) : "siap"],
+              ["Lot", DEFAULT_TRADING_AI_CONFIG.risk.defaultLot.toFixed(2)],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+                <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
+                <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">{v}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={controlBusy}
+              onClick={() =>
+                sendControl(control.autotradeEnabled ? "autotrade_off" : "autotrade_on")
+              }
+              className={`rounded-xl border px-4 py-2 text-xs font-bold disabled:opacity-50 ${
+                control.autotradeEnabled
+                  ? "border-[#00F0A8]/45 bg-[#00F0A8]/15 text-[#00F0A8]"
+                  : "border-white/15 text-[#9BC5D4]"
+              }`}
+            >
+              DEMO AUTOTRADE {control.autotradeEnabled ? "ON" : "OFF"}
+            </button>
+
+            <button
+              type="button"
+              disabled={controlBusy || control.emergencyStop}
+              onClick={() => {
+                if (!confirm("EMERGENCY STOP: hentikan semua entry baru?")) return;
+                sendControl("emergency_stop");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#FF3D7F]/45 bg-[#FF3D7F]/12 px-4 py-2 text-xs font-bold text-[#FF3D7F] disabled:opacity-50"
+            >
+              <OctagonAlert size={13} /> EMERGENCY STOP
+            </button>
+
+            {control.emergencyStop && (
+              <button
+                type="button"
+                disabled={controlBusy}
+                onClick={() => sendControl("resume")}
+                className="rounded-xl border border-white/15 px-4 py-2 text-xs text-[#9BC5D4] disabled:opacity-50"
+              >
+                Resume (autotrade tetap OFF)
+              </button>
+            )}
+          </div>
+
+          <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-[#9BC5D4]">
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={control.closeAllOnStop}
+                disabled={controlBusy}
+                onChange={(e) =>
+                  sendControl("settings", { closeAllOnStop: e.target.checked })
+                }
+              />
+              Tutup posisi saat emergency stop
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <Timer size={12} /> Cooldown
+              <select
+                value={control.cooldownSeconds}
+                disabled={controlBusy}
+                onChange={(e) =>
+                  sendControl("settings", { cooldownSeconds: Number(e.target.value) })
+                }
+                className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[11px] text-[#E8F7FF]"
+              >
+                {COOLDOWN_CHOICES.map(([label, val]) => (
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {controlMsg && (
+            <div className="mb-2 rounded-xl border border-[#FF3D7F]/30 bg-[#FF3D7F]/10 px-3 py-2 text-[11px] text-[#FFC2D8]">
+              {controlMsg}
+            </div>
+          )}
+
+          <p className="text-[10px] leading-relaxed text-[#6A8A99]">
+            Autotrade OFF setiap kali aplikasi dibuka sampai kamu menyalakannya. EA tetap wajib
+            lolos: akun DEMO · confidence ≥ {DEFAULT_TRADING_AI_CONFIG.brain.minConfidenceToEnter} ·
+            max 1 posisi · spread ≤ {DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints} point.
+            Emergency stop menghentikan entry baru; posisi berjalan hanya ditutup kalau opsi
+            di atas dicentang.
+          </p>
         </div>
 
         {/* MT5 bridge */}

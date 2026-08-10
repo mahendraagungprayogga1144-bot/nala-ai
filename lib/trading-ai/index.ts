@@ -54,9 +54,28 @@ export type {
   BacktestResult,
 } from "./types";
 
+export {
+  EXECUTION_MODE,
+  DEFAULT_COOLDOWN_SECONDS,
+  DEFAULT_EXECUTION_CONTROL,
+  clampCooldownSeconds,
+  cooldownRemainingSeconds,
+  evaluateRuntimeControl,
+  parseExecutionControlRow,
+  type ExecutionMode,
+  type ExecutionControlState,
+  type ExecutionControlRow,
+  type RuntimeControlVerdict,
+} from "./execution-control";
+
 export { decideTradingAction, type DecideOptions } from "./decide";
 export { buildDecisionAudit } from "./audit";
-export { toEaTradeSignal, type EaTradeSignal } from "./signal";
+export {
+  toEaTradeSignal,
+  buildSignalId,
+  type EaTradeSignal,
+  type EaSignalRuntime,
+} from "./signal";
 
 export { parseCandlesCsv, parseCandlesFile, type ParseCandlesResult } from "./csv-candles";
 

@@ -23,7 +23,7 @@ function candle(
 /** Build HH/HL M5 structure. */
 function buildBullishM5(): Candle[] {
   const out: Candle[] = [];
-  let base = 2300;
+  const base = 2300;
   for (let i = 0; i < 60; i++) {
     // gentle uptrend with swings
     const wave = Math.sin(i / 4) * 1.2;

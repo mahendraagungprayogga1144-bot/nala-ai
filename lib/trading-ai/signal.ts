@@ -4,6 +4,7 @@
  */
 
 import { isEaSignalExecutionEnabled, TRADING_AI_VERSION } from "./config";
+import { EXECUTION_MODE, type ExecutionMode } from "./execution-control";
 import type { AccountMode } from "./execution-gate";
 import type { DecisionAuditLog, TradeDecision, TradingDecisionResult } from "./types";
 
@@ -31,6 +32,18 @@ export type EaTradeSignal = {
    * EA must still enforce demo-only + InpAllowTrading.
    */
   eaMayExecute: boolean;
+  /** Selalu DEMO_AUTOTRADE — order sungguhan ke akun demo, bukan paper. */
+  executionMode: ExecutionMode;
+  /** Tombol dashboard [DEMO AUTOTRADE ON/OFF]. */
+  autotrade: boolean;
+  /** Tombol dashboard [EMERGENCY STOP]. */
+  emergencyStop: boolean;
+  /** Sisa cooldown entry dalam detik. 0 = bebas. */
+  cooldownRemaining: number;
+  /** M5 menentukan arah — dipakai EA untuk baris log M5_BIAS. */
+  m5Bias: string;
+  /** M1 menentukan timing — dipakai EA untuk baris log M1_DIRECTION. */
+  m1Direction: string;
   lot: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
@@ -62,9 +75,41 @@ export type EaTradeSignal = {
   generatedAt: number;
 };
 
-export function toEaTradeSignal(result: TradingDecisionResult): EaTradeSignal {
+export type EaSignalRuntime = {
+  /** Epoch detik candle M1 terakhir. Bikin signalId stabil dalam satu bar. */
+  barTime?: number | null;
+  autotrade?: boolean;
+  emergencyStop?: boolean;
+  cooldownRemaining?: number;
+  /** Blocker runtime (autotrade OFF / emergency stop / cooldown). */
+  controlBlockedBy?: string[];
+};
+
+/**
+ * signalId sengaja deterministik terhadap (bar M1, decision, confidence).
+ * Polling berulang dalam bar yang sama menghasilkan id yang sama, sehingga
+ * EA bisa menjamin "satu signal = maksimal satu order attempt".
+ */
+export function buildSignalId(
+  result: TradingDecisionResult,
+  barTime?: number | null,
+): string {
+  const bucket =
+    barTime && Number.isFinite(barTime)
+      ? Math.floor(barTime)
+      : Math.floor(result.generatedAt / 60_000) * 60;
+  return `sig_${result.symbol}_${bucket}_${result.decision}_${result.confidence}`;
+}
+
+export function toEaTradeSignal(
+  result: TradingDecisionResult,
+  runtime: EaSignalRuntime = {},
+): EaTradeSignal {
   const eaMayExecute = isEaSignalExecutionEnabled();
-  const signalId = `sig_${result.generatedAt}_${result.decision}_${result.confidence}`;
+  const signalId = buildSignalId(result, runtime.barTime);
+  const controlBlockedBy = runtime.controlBlockedBy ?? [];
+  // Lapisan runtime hanya boleh mempersempit izin dari execution gate.
+  const serverExecutable = result.executable && controlBlockedBy.length === 0;
   return {
     ok: true,
     signalId,
@@ -72,12 +117,18 @@ export function toEaTradeSignal(result: TradingDecisionResult): EaTradeSignal {
     symbol: result.symbol,
     decision: result.decision,
     confidence: result.confidence,
-    // Sumber tunggal: execution gate di decideTradingAction. Jangan hitung ulang di sini.
-    serverExecutable: result.executable,
+    // Execution gate (demo-only, confidence) + control runtime (tombol, cooldown).
+    serverExecutable,
     accountMode: result.execution.accountMode,
     minConfidence: result.execution.minConfidence,
-    executionBlockedBy: result.execution.blockedBy,
+    executionBlockedBy: [...result.execution.blockedBy, ...controlBlockedBy],
     eaMayExecute,
+    executionMode: EXECUTION_MODE,
+    autotrade: runtime.autotrade ?? false,
+    emergencyStop: runtime.emergencyStop ?? false,
+    cooldownRemaining: runtime.cooldownRemaining ?? 0,
+    m5Bias: result.trend.direction,
+    m1Direction: result.momentum.direction,
     lot: result.entry.suggestedLot,
     stopLoss: result.entry.suggestedStopLoss,
     takeProfit: result.entry.suggestedTakeProfit,

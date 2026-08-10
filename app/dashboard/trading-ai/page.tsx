@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { guardPage } from "../lib/page-guard";
-import { getCandleFeedStatus, type BridgeKeyRow, type CandleFeedStatus } from "@/lib/trading-ai";
+import {
+  cooldownRemainingSeconds,
+  DEFAULT_EXECUTION_CONTROL,
+  getCandleFeedStatus,
+  parseExecutionControlRow,
+  type BridgeKeyRow,
+  type CandleFeedStatus,
+} from "@/lib/trading-ai";
 import TradingAiClient from "./trading-ai-client";
 
 export default async function TradingAiPage() {
@@ -49,6 +56,27 @@ export default async function TradingAiPage() {
       schemaError = e instanceof Error ? e.message : "Schema Trading AI belum siap";
     }
 
+    // Status tombol autotrade. Tabel belum dimigrasi => tampil OFF + peringatan.
+    let control = { ...DEFAULT_EXECUTION_CONTROL, cooldownRemaining: 0 };
+    let controlReady = true;
+    try {
+      const { data, error } = await supabase
+        .from("trading_ai_execution_control")
+        .select(
+          "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, last_entry_at, last_entry_signal_id",
+        )
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) {
+        controlReady = false;
+      } else {
+        const parsed = parseExecutionControlRow(data);
+        control = { ...parsed, cooldownRemaining: cooldownRemainingSeconds(parsed) };
+      }
+    } catch {
+      controlReady = false;
+    }
+
     const appBase =
       (process.env.NEXT_PUBLIC_APP_URL || "https://www.gercepos.id").replace(/\/$/, "");
     const ingestUrl = appBase + "/api/trading-ai/ingest";
@@ -60,6 +88,8 @@ export default async function TradingAiPage() {
         userLabel={displayName}
         initialFeed={feed}
         initialKeys={keys}
+        initialControl={control}
+        initialControlReady={controlReady}
         ingestUrl={ingestUrl}
         signalUrl={signalUrl}
         schemaReady={schemaReady}

@@ -111,7 +111,12 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
     defaultLot: 0.01,
     maxLot: 0.1,
     maxFloatingRiskPct: 2,
-    maxSpreadPoints: 35,
+    /**
+     * XAUUSD (2 desimal, point=0.01) bergerak di ~30-45 point pada kondisi normal.
+     * Nilai lama 35 berada di tengah rentang itu, sehingga entry mati setiap kali
+     * spread sedikit melebar. 60 tetap memblokir lonjakan berita/rollover.
+     */
+    maxSpreadPoints: 60,
   },
   brain: {
     minM5Candles: 50,

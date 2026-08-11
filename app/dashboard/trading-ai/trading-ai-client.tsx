@@ -8,9 +8,11 @@ import {
   Link2,
   Lock,
   OctagonAlert,
+  PlugZap,
   Power,
   Radar,
   Radio,
+  RefreshCw,
   Shield,
   Sparkles,
   Timer,
@@ -27,7 +29,10 @@ import {
   backtest,
   generateBridgeApiKey,
   loadCandles,
+  BRIDGE_PROBE_TIMEOUT_MS,
   type BacktestResult,
+  type BridgeConnectionState,
+  type BridgeHealthResult,
   type BridgeKeyRow,
   type Candle,
   type CandleFeedStatus,
@@ -36,6 +41,26 @@ import {
   type TradingDecisionResult,
 } from "@/lib/trading-ai";
 import { createClient } from "@/lib/supabase/client";
+
+const HEALTH_POLL_MS = 15_000;
+
+const STATE_STYLE: Record<
+  BridgeConnectionState,
+  { chip: string; label: string }
+> = {
+  CONNECTED: { chip: "border-[#00F0A8]/45 bg-[#00F0A8]/15 text-[#00F0A8]", label: "CONNECTED" },
+  CONNECTING: { chip: "border-[#FFB14A]/45 bg-[#FFB14A]/15 text-[#FFB14A]", label: "CONNECTING" },
+  DISCONNECTED: { chip: "border-white/20 bg-white/5 text-[#9BC5D4]", label: "DISCONNECTED" },
+  ERROR: { chip: "border-[#FF3D7F]/45 bg-[#FF3D7F]/12 text-[#FF3D7F]", label: "ERROR" },
+};
+
+function fmtAge(sec: number | null) {
+  if (sec == null) return "belum pernah";
+  if (sec < 60) return `${sec}s lalu`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}m ${String(s).padStart(2, "0")}s lalu`;
+}
 
 function candle(i: number, o: number, h: number, l: number, c: number): Candle {
   return { time: 1_700_000_000 + i * 60, open: o, high: h, low: l, close: c };
@@ -159,8 +184,10 @@ export default function TradingAiClient({
   initialKeys,
   initialControl,
   initialControlReady,
+  initialHealth,
   ingestUrl,
   signalUrl,
+  healthUrl,
   schemaReady,
   schemaError,
 }: {
@@ -170,8 +197,10 @@ export default function TradingAiClient({
   initialKeys: BridgeKeyRow[];
   initialControl: ControlState;
   initialControlReady: boolean;
+  initialHealth: BridgeHealthResult;
   ingestUrl: string;
   signalUrl: string;
+  healthUrl: string;
   schemaReady: boolean;
   schemaError: string | null;
 }) {
@@ -199,6 +228,50 @@ export default function TradingAiClient({
   const [controlBusy, setControlBusy] = useState(false);
   const [controlMsg, setControlMsg] = useState<string | null>(null);
   const [controlReady, setControlReady] = useState(initialControlReady);
+  const [health, setHealth] = useState<BridgeHealthResult>(initialHealth);
+  const [healthBusy, setHealthBusy] = useState(false);
+  const [healthErr, setHealthErr] = useState<string | null>(null);
+  const [healthLatencyMs, setHealthLatencyMs] = useState<number | null>(null);
+
+  const refreshHealth = async () => {
+    setHealthBusy(true);
+    setHealthErr(null);
+    const started = Date.now();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), BRIDGE_PROBE_TIMEOUT_MS);
+    try {
+      const res = await fetch("/api/trading-ai/health", {
+        cache: "no-store",
+        signal: ctrl.signal,
+      });
+      const json = await res.json();
+      setHealthLatencyMs(Date.now() - started);
+      if (!res.ok) {
+        setHealthErr(json?.error || `HTTP ${res.status}`);
+        return;
+      }
+      setHealth(json as BridgeHealthResult);
+    } catch (e) {
+      setHealthLatencyMs(Date.now() - started);
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setHealthErr(`Health check timeout setelah ${BRIDGE_PROBE_TIMEOUT_MS}ms.`);
+      } else {
+        setHealthErr(e instanceof Error ? e.message : "Gagal menghubungi /api/trading-ai/health.");
+      }
+    } finally {
+      clearTimeout(timer);
+      setHealthBusy(false);
+    }
+  };
+
+  // Poll status bridge. Timeout client + state mesin di server menjamin
+  // UI tidak pernah stuck di "loading" tanpa batas.
+  useEffect(() => {
+    const t = setInterval(() => {
+      void refreshHealth();
+    }, HEALTH_POLL_MS);
+    return () => clearInterval(t);
+  }, []);
 
   // Cooldown dihitung server; hitung mundur lokal cuma untuk tampilan.
   useEffect(() => {
@@ -695,6 +768,108 @@ export default function TradingAiClient({
             max 1 posisi · spread ≤ {DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints} point.
             Emergency stop menghentikan entry baru; posisi berjalan hanya ditutup kalau opsi
             di atas dicentang.
+          </p>
+        </div>
+
+        {/* Otak MetaTrader — connection status */}
+        <div className="cp-panel mb-4 rounded-2xl p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#5CE1FF]/90">
+              <PlugZap size={13} /> Otak MetaTrader · bridge status
+            </p>
+            <div className="flex items-center gap-2">
+              <span
+                className={`rounded-full border px-3 py-1 text-[10px] font-bold tracking-wider ${STATE_STYLE[health.state].chip}`}
+              >
+                {STATE_STYLE[health.state].label}
+              </span>
+              <button
+                type="button"
+                disabled={healthBusy}
+                onClick={() => void refreshHealth()}
+                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2 py-1 text-[10px] text-[#9BC5D4] disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={healthBusy ? "animate-spin" : ""} />
+                cek ulang
+              </button>
+            </div>
+          </div>
+
+          <p className="mb-3 text-[11px] leading-relaxed text-[#9BC5D4]">{health.summary}</p>
+
+          <div className="mb-3 grid gap-2 sm:grid-cols-2">
+            {health.channels.map((ch) => (
+              <div
+                key={ch.id}
+                className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5"
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{ch.label}</p>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold ${STATE_STYLE[ch.state].chip}`}
+                  >
+                    {ch.state}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-[#E8F7FF]">{ch.expert}</p>
+                <p className="mt-1 text-[10px] text-[#6A8A99]">
+                  heartbeat: {fmtAge(ch.ageSec)}
+                </p>
+                <p className="mt-1 text-[10px] leading-relaxed text-[#9BC5D4]">{ch.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-3 grid gap-2 sm:grid-cols-4">
+            {[
+              ["Akun MT5", health.account.mode ?? "—"],
+              ["Login", health.account.login != null ? String(health.account.login) : "—"],
+              ["Last decision", health.account.lastDecision ?? "—"],
+              [
+                "Autotrade",
+                health.account.emergencyStop
+                  ? "STOP"
+                  : health.account.autotrade
+                    ? "ON"
+                    : "OFF",
+              ],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+                <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
+                <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">{v}</p>
+              </div>
+            ))}
+          </div>
+
+          {(healthErr || health.state === "ERROR") && (
+            <div className="mb-3 rounded-xl border border-[#FF3D7F]/30 bg-[#FF3D7F]/10 px-3 py-2 text-[11px] text-[#FFC2D8]">
+              {healthErr || health.summary}
+            </div>
+          )}
+
+          <details className="mb-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-[10px] text-[#6A8A99]">
+            <summary className="cursor-pointer text-[#9BC5D4]">
+              Log probe terakhir
+              {healthLatencyMs != null ? ` · round-trip ${healthLatencyMs}ms` : ""}
+            </summary>
+            <ul className="mt-2 space-y-1 font-mono">
+              {health.probes.map((p) => (
+                <li key={`${p.target}-${p.startedAt}`}>
+                  [{new Date(p.startedAt).toLocaleTimeString("id-ID")}] {p.target} ·{" "}
+                  {p.ok ? "OK" : "FAIL"} · {p.latencyMs}ms
+                  {p.errorCode ? ` · ${p.errorCode}` : ""}
+                  {p.errorMessage ? ` · ${p.errorMessage}` : ""}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 break-all text-[#5CE1FF]">{healthUrl}</p>
+          </details>
+
+          <p className="text-[10px] leading-relaxed text-[#6A8A99]">
+            CONNECTED hanya muncul setelah EA MT5 mengirim heartbeat nyata (candle push
+            dan/atau signal poll) dalam {health.healthyWindowSec}s terakhir. API Gercep
+            hidup saja tidak cukup. Timeout cek {BRIDGE_PROBE_TIMEOUT_MS / 1000}s · poll
+            setiap {HEALTH_POLL_MS / 1000}s · tidak mengirim order.
           </p>
         </div>
 

@@ -68,6 +68,27 @@ export {
   type RuntimeControlVerdict,
 } from "./execution-control";
 
+export {
+  BRIDGE_HEALTHY_WINDOW_SEC,
+  BRIDGE_CONNECT_TIMEOUT_SEC,
+  BRIDGE_PROBE_TIMEOUT_MS,
+  ageSeconds,
+  combineBridgeState,
+  evaluateChannelHealth,
+  summarizeBridge,
+  type BridgeConnectionState,
+  type BridgeChannelId,
+  type BridgeChannelHealth,
+  type BridgeProbe,
+  type BridgeHealth,
+} from "./bridge-health";
+
+export {
+  collectBridgeHealth,
+  type BridgeHealthResult,
+  type BridgeAccountInfo,
+} from "./bridge-health-query";
+
 export { decideTradingAction, type DecideOptions } from "./decide";
 export { buildDecisionAudit } from "./audit";
 export {

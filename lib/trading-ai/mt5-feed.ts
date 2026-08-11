@@ -62,20 +62,54 @@ export async function loadCandles(
     .reverse();
 }
 
+/**
+ * Status feed ringan untuk dashboard. Tidak memuat 500 candle penuh —
+ * dulu itu yang membuat SSR hang lama dan UI terlihat "loading terus".
+ * Trading Brain tetap memakai loadCandles() penuh saat decide.
+ */
+async function timeframeFeedStatus(
+  supabase: SupabaseClient,
+  userId: string,
+  symbol: SymbolCode,
+  timeframe: Extract<Timeframe, "M1" | "M5">,
+): Promise<{ count: number; lastTime: number | null }> {
+  const [countRes, lastRes] = await Promise.all([
+    supabase
+      .from("trading_ai_candles")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("symbol", symbol)
+      .eq("timeframe", timeframe),
+    supabase
+      .from("trading_ai_candles")
+      .select("bar_time")
+      .eq("user_id", userId)
+      .eq("symbol", symbol)
+      .eq("timeframe", timeframe)
+      .order("bar_time", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return {
+    count: countRes.count ?? 0,
+    lastTime: lastRes.data?.bar_time != null ? Number(lastRes.data.bar_time) : null,
+  };
+}
+
 export async function getCandleFeedStatus(
   supabase: SupabaseClient,
   userId: string,
   symbol: SymbolCode = "XAUUSD",
 ): Promise<CandleFeedStatus> {
   const [m5, m1] = await Promise.all([
-    loadCandles(supabase, { userId, symbol, timeframe: "M5", limit: 500 }),
-    loadCandles(supabase, { userId, symbol, timeframe: "M1", limit: 500 }),
+    timeframeFeedStatus(supabase, userId, symbol, "M5"),
+    timeframeFeedStatus(supabase, userId, symbol, "M1"),
   ]);
   return {
     symbol,
-    m5Count: m5.length,
-    m1Count: m1.length,
-    m5LastTime: m5.length ? m5[m5.length - 1].time : null,
-    m1LastTime: m1.length ? m1[m1.length - 1].time : null,
+    m5Count: m5.count,
+    m1Count: m1.count,
+    m5LastTime: m5.lastTime,
+    m1LastTime: m1.lastTime,
   };
 }

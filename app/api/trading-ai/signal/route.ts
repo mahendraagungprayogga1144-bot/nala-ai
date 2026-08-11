@@ -152,6 +152,30 @@ export async function GET(request: Request) {
     m5.length < DEFAULT_TRADING_AI_CONFIG.brain.minM5Candles ||
     m1.length < DEFAULT_TRADING_AI_CONFIG.brain.minM1Candles
   ) {
+    // EA tetap dianggap hidup walau feed tipis — heartbeat sebelum return.
+    await admin
+      .from("trading_ai_bridge_keys")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", keyRow.id);
+    const { error: thinHbErr } = await admin.from("trading_ai_execution_control").upsert(
+      {
+        user_id: keyRow.user_id,
+        last_signal_at: new Date().toISOString(),
+        last_signal_account_mode: accountMode,
+        last_signal_account_login: accountLogin,
+        last_signal_decision: "WAIT",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+    if (thinHbErr) {
+      console.warn(
+        "[trading-ai/signal] thin-feed heartbeat gagal:",
+        thinHbErr.code,
+        thinHbErr.message,
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       signalId: `sig_wait_thin_${Date.now()}`,
@@ -228,6 +252,29 @@ export async function GET(request: Request) {
     .from("trading_ai_bridge_keys")
     .update({ last_seen_at: new Date().toISOString() })
     .eq("id", keyRow.id);
+
+  // Heartbeat khusus executor. Dipisah dari bridge_keys.last_seen_at karena
+  // ingest (candle push) juga menulis ke sana, sehingga satu EA mati tidak
+  // terlihat selama EA lainnya masih jalan. Gagal di sini tidak boleh
+  // menjatuhkan respons sinyal. Supabase client tidak throw — cek .error.
+  const { error: hbErr } = await admin.from("trading_ai_execution_control").upsert(
+    {
+      user_id: keyRow.user_id,
+      last_signal_at: new Date().toISOString(),
+      last_signal_account_mode: accountMode,
+      last_signal_account_login: accountLogin,
+      last_signal_decision: result.decision,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+  if (hbErr) {
+    console.warn(
+      "[trading-ai/signal] executor heartbeat gagal:",
+      hbErr.code,
+      hbErr.message,
+    );
+  }
 
   const barTime = m1[m1.length - 1]?.time ?? null;
   const signalId = buildSignalId(result, barTime);

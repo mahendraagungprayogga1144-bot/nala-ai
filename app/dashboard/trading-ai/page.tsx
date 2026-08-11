@@ -1,17 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { guardPage } from "../lib/page-guard";
 import {
+  collectBridgeHealth,
   cooldownRemainingSeconds,
   DEFAULT_EXECUTION_CONTROL,
   getCandleFeedStatus,
   parseExecutionControlRow,
+  type BridgeHealthResult,
   type BridgeKeyRow,
   type CandleFeedStatus,
 } from "@/lib/trading-ai";
 import TradingAiClient from "./trading-ai-client";
 
 export default async function TradingAiPage() {
-  return guardPage("Trading AI Brain", async () => {
+  return guardPage("Otak MetaTrader", async () => {
     const supabase = await createClient();
     const {
       data: { user },
@@ -77,10 +79,66 @@ export default async function TradingAiPage() {
       controlReady = false;
     }
 
+    // Status bridge dihitung di server supaya UI tidak pernah mulai dari spinner.
+    // Kalau probe gagal, kirim ERROR eksplisit — jangan biarkan UI loading.
+    let health: BridgeHealthResult;
+    try {
+      health = await collectBridgeHealth(supabase, user.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[Trading AI] bridge health gagal", e);
+      const now = Date.now();
+      health = {
+        state: "ERROR",
+        checkedAt: now,
+        healthyWindowSec: 90,
+        connectTimeoutSec: 120,
+        channels: [
+          {
+            id: "feed",
+            label: "Candle feed",
+            expert: "GercepCandlePush",
+            state: "ERROR",
+            lastSeenAt: null,
+            ageSec: null,
+            detail: msg,
+          },
+          {
+            id: "executor",
+            label: "Signal executor",
+            expert: "GercepTradeExecutor",
+            state: "ERROR",
+            lastSeenAt: null,
+            ageSec: null,
+            detail: msg,
+          },
+        ],
+        probes: [
+          {
+            target: "collectBridgeHealth",
+            startedAt: now,
+            latencyMs: 0,
+            ok: false,
+            errorCode: "EXCEPTION",
+            errorMessage: msg,
+          },
+        ],
+        summary: `Gagal cek bridge: ${msg}`,
+        account: {
+          mode: null,
+          login: null,
+          lastDecision: null,
+          autotrade: false,
+          emergencyStop: false,
+        },
+      };
+    }
+
     const appBase =
       (process.env.NEXT_PUBLIC_APP_URL || "https://www.gercepos.id").replace(/\/$/, "");
     const ingestUrl = appBase + "/api/trading-ai/ingest";
     const signalUrl = appBase + "/api/trading-ai/signal";
+    const healthUrl = appBase + "/api/trading-ai/health";
 
     return (
       <TradingAiClient
@@ -90,8 +148,10 @@ export default async function TradingAiPage() {
         initialKeys={keys}
         initialControl={control}
         initialControlReady={controlReady}
+        initialHealth={health}
         ingestUrl={ingestUrl}
         signalUrl={signalUrl}
+        healthUrl={healthUrl}
         schemaReady={schemaReady}
         schemaError={schemaError}
       />

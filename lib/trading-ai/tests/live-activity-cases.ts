@@ -1,0 +1,59 @@
+/**
+ * Run: npx tsx lib/trading-ai/tests/live-activity-cases.ts
+ */
+
+import { buildOpenHint, type LiveOrderRow, type LiveSignalSnapshot } from "../live-activity";
+
+function assert(cond: boolean, msg: string) {
+  if (!cond) throw new Error(msg);
+}
+
+const base: LiveSignalSnapshot = {
+  signalId: "sig_1",
+  decision: "WAIT",
+  confidence: 26,
+  spread: 30,
+  m5Bias: "bullish",
+  m1Direction: "bullish",
+  serverExecutable: false,
+  accountMode: "demo",
+  accountLogin: 1,
+  autotrade: true,
+  emergencyStop: false,
+  at: new Date().toISOString(),
+};
+
+assert(/WAIT/.test(buildOpenHint(base, null)), "wait hint");
+assert(
+  /AUTO OFF/.test(buildOpenHint({ ...base, autotrade: false }, null)) ||
+    /OFF/.test(buildOpenHint({ ...base, autotrade: false }, null)),
+  "auto off",
+);
+assert(
+  /EMERGENCY/.test(buildOpenHint({ ...base, emergencyStop: true }, null)),
+  "estop",
+);
+assert(
+  /siap dieksekusi/.test(
+    buildOpenHint({ ...base, decision: "BUY", serverExecutable: true, confidence: 100 }, null),
+  ),
+  "buy ready",
+);
+
+const filled: LiveOrderRow = {
+  id: 1,
+  signalId: "sig_buy",
+  status: "FILLED",
+  direction: "BUY",
+  lot: 0.1,
+  ticket: 123,
+  entryPrice: 4376.9,
+  spread: 20,
+  confidence: 100,
+  errorCode: null,
+  errorMessage: null,
+  createdAt: new Date().toISOString(),
+};
+assert(/BUY/.test(buildOpenHint(base, filled)), "filled hint");
+
+console.log("PASS live-activity-cases");

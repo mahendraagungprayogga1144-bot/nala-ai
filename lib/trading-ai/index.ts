@@ -96,6 +96,14 @@ export {
   formatGmtOffsetLabel,
 } from "./mt5-time";
 
+export {
+  collectLiveActivity,
+  buildOpenHint,
+  type LiveActivity,
+  type LiveOrderRow,
+  type LiveSignalSnapshot,
+} from "./live-activity";
+
 export { decideTradingAction, type DecideOptions } from "./decide";
 export { buildDecisionAudit } from "./audit";
 export {

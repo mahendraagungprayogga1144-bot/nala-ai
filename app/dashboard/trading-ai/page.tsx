@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { guardPage } from "../lib/page-guard";
 import {
   collectBridgeHealth,
+  collectLiveActivity,
   cooldownRemainingSeconds,
   DEFAULT_EXECUTION_CONTROL,
   getCandleFeedStatus,
@@ -9,6 +10,7 @@ import {
   type BridgeHealthResult,
   type BridgeKeyRow,
   type CandleFeedStatus,
+  type LiveActivity,
 } from "@/lib/trading-ai";
 import TradingAiClient from "./trading-ai-client";
 
@@ -137,6 +139,30 @@ export default async function TradingAiPage() {
       };
     }
 
+    let activity: LiveActivity = {
+      signal: {
+        signalId: null,
+        decision: null,
+        confidence: null,
+        spread: null,
+        m5Bias: null,
+        m1Direction: null,
+        serverExecutable: null,
+        accountMode: null,
+        accountLogin: null,
+        autotrade: false,
+        emergencyStop: false,
+        at: null,
+      },
+      orders: [],
+      openHint: "Belum ada data sinyal dari EA.",
+    };
+    try {
+      activity = await collectLiveActivity(supabase, user.id);
+    } catch (e) {
+      console.error("[Trading AI] live activity gagal", e);
+    }
+
     const appBase =
       (process.env.NEXT_PUBLIC_APP_URL || "https://www.gercepos.id").replace(/\/$/, "");
     const ingestUrl = appBase + "/api/trading-ai/ingest";
@@ -152,6 +178,7 @@ export default async function TradingAiPage() {
         initialControl={control}
         initialControlReady={controlReady}
         initialHealth={health}
+        initialActivity={activity}
         ingestUrl={ingestUrl}
         signalUrl={signalUrl}
         healthUrl={healthUrl}

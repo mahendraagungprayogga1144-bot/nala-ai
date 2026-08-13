@@ -160,6 +160,7 @@ export async function GET(request: Request) {
       .from("trading_ai_bridge_keys")
       .update({ last_seen_at: new Date().toISOString() })
       .eq("id", keyRow.id);
+    const thinSignalId = `sig_wait_thin_${Date.now()}`;
     const { error: thinHbErr } = await admin.from("trading_ai_execution_control").upsert(
       {
         user_id: keyRow.user_id,
@@ -167,6 +168,12 @@ export async function GET(request: Request) {
         last_signal_account_mode: accountMode,
         last_signal_account_login: accountLogin,
         last_signal_decision: "WAIT",
+        last_signal_id: thinSignalId,
+        last_signal_confidence: 0,
+        last_signal_spread: null,
+        last_signal_m5_bias: "unknown",
+        last_signal_m1_direction: "unknown",
+        last_signal_executable: false,
         last_broker_time: brokerTime,
         broker_gmt_offset_sec: gmtOffsetSec,
         updated_at: new Date().toISOString(),
@@ -183,7 +190,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      signalId: `sig_wait_thin_${Date.now()}`,
+      signalId: thinSignalId,
       version: TRADING_AI_VERSION,
       symbol,
       decision: "WAIT",
@@ -258,31 +265,6 @@ export async function GET(request: Request) {
     .update({ last_seen_at: new Date().toISOString() })
     .eq("id", keyRow.id);
 
-  // Heartbeat khusus executor. Dipisah dari bridge_keys.last_seen_at karena
-  // ingest (candle push) juga menulis ke sana, sehingga satu EA mati tidak
-  // terlihat selama EA lainnya masih jalan. Gagal di sini tidak boleh
-  // menjatuhkan respons sinyal. Supabase client tidak throw — cek .error.
-  const { error: hbErr } = await admin.from("trading_ai_execution_control").upsert(
-    {
-      user_id: keyRow.user_id,
-      last_signal_at: new Date().toISOString(),
-      last_signal_account_mode: accountMode,
-      last_signal_account_login: accountLogin,
-      last_signal_decision: result.decision,
-      last_broker_time: brokerTime,
-      broker_gmt_offset_sec: gmtOffsetSec,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  if (hbErr) {
-    console.warn(
-      "[trading-ai/signal] executor heartbeat gagal:",
-      hbErr.code,
-      hbErr.message,
-    );
-  }
-
   const barTime = m1[m1.length - 1]?.time ?? null;
   const signalId = buildSignalId(result, barTime);
 
@@ -330,6 +312,35 @@ export async function GET(request: Request) {
         ...signal.reasons,
       ].slice(0, 8),
     };
+  }
+
+  // Heartbeat + snapshot untuk panel live dashboard. Gagal di sini
+  // tidak boleh menjatuhkan respons sinyal ke EA.
+  const { error: hbErr } = await admin.from("trading_ai_execution_control").upsert(
+    {
+      user_id: keyRow.user_id,
+      last_signal_at: new Date().toISOString(),
+      last_signal_account_mode: accountMode,
+      last_signal_account_login: accountLogin,
+      last_signal_decision: signal.decision,
+      last_signal_id: signal.signalId,
+      last_signal_confidence: signal.confidence,
+      last_signal_spread: spread,
+      last_signal_m5_bias: signal.m5Bias,
+      last_signal_m1_direction: signal.m1Direction,
+      last_signal_executable: signal.serverExecutable,
+      last_broker_time: brokerTime,
+      broker_gmt_offset_sec: gmtOffsetSec,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+  if (hbErr) {
+    console.warn(
+      "[trading-ai/signal] executor heartbeat gagal:",
+      hbErr.code,
+      hbErr.message,
+    );
   }
 
   return NextResponse.json({ ...signal, accountLogin });

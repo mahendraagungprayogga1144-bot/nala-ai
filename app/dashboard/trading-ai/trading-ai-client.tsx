@@ -40,6 +40,7 @@ import {
   type BridgeKeyRow,
   type Candle,
   type CandleFeedStatus,
+  type LiveActivity,
   EXECUTION_MODE,
   type TradeDecision,
   type TradingDecisionResult,
@@ -187,6 +188,25 @@ function fmtLocalNow(ms = Date.now()) {
   });
 }
 
+function decisionChip(decision: string | null) {
+  const d = (decision || "—").toUpperCase();
+  if (d === "BUY") return "border-[#00F0A8]/45 bg-[#00F0A8]/15 text-[#00F0A8]";
+  if (d === "SELL") return "border-[#FF3D7F]/45 bg-[#FF3D7F]/12 text-[#FF3D7F]";
+  if (d === "CLOSE") return "border-[#FFB14A]/45 bg-[#FFB14A]/15 text-[#FFB14A]";
+  return "border-white/20 bg-white/5 text-[#9BC5D4]";
+}
+
+function orderStatusChip(status: string) {
+  const s = status.toUpperCase();
+  if (s === "FILLED" || s === "CLOSED") {
+    return "border-[#00F0A8]/40 text-[#00F0A8]";
+  }
+  if (s === "FAILED" || s === "CLOSE_FAILED") {
+    return "border-[#FF3D7F]/40 text-[#FF3D7F]";
+  }
+  return "border-white/20 text-[#9BC5D4]";
+}
+
 export default function TradingAiClient({
   userId,
   userLabel,
@@ -195,6 +215,7 @@ export default function TradingAiClient({
   initialControl,
   initialControlReady,
   initialHealth,
+  initialActivity,
   ingestUrl,
   signalUrl,
   healthUrl,
@@ -208,6 +229,7 @@ export default function TradingAiClient({
   initialControl: ControlState;
   initialControlReady: boolean;
   initialHealth: BridgeHealthResult;
+  initialActivity: LiveActivity;
   ingestUrl: string;
   signalUrl: string;
   healthUrl: string;
@@ -242,6 +264,7 @@ export default function TradingAiClient({
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthErr, setHealthErr] = useState<string | null>(null);
   const [healthLatencyMs, setHealthLatencyMs] = useState<number | null>(null);
+  const [activity, setActivity] = useState<LiveActivity>(initialActivity);
   const [clockTick, setClockTick] = useState(() => Date.now());
 
   // Jam MT5 di UI mengikuti heartbeat broker; tick tiap detik biar tidak beku.
@@ -288,11 +311,26 @@ export default function TradingAiClient({
     }
   };
 
-  // Poll status bridge. Timeout client + state mesin di server menjamin
-  // UI tidak pernah stuck di "loading" tanpa batas.
+  const refreshActivity = async () => {
+    try {
+      const res = await fetch("/api/trading-ai/activity", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) return;
+      setActivity({
+        signal: json.signal,
+        orders: json.orders ?? [],
+        openHint: json.openHint ?? "",
+      });
+    } catch {
+      // panel live gagal diam-diam; health tetap jadi sumber koneksi
+    }
+  };
+
+  // Poll status bridge + panel sinyal/order.
   useEffect(() => {
     const t = setInterval(() => {
       void refreshHealth();
+      void refreshActivity();
     }, HEALTH_POLL_MS);
     return () => clearInterval(t);
   }, []);
@@ -793,6 +831,113 @@ export default function TradingAiClient({
             Emergency stop menghentikan entry baru; posisi berjalan hanya ditutup kalau opsi
             di atas dicentang.
           </p>
+        </div>
+
+        {/* Live signal + order journal from MT5 */}
+        <div className="cp-panel mb-4 rounded-2xl p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#FFB14A]">
+              <Activity size={13} /> sinyal & order live
+            </p>
+            <button
+              type="button"
+              onClick={() => void refreshActivity()}
+              className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2 py-1 text-[10px] text-[#9BC5D4]"
+            >
+              <RefreshCw size={11} /> refresh
+            </button>
+          </div>
+
+          <p className="mb-3 text-[11px] leading-relaxed text-[#9BC5D4]">{activity.openHint}</p>
+
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Sinyal sekarang</p>
+              <p
+                className={`mt-1 inline-flex rounded-full border px-2.5 py-0.5 text-sm font-bold ${decisionChip(activity.signal.decision)}`}
+              >
+                {(activity.signal.decision || "—").toUpperCase()}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Confidence</p>
+              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
+                {activity.signal.confidence != null ? activity.signal.confidence : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Auto / Executable</p>
+              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
+                {activity.signal.autotrade ? "AUTO ON" : "AUTO OFF"}
+                {" · "}
+                {activity.signal.serverExecutable ? "READY" : "HOLD"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">M5 / M1</p>
+              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
+                {activity.signal.m5Bias ?? "—"} / {activity.signal.m1Direction ?? "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[#6A8A99]">
+            <span>spread: {activity.signal.spread ?? "—"}</span>
+            <span>mode: {activity.signal.accountMode ?? "—"}</span>
+            <span>
+              login:{" "}
+              {activity.signal.accountLogin != null ? activity.signal.accountLogin : "—"}
+            </span>
+            <span className="break-all">id: {activity.signal.signalId ?? "—"}</span>
+          </div>
+
+          <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-[#6A8A99]">
+            riwayat order EA
+          </p>
+          {activity.orders.length === 0 ? (
+            <p className="text-[11px] text-[#6A8A99]">
+              Belum ada order tercatat. Setelah EA FILLED/FAILED, barisnya muncul di sini.
+            </p>
+          ) : (
+            <div className="max-h-56 space-y-1.5 overflow-y-auto">
+              {activity.orders.map((o) => (
+                <div
+                  key={o.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-[11px]"
+                >
+                  <div className="min-w-0">
+                    <span
+                      className={`mr-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${orderStatusChip(o.status)}`}
+                    >
+                      {o.status}
+                    </span>
+                    <span className="font-semibold text-[#E8F7FF]">
+                      {o.direction || "—"} {o.lot != null ? o.lot : ""}
+                    </span>
+                    <span className="ml-2 text-[#6A8A99]">
+                      @ {o.entryPrice != null ? o.entryPrice : "—"}
+                      {o.ticket != null ? ` · tiket ${o.ticket}` : ""}
+                    </span>
+                    {o.errorMessage ? (
+                      <p className="mt-0.5 text-[10px] text-[#FFC2D8]">{o.errorMessage}</p>
+                    ) : null}
+                  </div>
+                  <p className="shrink-0 text-[10px] text-[#6A8A99]">
+                    {o.createdAt
+                      ? new Date(o.createdAt).toLocaleString("id-ID", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: false,
+                        })
+                      : "—"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Otak MetaTrader — connection status */}

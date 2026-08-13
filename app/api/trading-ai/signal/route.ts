@@ -115,6 +115,9 @@ export async function GET(request: Request) {
   // Param hilang / typo / "real" -> "unknown" -> execution gate menolak.
   const accountMode = parseAccountMode(url.searchParams.get("account_mode"));
   const accountLogin = num(url.searchParams.get("account_login"));
+  // Jam server broker dari EA — sama dengan yang tampil di chart MT5.
+  const brokerTime = num(url.searchParams.get("broker_time"));
+  const gmtOffsetSec = num(url.searchParams.get("gmt_offset_sec"));
 
   // Kontrol runtime dari dashboard. Tabel belum ada / query gagal => default OFF.
   let control: ExecutionControlState = { ...DEFAULT_EXECUTION_CONTROL };
@@ -164,6 +167,8 @@ export async function GET(request: Request) {
         last_signal_account_mode: accountMode,
         last_signal_account_login: accountLogin,
         last_signal_decision: "WAIT",
+        last_broker_time: brokerTime,
+        broker_gmt_offset_sec: gmtOffsetSec,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },
@@ -264,6 +269,8 @@ export async function GET(request: Request) {
       last_signal_account_mode: accountMode,
       last_signal_account_login: accountLogin,
       last_signal_decision: result.decision,
+      last_broker_time: brokerTime,
+      broker_gmt_offset_sec: gmtOffsetSec,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },

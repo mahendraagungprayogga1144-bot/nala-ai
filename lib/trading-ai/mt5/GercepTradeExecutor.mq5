@@ -421,9 +421,16 @@ void PollAndAct()
          "&open_pnl="    + DoubleToString(opnl, 2);
    }
 
+   // Jam broker = TimeCurrent(). Offset vs GMT supaya dashboard
+   // menampilkan waktu yang sama dengan chart MT5.
+   long brokerTime = (long)TimeCurrent();
+   int gmtOffsetSec = (int)(TimeCurrent() - TimeGMT());
+
    string qs = StringFormat(
-      "symbol=%s&account_mode=%s&account_login=%d&bid=%.5f&ask=%.5f&spread=%.0f&balance=%.2f%s",
-      InpSymbol, AccountModeString(), AccountLogin(), bid, ask, spreadPts, balance, open_qs
+      "symbol=%s&account_mode=%s&account_login=%d&bid=%.5f&ask=%.5f&spread=%.0f&balance=%.2f"
+      "&broker_time=%d&gmt_offset_sec=%d%s",
+      InpSymbol, AccountModeString(), AccountLogin(), bid, ask, spreadPts, balance,
+      brokerTime, gmtOffsetSec, open_qs
    );
 
    string body;

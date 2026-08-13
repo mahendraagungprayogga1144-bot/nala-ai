@@ -26,6 +26,12 @@ export type BridgeAccountInfo = {
   lastDecision: string | null;
   autotrade: boolean;
   emergencyStop: boolean;
+  /** TimeCurrent() terakhir dari EA — detik epoch ala MT5. */
+  brokerTimeSec: number | null;
+  /** TimeCurrent() - TimeGMT() dari EA. */
+  gmtOffsetSec: number | null;
+  /** Kapan heartbeat broker terakhir diterima (epoch ms sungguhan). */
+  brokerCapturedAtMs: number | null;
 };
 
 export type BridgeHealthResult = BridgeHealth & { account: BridgeAccountInfo };
@@ -138,7 +144,7 @@ export async function collectBridgeHealth(
       supabase
         .from("trading_ai_execution_control")
         .select(
-          "last_signal_at, last_signal_account_mode, last_signal_account_login, last_signal_decision, autotrade_enabled, emergency_stop",
+          "last_signal_at, last_signal_account_mode, last_signal_account_login, last_signal_decision, autotrade_enabled, emergency_stop, last_broker_time, broker_gmt_offset_sec",
         )
         .eq("user_id", userId)
         .maybeSingle(),
@@ -154,6 +160,8 @@ export async function collectBridgeHealth(
     last_signal_decision?: string;
     autotrade_enabled?: boolean;
     emergency_stop?: boolean;
+    last_broker_time?: number | null;
+    broker_gmt_offset_sec?: number | null;
   } | null;
 
   const hasApiKey = Boolean(keyRow);
@@ -200,6 +208,16 @@ export async function collectBridgeHealth(
       lastDecision: execRow?.last_signal_decision ?? null,
       autotrade: execRow?.autotrade_enabled === true,
       emergencyStop: execRow?.emergency_stop === true,
+      brokerTimeSec:
+        execRow?.last_broker_time != null && Number.isFinite(Number(execRow.last_broker_time))
+          ? Number(execRow.last_broker_time)
+          : null,
+      gmtOffsetSec:
+        execRow?.broker_gmt_offset_sec != null &&
+        Number.isFinite(Number(execRow.broker_gmt_offset_sec))
+          ? Number(execRow.broker_gmt_offset_sec)
+          : null,
+      brokerCapturedAtMs: ms(execRow?.last_signal_at),
     },
   };
 }

@@ -30,6 +30,10 @@ import {
   generateBridgeApiKey,
   loadCandles,
   BRIDGE_PROBE_TIMEOUT_MS,
+  estimateBrokerNowSec,
+  formatGmtOffsetLabel,
+  formatMt5DateTime,
+  formatMt5Time,
   type BacktestResult,
   type BridgeConnectionState,
   type BridgeHealthResult,
@@ -167,13 +171,19 @@ function fmtCooldown(sec: number) {
   return `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
+/** Jam candle = jam chart MT5 (bukan jam PC). */
 function fmtTs(sec: number | null) {
-  if (!sec) return "—";
-  return new Date(sec * 1000).toLocaleString("id-ID", {
+  return formatMt5Time(sec);
+}
+
+function fmtLocalNow(ms = Date.now()) {
+  return new Date(ms).toLocaleString("id-ID", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   });
 }
 
@@ -232,6 +242,20 @@ export default function TradingAiClient({
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthErr, setHealthErr] = useState<string | null>(null);
   const [healthLatencyMs, setHealthLatencyMs] = useState<number | null>(null);
+  const [clockTick, setClockTick] = useState(() => Date.now());
+
+  // Jam MT5 di UI mengikuti heartbeat broker; tick tiap detik biar tidak beku.
+  useEffect(() => {
+    const t = setInterval(() => setClockTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const brokerNowSec = estimateBrokerNowSec(
+    health.account.brokerTimeSec,
+    health.account.brokerCapturedAtMs,
+    clockTick,
+  );
+  const gmtLabel = formatGmtOffsetLabel(health.account.gmtOffsetSec);
 
   const refreshHealth = async () => {
     setHealthBusy(true);
@@ -820,11 +844,12 @@ export default function TradingAiClient({
             ))}
           </div>
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-4">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ["Akun MT5", health.account.mode ?? "—"],
-              ["Login", health.account.login != null ? String(health.account.login) : "—"],
-              ["Last decision", health.account.lastDecision ?? "—"],
+              ["Jam MT5 (chart)", formatMt5DateTime(brokerNowSec), gmtLabel],
+              ["Jam PC (lokal)", fmtLocalNow(clockTick), "referensi saja"],
+              ["Akun MT5", health.account.mode ?? "—", health.account.login != null ? `login ${health.account.login}` : "login —"],
+              ["Last decision", health.account.lastDecision ?? "—", "dari executor"],
               [
                 "Autotrade",
                 health.account.emergencyStop
@@ -832,14 +857,25 @@ export default function TradingAiClient({
                   : health.account.autotrade
                     ? "ON"
                     : "OFF",
+                "dashboard",
               ],
-            ].map(([k, v]) => (
+            ].map(([k, v, sub]) => (
               <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
                 <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
                 <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">{v}</p>
+                <p className="mt-0.5 text-[10px] text-[#6A8A99]">{sub}</p>
               </div>
             ))}
           </div>
+
+          {!brokerNowSec && (
+            <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+              Jam MT5 belum terbaca. Jalankan SQL migrasi{" "}
+              <code className="text-amber-200">20260813_trading_ai_broker_time.sql</code>, lalu
+              recompile / pasang ulang GercepTradeExecutor supaya mengirim{" "}
+              <code className="text-amber-200">broker_time</code>.
+            </div>
+          )}
 
           {(healthErr || health.state === "ERROR") && (
             <div className="mb-3 rounded-xl border border-[#FF3D7F]/30 bg-[#FF3D7F]/10 px-3 py-2 text-[11px] text-[#FFC2D8]">
@@ -893,8 +929,8 @@ export default function TradingAiClient({
             {[
               ["M5 bars", String(feed.m5Count)],
               ["M1 bars", String(feed.m1Count)],
-              ["M5 last", fmtTs(feed.m5LastTime)],
-              ["M1 last", fmtTs(feed.m1LastTime)],
+              ["M5 last (jam MT5)", fmtTs(feed.m5LastTime)],
+              ["M1 last (jam MT5)", fmtTs(feed.m1LastTime)],
             ].map(([k, v]) => (
               <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
                 <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
@@ -902,6 +938,10 @@ export default function TradingAiClient({
               </div>
             ))}
           </div>
+          <p className="mb-3 text-[10px] text-[#6A8A99]">
+            Jam candle di atas = jam chart MetaTrader (bukan jam PC). Bandingkan dengan
+            pojok chart XAUUSD.
+          </p>
 
           <div className="mb-3 space-y-2">
             <div className="rounded-xl border border-white/5 bg-black/30 px-3 py-2 text-[11px] text-[#9BC5D4]">

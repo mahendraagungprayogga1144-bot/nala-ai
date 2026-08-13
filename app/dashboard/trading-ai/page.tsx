@@ -130,6 +130,9 @@ export default async function TradingAiPage() {
           lastDecision: null,
           autotrade: false,
           emergencyStop: false,
+          brokerTimeSec: null,
+          gmtOffsetSec: null,
+          brokerCapturedAtMs: null,
         },
       };
     }

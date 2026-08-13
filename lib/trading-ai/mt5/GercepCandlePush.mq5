@@ -42,9 +42,13 @@ string BuildCandleJson(const string symbol, ENUM_TIMEFRAMES tf, const int bars)
    if(copied <= 0) return "";
 
    string tfStr = (tf == PERIOD_M5 ? "M5" : "M1");
+   long brokerTime = (long)TimeCurrent();
+   int gmtOffsetSec = (int)(TimeCurrent() - TimeGMT());
    string json = "{";
    json += "\"symbol\":\"" + EscapeJson(symbol) + "\",";
    json += "\"timeframe\":\"" + tfStr + "\",";
+   json += "\"brokerTime\":" + IntegerToString(brokerTime) + ",";
+   json += "\"gmtOffsetSec\":" + IntegerToString(gmtOffsetSec) + ",";
    json += "\"candles\":[";
 
    // oldest → newest

@@ -4,10 +4,10 @@
  * Semua layer (decide, exit, signal API, EA response) wajib lewat sini.
  * Default fail-closed: kalau ada input yang tidak jelas, hasilnya false.
  *
- * TITIK KRITIS DEMO-ONLY:
- * - `accountMode` harus persis "demo".
- * - `HARD_RULES.ALLOW_LIVE_EXECUTION` harus true sebelum mode lain diizinkan.
- *   Flag itu satu-satunya pintu untuk membuka live nanti (task terpisah).
+ * Mode akun:
+ * - "demo" selalu boleh (jika syarat lain lolos).
+ * - "real" hanya kalau HARD_RULES.ALLOW_LIVE_EXECUTION === true.
+ * - "contest" / "unknown" selalu ditolak.
  */
 
 import {
@@ -21,7 +21,7 @@ import type { TradeDecision } from "./types";
 export type AccountMode = "demo" | "contest" | "real" | "unknown";
 
 export type ExecutionGate = {
-  /** true hanya kalau SEMUA syarat demo-only terpenuhi. */
+  /** true hanya kalau SEMUA syarat gate terpenuhi. */
   executable: boolean;
   accountMode: AccountMode;
   /** Ambang confidence efektif yang dipakai gate ini. */
@@ -91,18 +91,23 @@ export function evaluateExecutionGate(input: ExecutionGateInput): ExecutionGate 
   const passed: string[] = [];
   const blockedBy: string[] = [];
 
-  // 1) HARD BLOCK: hanya akun demo. Live/contest/unknown selalu ditolak
-  //    selama ALLOW_LIVE_EXECUTION masih false.
-  if (accountMode !== "demo") {
+  // 1) Mode akun: demo selalu OK; real hanya jika live dibuka; lainnya ditolak.
+  if (accountMode === "demo") {
+    passed.push("Account mode = demo.");
+  } else if (accountMode === "real") {
     if (!isLiveExecutionAllowed()) {
       blockedBy.push(
-        `Account mode "${accountMode}" bukan demo — eksekusi hanya untuk akun DEMO (ALLOW_LIVE_EXECUTION=false).`,
+        'Account mode "real" diblokir — ALLOW_LIVE_EXECUTION=false (hanya DEMO).',
       );
     } else {
-      blockedBy.push(`Account mode "${accountMode}" belum didukung.`);
+      passed.push("Account mode = real (live execution allowed).");
     }
   } else {
-    passed.push("Account mode = demo.");
+    blockedBy.push(
+      `Account mode "${accountMode}" tidak didukung — hanya demo${
+        isLiveExecutionAllowed() ? "/real" : ""
+      }.`,
+    );
   }
 
   // 2) Server-side kill switch (env).

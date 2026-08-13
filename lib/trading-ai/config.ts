@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.5.0-demo-autotrade";
+export const TRADING_AI_VERSION = "0.6.0-live-autotrade";
 
 /**
  * Hard product rules — never weaken from UI.
@@ -22,11 +22,10 @@ export const HARD_RULES = {
   /** Server-side MT5 order API disabled; signal poll is separate. */
   mt5Enabled: false,
   /**
-   * SATU-SATUNYA pintu untuk membuka eksekusi di akun non-demo.
-   * Selama false, execution-gate menolak account mode real/contest/unknown.
-   * Jangan diubah tanpa task khusus live trading.
+   * Pintu eksekusi akun real (live). true = gate menerima account_mode=demo|real.
+   * Contest/unknown tetap ditolak. EA tetap wajib InpAllowTrading + autotrade ON.
    */
-  ALLOW_LIVE_EXECUTION: false,
+  ALLOW_LIVE_EXECUTION: true,
   /** Explicit aliases for validators / audit. */
   MAX_POSITION: 1,
   NO_AVERAGING: true,
@@ -42,16 +41,12 @@ export const HARD_RULES = {
  */
 export const EXECUTION_MIN_CONFIDENCE = 65;
 
-/**
- * Gerbang tunggal untuk eksekusi non-demo.
- * Untuk membuka live nanti: ubah HARD_RULES.ALLOW_LIVE_EXECUTION menjadi true
- * DAN sesuaikan execution-gate.ts agar mode "real" ikut diterima.
- */
+/** Gerbang tunggal: true bila eksekusi akun real diizinkan produk. */
 export function isLiveExecutionAllowed(): boolean {
   return HARD_RULES.ALLOW_LIVE_EXECUTION as boolean;
 }
 
-/** Env gate: when "1", signal responses may mark executable (demo only). */
+/** Env gate: when "1", signal responses may mark executable (demo/real via gate). */
 export function isEaSignalExecutionEnabled(): boolean {
   return process.env.TRADING_AI_EA_SIGNALS === "1";
 }
@@ -108,7 +103,7 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
   useIndicatorsAsPrimary: false,
   risk: {
     maxOpenPositions: HARD_RULES.MAX_POSITION,
-    /** Lot tetap untuk DEMO_AUTOTRADE. Tidak ada scaling/martingale. */
+    /** Lot tetap untuk LIVE_AUTOTRADE. Tidak ada scaling/martingale. */
     defaultLot: 0.1,
     maxLot: 0.1,
     maxFloatingRiskPct: 2,

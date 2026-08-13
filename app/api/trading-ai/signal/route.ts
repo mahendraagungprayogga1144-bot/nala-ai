@@ -43,17 +43,17 @@ function num(v: string | null): number | null {
  *
  * Query:
  *   symbol=XAUUSD
- *   account_mode=demo|contest|real   <-- WAJIB "demo" agar serverExecutable bisa true
+ *   account_mode=demo|contest|real   <-- demo|real boleh executable (live unlocked)
  *   bid, ask, spread (optional — defaults from last M1 close)
  *   open_side=BUY|SELL|none
  *   open_price, open_lot, open_ticket, balance (optional)
  *
  * Server tidak pernah memanggil API broker. EA satu-satunya eksekutor,
  * dan hanya boleh OrderSend saat SEMUA ini benar:
- *   - serverExecutable=true (gate demo-only di server)
+ *   - serverExecutable=true (gate demo|real di server)
  *   - eaMayExecute (env TRADING_AI_EA_SIGNALS=1)
  *   - EA InpAllowTrading=true
- *   - EA InpRequireDemo lolos (ACCOUNT_TRADE_MODE == DEMO)
+ *   - Mode akun demo/real (contest ditolak); InpRequireDemo opsional
  */
 export async function GET(request: Request) {
   const apiKey = bearer(request);
@@ -73,10 +73,12 @@ export async function GET(request: Request) {
       eaSignalsEnv: isEaSignalExecutionEnabled(),
       execution: {
         mode: EXECUTION_MODE,
-        demoOnly: true,
+        demoOnly: !HARD_RULES.ALLOW_LIVE_EXECUTION,
         allowLiveExecution: HARD_RULES.ALLOW_LIVE_EXECUTION,
         minConfidence: EXECUTION_MIN_CONFIDENCE,
-        requiredParam: "account_mode=demo",
+        requiredParam: HARD_RULES.ALLOW_LIVE_EXECUTION
+          ? "account_mode=demo|real"
+          : "account_mode=demo",
       },
       note: "GET with API key to receive Brain decision for EA.",
     });
@@ -111,8 +113,8 @@ export async function GET(request: Request) {
   const symbol = ((url.searchParams.get("symbol") || "XAUUSD").trim().toUpperCase() ||
     "XAUUSD") as SymbolCode;
 
-  // TITIK KRITIS DEMO-ONLY (server-side).
-  // Param hilang / typo / "real" -> "unknown" -> execution gate menolak.
+  // Mode akun dari EA. Param hilang/typo -> "unknown" -> gate menolak.
+  // "real" boleh executable hanya jika ALLOW_LIVE_EXECUTION=true.
   const accountMode = parseAccountMode(url.searchParams.get("account_mode"));
   const accountLogin = num(url.searchParams.get("account_login"));
   // Jam server broker dari EA — sama dengan yang tampil di chart MT5.

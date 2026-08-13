@@ -1,31 +1,32 @@
 //+------------------------------------------------------------------
 //| GercepTradeExecutor.mq5
-//| EXECUTION_MODE = DEMO_AUTOTRADE
+//| EXECUTION_MODE = LIVE_AUTOTRADE
 //|
-//| Order sungguhan ke akun MT5 DEMO (bukan paper/simulation).
-//| Alur: Trading Brain -> Risk Gate -> Demo Verification -> MT5 Order
+//| Order sungguhan ke akun MT5 demo ATAU real (bukan paper/simulation).
+//| Alur: Trading Brain -> Risk Gate -> Account check -> MT5 Order
 //|       -> Order Confirmation -> Position Monitor -> Exit Engine
 //|
 //| Hard rules yang ditegakkan di EA:
 //|  - MAX_POSITION = 1 (magic-filtered)
 //|  - NO_AVERAGING / NO_MARTINGALE / NO_GRID / NO_HEDGE
-//|  - LIVE/REAL account diblokir saat InpRequireDemo=true (default)
+//|  - Contest ditolak. Real diizinkan saat InpRequireDemo=false (default)
 //|  - Satu signalId = maksimal SATU order attempt (tanpa retry otomatis)
 //|  - Order hanya jalan kalau SEMUA benar:
-//|      serverExecutable=true (gate demo + tombol dashboard + cooldown)
+//|      serverExecutable=true (gate + tombol dashboard + cooldown)
 //|      eaMayExecute=true     (TRADING_AI_EA_SIGNALS=1)
 //|      InpAllowTrading=true
-//|      ACCOUNT_TRADE_MODE == DEMO
+//|      akun demo ATAU real (kecuali InpRequireDemo=true → demo saja)
 //|
 //| Setup:
 //|  1. GercepCandlePush.mq5 harus tetap jalan di chart LAIN (feed candle)
 //|  2. Set InpBaseUrl + InpApiKey (gea_...)
 //|  3. MT5 -> Allow WebRequest untuk base URL
 //|  4. Attach ke XAUUSD, Algo Trading ON
-//|  5. Nyalakan [DEMO AUTOTRADE ON] di dashboard Gercep
+//|  5. Nyalakan [LIVE AUTOTRADE ON] di dashboard Gercep
+//|  6. Flip InpAllowTrading=true (default false demi aman)
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.00"
+#property version   "2.10"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -37,7 +38,7 @@ input int    InpMagic        = 26080701;
 input int    InpPollSec      = 15;
 input double InpLotFallback  = 0.10;
 input bool   InpAllowTrading = false; // MUST flip manually
-input bool   InpRequireDemo  = true;  // hard block live by default
+input bool   InpRequireDemo  = false; // false = izinkan akun REAL (uang sungguhan)
 input int    InpSlippagePts  = 30;
 input int    InpMinConfidence= 65;
 input bool   InpReportOrders = true;  // kirim ORDER_STATUS ke server (cooldown + jurnal)
@@ -67,8 +68,20 @@ bool IsDemoAccount()
    return (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO);
 }
 
-//| Dilaporkan ke server sebagai account_mode. Server hanya menandai
-//| signal executable ketika nilainya persis "demo".
+bool IsRealAccount()
+{
+   return (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL);
+}
+
+//| Akun yang boleh trade: demo selalu; real kalau InpRequireDemo=false.
+bool IsAllowedAccount()
+{
+   if(IsDemoAccount()) return true;
+   if(!InpRequireDemo && IsRealAccount()) return true;
+   return false;
+}
+
+//| Dilaporkan ke server sebagai account_mode (demo|contest|real|unknown).
 string AccountModeString()
 {
    long mode = AccountInfoInteger(ACCOUNT_TRADE_MODE);
@@ -291,7 +304,7 @@ void PrintFailed(const int errorCode, const string errorMessage)
 }
 
 //+------------------------------------------------------------------
-//| EXIT ENGINE — kirim CLOSE ke akun DEMO
+//| EXIT ENGINE — kirim CLOSE ke akun demo/real
 //+------------------------------------------------------------------
 void CloseOurPosition(const string signalId, const double spreadPts, const double confidence)
 {
@@ -388,11 +401,11 @@ void PollAndAct()
       return;
    }
 
-   // DEMO ACCOUNT VERIFICATION — sebelum apa pun.
-   if(InpRequireDemo && !IsDemoAccount())
+   // ACCOUNT VERIFICATION — sebelum apa pun.
+   if(!IsAllowedAccount())
    {
-      Print("LIVE/REAL account terdeteksi — STOP ENTRY. mode=", AccountModeString(),
-            " login=", AccountLogin());
+      Print("Account mode ditolak — STOP ENTRY. mode=", AccountModeString(),
+            " login=", AccountLogin(), " requireDemo=", BoolStr(InpRequireDemo));
       return;
    }
 
@@ -479,8 +492,8 @@ void PollAndAct()
       string why = FirstBlockReason(body);
       executionStatus = "BLOCKED:" + (why == "" ? "serverExecutable=false" : why);
    }
-   else if(!IsDemoAccount())
-      executionStatus = "BLOCKED:account bukan DEMO";
+   else if(!IsAllowedAccount())
+      executionStatus = "BLOCKED:account mode tidak diizinkan";
    else if(decision != "CLOSE" && confidence < InpMinConfidence)
       executionStatus = StringFormat("BLOCKED:confidence %.1f < %d", confidence, InpMinConfidence);
    else if(decision != "CLOSE" && CountOurPositions() > 0)
@@ -510,12 +523,14 @@ int OnInit()
 {
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("GercepTradeExecutor v2 — EXECUTION_MODE=DEMO_AUTOTRADE");
+   Print("GercepTradeExecutor v2.1 — EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
-         " demoOnly=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading),
+         " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading),
          " lot=", DoubleToString(InpLotFallback, 2));
-   if(InpRequireDemo && !IsDemoAccount())
-      Print("PERINGATAN: akun bukan DEMO. EA tidak akan mengirim order.");
+   if(!IsAllowedAccount())
+      Print("PERINGATAN: mode akun tidak diizinkan. EA tidak akan mengirim order.");
+   else if(IsRealAccount())
+      Print("PERINGATAN: akun REAL — order memakai uang sungguhan. Pastikan lot & risk OK.");
    PollAndAct();
    return(INIT_SUCCEEDED);
 }

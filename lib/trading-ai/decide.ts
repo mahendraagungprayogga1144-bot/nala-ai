@@ -4,7 +4,7 @@
  *
  * Guarantees:
  * - Server itself never calls a broker API. EA is the only executor.
- * - executable=true hanya lewat execution-gate (akun DEMO + env aktif).
+ * - executable=true hanya lewat execution-gate (akun demo|real + env aktif).
  * - Default accountMode "unknown" => executable false (fail-closed).
  * - Audit log attached to every decision.
  */

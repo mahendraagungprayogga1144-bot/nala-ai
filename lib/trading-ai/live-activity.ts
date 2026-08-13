@@ -63,7 +63,7 @@ function numOrNull(v: unknown): number | null {
 
 export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrderRow | null): string {
   if (signal.emergencyStop) return "EMERGENCY STOP — entry baru ditahan.";
-  if (!signal.autotrade) return "DEMO AUTOTRADE OFF — nyalakan di dashboard.";
+  if (!signal.autotrade) return "LIVE AUTOTRADE OFF — nyalakan di dashboard.";
   if (latestOrder?.status === "FILLED" && latestOrder.direction !== "CLOSE") {
     return `Posisi terakhir ${latestOrder.direction} lot ${latestOrder.lot ?? "?"} @ ${latestOrder.entryPrice ?? "?"} (tiket ${latestOrder.ticket ?? "—"}).`;
   }

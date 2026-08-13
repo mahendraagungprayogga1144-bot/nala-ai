@@ -12,10 +12,10 @@
 import type { TradeDecision } from "./types";
 
 /**
- * Mode eksekusi aktif. DEMO_AUTOTRADE = order sungguhan ke akun MT5 DEMO,
- * bukan paper/simulation. Live tetap tertutup lewat HARD_RULES.ALLOW_LIVE_EXECUTION.
+ * Mode eksekusi aktif. LIVE_AUTOTRADE = order sungguhan ke akun MT5 demo atau real
+ * (bukan paper). Contest tetap ditolak di execution-gate.
  */
-export const EXECUTION_MODE = "DEMO_AUTOTRADE" as const;
+export const EXECUTION_MODE = "LIVE_AUTOTRADE" as const;
 export type ExecutionMode = typeof EXECUTION_MODE;
 
 /** Jeda antar entry setelah satu order benar-benar FILLED. */
@@ -23,7 +23,7 @@ export const DEFAULT_COOLDOWN_SECONDS = 900;
 export const MAX_COOLDOWN_SECONDS = 86_400;
 
 export type ExecutionControlState = {
-  /** Tombol [DEMO AUTOTRADE ON/OFF]. Default OFF — user harus menyalakan sendiri. */
+  /** Tombol [LIVE AUTOTRADE ON/OFF]. Default OFF — user harus menyalakan sendiri. */
   autotradeEnabled: boolean;
   /** Tombol [EMERGENCY STOP]. Menghentikan entry baru. */
   emergencyStop: boolean;
@@ -137,7 +137,7 @@ export function evaluateRuntimeControl(input: RuntimeControlInput): RuntimeContr
   }
 
   if (!state.autotradeEnabled) {
-    blockedBy.push("DEMO AUTOTRADE OFF — nyalakan dari dashboard untuk eksekusi.");
+    blockedBy.push("LIVE AUTOTRADE OFF — nyalakan dari dashboard untuk eksekusi.");
   }
 
   if (state.emergencyStop && isEntry) {

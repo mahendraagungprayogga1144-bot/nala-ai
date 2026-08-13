@@ -17,8 +17,8 @@ export type EaTradeSignal = {
   confidence: number;
   /**
    * Izin eksekusi dari server. true HANYA kalau:
-   * BUY/SELL/CLOSE + confidence >= minimum + akun DEMO + env aktif.
-   * EA tetap wajib cek InpRequireDemo + InpAllowTrading sendiri.
+   * BUY/SELL/CLOSE + confidence >= minimum + akun demo|real + env aktif.
+   * EA tetap wajib cek InpAllowTrading (+ InpRequireDemo kalau di-set).
    */
   serverExecutable: boolean;
   /** Mode akun yang dipakai server saat evaluasi (dari EA). */
@@ -29,12 +29,12 @@ export type EaTradeSignal = {
   executionBlockedBy: string[];
   /**
    * True only when env TRADING_AI_EA_SIGNALS=1.
-   * EA must still enforce demo-only + InpAllowTrading.
+   * EA must still enforce InpAllowTrading (+ optional InpRequireDemo).
    */
   eaMayExecute: boolean;
-  /** Selalu DEMO_AUTOTRADE — order sungguhan ke akun demo, bukan paper. */
+  /** LIVE_AUTOTRADE — order sungguhan ke akun MT5 (demo atau real). */
   executionMode: ExecutionMode;
-  /** Tombol dashboard [DEMO AUTOTRADE ON/OFF]. */
+  /** Tombol dashboard [LIVE AUTOTRADE ON/OFF]. */
   autotrade: boolean;
   /** Tombol dashboard [EMERGENCY STOP]. */
   emergencyStop: boolean;

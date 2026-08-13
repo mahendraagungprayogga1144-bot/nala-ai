@@ -135,7 +135,7 @@ const RULES = [
   "M5 bearish → SELL only",
   "Pullback → rejection → momentum",
   "Max 1 posisi · no avg / grid / hedge",
-  "Auto-execute DEMO · akun live diblokir",
+  "Auto-execute LIVE · demo & real (uang sungguhan)",
 ];
 
 type ControlState = {
@@ -699,14 +699,15 @@ export default function TradingAiClient({
               Trading AI Brain
             </h1>
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#8FB8C9] sm:text-sm">
-              Otak XAUUSD gaya manual kamu. EA mengeksekusi order di akun MT5 DEMO
-              saat autotrade dinyalakan. Akun live tetap diblokir.
+              Otak XAUUSD gaya manual kamu. EA mengeksekusi order di akun MT5 demo
+              atau real saat autotrade dinyalakan. Akun real = uang sungguhan —
+              pakai lot kecil dan emergency stop siap.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest">
             <span className="cp-chip rounded-full px-3 py-1.5 text-[#5CE1FF]">operator {userLabel}</span>
-            <span className="cp-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[#FF3D9A]">
-              <Lock size={11} /> live off
+            <span className="cp-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[#00F0A8]">
+              <Lock size={11} /> live on
             </span>
             <span className="cp-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[#00F0A8]">
               <Shield size={11} /> max 1 pos
@@ -721,7 +722,7 @@ export default function TradingAiClient({
               <Power size={13} /> execution mode · {EXECUTION_MODE}
             </p>
             <p className="text-[10px] text-[#6A8A99]">
-              order sungguhan ke akun DEMO · live tetap diblokir
+              order sungguhan ke akun demo atau real
             </p>
           </div>
 
@@ -760,7 +761,7 @@ export default function TradingAiClient({
                   : "border-white/15 text-[#9BC5D4]"
               }`}
             >
-              DEMO AUTOTRADE {control.autotradeEnabled ? "ON" : "OFF"}
+              LIVE AUTOTRADE {control.autotradeEnabled ? "ON" : "OFF"}
             </button>
 
             <button
@@ -826,10 +827,11 @@ export default function TradingAiClient({
 
           <p className="text-[10px] leading-relaxed text-[#6A8A99]">
             Autotrade OFF setiap kali aplikasi dibuka sampai kamu menyalakannya. EA tetap wajib
-            lolos: akun DEMO · confidence ≥ {DEFAULT_TRADING_AI_CONFIG.brain.minConfidenceToEnter} ·
-            max 1 posisi · spread ≤ {DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints} point.
-            Emergency stop menghentikan entry baru; posisi berjalan hanya ditutup kalau opsi
-            di atas dicentang.
+            lolos: akun demo/real · confidence ≥{" "}
+            {DEFAULT_TRADING_AI_CONFIG.brain.minConfidenceToEnter} · max 1 posisi · spread ≤{" "}
+            {DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints} point ·{" "}
+            <code>InpAllowTrading=true</code>. Emergency stop menghentikan entry baru; posisi
+            berjalan hanya ditutup kalau opsi di atas dicentang.
           </p>
         </div>
 
@@ -1186,13 +1188,15 @@ export default function TradingAiClient({
           <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-[#8FB8C9]">
             <li>Jalankan SQL migrasi Trading AI di Supabase (kalau belum).</li>
             <li>Buat API key, paste ke <code className="text-[#5CE1FF]">GercepCandlePush.mq5</code> + <code className="text-[#FFB14A]">GercepTradeExecutor.mq5</code>.</li>
-            <li>MT5 → Allow WebRequest → domain Gercep. Attach kedua EA ke XAUUSD (akun DEMO).</li>
+            <li>MT5 → Allow WebRequest → domain Gercep. Attach kedua EA ke XAUUSD (demo atau real).</li>
             <li>Server: set env <code className="text-[#FFB14A]">TRADING_AI_EA_SIGNALS=1</code> supaya <code>eaMayExecute</code> true.</li>
-            <li>Executor: biarkan <code>InpRequireDemo=true</code>. Flip <code>InpAllowTrading=true</code> hanya setelah sinyal terlihat benar.</li>
             <li>
-              Max 1 posisi · no averaging / grid / hedge. Auto-execute hanya akun DEMO —
-              server menolak <code>account_mode</code> selain <code>demo</code>, dan EA memblok live via{" "}
-              <code>InpRequireDemo</code>.
+              Executor: set <code>InpRequireDemo=false</code> untuk akun real, lalu flip{" "}
+              <code>InpAllowTrading=true</code> hanya setelah sinyal terlihat benar.
+            </li>
+            <li>
+              Max 1 posisi · no averaging / grid / hedge. Auto-execute demo/real —
+              contest ditolak. Compile ulang EA ke folder Advisors setelah update.
             </li>
           </ol>
           {bridgeMsg && <p className="mt-3 text-[11px] text-[#FFB4D4]">{bridgeMsg}</p>}

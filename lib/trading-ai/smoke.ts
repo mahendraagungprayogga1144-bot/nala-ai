@@ -181,9 +181,21 @@ assert(demoBuy.confidence >= 65, `demo BUY confidence too low: ${demoBuy.confide
 assert(demoBuy.executable === true, `demo BUY must be executable: ${demoBuy.execution.blockedBy.join(" | ")}`);
 assert(demoBuy.audit.executable === true, "audit records executable");
 
-// LIVE / contest / unknown → tidak pernah executable.
-for (const mode of ["real", "contest", "unknown"] as const) {
-  const live = decideTradingAction(
+// REAL boleh executable; contest/unknown tetap ditolak.
+const realBuy = decideTradingAction(
+  {
+    symbol: "XAUUSD",
+    m5Candles: m5,
+    m1Candles: m1,
+    market: market(m1[m1.length - 1].close),
+    openPositions: [],
+  },
+  { config, accountMode: "real", executionEnabled: true },
+);
+assert(realBuy.executable === true, `real BUY must be executable: ${realBuy.execution.blockedBy.join(" | ")}`);
+
+for (const mode of ["contest", "unknown"] as const) {
+  const blockedMode = decideTradingAction(
     {
       symbol: "XAUUSD",
       m5Candles: m5,
@@ -193,8 +205,8 @@ for (const mode of ["real", "contest", "unknown"] as const) {
     },
     { config, accountMode: mode, executionEnabled: true },
   );
-  assert(live.executable === false, `${mode} account must never be executable`);
-  assert(live.execution.blockedBy.length > 0, `${mode} must record a block reason`);
+  assert(blockedMode.executable === false, `${mode} account must never be executable`);
+  assert(blockedMode.execution.blockedBy.length > 0, `${mode} must record a block reason`);
 }
 
 // Env kill switch: demo tapi TRADING_AI_EA_SIGNALS mati → tetap blocked.
@@ -241,7 +253,7 @@ assert(blocked.exit.decision === "HOLD" || blocked.exit.decision === "CLOSE", "e
 assert(blocked.audit != null && blocked.audit.decision === blocked.decision, "audit attached");
 assert(Array.isArray(blocked.validation.breakdown.features), "confidence features present");
 
-// Exit engine: HOLD tidak pernah executable; CLOSE executable hanya di demo.
+// Exit engine: HOLD tidak pernah executable; CLOSE executable di demo dan real.
 const closeDemo = decideExit({
   positions: [
     {
@@ -280,7 +292,7 @@ const closeLive = decideExit({
   execution: { accountMode: "real", executionEnabled: true },
 });
 assert(closeLive.decision === "CLOSE", "flipped bias must CLOSE on live too");
-assert(closeLive.executable === false, "CLOSE on live account must not be executable");
+assert(closeLive.executable === true, "CLOSE on live account must be executable");
 
 const holdSignal = decideExit({ positions: [], trend, execution: { accountMode: "demo", executionEnabled: true } });
 assert(holdSignal.decision === "HOLD" && holdSignal.executable === false, "HOLD never executable");

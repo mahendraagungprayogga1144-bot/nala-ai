@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "EMERGENCY STOP masih aktif. Tekan RESUME dulu sebelum menyalakan DEMO AUTOTRADE.",
+            "EMERGENCY STOP masih aktif. Tekan RESUME dulu sebelum menyalakan LIVE AUTOTRADE.",
         },
         { status: 409 },
       );

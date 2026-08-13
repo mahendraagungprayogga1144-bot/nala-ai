@@ -2,7 +2,7 @@
  * Exit Decision Engine — HOLD | CLOSE.
  * CLOSE when M5 bias flips against the open side.
  *
- * Eksekusi CLOSE tetap harus lewat execution gate (demo-only).
+ * Eksekusi CLOSE tetap harus lewat execution gate (demo|real).
  * HOLD tidak pernah executable.
  */
 

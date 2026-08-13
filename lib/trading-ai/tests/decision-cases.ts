@@ -125,7 +125,7 @@ function buildBearishM1(): Candle[] {
   assert(r.executable === false, "WAIT must not be executable");
   assert(r.audit.m5Trend === "unknown" || r.audit.decision === "WAIT", "audit WAIT");
   assert(HARD_RULES.MAX_POSITION === 1 && HARD_RULES.NO_HEDGE === true, "hard rules");
-  assert(HARD_RULES.ALLOW_LIVE_EXECUTION === false, "live execution must stay closed");
+  assert(HARD_RULES.ALLOW_LIVE_EXECUTION === true, "live execution must be open");
   console.log("PASS WAIT", r.decision, "conf=", r.confidence, "trend=", r.trend.direction);
 }
 
@@ -190,9 +190,23 @@ function buildBearishM1(): Candle[] {
   console.log("PASS BUY demo executable", "conf=", r.confidence);
 }
 
-// --- SAFETY NET: akun LIVE / contest / unknown tidak pernah executable ---
+// --- LIVE: real boleh executable; contest/unknown tetap ditolak ---
 {
-  for (const mode of ["real", "contest", "unknown"] as const) {
+  const live = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBullishM5(),
+      m1Candles: buildBullishM1(),
+      market: market(buildBullishM1().at(-1)!.close),
+      openPositions: [],
+    },
+    { config, accountMode: "real", executionEnabled: true },
+  );
+  assert(live.decision === "BUY", `real setup should still decide BUY, got ${live.decision}`);
+  assert(live.executable === true, `real BUY must be executable: ${live.execution.blockedBy.join(" | ")}`);
+  assert(live.execution.accountMode === "real", "gate records real");
+
+  for (const mode of ["contest", "unknown"] as const) {
     const r = decideTradingAction(
       {
         symbol: "XAUUSD",
@@ -206,12 +220,8 @@ function buildBearishM1(): Candle[] {
     assert(r.decision === "BUY", `${mode} setup should still decide BUY, got ${r.decision}`);
     assert(r.executable === false, `${mode} account must never be executable`);
     assert(r.audit.executable === false, `${mode} audit must record non-executable`);
-    assert(
-      r.execution.blockedBy.some((b) => b.toLowerCase().includes("demo")),
-      `${mode} must be blocked by demo-only rule`,
-    );
   }
-  console.log("PASS live/contest/unknown blocked");
+  console.log("PASS real executable / contest+unknown blocked");
 }
 
 // --- Confidence di bawah ambang: demo pun tidak executable ---
@@ -305,8 +315,8 @@ function buildBearishM1(): Candle[] {
     },
     { config, accountMode: "real", executionEnabled: true },
   );
-  assert(live.executable === false, "live SELL must never be executable");
-  console.log("PASS SELL demo executable / live blocked");
+  assert(live.executable === true, `live SELL must be executable: ${live.execution.blockedBy.join(" | ")}`);
+  console.log("PASS SELL demo + real executable");
 }
 
 // --- Execution control: tombol autotrade, emergency stop, cooldown ---
@@ -431,12 +441,12 @@ function buildBearishM1(): Candle[] {
 
   const allowed = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time, autotrade: true });
   assert(allowed.serverExecutable === true, "tanpa blocker runtime harus tetap executable");
-  assert(allowed.executionMode === "DEMO_AUTOTRADE", "mode harus DEMO_AUTOTRADE");
+  assert(allowed.executionMode === "LIVE_AUTOTRADE", "mode harus LIVE_AUTOTRADE");
   assert(allowed.m5Bias === "bullish", "m5Bias ikut dikirim ke EA");
 
   const blocked = toEaTradeSignal(r, {
     barTime: m1[m1.length - 1].time,
-    controlBlockedBy: ["DEMO AUTOTRADE OFF"],
+    controlBlockedBy: ["LIVE AUTOTRADE OFF"],
   });
   assert(blocked.serverExecutable === false, "blocker runtime harus mematikan eksekusi");
 

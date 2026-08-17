@@ -103,9 +103,10 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
   useIndicatorsAsPrimary: false,
   risk: {
     maxOpenPositions: HARD_RULES.MAX_POSITION,
-    /** Lot tetap untuk LIVE_AUTOTRADE. Tidak ada scaling/martingale. */
+    /** Lot default; boleh di-override dari dashboard (execution_control.lot). */
     defaultLot: 0.1,
-    maxLot: 0.1,
+    /** Batas atas lot dari dashboard / sinyal. */
+    maxLot: 1.0,
     maxFloatingRiskPct: 2,
     /**
      * XAUUSD (2 desimal, point=0.01) bergerak di ~30-45 point pada kondisi normal.

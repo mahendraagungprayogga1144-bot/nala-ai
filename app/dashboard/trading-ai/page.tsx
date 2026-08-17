@@ -67,7 +67,7 @@ export default async function TradingAiPage() {
       const { data, error } = await supabase
         .from("trading_ai_execution_control")
         .select(
-          "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, last_entry_at, last_entry_signal_id",
+          "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, lot, last_entry_at, last_entry_signal_id",
         )
         .eq("user_id", user.id)
         .maybeSingle();

@@ -83,6 +83,8 @@ export type EaSignalRuntime = {
   cooldownRemaining?: number;
   /** Blocker runtime (autotrade OFF / emergency stop / cooldown). */
   controlBlockedBy?: string[];
+  /** Lot dari dashboard; override suggestedLot otak. */
+  lot?: number | null;
 };
 
 /**
@@ -129,7 +131,10 @@ export function toEaTradeSignal(
     cooldownRemaining: runtime.cooldownRemaining ?? 0,
     m5Bias: result.trend.direction,
     m1Direction: result.momentum.direction,
-    lot: result.entry.suggestedLot,
+    lot:
+      runtime.lot != null && Number.isFinite(runtime.lot) && runtime.lot > 0
+        ? runtime.lot
+        : result.entry.suggestedLot,
     stopLoss: result.entry.suggestedStopLoss,
     takeProfit: result.entry.suggestedTakeProfit,
     reasons: result.reasons.slice(0, 8),

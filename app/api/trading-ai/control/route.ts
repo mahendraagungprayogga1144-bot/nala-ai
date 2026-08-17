@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   clampCooldownSeconds,
+  clampLot,
   cooldownRemainingSeconds,
   DEFAULT_EXECUTION_CONTROL,
   EXECUTION_MODE,
@@ -13,7 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SELECT =
-  "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, last_entry_at, last_entry_signal_id";
+  "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, lot, last_entry_at, last_entry_signal_id";
 
 type Action = "autotrade_on" | "autotrade_off" | "emergency_stop" | "resume" | "settings";
 
@@ -64,7 +65,7 @@ export async function GET() {
 /**
  * POST — tombol dashboard.
  *
- * body: { action, closeAllOnStop?, cooldownSeconds? }
+ * body: { action, closeAllOnStop?, cooldownSeconds?, lot? }
  *
  * EMERGENCY STOP sengaja ikut mematikan autotrade: menyalakan lagi harus
  * lewat aksi "resume" yang eksplisit, bukan efek samping.
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
     action?: string;
     closeAllOnStop?: boolean;
     cooldownSeconds?: number;
+    lot?: number;
   };
   try {
     body = await request.json();
@@ -129,6 +131,9 @@ export async function POST(request: Request) {
   if (body.cooldownSeconds !== undefined) {
     next.cooldownSeconds = clampCooldownSeconds(body.cooldownSeconds);
   }
+  if (body.lot !== undefined) {
+    next.lot = clampLot(body.lot);
+  }
 
   const { data, error } = await supabase
     .from("trading_ai_execution_control")
@@ -139,6 +144,7 @@ export async function POST(request: Request) {
         emergency_stop: next.emergencyStop,
         close_all_on_stop: next.closeAllOnStop,
         cooldown_seconds: next.cooldownSeconds,
+        lot: next.lot,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },

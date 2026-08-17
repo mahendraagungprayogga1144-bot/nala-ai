@@ -145,6 +145,7 @@ type ControlState = {
   cooldownSeconds: number;
   cooldownRemaining: number;
   lastEntryAt: number | null;
+  lot: number;
 };
 
 type ControlAction =
@@ -160,6 +161,8 @@ const COOLDOWN_CHOICES = [
   ["30 menit", 1800],
   ["60 menit", 3600],
 ] as const;
+
+const LOT_CHOICES = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0] as const;
 
 /** Dibungkus supaya pemanggilan jam tidak dianggap impure di dalam komponen. */
 function nowMs(): number {
@@ -349,7 +352,7 @@ export default function TradingAiClient({
 
   const sendControl = async (
     action: ControlAction,
-    extra: { closeAllOnStop?: boolean; cooldownSeconds?: number } = {},
+    extra: { closeAllOnStop?: boolean; cooldownSeconds?: number; lot?: number } = {},
   ) => {
     setControlBusy(true);
     setControlMsg(null);
@@ -728,9 +731,9 @@ export default function TradingAiClient({
 
           {!controlReady && (
             <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
-              Jalankan SQL migrasi{" "}
-              <code className="text-amber-200">20260810_trading_ai_demo_autotrade.sql</code> di
-              Supabase. Sebelum itu autotrade dipaksa OFF.
+              Jalankan SQL migrasi lot{" "}
+              <code className="text-amber-200">20260816_trading_ai_lot_setting.sql</code> di
+              Supabase kalau pengaturan lot error. Autotrade butuh migrasi control juga.
             </div>
           )}
 
@@ -739,7 +742,7 @@ export default function TradingAiClient({
               ["Autotrade", control.autotradeEnabled ? "ON" : "OFF"],
               ["Emergency", control.emergencyStop ? "STOP" : "normal"],
               ["Cooldown", control.cooldownRemaining > 0 ? fmtCooldown(control.cooldownRemaining) : "siap"],
-              ["Lot", DEFAULT_TRADING_AI_CONFIG.risk.defaultLot.toFixed(2)],
+              ["Lot", (control.lot ?? DEFAULT_TRADING_AI_CONFIG.risk.defaultLot).toFixed(2)],
             ].map(([k, v]) => (
               <div key={k} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
                 <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">{k}</p>
@@ -813,6 +816,21 @@ export default function TradingAiClient({
                 {COOLDOWN_CHOICES.map(([label, val]) => (
                   <option key={val} value={val}>
                     {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex items-center gap-2">
+              Lot
+              <select
+                value={control.lot ?? DEFAULT_TRADING_AI_CONFIG.risk.defaultLot}
+                disabled={controlBusy}
+                onChange={(e) => sendControl("settings", { lot: Number(e.target.value) })}
+                className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[11px] text-[#E8F7FF]"
+              >
+                {LOT_CHOICES.map((v) => (
+                  <option key={v} value={v}>
+                    {v.toFixed(2)}
                   </option>
                 ))}
               </select>

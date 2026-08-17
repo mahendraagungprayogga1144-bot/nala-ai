@@ -10,6 +10,7 @@
  */
 
 import type { TradeDecision } from "./types";
+import { DEFAULT_TRADING_AI_CONFIG } from "./config";
 
 /**
  * Mode eksekusi aktif. LIVE_AUTOTRADE = order sungguhan ke akun MT5 demo atau real
@@ -22,6 +23,9 @@ export type ExecutionMode = typeof EXECUTION_MODE;
 export const DEFAULT_COOLDOWN_SECONDS = 900;
 export const MAX_COOLDOWN_SECONDS = 86_400;
 
+/** Lot minimum yang boleh dipilih dari dashboard. */
+export const MIN_LOT = 0.01;
+
 export type ExecutionControlState = {
   /** Tombol [LIVE AUTOTRADE ON/OFF]. Default OFF — user harus menyalakan sendiri. */
   autotradeEnabled: boolean;
@@ -30,6 +34,8 @@ export type ExecutionControlState = {
   /** Saat emergency stop: true = perintahkan CLOSE posisi berjalan. */
   closeAllOnStop: boolean;
   cooldownSeconds: number;
+  /** Lot tetap per entry (dari dashboard). Tidak ada martingale. */
+  lot: number;
   /** Epoch ms saat entry terakhir FILLED. null = belum pernah. */
   lastEntryAt: number | null;
   lastEntrySignalId: string | null;
@@ -40,6 +46,7 @@ export const DEFAULT_EXECUTION_CONTROL: ExecutionControlState = {
   emergencyStop: false,
   closeAllOnStop: false,
   cooldownSeconds: DEFAULT_COOLDOWN_SECONDS,
+  lot: DEFAULT_TRADING_AI_CONFIG.risk.defaultLot,
   lastEntryAt: null,
   lastEntrySignalId: null,
 };
@@ -49,6 +56,7 @@ export type ExecutionControlRow = {
   emergency_stop?: boolean | null;
   close_all_on_stop?: boolean | null;
   cooldown_seconds?: number | null;
+  lot?: number | null;
   last_entry_at?: string | null;
   last_entry_signal_id?: string | null;
 };
@@ -57,6 +65,18 @@ export function clampCooldownSeconds(raw: unknown): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0) return DEFAULT_COOLDOWN_SECONDS;
   return Math.min(Math.round(n), MAX_COOLDOWN_SECONDS);
+}
+
+/**
+ * Lot dari dashboard: dibulatkan 2 desimal, diapit MIN_LOT .. maxLot config.
+ */
+export function clampLot(raw: unknown): number {
+  const n = Number(raw);
+  const max = DEFAULT_TRADING_AI_CONFIG.risk.maxLot;
+  const fallback = DEFAULT_TRADING_AI_CONFIG.risk.defaultLot;
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  const rounded = Math.round(n * 100) / 100;
+  return Math.min(max, Math.max(MIN_LOT, rounded));
 }
 
 /**
@@ -72,6 +92,7 @@ export function parseExecutionControlRow(
     emergencyStop: row.emergency_stop === true,
     closeAllOnStop: row.close_all_on_stop === true,
     cooldownSeconds: clampCooldownSeconds(row.cooldown_seconds),
+    lot: clampLot(row.lot ?? DEFAULT_TRADING_AI_CONFIG.risk.defaultLot),
     lastEntryAt: Number.isFinite(lastEntryMs) ? lastEntryMs : null,
     lastEntrySignalId: row.last_entry_signal_id ?? null,
   };

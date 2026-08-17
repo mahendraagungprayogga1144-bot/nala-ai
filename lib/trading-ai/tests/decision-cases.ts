@@ -14,6 +14,7 @@ import {
 import { evaluateExecutionGate, parseAccountMode } from "../execution-gate";
 import {
   DEFAULT_EXECUTION_CONTROL,
+  clampLot,
   evaluateRuntimeControl,
   parseExecutionControlRow,
   type ExecutionControlState,
@@ -338,6 +339,13 @@ function buildBearishM1(): Candle[] {
     parseExecutionControlRow({ autotrade_enabled: true }).autotradeEnabled === true,
     "baris DB ON terbaca",
   );
+  assert(clampLot(0.05) === 0.05, "lot 0.05 lolos");
+  assert(clampLot(99) === DEFAULT_TRADING_AI_CONFIG.risk.maxLot, "lot di-cap maxLot");
+  assert(clampLot(-1) === DEFAULT_TRADING_AI_CONFIG.risk.defaultLot, "lot invalid → default");
+  assert(
+    parseExecutionControlRow({ lot: 0.02 }).lot === 0.02,
+    "lot dari DB terbaca",
+  );
 
   // Autotrade OFF memblokir semua eksekusi.
   const off = evaluateRuntimeControl({
@@ -439,9 +447,14 @@ function buildBearishM1(): Candle[] {
   );
   assert(r.executable === true, "prasyarat: demo BUY executable");
 
-  const allowed = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time, autotrade: true });
+  const allowed = toEaTradeSignal(r, {
+    barTime: m1[m1.length - 1].time,
+    autotrade: true,
+    lot: 0.05,
+  });
   assert(allowed.serverExecutable === true, "tanpa blocker runtime harus tetap executable");
   assert(allowed.executionMode === "LIVE_AUTOTRADE", "mode harus LIVE_AUTOTRADE");
+  assert(allowed.lot === 0.05, "lot dashboard override suggestedLot");
   assert(allowed.m5Bias === "bullish", "m5Bias ikut dikirim ke EA");
 
   const blocked = toEaTradeSignal(r, {

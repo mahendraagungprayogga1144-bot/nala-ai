@@ -108,6 +108,12 @@ export {
 
 export { normalizeTradingSymbol, normalizeGoldSpreadPoints } from "./symbol";
 
+export {
+  SIGNAL_FRESHNESS_MS,
+  isSignalFresh,
+  signalAgeMs,
+} from "./signal-freshness";
+
 export { decideTradingAction, type DecideOptions } from "./decide";
 export { buildDecisionAudit } from "./audit";
 export {

@@ -29,6 +29,11 @@ export const MIN_LOT = 0.01;
 export type ExecutionControlState = {
   /** Tombol [LIVE AUTOTRADE ON/OFF]. Default OFF — user harus menyalakan sendiri. */
   autotradeEnabled: boolean;
+  /**
+   * LIVE ENABLE untuk akun REAL. Default OFF.
+   * DEMO mengabaikan flag ini. REAL wajib true sebelum entry.
+   */
+  liveEnable: boolean;
   /** Tombol [EMERGENCY STOP]. Menghentikan entry baru. */
   emergencyStop: boolean;
   /** Saat emergency stop: true = perintahkan CLOSE posisi berjalan. */
@@ -43,6 +48,7 @@ export type ExecutionControlState = {
 
 export const DEFAULT_EXECUTION_CONTROL: ExecutionControlState = {
   autotradeEnabled: false,
+  liveEnable: false,
   emergencyStop: false,
   closeAllOnStop: false,
   cooldownSeconds: DEFAULT_COOLDOWN_SECONDS,
@@ -53,6 +59,7 @@ export const DEFAULT_EXECUTION_CONTROL: ExecutionControlState = {
 
 export type ExecutionControlRow = {
   autotrade_enabled?: boolean | null;
+  live_enable?: boolean | null;
   emergency_stop?: boolean | null;
   close_all_on_stop?: boolean | null;
   cooldown_seconds?: number | null;
@@ -89,6 +96,7 @@ export function parseExecutionControlRow(
   const lastEntryMs = row.last_entry_at ? Date.parse(row.last_entry_at) : NaN;
   return {
     autotradeEnabled: row.autotrade_enabled === true,
+    liveEnable: row.live_enable === true,
     emergencyStop: row.emergency_stop === true,
     closeAllOnStop: row.close_all_on_stop === true,
     cooldownSeconds: clampCooldownSeconds(row.cooldown_seconds),
@@ -101,6 +109,8 @@ export function parseExecutionControlRow(
 export type RuntimeControlInput = {
   decision: TradeDecision;
   state: ExecutionControlState;
+  /** Mode akun dari EA — real butuh liveEnable. */
+  accountMode?: string | null;
   /** Ada posisi milik EA yang sedang terbuka. */
   hasOpenPosition?: boolean;
   /**
@@ -159,6 +169,11 @@ export function evaluateRuntimeControl(input: RuntimeControlInput): RuntimeContr
 
   if (!state.autotradeEnabled) {
     blockedBy.push("LIVE AUTOTRADE OFF — nyalakan dari dashboard untuk eksekusi.");
+  }
+
+  // REAL butuh LIVE ENABLE eksplisit (terpisah dari autotrade). DEMO abaikan.
+  if (isEntry && input.accountMode === "real" && !state.liveEnable) {
+    blockedBy.push("REAL ACCOUNT DETECTED — LIVE EXECUTION DISABLED.");
   }
 
   if (state.emergencyStop && isEntry) {

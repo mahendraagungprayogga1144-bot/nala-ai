@@ -14,13 +14,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SELECT =
-  "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, lot, last_entry_at, last_entry_signal_id";
+  "autotrade_enabled, live_enable, emergency_stop, close_all_on_stop, cooldown_seconds, lot, last_entry_at, last_entry_signal_id";
 
-type Action = "autotrade_on" | "autotrade_off" | "emergency_stop" | "resume" | "settings";
+type Action =
+  | "autotrade_on"
+  | "autotrade_off"
+  | "live_enable_on"
+  | "live_enable_off"
+  | "emergency_stop"
+  | "resume"
+  | "settings";
 
 const ACTIONS: Action[] = [
   "autotrade_on",
   "autotrade_off",
+  "live_enable_on",
+  "live_enable_off",
   "emergency_stop",
   "resume",
   "settings",
@@ -119,6 +128,19 @@ export async function POST(request: Request) {
     next.autotradeEnabled = true;
   } else if (action === "autotrade_off") {
     next.autotradeEnabled = false;
+  } else if (action === "live_enable_on") {
+    if (state.emergencyStop) {
+      return NextResponse.json(
+        {
+          error:
+            "EMERGENCY STOP masih aktif. Tekan RESUME dulu sebelum menyalakan LIVE ENABLE.",
+        },
+        { status: 409 },
+      );
+    }
+    next.liveEnable = true;
+  } else if (action === "live_enable_off") {
+    next.liveEnable = false;
   } else if (action === "emergency_stop") {
     next.emergencyStop = true;
     next.autotradeEnabled = false;
@@ -141,6 +163,7 @@ export async function POST(request: Request) {
       {
         user_id: user.id,
         autotrade_enabled: next.autotradeEnabled,
+        live_enable: next.liveEnable,
         emergency_stop: next.emergencyStop,
         close_all_on_stop: next.closeAllOnStop,
         cooldown_seconds: next.cooldownSeconds,

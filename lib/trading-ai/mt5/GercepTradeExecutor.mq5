@@ -586,6 +586,10 @@ void PollAndAct()
    double lot       = ExtractJsonNumber(body, "lot", InpLotFallback);
    double sl        = ExtractJsonNumber(body, "stopLoss", 0);
    double tp        = ExtractJsonNumber(body, "takeProfit", 0);
+   // generatedAt = epoch ms dari server. Stale >20s → jangan eksekusi.
+   double generatedAt = ExtractJsonNumber(body, "generatedAt", 0);
+   long   nowMs = (long)TimeGMT() * 1000;
+   bool   fresh = (generatedAt > 0.0 && (nowMs - (long)generatedAt) <= 20000);
 
    Print("Signal id=", signalId, " decision=", decision,
          " conf=", DoubleToString(confidence, 1),
@@ -593,6 +597,7 @@ void PollAndAct()
          " srvExec=", BoolStr(srvExec), " eaMay=", BoolStr(eaMay),
          " autotrade=", BoolStr(autotrade), " estop=", BoolStr(estop),
          " cooldown=", DoubleToString(cooldown, 0),
+         " fresh=", BoolStr(fresh),
          " mode=", AccountModeString(), " pos=", CountOurPositions());
 
    if(decision == "" || decision == "WAIT")
@@ -609,6 +614,8 @@ void PollAndAct()
    string executionStatus = "READY";
    if(!InpAllowTrading)
       executionStatus = "BLOCKED:InpAllowTrading=false";
+   else if(!fresh)
+      executionStatus = "BLOCKED:stale signal";
    else if(!eaMay)
       executionStatus = "BLOCKED:server eaMayExecute=false (TRADING_AI_EA_SIGNALS)";
    else if(!srvExec)
@@ -648,7 +655,7 @@ int OnInit()
    g_brokerSym = ResolveBrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("==== GercepTradeExecutor v2.3 EXNESS ====");
+   Print("==== GercepTradeExecutor v2.4 FINAL ====");
    Print("EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
          " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading));

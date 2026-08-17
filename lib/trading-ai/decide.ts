@@ -76,6 +76,7 @@ export function decideTradingAction(
   const exit = decideExit({
     positions: ctx.openPositions,
     trend,
+    momentum,
     execution: { accountMode, executionEnabled: opts.executionEnabled },
   });
   const entryPrice = trend.direction === "bearish" ? ctx.market.bid : ctx.market.ask;

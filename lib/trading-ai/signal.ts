@@ -6,6 +6,7 @@
 import { isEaSignalExecutionEnabled, TRADING_AI_VERSION } from "./config";
 import { EXECUTION_MODE, type ExecutionMode } from "./execution-control";
 import type { AccountMode } from "./execution-gate";
+import { isSignalFresh } from "./signal-freshness";
 import type { DecisionAuditLog, TradeDecision, TradingDecisionResult } from "./types";
 
 export type EaTradeSignal = {
@@ -36,6 +37,8 @@ export type EaTradeSignal = {
   executionMode: ExecutionMode;
   /** Tombol dashboard [LIVE AUTOTRADE ON/OFF]. */
   autotrade: boolean;
+  /** Tombol dashboard [LIVE ENABLE] — wajib untuk akun REAL. */
+  liveEnable: boolean;
   /** Tombol dashboard [EMERGENCY STOP]. */
   emergencyStop: boolean;
   /** Sisa cooldown entry dalam detik. 0 = bebas. */
@@ -79,12 +82,15 @@ export type EaSignalRuntime = {
   /** Epoch detik candle M1 terakhir. Bikin signalId stabil dalam satu bar. */
   barTime?: number | null;
   autotrade?: boolean;
+  liveEnable?: boolean;
   emergencyStop?: boolean;
   cooldownRemaining?: number;
   /** Blocker runtime (autotrade OFF / emergency stop / cooldown). */
   controlBlockedBy?: string[];
   /** Lot dari dashboard; override suggestedLot otak. */
   lot?: number | null;
+  /** Override "now" untuk uji freshness. */
+  now?: number;
 };
 
 /**
@@ -109,7 +115,11 @@ export function toEaTradeSignal(
 ): EaTradeSignal {
   const eaMayExecute = isEaSignalExecutionEnabled();
   const signalId = buildSignalId(result, runtime.barTime);
-  const controlBlockedBy = runtime.controlBlockedBy ?? [];
+  const controlBlockedBy = [...(runtime.controlBlockedBy ?? [])];
+  const now = runtime.now ?? Date.now();
+  if (!isSignalFresh(result.generatedAt, now)) {
+    controlBlockedBy.push("stale signal");
+  }
   // Lapisan runtime hanya boleh mempersempit izin dari execution gate.
   const serverExecutable = result.executable && controlBlockedBy.length === 0;
   return {
@@ -127,6 +137,7 @@ export function toEaTradeSignal(
     eaMayExecute,
     executionMode: EXECUTION_MODE,
     autotrade: runtime.autotrade ?? false,
+    liveEnable: runtime.liveEnable ?? false,
     emergencyStop: runtime.emergencyStop ?? false,
     cooldownRemaining: runtime.cooldownRemaining ?? 0,
     m5Bias: result.trend.direction,

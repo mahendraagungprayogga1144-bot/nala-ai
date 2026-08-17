@@ -128,7 +128,7 @@ export async function GET(request: Request) {
     const { data: ctlRow, error: ctlErr } = await admin
       .from("trading_ai_execution_control")
       .select(
-        "autotrade_enabled, emergency_stop, close_all_on_stop, cooldown_seconds, lot, last_entry_at, last_entry_signal_id",
+        "autotrade_enabled, live_enable, emergency_stop, close_all_on_stop, cooldown_seconds, lot, last_entry_at, last_entry_signal_id",
       )
       .eq("user_id", keyRow.user_id)
       .maybeSingle();
@@ -204,6 +204,7 @@ export async function GET(request: Request) {
       eaMayExecute: false,
       executionMode: EXECUTION_MODE,
       autotrade: control.autotradeEnabled,
+      liveEnable: control.liveEnable,
       emergencyStop: control.emergencyStop,
       cooldownRemaining: 0,
       m5Bias: "unknown",
@@ -275,6 +276,7 @@ export async function GET(request: Request) {
   const runtime = evaluateRuntimeControl({
     decision: result.decision,
     state: control,
+    accountMode,
     hasOpenPosition: openPositions.length > 0,
     signalId,
   });
@@ -289,6 +291,7 @@ export async function GET(request: Request) {
   let signal = toEaTradeSignal(result, {
     barTime,
     autotrade: control.autotradeEnabled,
+    liveEnable: control.liveEnable,
     emergencyStop: control.emergencyStop,
     cooldownRemaining: runtime.cooldownRemainingSec,
     controlBlockedBy,

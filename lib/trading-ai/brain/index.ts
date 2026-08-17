@@ -8,4 +8,5 @@ export { detectMomentum } from "./momentum-detector";
 export { detectSequencedSetup } from "./setup-sequence";
 export { decideEntry } from "./entry-decision";
 export { decideExit } from "./exit-decision";
+export { dynamicTakeProfitDistance } from "./dynamic-tp";
 export * from "./price-action";

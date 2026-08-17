@@ -1,6 +1,7 @@
 /**
  * Entry Decision Engine — M5 bias + M1 pullback/rejection/momentum.
- * Bullish M5 → BUY only; bearish M5 → SELL only; else WAIT.
+ * Bullish M5 → BUY only; bearish M5 → SELL only; sideways/unknown → WAIT.
+ * TP dynamic by M5 + momentum strength (scalping bands).
  */
 
 import type { TradingAiConfig } from "../config";
@@ -12,6 +13,7 @@ import type {
   SupportResistanceAnalysis,
   TrendAnalysis,
 } from "../types";
+import { dynamicTakeProfitDistance } from "./dynamic-tp";
 
 export function decideEntry(input: {
   trend: TrendAnalysis;
@@ -77,11 +79,15 @@ export function decideEntry(input: {
     const rawSl = rejection.atPrice ?? pullback.nearLevel ?? supportResistance.nearestSupport;
     const sl =
       rawSl != null ? Math.min(rawSl, marketPrice - Math.max(marketPrice * 0.0003, 0.05)) : null;
-    const risk = sl != null ? Math.max(marketPrice - sl, marketPrice * 0.0005) : null;
-    const tp =
-      risk != null
-        ? marketPrice + risk * config.brain.takeProfitRr
-        : supportResistance.nearestResistance;
+    const risk = sl != null ? Math.max(marketPrice - sl, marketPrice * 0.0005) : marketPrice * 0.0005;
+    const tpDist = dynamicTakeProfitDistance({
+      marketPrice,
+      riskDistance: risk,
+      m5Strength: trend.strength,
+      momentumStrength: momentum.strength,
+      baseRr: config.brain.takeProfitRr,
+    });
+    const tp = marketPrice + tpDist;
     return {
       decision: "BUY",
       reason: "M5 bullish + M1 pullback/rejection/momentum aligned.",
@@ -104,11 +110,15 @@ export function decideEntry(input: {
     const rawSl = rejection.atPrice ?? pullback.nearLevel ?? supportResistance.nearestResistance;
     const sl =
       rawSl != null ? Math.max(rawSl, marketPrice + Math.max(marketPrice * 0.0003, 0.05)) : null;
-    const risk = sl != null ? Math.max(sl - marketPrice, marketPrice * 0.0005) : null;
-    const tp =
-      risk != null
-        ? marketPrice - risk * config.brain.takeProfitRr
-        : supportResistance.nearestSupport;
+    const risk = sl != null ? Math.max(sl - marketPrice, marketPrice * 0.0005) : marketPrice * 0.0005;
+    const tpDist = dynamicTakeProfitDistance({
+      marketPrice,
+      riskDistance: risk,
+      m5Strength: trend.strength,
+      momentumStrength: momentum.strength,
+      baseRr: config.brain.takeProfitRr,
+    });
+    const tp = marketPrice - tpDist;
     return {
       decision: "SELL",
       reason: "M5 bearish + M1 pullback/rejection/momentum aligned.",

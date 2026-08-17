@@ -4,6 +4,9 @@
  */
 
 import { analyzeTrend } from "../brain/trend-analyzer";
+import { decideEntry } from "../brain/entry-decision";
+import { decideExit } from "../brain/exit-decision";
+import { dynamicTakeProfitDistance } from "../brain/dynamic-tp";
 import { decideTradingAction } from "../decide";
 import {
   DEFAULT_TRADING_AI_CONFIG,
@@ -19,6 +22,7 @@ import {
   parseExecutionControlRow,
   type ExecutionControlState,
 } from "../execution-control";
+import { isSignalFresh, SIGNAL_FRESHNESS_MS } from "../signal-freshness";
 import { toEaTradeSignal } from "../signal";
 import type { Candle, MarketSnapshot } from "../types";
 
@@ -428,7 +432,54 @@ function buildBearishM1(): Candle[] {
     }).allowed === true,
     "signal dari bar baru tetap boleh",
   );
-  console.log("PASS execution control (autotrade / emergency stop / cooldown)");
+
+  // LIVE ENABLE: REAL blocked when off; DEMO ignores; REAL ok when on.
+  assert(
+    DEFAULT_EXECUTION_CONTROL.liveEnable === false,
+    "default liveEnable harus OFF",
+  );
+  assert(
+    parseExecutionControlRow({ live_enable: true }).liveEnable === true,
+    "live_enable DB ON terbaca",
+  );
+  const realBlocked = evaluateRuntimeControl({
+    decision: "BUY",
+    state: on,
+    accountMode: "real",
+  });
+  assert(
+    realBlocked.allowed === false,
+    "REAL + liveEnable OFF harus memblokir entry",
+  );
+  assert(
+    realBlocked.blockedBy.some((b) => /LIVE EXECUTION DISABLED/i.test(b)),
+    "blocker REAL harus menyebut LIVE EXECUTION DISABLED",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "BUY",
+      state: on,
+      accountMode: "demo",
+    }).allowed === true,
+    "DEMO mengabaikan liveEnable",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "BUY",
+      state: { ...on, liveEnable: true },
+      accountMode: "real",
+    }).allowed === true,
+    "REAL + liveEnable ON harus lolos",
+  );
+  assert(
+    evaluateRuntimeControl({
+      decision: "CLOSE",
+      state: on,
+      accountMode: "real",
+    }).allowed === true,
+    "CLOSE tetap boleh pada REAL tanpa liveEnable",
+  );
+  console.log("PASS execution control (autotrade / emergency stop / cooldown / liveEnable)");
 }
 
 // --- Control layer hanya boleh MEMPERSEMPIT izin execution gate ---
@@ -451,6 +502,7 @@ function buildBearishM1(): Candle[] {
     barTime: m1[m1.length - 1].time,
     autotrade: true,
     lot: 0.05,
+    now: r.generatedAt,
   });
   assert(allowed.serverExecutable === true, "tanpa blocker runtime harus tetap executable");
   assert(allowed.executionMode === "LIVE_AUTOTRADE", "mode harus LIVE_AUTOTRADE");
@@ -460,15 +512,125 @@ function buildBearishM1(): Candle[] {
   const blocked = toEaTradeSignal(r, {
     barTime: m1[m1.length - 1].time,
     controlBlockedBy: ["LIVE AUTOTRADE OFF"],
+    now: r.generatedAt,
   });
   assert(blocked.serverExecutable === false, "blocker runtime harus mematikan eksekusi");
 
+  const stale = toEaTradeSignal(r, {
+    barTime: m1[m1.length - 1].time,
+    autotrade: true,
+    now: r.generatedAt + 25_000,
+  });
+  assert(stale.serverExecutable === false, "signal >20s harus stale");
+  assert(
+    stale.executionBlockedBy.some((b) => /stale signal/i.test(b)),
+    "blocker stale harus ada",
+  );
+
   // signalId stabil dalam satu bar M1 → satu signal = satu order attempt.
-  const again = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time });
+  const again = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time, now: r.generatedAt });
   assert(allowed.signalId === again.signalId, "signalId harus stabil dalam bar yang sama");
-  const nextBar = toEaTradeSignal(r, { barTime: m1[m1.length - 1].time + 60 });
+  const nextBar = toEaTradeSignal(r, {
+    barTime: m1[m1.length - 1].time + 60,
+    now: r.generatedAt,
+  });
   assert(allowed.signalId !== nextBar.signalId, "bar baru harus menghasilkan signalId baru");
-  console.log("PASS control layer + signalId stabil");
+  console.log("PASS control layer + signalId stabil + freshness");
+}
+
+// --- M5 sideways/unknown → WAIT (final spec, no sideways scalp) ---
+{
+  const waitish = decideEntry({
+    trend: { timeframe: "M5", direction: "sideways", strength: 0.2, notes: [] },
+    pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
+    rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.8,
+      notes: [],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2305,
+    },
+    marketPrice: 2301,
+    config,
+  });
+  assert(waitish.decision === "WAIT", `sideways entry harus WAIT, got ${waitish.decision}`);
+  assert(/sideways|unknown|not clear/i.test(waitish.reason), `reason: ${waitish.reason}`);
+
+  const unknown = decideEntry({
+    trend: { timeframe: "M5", direction: "unknown", strength: 0, notes: [] },
+    pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
+    rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.8,
+      notes: [],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2305,
+    },
+    marketPrice: 2301,
+    config,
+  });
+  assert(unknown.decision === "WAIT", "unknown M5 harus WAIT");
+  console.log("PASS sideways/unknown M5 → WAIT");
+}
+
+// --- Exit: momentum lost protects floating profit ---
+{
+  assert(isSignalFresh(Date.now() - 1000), "fresh within 1s");
+  assert(!isSignalFresh(Date.now() - (SIGNAL_FRESHNESS_MS + 1)), "stale after threshold");
+  assert(!isSignalFresh(null), "missing generatedAt = stale");
+
+  const tp = dynamicTakeProfitDistance({
+    marketPrice: 2300,
+    riskDistance: 1.5,
+    m5Strength: 0.9,
+    momentumStrength: 0.9,
+    baseRr: 1.5,
+  });
+  assert(tp >= 1.0, `dynamic TP min band: ${tp}`);
+
+  const close = decideExit({
+    positions: [
+      {
+        id: "1",
+        symbol: "XAUUSD",
+        side: "BUY",
+        lot: 0.01,
+        openPrice: 2300,
+        stopLoss: 2298,
+        takeProfit: 2305,
+        openedAt: Date.now(),
+        floatingPnl: 12,
+      },
+    ],
+    trend: {
+      timeframe: "M5",
+      direction: "bullish",
+      strength: 0.7,
+      notes: [],
+    },
+    momentum: {
+      direction: "bearish",
+      strength: 0.2,
+      alignedWithTrend: false,
+      notes: ["against"],
+    },
+    execution: { accountMode: "demo", executionEnabled: true },
+  });
+  assert(close.decision === "CLOSE", `profit protect harus CLOSE, got ${close.decision}`);
+  assert(/MOMENTUM_LOST/i.test(close.reason), `reason: ${close.reason}`);
+  console.log("PASS freshness + dynamic TP + momentum exit");
 }
 
 console.log("decision-cases ok");

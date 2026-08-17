@@ -16,6 +16,7 @@ export type LiveSignalSnapshot = {
   accountMode: string | null;
   accountLogin: number | null;
   autotrade: boolean;
+  liveEnable: boolean;
   emergencyStop: boolean;
   at: string | null;
 };
@@ -52,6 +53,7 @@ const EMPTY_SIGNAL: LiveSignalSnapshot = {
   accountMode: null,
   accountLogin: null,
   autotrade: false,
+  liveEnable: false,
   emergencyStop: false,
   at: null,
 };
@@ -64,6 +66,9 @@ function numOrNull(v: unknown): number | null {
 export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrderRow | null): string {
   if (signal.emergencyStop) return "EMERGENCY STOP — entry baru ditahan.";
   if (!signal.autotrade) return "LIVE AUTOTRADE OFF — nyalakan di dashboard.";
+  if (signal.accountMode === "real" && !signal.liveEnable) {
+    return "REAL ACCOUNT DETECTED — LIVE EXECUTION DISABLED. Nyalakan LIVE ENABLE.";
+  }
   if (latestOrder?.status === "FILLED" && latestOrder.direction !== "CLOSE") {
     return `Posisi terakhir ${latestOrder.direction} lot ${latestOrder.lot ?? "?"} @ ${latestOrder.entryPrice ?? "?"} (tiket ${latestOrder.ticket ?? "—"}).`;
   }
@@ -80,7 +85,7 @@ export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrder
   if (d === "BUY" || d === "SELL") {
     return `Sinyal ${d} ada tapi belum executable di server.`;
   }
-  if (d === "CLOSE") return "Sinyal CLOSE — EA harus menutup posisi demo.";
+  if (d === "CLOSE") return "Sinyal CLOSE — EA harus menutup posisi.";
   return "Menunggu update dari GercepTradeExecutor.";
 }
 
@@ -93,7 +98,7 @@ export async function collectLiveActivity(
     supabase
       .from("trading_ai_execution_control")
       .select(
-        "autotrade_enabled, emergency_stop, last_signal_at, last_signal_id, last_signal_decision, last_signal_confidence, last_signal_spread, last_signal_m5_bias, last_signal_m1_direction, last_signal_executable, last_signal_account_mode, last_signal_account_login",
+        "autotrade_enabled, live_enable, emergency_stop, last_signal_at, last_signal_id, last_signal_decision, last_signal_confidence, last_signal_spread, last_signal_m5_bias, last_signal_m1_direction, last_signal_executable, last_signal_account_mode, last_signal_account_login",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -123,6 +128,7 @@ export async function collectLiveActivity(
         accountMode: (ctl.last_signal_account_mode as string) ?? null,
         accountLogin: numOrNull(ctl.last_signal_account_login),
         autotrade: ctl.autotrade_enabled === true,
+        liveEnable: ctl.live_enable === true,
         emergencyStop: ctl.emergency_stop === true,
         at: (ctl.last_signal_at as string) ?? null,
       }

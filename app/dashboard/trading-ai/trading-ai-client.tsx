@@ -140,6 +140,7 @@ const RULES = [
 
 type ControlState = {
   autotradeEnabled: boolean;
+  liveEnable: boolean;
   emergencyStop: boolean;
   closeAllOnStop: boolean;
   cooldownSeconds: number;
@@ -151,6 +152,8 @@ type ControlState = {
 type ControlAction =
   | "autotrade_on"
   | "autotrade_off"
+  | "live_enable_on"
+  | "live_enable_off"
   | "emergency_stop"
   | "resume"
   | "settings";
@@ -704,7 +707,7 @@ export default function TradingAiClient({
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#8FB8C9] sm:text-sm">
               Otak XAUUSD gaya manual kamu. EA mengeksekusi order di akun MT5 demo
               atau real saat autotrade dinyalakan. Akun real = uang sungguhan —
-              pakai lot kecil dan emergency stop siap.
+              wajib LIVE ENABLE terpisah + lot kecil + emergency stop siap.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest">
@@ -731,15 +734,24 @@ export default function TradingAiClient({
 
           {!controlReady && (
             <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
-              Jalankan SQL migrasi lot{" "}
-              <code className="text-amber-200">20260816_trading_ai_lot_setting.sql</code> di
-              Supabase kalau pengaturan lot error. Autotrade butuh migrasi control juga.
+              Jalankan SQL migrasi{" "}
+              <code className="text-amber-200">20260817_trading_ai_live_enable.sql</code>{" "}
+              (+ lot / control sebelumnya) di Supabase kalau tombol LIVE ENABLE error.
             </div>
           )}
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-4">
+          {(activity.signal.accountMode === "real" || control.liveEnable) && (
+            <div className="mb-3 rounded-xl border border-[#FF3D7F]/35 bg-[#FF3D7F]/10 px-3 py-2 text-[11px] text-[#FFC2D8]">
+              {activity.signal.accountMode === "real"
+                ? "Akun REAL terdeteksi dari EA. Entry hanya jalan jika LIVE ENABLE = ON."
+                : "LIVE ENABLE aktif — kalau EA konek ke akun real, order sungguhan bisa terbuka."}
+            </div>
+          )}
+
+          <div className="mb-3 grid gap-2 sm:grid-cols-5">
             {[
               ["Autotrade", control.autotradeEnabled ? "ON" : "OFF"],
+              ["Live enable", control.liveEnable ? "ENABLED" : "DISABLED"],
               ["Emergency", control.emergencyStop ? "STOP" : "normal"],
               ["Cooldown", control.cooldownRemaining > 0 ? fmtCooldown(control.cooldownRemaining) : "siap"],
               ["Lot", (control.lot ?? DEFAULT_TRADING_AI_CONFIG.risk.defaultLot).toFixed(2)],
@@ -765,6 +777,30 @@ export default function TradingAiClient({
               }`}
             >
               LIVE AUTOTRADE {control.autotradeEnabled ? "ON" : "OFF"}
+            </button>
+
+            <button
+              type="button"
+              disabled={controlBusy}
+              onClick={() => {
+                if (!control.liveEnable) {
+                  if (
+                    !confirm(
+                      "LIVE ENABLE untuk akun REAL: order sungguhan bisa terbuka. Lanjutkan?",
+                    )
+                  ) {
+                    return;
+                  }
+                }
+                sendControl(control.liveEnable ? "live_enable_off" : "live_enable_on");
+              }}
+              className={`rounded-xl border px-4 py-2 text-xs font-bold disabled:opacity-50 ${
+                control.liveEnable
+                  ? "border-[#FFB14A]/50 bg-[#FFB14A]/15 text-[#FFB14A]"
+                  : "border-white/15 text-[#9BC5D4]"
+              }`}
+            >
+              LIVE ENABLE {control.liveEnable ? "ENABLED" : "DISABLED"}
             </button>
 
             <button
@@ -844,10 +880,10 @@ export default function TradingAiClient({
           )}
 
           <p className="text-[10px] leading-relaxed text-[#6A8A99]">
-            Autotrade OFF setiap kali aplikasi dibuka sampai kamu menyalakannya. EA tetap wajib
-            lolos: akun demo/real · confidence ≥{" "}
-            {DEFAULT_TRADING_AI_CONFIG.brain.minConfidenceToEnter} · max 1 posisi · spread ≤{" "}
-            {DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints} point ·{" "}
+            Autotrade OFF setiap kali aplikasi dibuka sampai kamu menyalakannya. DEMO boleh
+            autotrade tanpa LIVE ENABLE. REAL wajib LIVE ENABLE = ENABLED. EA tetap wajib lolos:
+            akun demo/real · confidence ≥ {DEFAULT_TRADING_AI_CONFIG.brain.minConfidenceToEnter} ·
+            max 1 posisi · spread ≤ {DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints} point ·{" "}
             <code>InpAllowTrading=true</code>. Emergency stop menghentikan entry baru; posisi
             berjalan hanya ditutup kalau opsi di atas dicentang.
           </p>
@@ -870,7 +906,7 @@ export default function TradingAiClient({
 
           <p className="mb-3 text-[11px] leading-relaxed text-[#9BC5D4]">{activity.openHint}</p>
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
               <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Sinyal sekarang</p>
               <p
@@ -886,9 +922,11 @@ export default function TradingAiClient({
               </p>
             </div>
             <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Auto / Executable</p>
+              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Auto / Live / Exec</p>
               <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
                 {activity.signal.autotrade ? "AUTO ON" : "AUTO OFF"}
+                {" · "}
+                {activity.signal.liveEnable ? "LIVE ON" : "LIVE OFF"}
                 {" · "}
                 {activity.signal.serverExecutable ? "READY" : "HOLD"}
               </p>
@@ -899,15 +937,20 @@ export default function TradingAiClient({
                 {activity.signal.m5Bias ?? "—"} / {activity.signal.m1Direction ?? "—"}
               </p>
             </div>
+            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Akun</p>
+              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
+                {activity.signal.accountMode ?? "—"}
+                {activity.signal.accountLogin != null
+                  ? ` · ${activity.signal.accountLogin}`
+                  : ""}
+              </p>
+            </div>
           </div>
 
           <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[#6A8A99]">
             <span>spread: {activity.signal.spread ?? "—"}</span>
-            <span>mode: {activity.signal.accountMode ?? "—"}</span>
-            <span>
-              login:{" "}
-              {activity.signal.accountLogin != null ? activity.signal.accountLogin : "—"}
-            </span>
+            <span>estop: {activity.signal.emergencyStop ? "ON" : "off"}</span>
             <span className="break-all">id: {activity.signal.signalId ?? "—"}</span>
           </div>
 

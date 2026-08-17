@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.6.0-live-autotrade";
+export const TRADING_AI_VERSION = "0.7.0-final-scalp";
 
 /**
  * Hard product rules — never weaken from UI.

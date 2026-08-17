@@ -19,6 +19,7 @@ const base: LiveSignalSnapshot = {
   accountMode: "demo",
   accountLogin: 1,
   autotrade: true,
+  liveEnable: false,
   emergencyStop: false,
   at: new Date().toISOString(),
 };
@@ -32,6 +33,12 @@ assert(
 assert(
   /EMERGENCY/.test(buildOpenHint({ ...base, emergencyStop: true }, null)),
   "estop",
+);
+assert(
+  /LIVE EXECUTION DISABLED/.test(
+    buildOpenHint({ ...base, accountMode: "real", liveEnable: false }, null),
+  ),
+  "real without live enable",
 );
 assert(
   /siap dieksekusi/.test(

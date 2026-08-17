@@ -3,50 +3,32 @@
 //| Push gold M5 + M1 candles to Gercep Trading AI (read-only).
 //| DOES NOT PLACE ORDERS.
 //|
+//| EXNESS DEMO:
+//|  - Simbol biasanya XAUUSDm (bukan XAUUSD)
+//|  - InpSymbol kosong = ikut chart. Kalau masih "XAUUSD" tersimpan di
+//|    properties chart, EA otomatis fallback ke simbol chart / XAUUSDm.
+//|
 //| Setup:
-//| 1. Dashboard Gercep → Trading AI Brain → buat API key (gea_...)
-//| 2. Paste key to InpApiKey below
-//| 3. Set InpBaseUrl = https://www.gercepos.id  (www required)
-//| 4. MT5 → Tools → Options → Expert Advisors
-//|    ☑ Allow WebRequest for listed URL → add same base URL
-//| 5. Attach EA to gold chart (XAUUSD / XAUUSDm / dll). Algo Trading ON.
-//| 6. InpSymbol kosong = ikut simbol chart (disarankan di Exness).
+//| 1. Dashboard → buat API key (gea_...)
+//| 2. InpBaseUrl = https://www.gercepos.id
+//| 3. Tools → Options → Expert Advisors → Allow WebRequest → URL di atas
+//| 4. Attach ke chart XAUUSDm (M1 atau M5). Algo Trading ON.
+//| 5. Compile ke folder Experts/Advisors (Navigator pakai Advisors)
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "1.10"
+#property version   "1.20"
 
-input string InpBaseUrl   = "https://www.gercepos.id"; // MUST use www (bare domain 308-redirects)
+input string InpBaseUrl   = "https://www.gercepos.id";
 input string InpApiKey    = "gea_PASTE_YOUR_KEY";
-input string InpSymbol    = ""; // kosong = _Symbol (XAUUSDm di Exness OK)
+input string InpSymbol    = ""; // kosong / auto = chart. Jangan hardcode XAUUSD di Exness.
 input int    InpBarsM5    = 80;
 input int    InpBarsM1    = 120;
-input int    InpTimerSec  = 30; // push interval
+input int    InpTimerSec  = 30;
 
-string Endpoint()
-{
-   return InpBaseUrl + "/api/trading-ai/ingest";
-}
+string g_brokerSym = "";
+string g_apiSym    = "XAUUSD";
 
-//| Simbol broker untuk CopyRates / chart.
-string BrokerSymbol()
-{
-   string s = InpSymbol;
-   StringTrimLeft(s);
-   StringTrimRight(s);
-   if(s == "" || s == "auto" || s == "AUTO")
-      return _Symbol;
-   return s;
-}
-
-//| Simbol kanonik ke Gercep (otak selalu XAUUSD).
-string ApiSymbol(const string brokerSym)
-{
-   string u = brokerSym;
-   StringToUpper(u);
-   if(StringFind(u, "XAU") == 0 || StringFind(u, "GOLD") >= 0)
-      return "XAUUSD";
-   return brokerSym;
-}
+string Endpoint() { return InpBaseUrl + "/api/trading-ai/ingest"; }
 
 string EscapeJson(const string s)
 {
@@ -56,11 +38,88 @@ string EscapeJson(const string s)
    return o;
 }
 
+bool LooksLikeGold(const string sym)
+{
+   string u = sym;
+   StringToUpper(u);
+   return (StringFind(u, "XAU") == 0 || StringFind(u, "GOLD") >= 0);
+}
+
+string ToApiSymbol(const string brokerSym)
+{
+   if(LooksLikeGold(brokerSym)) return "XAUUSD";
+   return brokerSym;
+}
+
+bool SymbolUsable(const string sym)
+{
+   if(sym == "") return false;
+   if(!SymbolSelect(sym, true)) return false;
+   MqlTick tick;
+   if(!SymbolInfoTick(sym, tick)) return false;
+   // Cukup ada 1 bar M1 = simbol hidup di terminal.
+   if(Bars(sym, PERIOD_M1) <= 0 && Bars(sym, PERIOD_M5) <= 0) return false;
+   return true;
+}
+
+//| Cari simbol gold yang benar di Exness / broker lain.
+string ResolveBrokerSymbol()
+{
+   string preferred = InpSymbol;
+   StringTrimLeft(preferred);
+   StringTrimRight(preferred);
+
+   // 1) Chart symbol kalau gold (paling aman di Exness).
+   if(LooksLikeGold(_Symbol) && SymbolUsable(_Symbol))
+   {
+      if(preferred != "" && preferred != _Symbol && preferred != "auto" && preferred != "AUTO")
+         Print("InpSymbol=", preferred, " diabaikan — pakai chart ", _Symbol);
+      return _Symbol;
+   }
+
+   // 2) Input manual kalau valid.
+   if(preferred != "" && preferred != "auto" && preferred != "AUTO" && SymbolUsable(preferred))
+      return preferred;
+
+   // 3) Kandidat umum Exness / broker.
+   string candidates[6];
+   candidates[0] = "XAUUSDm";
+   candidates[1] = "XAUUSD";
+   candidates[2] = "XAUUSD.m";
+   candidates[3] = "XAUUSDc";
+   candidates[4] = "GOLD";
+   candidates[5] = _Symbol;
+   for(int i = 0; i < 6; i++)
+   {
+      if(SymbolUsable(candidates[i]))
+      {
+         Print("Auto-pilih simbol gold: ", candidates[i]);
+         return candidates[i];
+      }
+   }
+   return "";
+}
+
+int CopyRatesRetry(const string symbol, ENUM_TIMEFRAMES tf, const int bars, MqlRates &rates[])
+{
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, bars, rates);
+   if(copied > 0) return copied;
+
+   // Paksa terminal unduh history, lalu coba lagi.
+   int have = Bars(symbol, tf);
+   Print("CopyRates pertama gagal tf=", EnumToString(tf),
+         " haveBars=", have, " err=", GetLastError(), " — retry...");
+   Sleep(300);
+   ResetLastError();
+   copied = CopyRates(symbol, tf, 0, bars, rates);
+   return copied;
+}
+
 string BuildCandleJson(const string brokerSym, const string apiSym, ENUM_TIMEFRAMES tf, const int bars)
 {
    MqlRates rates[];
-   ArraySetAsSeries(rates, true);
-   int copied = CopyRates(brokerSym, tf, 0, bars, rates);
+   int copied = CopyRatesRetry(brokerSym, tf, bars, rates);
    if(copied <= 0) return "";
 
    string tfStr = (tf == PERIOD_M5 ? "M5" : "M1");
@@ -73,7 +132,6 @@ string BuildCandleJson(const string brokerSym, const string apiSym, ENUM_TIMEFRA
    json += "\"gmtOffsetSec\":" + IntegerToString(gmtOffsetSec) + ",";
    json += "\"candles\":[";
 
-   // oldest → newest
    for(int i = copied - 1; i >= 0; i--)
    {
       if(i < copied - 1) json += ",";
@@ -96,7 +154,6 @@ bool PostJsonWithKey(const string payload, const string apiKey)
    char result[];
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + apiKey + "\r\n";
    StringToCharArray(payload, data, 0, WHOLE_ARRAY, CP_UTF8);
-   // remove trailing null from StringToCharArray
    int len = ArraySize(data);
    if(len > 0 && data[len - 1] == 0) ArrayResize(data, len - 1);
 
@@ -105,11 +162,19 @@ bool PostJsonWithKey(const string payload, const string apiKey)
    if(code == -1)
    {
       Print("Gercep WebRequest failed. Err=", GetLastError(),
-            " — add URL to Tools→Options→Expert Advisors→Allow WebRequest: ", InpBaseUrl);
+            " — Allow WebRequest: ", InpBaseUrl);
       return false;
    }
    string body = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
    Print("Gercep ingest HTTP ", code, " ", body);
+   if(code < 200 || code >= 300)
+   {
+      Print("INGEST GAGAL code=", code,
+            " — cek Peralatan→Opsi→Expert Advisors→Allow WebRequest berisi persis: ",
+            InpBaseUrl);
+      if(code == 1003)
+         Print("HTTP 1003 sering = Cloudflare/akses URL salah. Pastikan pakai https://www.gercepos.id (ada www).");
+   }
    return (code >= 200 && code < 300);
 }
 
@@ -118,7 +183,6 @@ string CleanApiKey()
    string key = InpApiKey;
    StringTrimLeft(key);
    StringTrimRight(key);
-   // strip accidental quotes from paste
    if(StringLen(key) >= 2)
    {
       ushort a = StringGetCharacter(key, 0);
@@ -141,25 +205,30 @@ void PushAll()
    string key = CleanApiKey();
    if(!ApiKeyOk(key))
    {
-      Print("Set InpApiKey from Gercep dashboard (starts with gea_). len=",
+      Print("Set InpApiKey (gea_...) dari dashboard. len=",
             StringLen(key), " head=", StringSubstr(key, 0, MathMin(8, StringLen(key))));
       return;
    }
 
-   string brokerSym = BrokerSymbol();
-   string apiSym = ApiSymbol(brokerSym);
-   if(!SymbolSelect(brokerSym, true))
+   if(g_brokerSym == "")
    {
-      Print("SymbolSelect gagal — pastikan ", brokerSym, " ada di Market Watch.");
+      g_brokerSym = ResolveBrokerSymbol();
+      g_apiSym = ToApiSymbol(g_brokerSym);
+   }
+   if(g_brokerSym == "")
+   {
+      Print("Tidak ketemu simbol gold. Buka chart XAUUSDm dulu.");
       return;
    }
 
-   string j5 = BuildCandleJson(brokerSym, apiSym, PERIOD_M5, InpBarsM5);
-   string j1 = BuildCandleJson(brokerSym, apiSym, PERIOD_M1, InpBarsM1);
+   string j5 = BuildCandleJson(g_brokerSym, g_apiSym, PERIOD_M5, InpBarsM5);
+   string j1 = BuildCandleJson(g_brokerSym, g_apiSym, PERIOD_M1, InpBarsM1);
    if(j5 == "" || j1 == "")
    {
-      Print("CopyRates failed — broker=", brokerSym, " api=", apiSym,
-            " err=", GetLastError());
+      Print("CopyRates failed broker=", g_brokerSym, " api=", g_apiSym,
+            " err=", GetLastError(), " — coba scroll chart supaya history terunduh.");
+      // Reset supaya next tick coba resolve ulang (mis. ganti chart).
+      g_brokerSym = "";
       return;
    }
    PostJsonWithKey(j5, key);
@@ -168,9 +237,14 @@ void PushAll()
 
 int OnInit()
 {
+   g_brokerSym = ResolveBrokerSymbol();
+   g_apiSym = ToApiSymbol(g_brokerSym);
    EventSetTimer(MathMax(10, InpTimerSec));
-   Print("GercepCandlePush v1.1 broker=", BrokerSymbol(),
-         " api=", ApiSymbol(BrokerSymbol()));
+   Print("==== GercepCandlePush v1.2 EXNESS ====");
+   Print("chart=", _Symbol, " broker=", g_brokerSym, " api=", g_apiSym);
+   Print("baseUrl=", InpBaseUrl);
+   if(g_brokerSym == "")
+      Print("GAGAL resolve simbol — attach EA ke chart XAUUSDm.");
    PushAll();
    return(INIT_SUCCEEDED);
 }
@@ -187,5 +261,4 @@ void OnTimer()
 
 void OnTick()
 {
-   // timer-driven; keep OnTick empty (no trading)
 }

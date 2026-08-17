@@ -23,46 +23,90 @@
 //|  3. MT5 -> Allow WebRequest untuk base URL
 //|  4. Attach ke chart gold broker (XAUUSDm OK). Algo Trading ON
 //|  5. Nyalakan [LIVE AUTOTRADE ON] di dashboard Gercep
-//|  6. Flip InpAllowTrading=true (default false demi aman)
-//|  7. InpSymbol kosong = ikut chart (disarankan)
+//|  6. InpAllowTrading default true (demo Exness). Matikan kalau observasi saja.
+//|  7. InpSymbol kosong = auto XAUUSDm dari chart
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.20"
+#property version   "2.30"
 #property strict
 
 #include <Trade/Trade.mqh>
 
-input string InpBaseUrl      = "https://www.gercepos.id"; // MUST use www (bare domain 308-redirects)
+input string InpBaseUrl      = "https://www.gercepos.id";
 input string InpApiKey       = "gea_PASTE_YOUR_KEY";
-input string InpSymbol       = ""; // kosong = _Symbol (XAUUSDm di Exness OK)
+input string InpSymbol       = ""; // kosong = auto (XAUUSDm di Exness)
 input int    InpMagic        = 26080701;
 input int    InpPollSec      = 15;
 input double InpLotFallback  = 0.10;
-input bool   InpAllowTrading = false; // MUST flip manually
-input bool   InpRequireDemo  = false; // false = izinkan akun REAL (uang sungguhan)
-input int    InpSlippagePts  = 30;
+input bool   InpAllowTrading = true;  // Exness demo: default ON (matikan kalau mau observasi saja)
+input bool   InpRequireDemo  = false;
+input int    InpSlippagePts  = 50;    // Exness gold sering butuh slippage lebih longgar
 input int    InpMinConfidence= 65;
-input bool   InpReportOrders = true;  // kirim ORDER_STATUS ke server (cooldown + jurnal)
+input bool   InpReportOrders = true;
 
 CTrade trade;
 string g_lastSignalId    = "";
-string g_attemptSignalId = "";   // signal yang SUDAH pernah dicoba — tidak diulang
+string g_attemptSignalId = "";
+string g_brokerSym       = "";
 
 string SignalUrl(const string qs)  { return InpBaseUrl + "/api/trading-ai/signal?" + qs; }
 string ReportUrl()                 { return InpBaseUrl + "/api/trading-ai/order-report"; }
 
-//| Simbol broker untuk quote / order.
-string BrokerSymbol()
+bool LooksLikeGold(const string sym)
 {
-   string s = InpSymbol;
-   StringTrimLeft(s);
-   StringTrimRight(s);
-   if(s == "" || s == "auto" || s == "AUTO")
-      return _Symbol;
-   return s;
+   string u = sym;
+   StringToUpper(u);
+   return (StringFind(u, "XAU") == 0 || StringFind(u, "GOLD") >= 0);
 }
 
-//| Simbol ke Gercep API (otak selalu XAUUSD).
+bool SymbolUsable(const string sym)
+{
+   if(sym == "") return false;
+   if(!SymbolSelect(sym, true)) return false;
+   MqlTick tick;
+   return SymbolInfoTick(sym, tick);
+}
+
+string ResolveBrokerSymbol()
+{
+   string preferred = InpSymbol;
+   StringTrimLeft(preferred);
+   StringTrimRight(preferred);
+
+   if(LooksLikeGold(_Symbol) && SymbolUsable(_Symbol))
+   {
+      if(preferred != "" && preferred != _Symbol && preferred != "auto" && preferred != "AUTO")
+         Print("InpSymbol=", preferred, " diabaikan — pakai chart ", _Symbol);
+      return _Symbol;
+   }
+   if(preferred != "" && preferred != "auto" && preferred != "AUTO" && SymbolUsable(preferred))
+      return preferred;
+
+   string candidates[6];
+   candidates[0] = "XAUUSDm";
+   candidates[1] = "XAUUSD";
+   candidates[2] = "XAUUSD.m";
+   candidates[3] = "XAUUSDc";
+   candidates[4] = "GOLD";
+   candidates[5] = _Symbol;
+   for(int i = 0; i < 6; i++)
+   {
+      if(SymbolUsable(candidates[i]))
+      {
+         Print("Auto-pilih simbol gold: ", candidates[i]);
+         return candidates[i];
+      }
+   }
+   return "";
+}
+
+string BrokerSymbol()
+{
+   if(g_brokerSym == "")
+      g_brokerSym = ResolveBrokerSymbol();
+   return g_brokerSym;
+}
+
 string ApiSymbol()
 {
    string u = BrokerSymbol();
@@ -70,6 +114,24 @@ string ApiSymbol()
    if(StringFind(u, "XAU") == 0 || StringFind(u, "GOLD") >= 0)
       return "XAUUSD";
    return BrokerSymbol();
+}
+
+ENUM_ORDER_TYPE_FILLING ApplyFillingMode(const string sym)
+{
+   // Exness sering IOC/FOK — coba mode yang didukung simbol.
+   long filling = (long)SymbolInfoInteger(sym, SYMBOL_FILLING_MODE);
+   if((filling & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
+   {
+      trade.SetTypeFilling(ORDER_FILLING_IOC);
+      return ORDER_FILLING_IOC;
+   }
+   if((filling & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
+   {
+      trade.SetTypeFilling(ORDER_FILLING_FOK);
+      return ORDER_FILLING_FOK;
+   }
+   trade.SetTypeFilling(ORDER_FILLING_RETURN);
+   return ORDER_FILLING_RETURN;
 }
 
 //| Buang spasi/kutip yang ikut ter-paste dari dashboard.
@@ -386,7 +448,7 @@ void OpenSide(const string signalId, const string decision, const double lot,
 
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpSlippagePts);
-   trade.SetTypeFillingBySymbol(BrokerSymbol());
+   ENUM_ORDER_TYPE_FILLING usedFill = ApplyFillingMode(BrokerSymbol());
 
    double volume = NormalizeLot(lot);
    bool ok = false;
@@ -396,6 +458,28 @@ void OpenSide(const string signalId, const string decision, const double lot,
       ok = trade.Sell(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain SELL");
    else
       return;
+
+   // Exness: kalau filling ditolak, coba mode lain sekali.
+   if(!ok)
+   {
+      uint rc = trade.ResultRetcode();
+      if(rc == TRADE_RETCODE_INVALID_FILL)
+      {
+         Print("INVALID_FILL — coba filling alternatif...");
+         long filling = (long)SymbolInfoInteger(BrokerSymbol(), SYMBOL_FILLING_MODE);
+         if(usedFill == ORDER_FILLING_IOC && (filling & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
+            trade.SetTypeFilling(ORDER_FILLING_FOK);
+         else if(usedFill == ORDER_FILLING_FOK && (filling & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
+            trade.SetTypeFilling(ORDER_FILLING_IOC);
+         else
+            trade.SetTypeFilling(ORDER_FILLING_RETURN);
+
+         if(decision == "BUY")
+            ok = trade.Buy(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain BUY");
+         else
+            ok = trade.Sell(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain SELL");
+      }
+   }
 
    if(!ok)
    {
@@ -432,16 +516,27 @@ void PollAndAct()
    }
 
    string sym = BrokerSymbol();
-   if(!SymbolSelect(sym, true))
+   if(sym == "" || !SymbolSelect(sym, true))
    {
-      Print("SymbolSelect gagal — ", sym, " tidak ada di Market Watch.");
+      Print("SymbolSelect gagal — buka chart XAUUSDm. resolved=", sym);
+      g_brokerSym = "";
       return;
    }
 
    double bid       = SymbolInfoDouble(sym, SYMBOL_BID);
    double ask       = SymbolInfoDouble(sym, SYMBOL_ASK);
    double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
-   double spreadPts = (point > 0) ? (ask - bid) / point : 0;
+   if(bid <= 0 || ask <= 0 || point <= 0)
+   {
+      Print("Quote belum siap broker=", sym, " bid=", bid, " ask=", ask);
+      return;
+   }
+   // Exness XAUUSDm biasanya digits=3 (point 0.001). Otak Gercep pakai skala
+   // "point" ala gold 2 desimal (0.01). Samakan supaya maxSpread 60 masuk akal.
+   double spreadPts = (ask - bid) / point;
+   int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   if(LooksLikeGold(sym) && digits >= 3)
+      spreadPts = spreadPts / 10.0;
    double balance   = AccountInfoDouble(ACCOUNT_BALANCE);
 
    // POSITION MONITOR — kirim posisi berjalan supaya Brain memutuskan HOLD/CLOSE
@@ -550,17 +645,23 @@ void PollAndAct()
 
 int OnInit()
 {
+   g_brokerSym = ResolveBrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("GercepTradeExecutor v2.2 — EXECUTION_MODE=LIVE_AUTOTRADE");
+   Print("==== GercepTradeExecutor v2.3 EXNESS ====");
+   Print("EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
-         " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading),
-         " broker=", BrokerSymbol(), " api=", ApiSymbol(),
-         " lot=", DoubleToString(InpLotFallback, 2));
+         " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading));
+   Print("chart=", _Symbol, " broker=", BrokerSymbol(), " api=", ApiSymbol(),
+         " lotFallback=", DoubleToString(InpLotFallback, 2));
+   if(BrokerSymbol() == "")
+      Print("GAGAL resolve simbol — attach ke chart XAUUSDm.");
    if(!IsAllowedAccount())
-      Print("PERINGATAN: mode akun tidak diizinkan. EA tidak akan mengirim order.");
+      Print("PERINGATAN: mode akun tidak diizinkan.");
    else if(IsRealAccount())
-      Print("PERINGATAN: akun REAL — order memakai uang sungguhan. Pastikan lot & risk OK.");
+      Print("PERINGATAN: akun REAL — uang sungguhan.");
+   if(!InpAllowTrading)
+      Print("PERINGATAN: InpAllowTrading=false — EA tidak akan OrderSend.");
    PollAndAct();
    return(INIT_SUCCEEDED);
 }

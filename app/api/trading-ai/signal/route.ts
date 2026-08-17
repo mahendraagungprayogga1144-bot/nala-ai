@@ -11,6 +11,7 @@ import {
   HARD_RULES,
   isEaSignalExecutionEnabled,
   loadCandles,
+  normalizeGoldSpreadPoints,
   normalizeTradingSymbol,
   parseAccountMode,
   parseExecutionControlRow,
@@ -228,7 +229,9 @@ export async function GET(request: Request) {
   const lastClose = m1[m1.length - 1].close;
   const bid = num(url.searchParams.get("bid")) ?? lastClose;
   const ask = num(url.searchParams.get("ask")) ?? bid + 0.2;
-  const spread = num(url.searchParams.get("spread")) ?? Math.max(0, Math.round((ask - bid) * 100));
+  const spreadRaw =
+    num(url.searchParams.get("spread")) ?? Math.max(0, Math.round((ask - bid) * 100));
+  const spread = normalizeGoldSpreadPoints({ spread: spreadRaw, bid, ask });
   const balance = num(url.searchParams.get("balance"));
 
   const openSideRaw = (url.searchParams.get("open_side") || "none").toUpperCase();

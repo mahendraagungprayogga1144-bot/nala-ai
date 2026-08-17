@@ -11,6 +11,7 @@ import {
   HARD_RULES,
   isEaSignalExecutionEnabled,
   loadCandles,
+  normalizeTradingSymbol,
   parseAccountMode,
   parseExecutionControlRow,
   buildSignalId,
@@ -18,7 +19,6 @@ import {
   TRADING_AI_VERSION,
   type ExecutionControlState,
   type OpenPosition,
-  type SymbolCode,
 } from "@/lib/trading-ai";
 
 export const runtime = "nodejs";
@@ -110,8 +110,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const symbol = ((url.searchParams.get("symbol") || "XAUUSD").trim().toUpperCase() ||
-    "XAUUSD") as SymbolCode;
+  const symbol = normalizeTradingSymbol(url.searchParams.get("symbol"));
 
   // Mode akun dari EA. Param hilang/typo -> "unknown" -> gate menolak.
   // "real" boleh executable hanya jika ALLOW_LIVE_EXECUTION=true.

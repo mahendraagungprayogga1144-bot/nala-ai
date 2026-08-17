@@ -21,19 +21,20 @@
 //|  1. GercepCandlePush.mq5 harus tetap jalan di chart LAIN (feed candle)
 //|  2. Set InpBaseUrl + InpApiKey (gea_...)
 //|  3. MT5 -> Allow WebRequest untuk base URL
-//|  4. Attach ke XAUUSD, Algo Trading ON
+//|  4. Attach ke chart gold broker (XAUUSDm OK). Algo Trading ON
 //|  5. Nyalakan [LIVE AUTOTRADE ON] di dashboard Gercep
 //|  6. Flip InpAllowTrading=true (default false demi aman)
+//|  7. InpSymbol kosong = ikut chart (disarankan)
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.10"
+#property version   "2.20"
 #property strict
 
 #include <Trade/Trade.mqh>
 
 input string InpBaseUrl      = "https://www.gercepos.id"; // MUST use www (bare domain 308-redirects)
 input string InpApiKey       = "gea_PASTE_YOUR_KEY";
-input string InpSymbol       = "XAUUSD";
+input string InpSymbol       = ""; // kosong = _Symbol (XAUUSDm di Exness OK)
 input int    InpMagic        = 26080701;
 input int    InpPollSec      = 15;
 input double InpLotFallback  = 0.10;
@@ -49,6 +50,27 @@ string g_attemptSignalId = "";   // signal yang SUDAH pernah dicoba — tidak di
 
 string SignalUrl(const string qs)  { return InpBaseUrl + "/api/trading-ai/signal?" + qs; }
 string ReportUrl()                 { return InpBaseUrl + "/api/trading-ai/order-report"; }
+
+//| Simbol broker untuk quote / order.
+string BrokerSymbol()
+{
+   string s = InpSymbol;
+   StringTrimLeft(s);
+   StringTrimRight(s);
+   if(s == "" || s == "auto" || s == "AUTO")
+      return _Symbol;
+   return s;
+}
+
+//| Simbol ke Gercep API (otak selalu XAUUSD).
+string ApiSymbol()
+{
+   string u = BrokerSymbol();
+   StringToUpper(u);
+   if(StringFind(u, "XAU") == 0 || StringFind(u, "GOLD") >= 0)
+      return "XAUUSD";
+   return BrokerSymbol();
+}
 
 //| Buang spasi/kutip yang ikut ter-paste dari dashboard.
 string CleanApiKey()
@@ -102,7 +124,7 @@ int CountOurPositions()
       if(ticket == 0) continue;
       if(!PositionSelectByTicket(ticket)) continue;
       if(PositionGetInteger(POSITION_MAGIC) != InpMagic) continue;
-      if(PositionGetString(POSITION_SYMBOL) != InpSymbol) continue;
+      if(PositionGetString(POSITION_SYMBOL) != BrokerSymbol()) continue;
       n++;
    }
    return n;
@@ -117,7 +139,7 @@ bool SelectOurPosition(ulong &ticket, long &type, double &price, double &lot, do
       if(t == 0) continue;
       if(!PositionSelectByTicket(t)) continue;
       if(PositionGetInteger(POSITION_MAGIC) != InpMagic) continue;
-      if(PositionGetString(POSITION_SYMBOL) != InpSymbol) continue;
+      if(PositionGetString(POSITION_SYMBOL) != BrokerSymbol()) continue;
       ticket = t;
       type = PositionGetInteger(POSITION_TYPE);
       price = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -256,7 +278,7 @@ void ReportOrder(const string signalId, const string status, const string direct
       "{\"signalId\":\"%s\",\"status\":\"%s\",\"symbol\":\"%s\",\"direction\":\"%s\","
       "\"lot\":%.2f,\"ticket\":%d,\"entryPrice\":%.5f,\"spread\":%.0f,\"confidence\":%.1f,"
       "\"accountMode\":\"%s\",\"accountLogin\":%d,\"errorCode\":%d,\"errorMessage\":\"%s\"}",
-      signalId, status, InpSymbol, direction, lot, ticket, entryPrice, spreadPts,
+      signalId, status, BrokerSymbol(), direction, lot, ticket, entryPrice, spreadPts,
       confidence, AccountModeString(), AccountLogin(), errorCode, errorMessage);
    HttpPostJson(ReportUrl(), json);
 }
@@ -271,7 +293,7 @@ void PrintValidationBlock(const string decision, const double lot, const double 
    Print("---- GERCEP ORDER VALIDATION ----");
    Print("ACCOUNT_MODE=", AccountModeString());
    Print("ACCOUNT_LOGIN=", AccountLogin());
-   Print("SYMBOL=", InpSymbol);
+   Print("SYMBOL=", BrokerSymbol());
    Print("SIGNAL=", decision);
    Print("LOT=", DoubleToString(lot, 2));
    Print("SPREAD=", DoubleToString(spreadPts, 0));
@@ -342,9 +364,9 @@ void CloseOurPosition(const string signalId, const double spreadPts, const doubl
 double NormalizeLot(const double lot)
 {
    double volume = (lot > 0 ? lot : InpLotFallback);
-   double minLot = SymbolInfoDouble(InpSymbol, SYMBOL_VOLUME_MIN);
-   double maxLot = SymbolInfoDouble(InpSymbol, SYMBOL_VOLUME_MAX);
-   double step   = SymbolInfoDouble(InpSymbol, SYMBOL_VOLUME_STEP);
+   double minLot = SymbolInfoDouble(BrokerSymbol(), SYMBOL_VOLUME_MIN);
+   double maxLot = SymbolInfoDouble(BrokerSymbol(), SYMBOL_VOLUME_MAX);
+   double step   = SymbolInfoDouble(BrokerSymbol(), SYMBOL_VOLUME_STEP);
    if(step <= 0) step = 0.01;
    volume = MathMax(minLot, MathMin(maxLot, volume));
    volume = MathFloor(volume / step + 1e-9) * step;
@@ -364,14 +386,14 @@ void OpenSide(const string signalId, const string decision, const double lot,
 
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpSlippagePts);
-   trade.SetTypeFillingBySymbol(InpSymbol);
+   trade.SetTypeFillingBySymbol(BrokerSymbol());
 
    double volume = NormalizeLot(lot);
    bool ok = false;
    if(decision == "BUY")
-      ok = trade.Buy(volume, InpSymbol, 0, sl, tp, "Gercep Brain BUY");
+      ok = trade.Buy(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain BUY");
    else if(decision == "SELL")
-      ok = trade.Sell(volume, InpSymbol, 0, sl, tp, "Gercep Brain SELL");
+      ok = trade.Sell(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain SELL");
    else
       return;
 
@@ -409,9 +431,16 @@ void PollAndAct()
       return;
    }
 
-   double bid       = SymbolInfoDouble(InpSymbol, SYMBOL_BID);
-   double ask       = SymbolInfoDouble(InpSymbol, SYMBOL_ASK);
-   double point     = SymbolInfoDouble(InpSymbol, SYMBOL_POINT);
+   string sym = BrokerSymbol();
+   if(!SymbolSelect(sym, true))
+   {
+      Print("SymbolSelect gagal — ", sym, " tidak ada di Market Watch.");
+      return;
+   }
+
+   double bid       = SymbolInfoDouble(sym, SYMBOL_BID);
+   double ask       = SymbolInfoDouble(sym, SYMBOL_ASK);
+   double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
    double spreadPts = (point > 0) ? (ask - bid) / point : 0;
    double balance   = AccountInfoDouble(ACCOUNT_BALANCE);
 
@@ -442,7 +471,7 @@ void PollAndAct()
    string qs = StringFormat(
       "symbol=%s&account_mode=%s&account_login=%d&bid=%.5f&ask=%.5f&spread=%.0f&balance=%.2f"
       "&broker_time=%d&gmt_offset_sec=%d%s",
-      InpSymbol, AccountModeString(), AccountLogin(), bid, ask, spreadPts, balance,
+      ApiSymbol(), AccountModeString(), AccountLogin(), bid, ask, spreadPts, balance,
       brokerTime, gmtOffsetSec, open_qs
    );
 
@@ -523,9 +552,10 @@ int OnInit()
 {
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("GercepTradeExecutor v2.1 — EXECUTION_MODE=LIVE_AUTOTRADE");
+   Print("GercepTradeExecutor v2.2 — EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
          " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading),
+         " broker=", BrokerSymbol(), " api=", ApiSymbol(),
          " lot=", DoubleToString(InpLotFallback, 2));
    if(!IsAllowedAccount())
       Print("PERINGATAN: mode akun tidak diizinkan. EA tidak akan mengirim order.");

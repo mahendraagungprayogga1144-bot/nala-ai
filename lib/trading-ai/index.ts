@@ -106,6 +106,8 @@ export {
   type LiveSignalSnapshot,
 } from "./live-activity";
 
+export { normalizeTradingSymbol } from "./symbol";
+
 export { decideTradingAction, type DecideOptions } from "./decide";
 export { buildDecisionAudit } from "./audit";
 export {

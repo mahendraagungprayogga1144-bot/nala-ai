@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeTradingSymbol } from "@/lib/trading-ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const symbol = typeof body.symbol === "string" && body.symbol.trim() ? body.symbol.trim().toUpperCase() : "XAUUSD";
+  const symbol = normalizeTradingSymbol(
+    typeof body.symbol === "string" && body.symbol.trim() ? body.symbol : "XAUUSD",
+  );
   const timeframe = typeof body.timeframe === "string" ? body.timeframe.trim().toUpperCase() : "";
   if (timeframe !== "M1" && timeframe !== "M5") {
     return NextResponse.json({ error: 'timeframe must be "M1" or "M5"' }, { status: 400 });

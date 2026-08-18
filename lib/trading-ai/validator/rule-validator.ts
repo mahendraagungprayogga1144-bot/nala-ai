@@ -73,16 +73,10 @@ export function buildConfidenceFeatures(input: {
 
   const rejAligned =
     rejection.detected &&
-    ((trend.direction === "bullish" && rejection.side === "bullish") ||
-      (trend.direction === "bearish" && rejection.side === "bearish") ||
-      (trend.direction === "sideways" &&
-        (rejection.side === "bullish" || rejection.side === "bearish")));
+    (rejection.side === "bullish" || rejection.side === "bearish");
   features.push({
     id: "rejection_aligns_bias",
-    label:
-      trend.direction === "sideways"
-        ? "Pullback side set for sideways entry"
-        : "Rejection side aligns with M5 bias",
+    label: "M1 setup side clear (BUY dip / SELL top)",
     passed: !!rejAligned,
     points: rejAligned ? 5 : 0,
     detail: `trend=${trend.direction} rejectionSide=${rejection.side ?? "null"}`,
@@ -90,10 +84,7 @@ export function buildConfidenceFeatures(input: {
 
   features.push({
     id: "m1_momentum",
-    label:
-      trend.direction === "sideways"
-        ? "M1 prior pressure (sideways scalp)"
-        : "M1 prior pressure with M5 bias",
+    label: "M1 pressure or exhaustion confirmed",
     passed: momentum.alignedWithTrend,
     points: momentum.alignedWithTrend ? 15 + Math.round(momentum.strength * 10) : 0,
     detail: `aligned=${momentum.alignedWithTrend} strength=${momentum.strength.toFixed(2)}`,
@@ -108,19 +99,12 @@ export function buildConfidenceFeatures(input: {
   });
 
   const directionOk =
-    (entry.decision === "BUY" &&
-      (trend.direction === "bullish" ||
-        (trend.direction === "sideways" && rejection.side === "bullish"))) ||
-    (entry.decision === "SELL" &&
-      (trend.direction === "bearish" ||
-        (trend.direction === "sideways" && rejection.side === "bearish"))) ||
+    (entry.decision === "BUY" && rejection.side === "bullish") ||
+    (entry.decision === "SELL" && rejection.side === "bearish") ||
     entry.decision === "WAIT";
   features.push({
     id: "entry_direction_gate",
-    label:
-      trend.direction === "sideways"
-        ? "Entry respects sideways pullback side"
-        : "Entry respects M5 direction gate",
+    label: "Entry follows M1 setup side",
     passed: directionOk,
     points: directionOk && entry.decision !== "WAIT" ? 5 : 0,
     detail: `entry=${entry.decision} trend=${trend.direction}`,
@@ -179,17 +163,25 @@ export function validateRules(input: {
 
   if (
     input.entry.decision === "BUY" &&
-    input.trend.direction !== "bullish" &&
-    !(input.trend.direction === "sideways" && input.rejection.side === "bullish")
+    !(
+      input.rejection.side === "bullish" &&
+      (input.trend.direction === "bullish" ||
+        input.trend.direction === "bearish" ||
+        input.trend.direction === "sideways")
+    )
   ) {
-    failed.push("BUY only when M5 bullish (or sideways + bullish rejection).");
+    failed.push("BUY requires bullish M1 setup (pullback/exhaustion).");
   }
   if (
     input.entry.decision === "SELL" &&
-    input.trend.direction !== "bearish" &&
-    !(input.trend.direction === "sideways" && input.rejection.side === "bearish")
+    !(
+      input.rejection.side === "bearish" &&
+      (input.trend.direction === "bullish" ||
+        input.trend.direction === "bearish" ||
+        input.trend.direction === "sideways")
+    )
   ) {
-    failed.push("SELL only when M5 bearish (or sideways + bearish rejection).");
+    failed.push("SELL requires bearish M1 setup (pullback/exhaustion).");
   }
 
   if (input.entry.decision === "BUY" || input.entry.decision === "SELL") {

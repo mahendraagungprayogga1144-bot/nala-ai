@@ -615,7 +615,60 @@ function buildBearishM1(): Candle[] {
     config,
   });
   assert(peakBuy.decision === "WAIT", `BUY dekat resistance harus WAIT, got ${peakBuy.decision}`);
-  console.log("PASS sideways shallow-pullback scalp + unknown WAIT + edge filter");
+
+  const sellTop = decideEntry({
+    trend: { timeframe: "M5", direction: "bullish", strength: 0.7, notes: [] },
+    pullback: {
+      detected: true,
+      depth: 0.35,
+      nearLevel: 2312,
+      notes: ["Exhaustion top fade — sharp up then stall at high."],
+    },
+    rejection: { detected: true, side: "bearish", atPrice: 2312, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bearish",
+      strength: 0.72,
+      notes: ["Exhaustion: sell the top after spike."],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2314,
+    },
+    marketPrice: 2311.5,
+    config,
+  });
+  assert(sellTop.decision === "SELL", `exhaustion top harus SELL, got ${sellTop.decision}`);
+
+  const buyBottom = decideEntry({
+    trend: { timeframe: "M5", direction: "bearish", strength: 0.7, notes: [] },
+    pullback: {
+      detected: true,
+      depth: 0.35,
+      nearLevel: 2299,
+      notes: ["Exhaustion bottom bounce — sharp dump then stall at low."],
+    },
+    rejection: { detected: true, side: "bullish", atPrice: 2299, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.72,
+      notes: ["Exhaustion: buy the bottom after dump."],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2314,
+    },
+    marketPrice: 2300,
+    config,
+  });
+  assert(buyBottom.decision === "BUY", `exhaustion bottom harus BUY, got ${buyBottom.decision}`);
+
+  console.log("PASS sideways + exhaustion top/bottom + edge filter");
 }
 
 // --- Exit: momentum lost protects floating profit ---

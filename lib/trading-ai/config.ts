@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.7.3-shallow-pullback";
+export const TRADING_AI_VERSION = "0.7.4-fast-extremes";
 
 /**
  * Hard product rules — never weaken from UI.

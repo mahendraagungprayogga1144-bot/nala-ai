@@ -1,9 +1,8 @@
 /**
- * Sequenced M1 setup — scalping "perampok market":
- * M5 bias + tekanan arah di M1 → entry di pullback dangkal lawan
- * (BUY di candle merah setelah hijau; SELL di candle hijau setelah merah).
- * Tidak wajib nunggu sampai S/R (biar gak ketinggalan kereta).
- * Tidak nunggu candle lanjut tren (itu bikin entry telat + floating gede).
+ * Sequenced M1 setup — scalping cepat & akurat:
+ * 1) Pullback dangkal ikut tekanan (BUY di merah / SELL di hijau)
+ * 2) Exhaustion di ekstrem: SELL di pucuk spike, BUY di dasar dump
+ * Tidak wajib nunggu S/R. M5 unknown → skip.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -20,6 +19,9 @@ import {
   isBearishCandle,
   isBullishCandle,
   lastClosedIndex,
+  rangeMid,
+  upperWick,
+  lowerWick,
 } from "./price-action";
 
 export type SequencedSetup = {
@@ -29,9 +31,10 @@ export type SequencedSetup = {
 };
 
 const LOOKBACK = 80;
-/** Max retrace dalam kaki impuls — lebih dalam = kejar ke S/R / ketinggalan momen. */
 const SHALLOW_MAX_DEPTH = 0.55;
 const PRIOR_BARS = 6;
+/** Window untuk deteksi spike/dump sebelum exhaustion. */
+const EXTREME_BARS = 10;
 
 export function detectSequencedSetup(
   m1Candles: CandleLike[],
@@ -49,14 +52,32 @@ export function detectSequencedSetup(
   const closed = lastClosedIndex(m1Candles);
   const from = Math.max(0, closed - LOOKBACK + 1);
 
+  const topFade = topFadeSell(m1Candles, from, closed, config);
+  const bottomBounce = bottomBounceBuy(m1Candles, from, closed, config);
+
   if (trendDirection === "bullish") {
-    return bullishShallowPullback(m1Candles, from, closed, config);
+    // Ikut naik + boleh SELL di pucuk spike (cepat baca atas)
+    return pickBest(
+      bullishShallowPullback(m1Candles, from, closed, config),
+      topFade,
+      bottomBounce,
+    );
   }
   if (trendDirection === "bearish") {
-    return bearishShallowPullback(m1Candles, from, closed, config);
+    // Ikut turun + boleh BUY di dasar dump (cepat baca bawah)
+    return pickBest(
+      bearishShallowPullback(m1Candles, from, closed, config),
+      topFade,
+      bottomBounce,
+    );
   }
-  // sideways — scalp dua arah dari tekanan M1 + pullback dangkal
-  return rangeBoxSequence(m1Candles, from, closed, config);
+  // sideways — semua jalur scalp
+  return pickBest(
+    bullishShallowPullback(m1Candles, from, closed, config),
+    bearishShallowPullback(m1Candles, from, closed, config),
+    topFade,
+    bottomBounce,
+  );
 }
 
 function setupScore(s: SequencedSetup): number {
@@ -68,28 +89,12 @@ function setupScore(s: SequencedSetup): number {
   );
 }
 
-/** M5 sideways: coba long & short, ambil setup M1 yang lebih matang. */
-function rangeBoxSequence(
-  candles: CandleLike[],
-  from: number,
-  closed: number,
-  config: TradingAiConfig,
-): SequencedSetup {
-  const bull = bullishShallowPullback(candles, from, closed, config);
-  const bear = bearishShallowPullback(candles, from, closed, config);
-  const pick = setupScore(bear) > setupScore(bull) ? bear : bull;
-  const note = "M5 sideways — shallow M1 pullback scalp.";
-  return {
-    pullback: {
-      ...pick.pullback,
-      notes: [note, ...(pick.pullback.notes ?? [])].slice(0, 3),
-    },
-    rejection: pick.rejection,
-    momentum: {
-      ...pick.momentum,
-      notes: [note, ...(pick.momentum.notes ?? [])].slice(0, 3),
-    },
-  };
+function pickBest(...setups: SequencedSetup[]): SequencedSetup {
+  let best = setups[0];
+  for (let i = 1; i < setups.length; i++) {
+    if (setupScore(setups[i]) > setupScore(best)) best = setups[i];
+  }
+  return best;
 }
 
 type CandleLike = {
@@ -151,6 +156,131 @@ function waitingSell(note: string, depth = 0, near: number | null = null): Seque
 }
 
 /**
+ * SELL di atas: spike naik tajam → candle pucuk macet/merah dekat high lokal.
+ */
+function topFadeSell(
+  candles: CandleLike[],
+  from: number,
+  closed: number,
+  _config: TradingAiConfig,
+): SequencedSetup {
+  const atr = atrApprox(candles) || candles[closed].close * 0.001;
+  const winFrom = Math.max(from, closed - EXTREME_BARS);
+  const win = candles.slice(winFrom, closed + 1);
+  if (win.length < 5) return waitingSell("Top fade: need more bars.");
+
+  const last = candles[closed];
+  const winHigh = Math.max(...win.map((c) => c.high));
+  const winLow = Math.min(...win.map((c) => c.low));
+  const span = winHigh - winLow;
+  if (span < atr * 1.15) {
+    return waitingSell("Top fade: no sharp spike up yet.", 0, winHigh);
+  }
+
+  const first = win[0];
+  const netUp = last.close > first.open || winHigh > first.high + atr * 0.6;
+  if (!netUp) return waitingSell("Top fade: window not an up-spike.", 0, winHigh);
+
+  // Harus di zona pucuk (dekat high window)
+  if (winHigh - last.high > atr * 0.35 && winHigh - last.close > atr * 0.45) {
+    return waitingSell("Top fade: price left the top already.", 0, winHigh);
+  }
+
+  const barRange = Math.max(last.high - last.low, 1e-9);
+  const stall =
+    isBearishCandle(last) ||
+    (upperWick(last) >= barRange * 0.35 && last.close <= rangeMid(last)) ||
+    bodySize(last) <= atr * 0.25;
+  if (!stall) {
+    return waitingSell("Top fade: waiting for stall/red at the high.", 0, winHigh);
+  }
+
+  const depth = Math.min(0.5, span / Math.max(atr * 3, span));
+  return {
+    pullback: {
+      detected: true,
+      depth,
+      nearLevel: last.high,
+      notes: ["Exhaustion top fade — sharp up then stall at high."],
+    },
+    rejection: {
+      detected: true,
+      side: "bearish",
+      atPrice: last.high,
+      notes: ["SELL di pucuk — baca cepat atas."],
+    },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bearish",
+      strength: 0.72,
+      notes: ["Exhaustion: sell the top after spike."],
+    },
+  };
+}
+
+/**
+ * BUY di bawah: dump tajam → candle dasar macet/hijau dekat low lokal.
+ */
+function bottomBounceBuy(
+  candles: CandleLike[],
+  from: number,
+  closed: number,
+  _config: TradingAiConfig,
+): SequencedSetup {
+  const atr = atrApprox(candles) || candles[closed].close * 0.001;
+  const winFrom = Math.max(from, closed - EXTREME_BARS);
+  const win = candles.slice(winFrom, closed + 1);
+  if (win.length < 5) return waitingBuy("Bottom bounce: need more bars.");
+
+  const last = candles[closed];
+  const winHigh = Math.max(...win.map((c) => c.high));
+  const winLow = Math.min(...win.map((c) => c.low));
+  const span = winHigh - winLow;
+  if (span < atr * 1.15) {
+    return waitingBuy("Bottom bounce: no sharp dump yet.", 0, winLow);
+  }
+
+  const first = win[0];
+  const netDown = last.close < first.open || winLow < first.low - atr * 0.6;
+  if (!netDown) return waitingBuy("Bottom bounce: window not a dump.", 0, winLow);
+
+  if (last.low - winLow > atr * 0.35 && last.close - winLow > atr * 0.45) {
+    return waitingBuy("Bottom bounce: price left the low already.", 0, winLow);
+  }
+
+  const barRange = Math.max(last.high - last.low, 1e-9);
+  const stall =
+    isBullishCandle(last) ||
+    (lowerWick(last) >= barRange * 0.35 && last.close >= rangeMid(last)) ||
+    bodySize(last) <= atr * 0.25;
+  if (!stall) {
+    return waitingBuy("Bottom bounce: waiting for stall/green at the low.", 0, winLow);
+  }
+
+  const depth = Math.min(0.5, span / Math.max(atr * 3, span));
+  return {
+    pullback: {
+      detected: true,
+      depth,
+      nearLevel: last.low,
+      notes: ["Exhaustion bottom bounce — sharp dump then stall at low."],
+    },
+    rejection: {
+      detected: true,
+      side: "bullish",
+      atPrice: last.low,
+      notes: ["BUY di dasar — baca cepat bawah."],
+    },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.72,
+      notes: ["Exhaustion: buy the bottom after dump."],
+    },
+  };
+}
+
+/**
  * BUY: tekanan hijau di M1 → candle merah dangkal (last closed) → entry di situ.
  */
 function bullishShallowPullback(
@@ -186,7 +316,6 @@ function bullishShallowPullback(
   const maxDepth = Math.min(config.brain.pullbackMaxDepth, SHALLOW_MAX_DEPTH);
   const pullSpan = impulseHigh - last.low;
 
-  // Noise terlalu kecil, atau dump terlalu dalam (ke support jauh).
   if (pullSpan < atr * 0.1) {
     return waitingBuy("Red bar too tiny — noise, not a pullback.", depth, last.low);
   }

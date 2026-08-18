@@ -1,9 +1,8 @@
 /**
- * Entry Decision Engine — M5 bias + M1 shallow pullback scalp ("perampok").
- * Bullish M5 → BUY only on red dip after green pressure;
- * bearish M5 → SELL only on green rally after red pressure;
- * sideways → sama, dua arah; unknown → WAIT.
- * Tidak wajib S/R; edge filter cegah BUY di pucuk / SELL di dasar kotak.
+ * Entry Decision Engine — baca M1 cepat:
+ * - Pullback dangkal ikut tekanan
+ * - Exhaustion: SELL di pucuk / BUY di dasar
+ * M5 unknown → WAIT. Arah entry mengikuti sisi setup M1 yang matang.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -89,39 +88,41 @@ const WAIT = (reason: string): EntrySignal => ({
   suggestedLot: null,
 });
 
+function isExhaustion(pullback: PullbackAnalysis, momentum: MomentumAnalysis): boolean {
+  const notes = [...(pullback.notes ?? []), ...(momentum.notes ?? [])].join(" ").toLowerCase();
+  return notes.includes("exhaustion");
+}
+
 /**
- * Di kotak S/R: BUY hanya di setengah bawah (dekat support),
- * SELL hanya di setengah atas (dekat resistance).
- * Cegah entry di "pucuk" / "dasar" lawan arah scalp.
+ * Filter kotak: cegah BUY di pucuk / SELL di dasar untuk scalp biasa.
+ * Exhaustion (sengaja di ekstrem) tidak diblok.
  */
 function rangeEdgeAllows(
   side: "BUY" | "SELL",
   marketPrice: number,
   support: number | null,
   resistance: number | null,
+  exhaustion: boolean,
 ): { ok: boolean; reason: string } {
+  if (exhaustion) return { ok: true, reason: "" };
   if (support == null || resistance == null || !(resistance > support)) {
     return { ok: true, reason: "" };
   }
   const mid = (support + resistance) / 2;
   const box = resistance - support;
-  // Long: harga harus di bawah mid (lebih dekat support). Tolak kalau sudah di zona atas.
   if (side === "BUY") {
-    const nearTop = marketPrice >= mid + box * 0.05;
-    if (nearTop) {
+    if (marketPrice >= mid + box * 0.05) {
       return {
         ok: false,
-        reason: `Range box: harga ${marketPrice.toFixed(2)} dekat resistance — jangan BUY di pucuk.`,
+        reason: `Harga ${marketPrice.toFixed(2)} dekat resistance — jangan BUY di pucuk.`,
       };
     }
     return { ok: true, reason: "" };
   }
-  // Short: harga harus di atas mid. Tolak kalau sudah di zona bawah.
-  const nearBottom = marketPrice <= mid - box * 0.05;
-  if (nearBottom) {
+  if (marketPrice <= mid - box * 0.05) {
     return {
       ok: false,
-      reason: `Range box: harga ${marketPrice.toFixed(2)} dekat support — jangan SELL di dasar.`,
+      reason: `Harga ${marketPrice.toFixed(2)} dekat support — jangan SELL di dasar.`,
     };
   }
   return { ok: true, reason: "" };
@@ -143,95 +144,61 @@ export function decideEntry(input: {
   }
 
   if (!pullback.detected) {
-    return WAIT(
-      trend.direction === "sideways"
-        ? "Sideways: waiting for shallow M1 pullback."
-        : "Waiting for shallow M1 pullback against pressure.",
-    );
+    return WAIT("Waiting for M1 pullback or extreme exhaustion.");
   }
 
   if (!rejection.detected) {
-    return WAIT("Pullback seen — waiting for entry candle on the dip/rally.");
+    return WAIT("Setup incomplete — need entry candle.");
   }
 
   if (!momentum.alignedWithTrend) {
-    return WAIT("Need prior M1 pressure with bias before entry.");
+    return WAIT("Need M1 pressure/exhaustion confirmation.");
   }
 
-  // --- M5 sideways: arah dari pullback M1 (dua arah) ---
-  if (trend.direction === "sideways") {
-    if (rejection.side === "bullish" && momentum.direction === "bullish") {
-      const edge = rangeEdgeAllows(
-        "BUY",
-        marketPrice,
-        supportResistance.nearestSupport,
-        supportResistance.nearestResistance,
-      );
-      if (!edge.ok) return WAIT(edge.reason);
-      return buildLong({
-        marketPrice,
-        rejection,
-        pullback,
-        supportResistance,
-        trend,
-        momentum,
-        config,
-        reason: "M5 sideways — BUY on shallow red pullback after green pressure.",
-      });
-    }
-    if (rejection.side === "bearish" && momentum.direction === "bearish") {
-      const edge = rangeEdgeAllows(
-        "SELL",
-        marketPrice,
-        supportResistance.nearestSupport,
-        supportResistance.nearestResistance,
-      );
-      if (!edge.ok) return WAIT(edge.reason);
-      return buildShort({
-        marketPrice,
-        rejection,
-        pullback,
-        supportResistance,
-        trend,
-        momentum,
-        config,
-        reason: "M5 sideways — SELL on shallow green pullback after red pressure.",
-      });
-    }
-    return WAIT("Sideways: pullback side mismatch — WAIT.");
-  }
+  const exhaustion = isExhaustion(pullback, momentum);
+  const common = {
+    marketPrice,
+    rejection,
+    pullback,
+    supportResistance,
+    trend,
+    momentum,
+    config,
+  };
 
-  if (trend.direction === "bullish") {
-    if (rejection.side === "bearish") {
-      return WAIT("M5 bullish — ignore sell-side pullback (BUY only).");
-    }
+  if (rejection.side === "bullish" && momentum.direction === "bullish") {
+    const edge = rangeEdgeAllows(
+      "BUY",
+      marketPrice,
+      supportResistance.nearestSupport,
+      supportResistance.nearestResistance,
+      exhaustion,
+    );
+    if (!edge.ok) return WAIT(edge.reason);
     return buildLong({
-      marketPrice,
-      rejection,
-      pullback,
-      supportResistance,
-      trend,
-      momentum,
-      config,
-      reason: "M5 bullish — BUY on shallow red pullback after M1 green pressure.",
+      ...common,
+      reason: exhaustion
+        ? `BUY dasar exhaustion (M5 ${trend.direction}).`
+        : `BUY pullback dangkal (M5 ${trend.direction}).`,
     });
   }
 
-  if (trend.direction === "bearish") {
-    if (rejection.side === "bullish") {
-      return WAIT("M5 bearish — ignore buy-side pullback (SELL only).");
-    }
+  if (rejection.side === "bearish" && momentum.direction === "bearish") {
+    const edge = rangeEdgeAllows(
+      "SELL",
+      marketPrice,
+      supportResistance.nearestSupport,
+      supportResistance.nearestResistance,
+      exhaustion,
+    );
+    if (!edge.ok) return WAIT(edge.reason);
     return buildShort({
-      marketPrice,
-      rejection,
-      pullback,
-      supportResistance,
-      trend,
-      momentum,
-      config,
-      reason: "M5 bearish — SELL on shallow green pullback after M1 red pressure.",
+      ...common,
+      reason: exhaustion
+        ? `SELL pucuk exhaustion (M5 ${trend.direction}).`
+        : `SELL pullback dangkal (M5 ${trend.direction}).`,
     });
   }
 
-  return WAIT("Setup incomplete.");
+  return WAIT("M1 setup side mismatch — WAIT.");
 }

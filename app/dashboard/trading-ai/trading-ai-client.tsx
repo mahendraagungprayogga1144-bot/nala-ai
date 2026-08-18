@@ -118,12 +118,11 @@ function decisionColor(d: TradeDecision) {
 }
 
 const RULES = [
-  "XAUUSD · M5 bias · M1 entry",
+  "XAUUSD · M5 konteks · M1 baca cepat",
   "Price action — bukan RSI/MACD/EMA",
-  "M5 bullish → BUY only",
-  "M5 bearish → SELL only",
-  "M5 sideways → tetap scalp (dua arah)",
-  "Tekanan M1 → entry di pullback dangkal (bukan nunggu S/R)",
+  "Pullback dangkal: BUY di merah / SELL di hijau",
+  "Exhaustion: SELL di pucuk spike · BUY di dasar dump",
+  "M5 unknown → WAIT · sideways tetap scalp",
   "Max 1 posisi · no avg / grid / hedge",
   "Auto-execute LIVE · demo & real (uang sungguhan)",
 ];

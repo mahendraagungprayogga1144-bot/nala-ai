@@ -30,11 +30,16 @@ export function buildConfidenceFeatures(input: {
   const features: ConfidenceFeature[] = [];
 
   const biasClear = trend.direction === "bullish" || trend.direction === "bearish";
+  const rangeBox = trend.direction === "sideways";
   features.push({
     id: "m5_bias_clear",
-    label: "M5 bias clear (bullish|bearish)",
-    passed: biasClear,
-    points: biasClear ? Math.round(trend.strength * 30) : 0,
+    label: rangeBox ? "M5 range box (sideways scalp)" : "M5 bias clear (bullish|bearish)",
+    passed: biasClear || rangeBox,
+    points: biasClear
+      ? Math.round(trend.strength * 30)
+      : rangeBox
+        ? Math.max(8, Math.round(trend.strength * 18))
+        : 0,
     detail: `direction=${trend.direction} strength=${trend.strength.toFixed(2)}`,
   });
 
@@ -69,10 +74,15 @@ export function buildConfidenceFeatures(input: {
   const rejAligned =
     rejection.detected &&
     ((trend.direction === "bullish" && rejection.side === "bullish") ||
-      (trend.direction === "bearish" && rejection.side === "bearish"));
+      (trend.direction === "bearish" && rejection.side === "bearish") ||
+      (trend.direction === "sideways" &&
+        (rejection.side === "bullish" || rejection.side === "bearish")));
   features.push({
     id: "rejection_aligns_bias",
-    label: "Rejection side aligns with M5 bias",
+    label:
+      trend.direction === "sideways"
+        ? "Rejection side set for range-box entry"
+        : "Rejection side aligns with M5 bias",
     passed: !!rejAligned,
     points: rejAligned ? 5 : 0,
     detail: `trend=${trend.direction} rejectionSide=${rejection.side ?? "null"}`,
@@ -80,7 +90,10 @@ export function buildConfidenceFeatures(input: {
 
   features.push({
     id: "m1_momentum",
-    label: "M1 momentum resumes with M5",
+    label:
+      trend.direction === "sideways"
+        ? "M1 momentum after rejection (range)"
+        : "M1 momentum resumes with M5",
     passed: momentum.alignedWithTrend,
     points: momentum.alignedWithTrend ? 15 + Math.round(momentum.strength * 10) : 0,
     detail: `aligned=${momentum.alignedWithTrend} strength=${momentum.strength.toFixed(2)}`,
@@ -95,12 +108,19 @@ export function buildConfidenceFeatures(input: {
   });
 
   const directionOk =
-    (entry.decision === "BUY" && trend.direction === "bullish") ||
-    (entry.decision === "SELL" && trend.direction === "bearish") ||
+    (entry.decision === "BUY" &&
+      (trend.direction === "bullish" ||
+        (trend.direction === "sideways" && rejection.side === "bullish"))) ||
+    (entry.decision === "SELL" &&
+      (trend.direction === "bearish" ||
+        (trend.direction === "sideways" && rejection.side === "bearish"))) ||
     entry.decision === "WAIT";
   features.push({
     id: "entry_direction_gate",
-    label: "Entry respects M5 direction gate",
+    label:
+      trend.direction === "sideways"
+        ? "Entry respects range-box side"
+        : "Entry respects M5 direction gate",
     passed: directionOk,
     points: directionOk && entry.decision !== "WAIT" ? 5 : 0,
     detail: `entry=${entry.decision} trend=${trend.direction}`,
@@ -157,11 +177,19 @@ export function validateRules(input: {
     passed.push("Primary approach: price_action.");
   }
 
-  if (input.entry.decision === "BUY" && input.trend.direction !== "bullish") {
-    failed.push("BUY only when M5 bullish.");
+  if (
+    input.entry.decision === "BUY" &&
+    input.trend.direction !== "bullish" &&
+    !(input.trend.direction === "sideways" && input.rejection.side === "bullish")
+  ) {
+    failed.push("BUY only when M5 bullish (or sideways + bullish rejection).");
   }
-  if (input.entry.decision === "SELL" && input.trend.direction !== "bearish") {
-    failed.push("SELL only when M5 bearish.");
+  if (
+    input.entry.decision === "SELL" &&
+    input.trend.direction !== "bearish" &&
+    !(input.trend.direction === "sideways" && input.rejection.side === "bearish")
+  ) {
+    failed.push("SELL only when M5 bearish (or sideways + bearish rejection).");
   }
 
   if (input.entry.decision === "BUY" || input.entry.decision === "SELL") {
@@ -170,7 +198,7 @@ export function validateRules(input: {
     if (!input.rejection.detected) failed.push("Entry without rejection.");
     else passed.push("Rejection detected.");
     if (!input.momentum.alignedWithTrend) failed.push("Entry without momentum alignment.");
-    else passed.push("Momentum aligned with M5.");
+    else passed.push("Momentum aligned with entry side.");
   }
 
   // Risk dicatat terlepas dari keputusan entry. Sebelumnya hanya dicatat saat
@@ -179,12 +207,15 @@ export function validateRules(input: {
   if (!input.risk.allowed) failed.push(...input.risk.reasons);
   else passed.push("Risk checks allowed.");
 
-  if (input.trend.direction === "sideways" || input.trend.direction === "unknown") {
+  if (input.trend.direction === "unknown") {
     if (input.entry.decision !== "WAIT") {
-      failed.push("Sideways/unknown M5 must WAIT.");
+      failed.push("Unknown M5 must WAIT.");
     } else {
-      passed.push("Sideways/unknown → WAIT enforced.");
+      passed.push("Unknown M5 → WAIT enforced.");
     }
+  }
+  if (input.trend.direction === "sideways" && input.entry.decision !== "WAIT") {
+    passed.push("Sideways range-box scalp allowed.");
   }
 
   const features = buildConfidenceFeatures(input);

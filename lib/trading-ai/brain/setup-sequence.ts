@@ -39,9 +39,10 @@ export function detectSequencedSetup(
   config: TradingAiConfig,
   sr: SupportResistanceAnalysis | null,
 ): SequencedSetup {
-  const empty = emptySetup("No directional bias — skip M1 hunt.");
-  if (trendDirection === "unknown" || trendDirection === "sideways") {
-    return empty;
+  // unknown = belum cukup struktur → jangan hunt.
+  // sideways = range / kotak S/R → boleh hunt BUY & SELL dari M1.
+  if (trendDirection === "unknown") {
+    return emptySetup("No directional bias — skip M1 hunt.");
   }
   if (m1Candles.length < config.brain.minM1Candles) {
     return emptySetup(`Need at least ${config.brain.minM1Candles} M1 candles.`);
@@ -56,7 +57,47 @@ export function detectSequencedSetup(
   if (trendDirection === "bullish") {
     return bullishSequence(m1Candles, swings, from, closed, touchTol, config, sr);
   }
-  return bearishSequence(m1Candles, swings, from, closed, touchTol, config, sr);
+  if (trendDirection === "bearish") {
+    return bearishSequence(m1Candles, swings, from, closed, touchTol, config, sr);
+  }
+  // sideways — scalp di dalam kotak S/R: pilih setup M1 yang lebih matang.
+  return rangeBoxSequence(m1Candles, swings, from, closed, touchTol, config, sr);
+}
+
+function setupScore(s: SequencedSetup): number {
+  return (
+    (s.pullback.detected ? 1 : 0) +
+    (s.rejection.detected ? 1 : 0) +
+    (s.momentum.alignedWithTrend ? 1 : 0) +
+    s.momentum.strength * 0.1
+  );
+}
+
+/** M5 sideways: coba long & short di S/R, ambil yang paling lengkap. */
+function rangeBoxSequence(
+  candles: CandleLike[],
+  swings: ReturnType<typeof findSwings>,
+  from: number,
+  closed: number,
+  touchTol: number,
+  config: TradingAiConfig,
+  sr: SupportResistanceAnalysis | null,
+): SequencedSetup {
+  const bull = bullishSequence(candles, swings, from, closed, touchTol, config, sr);
+  const bear = bearishSequence(candles, swings, from, closed, touchTol, config, sr);
+  const pick = setupScore(bear) > setupScore(bull) ? bear : bull;
+  const note = "M5 sideways — range box scalp (M1 S/R momentum).";
+  return {
+    pullback: {
+      ...pick.pullback,
+      notes: [note, ...(pick.pullback.notes ?? [])].slice(0, 3),
+    },
+    rejection: pick.rejection,
+    momentum: {
+      ...pick.momentum,
+      notes: [note, ...(pick.momentum.notes ?? [])].slice(0, 3),
+    },
+  };
 }
 
 type CandleLike = {

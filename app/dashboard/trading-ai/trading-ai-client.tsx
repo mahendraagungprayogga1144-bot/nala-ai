@@ -133,6 +133,7 @@ const RULES = [
   "Price action — bukan RSI/MACD/EMA",
   "M5 bullish → BUY only",
   "M5 bearish → SELL only",
+  "M5 sideways → scalp di kotak S/R (M1)",
   "Pullback → rejection → momentum",
   "Max 1 posisi · no avg / grid / hedge",
   "Auto-execute LIVE · demo & real (uang sungguhan)",

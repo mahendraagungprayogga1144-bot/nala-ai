@@ -538,31 +538,9 @@ function buildBearishM1(): Candle[] {
   console.log("PASS control layer + signalId stabil + freshness");
 }
 
-// --- M5 sideways/unknown → WAIT (final spec, no sideways scalp) ---
+// --- M5 sideways → range-box scalp; unknown → WAIT ---
 {
-  const waitish = decideEntry({
-    trend: { timeframe: "M5", direction: "sideways", strength: 0.2, notes: [] },
-    pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
-    rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
-    momentum: {
-      alignedWithTrend: true,
-      direction: "bullish",
-      strength: 0.8,
-      notes: [],
-    },
-    supportResistance: {
-      timeframe: "M5",
-      levels: [],
-      nearestSupport: 2298,
-      nearestResistance: 2305,
-    },
-    marketPrice: 2301,
-    config,
-  });
-  assert(waitish.decision === "WAIT", `sideways entry harus WAIT, got ${waitish.decision}`);
-  assert(/sideways|unknown|not clear/i.test(waitish.reason), `reason: ${waitish.reason}`);
-
-  const unknown = decideEntry({
+  const waitUnknown = decideEntry({
     trend: { timeframe: "M5", direction: "unknown", strength: 0, notes: [] },
     pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
     rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
@@ -581,8 +559,50 @@ function buildBearishM1(): Candle[] {
     marketPrice: 2301,
     config,
   });
-  assert(unknown.decision === "WAIT", "unknown M5 harus WAIT");
-  console.log("PASS sideways/unknown M5 → WAIT");
+  assert(waitUnknown.decision === "WAIT", "unknown M5 harus WAIT");
+
+  const buyBox = decideEntry({
+    trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
+    pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
+    rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.8,
+      notes: [],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2305,
+    },
+    marketPrice: 2301,
+    config,
+  });
+  assert(buyBox.decision === "BUY", `sideways + bullish M1 harus BUY, got ${buyBox.decision}`);
+
+  const sellBox = decideEntry({
+    trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
+    pullback: { detected: true, depth: 0.4, nearLevel: 2305, notes: [] },
+    rejection: { detected: true, side: "bearish", atPrice: 2305, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bearish",
+      strength: 0.8,
+      notes: [],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2305,
+    },
+    marketPrice: 2303,
+    config,
+  });
+  assert(sellBox.decision === "SELL", `sideways + bearish M1 harus SELL, got ${sellBox.decision}`);
+  console.log("PASS sideways range-box scalp + unknown WAIT");
 }
 
 // --- Exit: momentum lost protects floating profit ---

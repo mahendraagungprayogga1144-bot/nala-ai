@@ -1,6 +1,6 @@
 /**
- * Entry Decision — perampok ekstrem:
- * BUY dasar / SELL pucuk saja. Tolak kejar kalau harga sudah jauh dari ekstrem.
+ * Entry Decision — perampok lokal:
+ * BUY di dasar swing / SELL di pucuk swing. Tolak kejar tengah.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -125,7 +125,7 @@ export function decideEntry(input: {
   }
 
   if (!pullback.detected || !rejection.detected || !momentum.alignedWithTrend) {
-    return WAIT("Waiting for extreme M1 setup (dasar BUY / pucuk SELL).");
+    return WAIT("Waiting for local swing setup (dasar BUY / pucuk SELL).");
   }
 
   const common = {
@@ -143,7 +143,7 @@ export function decideEntry(input: {
     if (!chase.ok) return WAIT(chase.reason);
     return buildLong({
       ...common,
-      reason: `BUY di dasar ekstrem (M5 ${trend.direction}).`,
+      reason: `BUY di dasar lokal (M5 ${trend.direction}).`,
     });
   }
 
@@ -152,7 +152,7 @@ export function decideEntry(input: {
     if (!chase.ok) return WAIT(chase.reason);
     return buildShort({
       ...common,
-      reason: `SELL di pucuk ekstrem (M5 ${trend.direction}).`,
+      reason: `SELL di pucuk lokal (M5 ${trend.direction}).`,
     });
   }
 

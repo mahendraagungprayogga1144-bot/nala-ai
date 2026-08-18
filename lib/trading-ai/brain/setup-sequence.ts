@@ -1,8 +1,8 @@
 /**
- * Sequenced M1 — perampok ekstrem saja:
- * BUY hanya di dasar dump (stall dekat low),
- * SELL hanya di pucuk spike (stall dekat high).
- * Tidak kejar tengah jalan / pullback jauh dari ekstrem.
+ * Sequenced M1 — perampok lokal (yang kita omongin):
+ * BUY di dasar swing lokal (stall hijau dekat low),
+ * SELL di pucuk swing lokal (stall merah dekat high).
+ * Lebih sering dari "dump/spike raksasa", tetap tolak kejar tengah.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -31,9 +31,10 @@ export type SequencedSetup = {
 };
 
 const LOOKBACK = 80;
-const EXTREME_BARS = 12;
-/** Dekat ekstrem: close harus dalam band ini dari high/low window. */
-const EXTREME_CLOSE_ATR = 0.85;
+/** Window swing lokal — cukup untuk chop M1, tidak nunggu dump besar. */
+const SWING_BARS = 8;
+const EXTREME_CLOSE_ATR = 0.75;
+const MIN_SPAN_ATR = 0.55;
 
 export function detectSequencedSetup(
   m1Candles: CandleLike[],
@@ -51,10 +52,9 @@ export function detectSequencedSetup(
   const closed = lastClosedIndex(m1Candles);
   const from = Math.max(0, closed - LOOKBACK + 1);
 
-  // Hanya jalur ekstrem — jangan rampok di tengah.
   return pickBest(
-    topFadeSell(m1Candles, from, closed),
-    bottomBounceBuy(m1Candles, from, closed),
+    localTopSell(m1Candles, from, closed),
+    localBottomBuy(m1Candles, from, closed),
   );
 }
 
@@ -73,7 +73,6 @@ function pickBest(...setups: SequencedSetup[]): SequencedSetup {
     const a = setupScore(best);
     const b = setupScore(setups[i]);
     if (b > a) best = setups[i];
-    // Kalau skor sama, pilih yang detected (hindari pesan WAIT jalur lain).
     else if (b === a && setups[i].pullback.detected && !best.pullback.detected) {
       best = setups[i];
     }
@@ -110,13 +109,13 @@ function waitingBuy(note: string, depth = 0, near: number | null = null): Sequen
       detected: false,
       side: null,
       atPrice: null,
-      notes: ["Need stall at the low (BUY dasar)."],
+      notes: ["Need green stall at local low (BUY dasar)."],
     },
     momentum: {
       alignedWithTrend: false,
       direction: "unknown",
       strength: 0,
-      notes: ["Waiting for bottom extreme."],
+      notes: ["Waiting for local bottom."],
     },
   };
 }
@@ -128,158 +127,143 @@ function waitingSell(note: string, depth = 0, near: number | null = null): Seque
       detected: false,
       side: null,
       atPrice: null,
-      notes: ["Need stall at the high (SELL pucuk)."],
+      notes: ["Need red stall at local high (SELL pucuk)."],
     },
     momentum: {
       alignedWithTrend: false,
       direction: "unknown",
       strength: 0,
-      notes: ["Waiting for top extreme."],
+      notes: ["Waiting for local top."],
     },
   };
 }
 
 /**
- * SELL di pucuk: spike naik → candle MERAH dekat high (bukan kejar tengah).
+ * SELL di pucuk lokal: naik dulu → merah reject dekat high window.
  */
-function topFadeSell(
+function localTopSell(
   candles: CandleLike[],
   from: number,
   closed: number,
 ): SequencedSetup {
   const atr = atrApprox(candles) || candles[closed].close * 0.001;
-  const winFrom = Math.max(from, closed - EXTREME_BARS);
+  const winFrom = Math.max(from, closed - SWING_BARS);
   const win = candles.slice(winFrom, closed + 1);
-  if (win.length < 5) return waitingSell("Top fade: need more bars.");
+  if (win.length < 4) return waitingSell("Local top: need more bars.");
 
   const last = candles[closed];
-  const prev = closed > 0 ? candles[closed - 1] : last;
   const winHigh = Math.max(...win.map((c) => c.high));
   const winLow = Math.min(...win.map((c) => c.low));
   const span = winHigh - winLow;
-  if (span < atr * 1.2) {
-    return waitingSell("Top fade: no sharp spike up yet.", 0, winHigh);
+  if (span < atr * MIN_SPAN_ATR) {
+    return waitingSell("Local top: swing terlalu tipis.", 0, winHigh);
   }
 
   const first = win[0];
-  if (!(winHigh > first.high + atr * 0.5)) {
-    return waitingSell("Top fade: window not an up-spike.", 0, winHigh);
+  // Ada dorongan naik di window (bukan flat).
+  if (!(winHigh >= first.high + atr * 0.2 || last.high >= first.close + atr * 0.25)) {
+    return waitingSell("Local top: belum ada naik ke pucuk lokal.", 0, winHigh);
   }
 
-  // Masih di zona pucuk — kalau sudah turun jauh dari high, momen lewat.
+  // Masih di zona pucuk — jangan SELL setelah sudah anjlok jauh.
   if (winHigh - last.close > atr * EXTREME_CLOSE_ATR) {
-    return waitingSell("Top fade: left the top — jangan kejar SELL.", 0, winHigh);
+    return waitingSell("Local top: sudah jauh dari pucuk — jangan kejar.", 0, winHigh);
   }
-  if (winHigh - last.high > atr * 0.2) {
-    return waitingSell("Top fade: high already away from window peak.", 0, winHigh);
+  if (winHigh - last.high > atr * 0.35) {
+    return waitingSell("Local top: high sudah lewat.", 0, winHigh);
   }
 
-  // Wajib rejection bearish di pucuk (bukan doji kecil di tengah naik).
   const barRange = Math.max(last.high - last.low, 1e-9);
   const rejectTop =
     isBearishCandle(last) &&
-    (upperWick(last) >= barRange * 0.2 || last.close <= rangeMid(last));
+    (upperWick(last) >= barRange * 0.15 || last.close <= rangeMid(last) || bodySize(last) >= atr * 0.12);
   if (!rejectTop) {
-    return waitingSell("Top fade: need red rejection at the high.", 0, winHigh);
+    return waitingSell("Local top: nunggu candle merah reject di pucuk.", 0, winHigh);
   }
 
-  // Kalau bar sebelumnya masih HH kuat tanpa pelemahan, jangan gas dulu.
-  if (isBullishCandle(prev) && prev.close > prev.open + atr * 0.35 && last.high > prev.high) {
-    if (bodySize(last) < atr * 0.15) {
-      return waitingSell("Top fade: still climbing — wait clearer red.", 0, winHigh);
-    }
-  }
-
-  const depth = Math.min(0.5, span / Math.max(atr * 3, span));
+  const depth = Math.min(0.55, span / Math.max(atr * 2.5, span));
   return {
     pullback: {
       detected: true,
       depth,
       nearLevel: last.high,
-      notes: ["Exhaustion top — SELL hanya di pucuk."],
+      notes: ["Local swing top — SELL di pucuk lokal."],
     },
     rejection: {
       detected: true,
       side: "bearish",
       atPrice: last.high,
-      notes: ["SELL di pucuk ekstrem."],
+      notes: ["SELL pucuk lokal (bukan tengah)."],
     },
     momentum: {
       alignedWithTrend: true,
       direction: "bearish",
-      strength: 0.78,
-      notes: ["Exhaustion: sell the top after spike."],
+      strength: 0.7,
+      notes: ["Local top fade after upswing."],
     },
   };
 }
 
 /**
- * BUY di dasar: dump tajam → candle HIJAU dekat low (bukan kejar naik).
+ * BUY di dasar lokal: turun dulu → hijau reject dekat low window.
  */
-function bottomBounceBuy(
+function localBottomBuy(
   candles: CandleLike[],
   from: number,
   closed: number,
 ): SequencedSetup {
   const atr = atrApprox(candles) || candles[closed].close * 0.001;
-  const winFrom = Math.max(from, closed - EXTREME_BARS);
+  const winFrom = Math.max(from, closed - SWING_BARS);
   const win = candles.slice(winFrom, closed + 1);
-  if (win.length < 5) return waitingBuy("Bottom bounce: need more bars.");
+  if (win.length < 4) return waitingBuy("Local bottom: need more bars.");
 
   const last = candles[closed];
-  const prev = closed > 0 ? candles[closed - 1] : last;
   const winHigh = Math.max(...win.map((c) => c.high));
   const winLow = Math.min(...win.map((c) => c.low));
   const span = winHigh - winLow;
-  if (span < atr * 1.2) {
-    return waitingBuy("Bottom bounce: no sharp dump yet.", 0, winLow);
+  if (span < atr * MIN_SPAN_ATR) {
+    return waitingBuy("Local bottom: swing terlalu tipis.", 0, winLow);
   }
 
   const first = win[0];
-  if (!(winLow < first.low - atr * 0.5)) {
-    return waitingBuy("Bottom bounce: window not a dump.", 0, winLow);
+  if (!(winLow <= first.low - atr * 0.2 || last.low <= first.close - atr * 0.25)) {
+    return waitingBuy("Local bottom: belum ada turun ke dasar lokal.", 0, winLow);
   }
 
   if (last.close - winLow > atr * EXTREME_CLOSE_ATR) {
-    return waitingBuy("Bottom bounce: left the low — jangan kejar BUY.", 0, winLow);
+    return waitingBuy("Local bottom: sudah jauh dari dasar — jangan kejar.", 0, winLow);
   }
-  if (last.low - winLow > atr * 0.2) {
-    return waitingBuy("Bottom bounce: low already away from window floor.", 0, winLow);
+  if (last.low - winLow > atr * 0.35) {
+    return waitingBuy("Local bottom: low sudah lewat.", 0, winLow);
   }
 
   const barRange = Math.max(last.high - last.low, 1e-9);
   const rejectBottom =
     isBullishCandle(last) &&
-    (lowerWick(last) >= barRange * 0.2 || last.close >= rangeMid(last));
+    (lowerWick(last) >= barRange * 0.15 || last.close >= rangeMid(last) || bodySize(last) >= atr * 0.12);
   if (!rejectBottom) {
-    return waitingBuy("Bottom bounce: need green rejection at the low.", 0, winLow);
+    return waitingBuy("Local bottom: nunggu candle hijau reject di dasar.", 0, winLow);
   }
 
-  if (isBearishCandle(prev) && prev.open > prev.close + atr * 0.35 && last.low < prev.low) {
-    if (bodySize(last) < atr * 0.15) {
-      return waitingBuy("Bottom bounce: still dumping — wait clearer green.", 0, winLow);
-    }
-  }
-
-  const depth = Math.min(0.5, span / Math.max(atr * 3, span));
+  const depth = Math.min(0.55, span / Math.max(atr * 2.5, span));
   return {
     pullback: {
       detected: true,
       depth,
       nearLevel: last.low,
-      notes: ["Exhaustion bottom — BUY hanya di dasar."],
+      notes: ["Local swing bottom — BUY di dasar lokal."],
     },
     rejection: {
       detected: true,
       side: "bullish",
       atPrice: last.low,
-      notes: ["BUY di dasar ekstrem."],
+      notes: ["BUY dasar lokal (bukan tengah)."],
     },
     momentum: {
       alignedWithTrend: true,
       direction: "bullish",
-      strength: 0.78,
-      notes: ["Exhaustion: buy the bottom after dump."],
+      strength: 0.7,
+      notes: ["Local bottom bounce after downswing."],
     },
   };
 }

@@ -118,10 +118,10 @@ function decisionColor(d: TradeDecision) {
 }
 
 const RULES = [
-  "XAUUSD · M5 konteks · M1 ekstrem",
+  "XAUUSD · M5 konteks · M1 swing lokal",
   "Price action — bukan RSI/MACD/EMA",
-  "BUY hanya di dasar dump (stall hijau)",
-  "SELL hanya di pucuk spike (stall merah)",
+  "BUY di dasar swing lokal (stall hijau)",
+  "SELL di pucuk swing lokal (stall merah)",
   "Tolak kejar tengah jalan",
   "Max 1 posisi · no avg / grid / hedge",
   "Auto-execute LIVE · demo & real",

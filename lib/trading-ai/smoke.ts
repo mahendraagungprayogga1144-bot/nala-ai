@@ -46,38 +46,20 @@ function buildBullishM5(): Candle[] {
   return out;
 }
 
-/** M1: pullback to support (~2308), rejection wick, then bullish momentum. */
+/** M1: tekanan hijau lalu pullback merah dangkal (entry candle). */
 function buildBullishM1Setup(): Candle[] {
   const out: Candle[] = [];
-  let px = 2308;
-  // impulse up to ~2316
-  for (let i = 0; i < 16; i++) {
+  let px = 2305;
+  for (let i = 0; i < 28; i++) {
     const o = px;
-    const c = px + 0.5;
-    out.push(candle(i, o, c + 0.2, o - 0.1, c));
+    const c = px + 0.35;
+    out.push(candle(i, o, c + 0.15, o - 0.08, c));
     px = c;
   }
-  // pullback down toward support
-  while (px > 2308.6) {
-    const o = px;
-    const c = px - 0.45;
-    const low = Math.min(o, c) - 0.08;
-    const high = Math.max(o, c) + 0.08;
-    out.push(candle(out.length, o, high, low, c));
-    px = c;
-  }
-  // clear bullish rejection pin at support
-  out.push(candle(out.length, 2308.4, 2308.7, 2307.8, 2308.55));
-  px = 2308.55;
-  // momentum up
-  for (let i = 0; i < 6; i++) {
-    const o = px;
-    const c = px + 0.45;
-    out.push(candle(out.length, o, c + 0.15, o - 0.05, c));
-    px = c;
-  }
-  // forming bar
-  out.push(candle(out.length, px, px + 0.1, px - 0.05, px + 0.05));
+  const o = px;
+  const c = px - 0.45;
+  out.push(candle(out.length, o, o + 0.06, c - 0.04, c));
+  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
   return out;
 }
 
@@ -97,7 +79,8 @@ const config = mergeTradingAiConfig({
     minM1Candles: 25,
     minConfidenceToEnter: 50,
     pullbackMinDepth: 0.15,
-    pullbackMaxDepth: 0.95,
+    pullbackMaxDepth: 0.55,
+    pullbackDepthBasis: "impulse",
     levelTouchAtrMult: 1.2,
   },
 });

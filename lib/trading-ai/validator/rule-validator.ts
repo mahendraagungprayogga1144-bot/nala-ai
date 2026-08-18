@@ -45,7 +45,7 @@ export function buildConfidenceFeatures(input: {
 
   features.push({
     id: "m1_pullback",
-    label: "M1 pullback into S/R",
+    label: "M1 shallow pullback (dip/rally)",
     passed: pullback.detected,
     points: pullback.detected ? 20 : 0,
     detail: `detected=${pullback.detected} depth=${pullback.depth.toFixed(3)} level=${pullback.nearLevel ?? "null"}`,
@@ -54,7 +54,7 @@ export function buildConfidenceFeatures(input: {
   const depthInBand =
     pullback.detected &&
     pullback.depth >= config.brain.pullbackMinDepth &&
-    pullback.depth <= Math.max(config.brain.pullbackMaxDepth, 1);
+    pullback.depth <= config.brain.pullbackMaxDepth;
   features.push({
     id: "pullback_depth_band",
     label: "Pullback depth in configured band",
@@ -65,7 +65,7 @@ export function buildConfidenceFeatures(input: {
 
   features.push({
     id: "m1_rejection",
-    label: "M1 rejection at level (OHLC)",
+    label: "M1 entry on pullback candle",
     passed: rejection.detected,
     points: rejection.detected ? 25 : 0,
     detail: `detected=${rejection.detected} side=${rejection.side ?? "null"} at=${rejection.atPrice ?? "null"}`,
@@ -81,7 +81,7 @@ export function buildConfidenceFeatures(input: {
     id: "rejection_aligns_bias",
     label:
       trend.direction === "sideways"
-        ? "Rejection side set for range-box entry"
+        ? "Pullback side set for sideways entry"
         : "Rejection side aligns with M5 bias",
     passed: !!rejAligned,
     points: rejAligned ? 5 : 0,
@@ -92,8 +92,8 @@ export function buildConfidenceFeatures(input: {
     id: "m1_momentum",
     label:
       trend.direction === "sideways"
-        ? "M1 momentum after rejection (range)"
-        : "M1 momentum resumes with M5",
+        ? "M1 prior pressure (sideways scalp)"
+        : "M1 prior pressure with M5 bias",
     passed: momentum.alignedWithTrend,
     points: momentum.alignedWithTrend ? 15 + Math.round(momentum.strength * 10) : 0,
     detail: `aligned=${momentum.alignedWithTrend} strength=${momentum.strength.toFixed(2)}`,
@@ -119,7 +119,7 @@ export function buildConfidenceFeatures(input: {
     id: "entry_direction_gate",
     label:
       trend.direction === "sideways"
-        ? "Entry respects range-box side"
+        ? "Entry respects sideways pullback side"
         : "Entry respects M5 direction gate",
     passed: directionOk,
     points: directionOk && entry.decision !== "WAIT" ? 5 : 0,
@@ -215,7 +215,7 @@ export function validateRules(input: {
     }
   }
   if (input.trend.direction === "sideways" && input.entry.decision !== "WAIT") {
-    passed.push("Sideways range-box scalp allowed.");
+    passed.push("Sideways shallow-pullback scalp allowed.");
   }
 
   const features = buildConfidenceFeatures(input);

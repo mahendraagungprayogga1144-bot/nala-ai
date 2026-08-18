@@ -93,31 +93,20 @@ function demoBullishM5(): Candle[] {
   return out;
 }
 
-/** Demo M1 pullback → rejection → momentum. */
+/** Demo M1: tekanan hijau → pullback merah dangkal. */
 function demoBullishM1(): Candle[] {
   const out: Candle[] = [];
-  let px = 2308;
-  for (let i = 0; i < 16; i++) {
+  let px = 2305;
+  for (let i = 0; i < 28; i++) {
     const o = px;
-    const c = px + 0.5;
-    out.push(candle(i, o, c + 0.2, o - 0.1, c));
+    const c = px + 0.35;
+    out.push(candle(i, o, c + 0.15, o - 0.08, c));
     px = c;
   }
-  while (px > 2308.6) {
-    const o = px;
-    const c = px - 0.45;
-    out.push(candle(out.length, o, Math.max(o, c) + 0.08, Math.min(o, c) - 0.08, c));
-    px = c;
-  }
-  out.push(candle(out.length, 2308.4, 2308.7, 2307.8, 2308.55));
-  px = 2308.55;
-  for (let i = 0; i < 6; i++) {
-    const o = px;
-    const c = px + 0.45;
-    out.push(candle(out.length, o, c + 0.15, o - 0.05, c));
-    px = c;
-  }
-  out.push(candle(out.length, px, px + 0.1, px - 0.05, px + 0.05));
+  const o = px;
+  const c = px - 0.45;
+  out.push(candle(out.length, o, o + 0.06, c - 0.04, c));
+  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
   return out;
 }
 
@@ -133,8 +122,8 @@ const RULES = [
   "Price action — bukan RSI/MACD/EMA",
   "M5 bullish → BUY only",
   "M5 bearish → SELL only",
-  "M5 sideways → scalp di kotak S/R (M1)",
-  "Pullback → rejection → momentum",
+  "M5 sideways → tetap scalp (dua arah)",
+  "Tekanan M1 → entry di pullback dangkal (bukan nunggu S/R)",
   "Max 1 posisi · no avg / grid / hedge",
   "Auto-execute LIVE · demo & real (uang sungguhan)",
 ];
@@ -567,7 +556,8 @@ export default function TradingAiClient({
               ...DEFAULT_TRADING_AI_CONFIG.brain,
               minConfidenceToEnter: 50,
               pullbackMinDepth: 0.15,
-              pullbackMaxDepth: 0.95,
+              pullbackMaxDepth: 0.55,
+              pullbackDepthBasis: "impulse",
               levelTouchAtrMult: 1.2,
             },
           },

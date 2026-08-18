@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.7.1-range-box-scalp";
+export const TRADING_AI_VERSION = "0.7.3-shallow-pullback";
 
 /**
  * Hard product rules — never weaken from UI.
@@ -118,9 +118,9 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
   brain: {
     minM5Candles: 50,
     minM1Candles: 30,
-    pullbackMinDepth: 0.2,
-    pullbackMaxDepth: 0.85,
-    pullbackDepthBasis: "level",
+    pullbackMinDepth: 0.15,
+    pullbackMaxDepth: 0.55,
+    pullbackDepthBasis: "impulse",
     minConfidenceToEnter: 65,
     swingLeft: 2,
     swingRight: 2,

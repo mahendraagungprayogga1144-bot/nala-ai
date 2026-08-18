@@ -46,7 +46,8 @@ const config = mergeTradingAiConfig({
     minM1Candles: 25,
     minConfidenceToEnter: 50,
     pullbackMinDepth: 0.15,
-    pullbackMaxDepth: 0.95,
+    pullbackMaxDepth: 0.55,
+    pullbackDepthBasis: "impulse",
     levelTouchAtrMult: 1.2,
   },
 });
@@ -88,28 +89,19 @@ function buildBearishM5(): Candle[] {
 
 function buildBullishM1(): Candle[] {
   const out: Candle[] = [];
-  let px = 2308;
-  for (let i = 0; i < 16; i++) {
+  let px = 2305;
+  // Pad + tekanan hijau (minM1Candles)
+  for (let i = 0; i < 28; i++) {
     const o = px;
-    const c = px + 0.5;
-    out.push(candle(i, o, c + 0.2, o - 0.1, c));
+    const c = px + 0.35;
+    out.push(candle(i, o, c + 0.15, o - 0.08, c));
     px = c;
   }
-  while (px > 2308.6) {
-    const o = px;
-    const c = px - 0.45;
-    out.push(candle(out.length, o, Math.max(o, c) + 0.08, Math.min(o, c) - 0.08, c));
-    px = c;
-  }
-  out.push(candle(out.length, 2308.4, 2308.7, 2307.8, 2308.55));
-  px = 2308.55;
-  for (let i = 0; i < 6; i++) {
-    const o = px;
-    const c = px + 0.45;
-    out.push(candle(out.length, o, c + 0.15, o - 0.05, c));
-    px = c;
-  }
-  out.push(candle(out.length, px, px + 0.1, px - 0.05, px + 0.05));
+  // Entry: pullback merah dangkal (closed) + forming bar
+  const o = px;
+  const c = px - 0.45;
+  out.push(candle(out.length, o, o + 0.06, c - 0.04, c));
+  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
   return out;
 }
 
@@ -602,7 +594,28 @@ function buildBearishM1(): Candle[] {
     config,
   });
   assert(sellBox.decision === "SELL", `sideways + bearish M1 harus SELL, got ${sellBox.decision}`);
-  console.log("PASS sideways range-box scalp + unknown WAIT");
+
+  const peakBuy = decideEntry({
+    trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
+    pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
+    rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.8,
+      notes: [],
+    },
+    supportResistance: {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: 2298,
+      nearestResistance: 2305,
+    },
+    marketPrice: 2304.5, // dekat resistance → jangan BUY di pucuk
+    config,
+  });
+  assert(peakBuy.decision === "WAIT", `BUY dekat resistance harus WAIT, got ${peakBuy.decision}`);
+  console.log("PASS sideways shallow-pullback scalp + unknown WAIT + edge filter");
 }
 
 // --- Exit: momentum lost protects floating profit ---

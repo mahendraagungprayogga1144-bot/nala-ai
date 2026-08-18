@@ -27,7 +27,7 @@
 //|  7. InpSymbol kosong = auto XAUUSDm dari chart
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.41"
+#property version   "2.42"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -190,6 +190,28 @@ int CountOurPositions()
       n++;
    }
    return n;
+}
+
+// Kunci antar-chart: cegah 3–4 Executor buka bareng di detik yang sama.
+bool AcquireEntryLock()
+{
+   string key = "GERCEP_ENTRY_LOCK_" + IntegerToString(InpMagic);
+   double now = (double)TimeTradeServer();
+   if(!GlobalVariableCheck(key))
+      GlobalVariableSet(key, 0.0);
+   double cur = GlobalVariableGet(key);
+   if(cur > 0.0 && (now - cur) < 8.0)
+   {
+      Print("ENTRY_LOCK aktif — Executor lain sedang/baru entry. Skip.");
+      return false;
+   }
+   GlobalVariableSet(key, 0.0);
+   if(!GlobalVariableSetOnCondition(key, now, 0.0))
+   {
+      Print("ENTRY_LOCK race — chart lain lebih dulu. Skip.");
+      return false;
+   }
+   return true;
 }
 
 bool SelectOurPosition(ulong &ticket, long &type, double &price, double &lot, double &sl, double &tp, double &pnl)
@@ -475,6 +497,8 @@ void OpenSide(const string signalId, const string decision, const double lot,
       Print("MAX_POSITION=1 — posisi masih terbuka, entry dibatalkan.");
       return;
    }
+   if(!AcquireEntryLock())
+      return;
 
    string sym = BrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
@@ -718,7 +742,7 @@ int OnInit()
    g_brokerSym = ResolveBrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("==== GercepTradeExecutor v2.4.1 FINAL ====");
+   Print("==== GercepTradeExecutor v2.4.2 FINAL ====");
    Print("EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
          " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading));

@@ -1,8 +1,6 @@
 /**
- * Entry Decision Engine — baca M1 cepat:
- * - Pullback dangkal ikut tekanan
- * - Exhaustion: SELL di pucuk / BUY di dasar
- * M5 unknown → WAIT. Arah entry mengikuti sisi setup M1 yang matang.
+ * Entry Decision — perampok ekstrem:
+ * BUY dasar / SELL pucuk saja. Tolak kejar kalau harga sudah jauh dari ekstrem.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -88,41 +86,24 @@ const WAIT = (reason: string): EntrySignal => ({
   suggestedLot: null,
 });
 
-function isExhaustion(pullback: PullbackAnalysis, momentum: MomentumAnalysis): boolean {
-  const notes = [...(pullback.notes ?? []), ...(momentum.notes ?? [])].join(" ").toLowerCase();
-  return notes.includes("exhaustion");
-}
-
-/**
- * Filter kotak: cegah BUY di pucuk / SELL di dasar untuk scalp biasa.
- * Exhaustion (sengaja di ekstrem) tidak diblok.
- */
-function rangeEdgeAllows(
+/** Tolak entry kalau harga sudah jauh dari level ekstrem setup. */
+function chaseGuard(
   side: "BUY" | "SELL",
   marketPrice: number,
-  support: number | null,
-  resistance: number | null,
-  exhaustion: boolean,
+  extreme: number | null,
 ): { ok: boolean; reason: string } {
-  if (exhaustion) return { ok: true, reason: "" };
-  if (support == null || resistance == null || !(resistance > support)) {
-    return { ok: true, reason: "" };
-  }
-  const mid = (support + resistance) / 2;
-  const box = resistance - support;
-  if (side === "BUY") {
-    if (marketPrice >= mid + box * 0.05) {
-      return {
-        ok: false,
-        reason: `Harga ${marketPrice.toFixed(2)} dekat resistance — jangan BUY di pucuk.`,
-      };
-    }
-    return { ok: true, reason: "" };
-  }
-  if (marketPrice <= mid - box * 0.05) {
+  if (extreme == null || !(extreme > 0)) return { ok: true, reason: "" };
+  const maxChase = Math.max(marketPrice * 0.0002, 0.75);
+  if (side === "BUY" && marketPrice > extreme + maxChase) {
     return {
       ok: false,
-      reason: `Harga ${marketPrice.toFixed(2)} dekat support — jangan SELL di dasar.`,
+      reason: `Kejar BUY ditolak: harga ${marketPrice.toFixed(2)} sudah jauh dari dasar ${extreme.toFixed(2)}.`,
+    };
+  }
+  if (side === "SELL" && marketPrice < extreme - maxChase) {
+    return {
+      ok: false,
+      reason: `Kejar SELL ditolak: harga ${marketPrice.toFixed(2)} sudah jauh dari pucuk ${extreme.toFixed(2)}.`,
     };
   }
   return { ok: true, reason: "" };
@@ -143,19 +124,10 @@ export function decideEntry(input: {
     return WAIT("M5 bias unknown — no entry.");
   }
 
-  if (!pullback.detected) {
-    return WAIT("Waiting for M1 pullback or extreme exhaustion.");
+  if (!pullback.detected || !rejection.detected || !momentum.alignedWithTrend) {
+    return WAIT("Waiting for extreme M1 setup (dasar BUY / pucuk SELL).");
   }
 
-  if (!rejection.detected) {
-    return WAIT("Setup incomplete — need entry candle.");
-  }
-
-  if (!momentum.alignedWithTrend) {
-    return WAIT("Need M1 pressure/exhaustion confirmation.");
-  }
-
-  const exhaustion = isExhaustion(pullback, momentum);
   const common = {
     marketPrice,
     rejection,
@@ -167,36 +139,20 @@ export function decideEntry(input: {
   };
 
   if (rejection.side === "bullish" && momentum.direction === "bullish") {
-    const edge = rangeEdgeAllows(
-      "BUY",
-      marketPrice,
-      supportResistance.nearestSupport,
-      supportResistance.nearestResistance,
-      exhaustion,
-    );
-    if (!edge.ok) return WAIT(edge.reason);
+    const chase = chaseGuard("BUY", marketPrice, rejection.atPrice ?? pullback.nearLevel);
+    if (!chase.ok) return WAIT(chase.reason);
     return buildLong({
       ...common,
-      reason: exhaustion
-        ? `BUY dasar exhaustion (M5 ${trend.direction}).`
-        : `BUY pullback dangkal (M5 ${trend.direction}).`,
+      reason: `BUY di dasar ekstrem (M5 ${trend.direction}).`,
     });
   }
 
   if (rejection.side === "bearish" && momentum.direction === "bearish") {
-    const edge = rangeEdgeAllows(
-      "SELL",
-      marketPrice,
-      supportResistance.nearestSupport,
-      supportResistance.nearestResistance,
-      exhaustion,
-    );
-    if (!edge.ok) return WAIT(edge.reason);
+    const chase = chaseGuard("SELL", marketPrice, rejection.atPrice ?? pullback.nearLevel);
+    if (!chase.ok) return WAIT(chase.reason);
     return buildShort({
       ...common,
-      reason: exhaustion
-        ? `SELL pucuk exhaustion (M5 ${trend.direction}).`
-        : `SELL pullback dangkal (M5 ${trend.direction}).`,
+      reason: `SELL di pucuk ekstrem (M5 ${trend.direction}).`,
     });
   }
 

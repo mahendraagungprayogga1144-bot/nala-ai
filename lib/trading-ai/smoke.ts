@@ -46,19 +46,19 @@ function buildBullishM5(): Candle[] {
   return out;
 }
 
-/** M1: tekanan hijau lalu pullback merah dangkal (entry candle). */
+/** M1: dump lalu stall hijau di dasar. */
 function buildBullishM1Setup(): Candle[] {
   const out: Candle[] = [];
-  let px = 2305;
+  let px = 2315;
   for (let i = 0; i < 28; i++) {
     const o = px;
-    const c = px + 0.35;
-    out.push(candle(i, o, c + 0.15, o - 0.08, c));
+    const c = px - 0.45;
+    out.push(candle(i, o, o + 0.08, c - 0.06, c));
     px = c;
   }
   const o = px;
-  const c = px - 0.45;
-  out.push(candle(out.length, o, o + 0.06, c - 0.04, c));
+  const c = px + 0.08;
+  out.push(candle(out.length, o, c + 0.03, o - 0.18, c));
   out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
   return out;
 }

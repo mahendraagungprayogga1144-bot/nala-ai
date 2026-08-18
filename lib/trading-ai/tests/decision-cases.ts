@@ -89,18 +89,18 @@ function buildBearishM5(): Candle[] {
 
 function buildBullishM1(): Candle[] {
   const out: Candle[] = [];
-  let px = 2305;
-  // Pad + tekanan hijau (minM1Candles)
+  let px = 2315;
+  // Dump tajam ke dasar
   for (let i = 0; i < 28; i++) {
     const o = px;
-    const c = px + 0.35;
-    out.push(candle(i, o, c + 0.15, o - 0.08, c));
+    const c = px - 0.45;
+    out.push(candle(i, o, o + 0.08, c - 0.06, c));
     px = c;
   }
-  // Entry: pullback merah dangkal (closed) + forming bar
+  // Stall hijau di dasar (entry) + forming — close tetap dekat low
   const o = px;
-  const c = px - 0.45;
-  out.push(candle(out.length, o, o + 0.06, c - 0.04, c));
+  const c = px + 0.08;
+  out.push(candle(out.length, o, c + 0.03, o - 0.18, c));
   out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
   return out;
 }
@@ -569,7 +569,7 @@ function buildBearishM1(): Candle[] {
       nearestSupport: 2298,
       nearestResistance: 2305,
     },
-    marketPrice: 2301,
+    marketPrice: 2300.3,
     config,
   });
   assert(buyBox.decision === "BUY", `sideways + bullish M1 harus BUY, got ${buyBox.decision}`);
@@ -590,20 +590,25 @@ function buildBearishM1(): Candle[] {
       nearestSupport: 2298,
       nearestResistance: 2305,
     },
-    marketPrice: 2303,
+    marketPrice: 2304.7,
     config,
   });
   assert(sellBox.decision === "SELL", `sideways + bearish M1 harus SELL, got ${sellBox.decision}`);
 
   const peakBuy = decideEntry({
     trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
-    pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
+    pullback: {
+      detected: true,
+      depth: 0.4,
+      nearLevel: 2300,
+      notes: ["Exhaustion bottom — BUY hanya di dasar."],
+    },
     rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
     momentum: {
       alignedWithTrend: true,
       direction: "bullish",
       strength: 0.8,
-      notes: [],
+      notes: ["Exhaustion: buy the bottom after dump."],
     },
     supportResistance: {
       timeframe: "M5",
@@ -611,10 +616,10 @@ function buildBearishM1(): Candle[] {
       nearestSupport: 2298,
       nearestResistance: 2305,
     },
-    marketPrice: 2304.5, // dekat resistance → jangan BUY di pucuk
+    marketPrice: 2304.5, // kejar naik dari dasar → tolak
     config,
   });
-  assert(peakBuy.decision === "WAIT", `BUY dekat resistance harus WAIT, got ${peakBuy.decision}`);
+  assert(peakBuy.decision === "WAIT", `kejar BUY harus WAIT, got ${peakBuy.decision}`);
 
   const sellTop = decideEntry({
     trend: { timeframe: "M5", direction: "bullish", strength: 0.7, notes: [] },
@@ -622,7 +627,7 @@ function buildBearishM1(): Candle[] {
       detected: true,
       depth: 0.35,
       nearLevel: 2312,
-      notes: ["Exhaustion top fade — sharp up then stall at high."],
+      notes: ["Exhaustion top — SELL hanya di pucuk."],
     },
     rejection: { detected: true, side: "bearish", atPrice: 2312, notes: [] },
     momentum: {
@@ -637,7 +642,7 @@ function buildBearishM1(): Candle[] {
       nearestSupport: 2298,
       nearestResistance: 2314,
     },
-    marketPrice: 2311.5,
+    marketPrice: 2311.8,
     config,
   });
   assert(sellTop.decision === "SELL", `exhaustion top harus SELL, got ${sellTop.decision}`);
@@ -648,7 +653,7 @@ function buildBearishM1(): Candle[] {
       detected: true,
       depth: 0.35,
       nearLevel: 2299,
-      notes: ["Exhaustion bottom bounce — sharp dump then stall at low."],
+      notes: ["Exhaustion bottom — BUY hanya di dasar."],
     },
     rejection: { detected: true, side: "bullish", atPrice: 2299, notes: [] },
     momentum: {
@@ -663,12 +668,12 @@ function buildBearishM1(): Candle[] {
       nearestSupport: 2298,
       nearestResistance: 2314,
     },
-    marketPrice: 2300,
+    marketPrice: 2299.2,
     config,
   });
   assert(buyBottom.decision === "BUY", `exhaustion bottom harus BUY, got ${buyBottom.decision}`);
 
-  console.log("PASS sideways + exhaustion top/bottom + edge filter");
+  console.log("PASS extreme-only + chase reject + top/bottom");
 }
 
 // --- Exit: momentum lost protects floating profit ---

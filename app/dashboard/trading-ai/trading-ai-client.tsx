@@ -93,19 +93,19 @@ function demoBullishM5(): Candle[] {
   return out;
 }
 
-/** Demo M1: tekanan hijau → pullback merah dangkal. */
+/** Demo M1: dump → stall hijau di dasar. */
 function demoBullishM1(): Candle[] {
   const out: Candle[] = [];
-  let px = 2305;
+  let px = 2315;
   for (let i = 0; i < 28; i++) {
     const o = px;
-    const c = px + 0.35;
-    out.push(candle(i, o, c + 0.15, o - 0.08, c));
+    const c = px - 0.45;
+    out.push(candle(i, o, o + 0.08, c - 0.06, c));
     px = c;
   }
   const o = px;
-  const c = px - 0.45;
-  out.push(candle(out.length, o, o + 0.06, c - 0.04, c));
+  const c = px + 0.08;
+  out.push(candle(out.length, o, c + 0.03, o - 0.18, c));
   out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
   return out;
 }
@@ -118,13 +118,13 @@ function decisionColor(d: TradeDecision) {
 }
 
 const RULES = [
-  "XAUUSD · M5 konteks · M1 baca cepat",
+  "XAUUSD · M5 konteks · M1 ekstrem",
   "Price action — bukan RSI/MACD/EMA",
-  "Pullback dangkal: BUY di merah / SELL di hijau",
-  "Exhaustion: SELL di pucuk spike · BUY di dasar dump",
-  "M5 unknown → WAIT · sideways tetap scalp",
+  "BUY hanya di dasar dump (stall hijau)",
+  "SELL hanya di pucuk spike (stall merah)",
+  "Tolak kejar tengah jalan",
   "Max 1 posisi · no avg / grid / hedge",
-  "Auto-execute LIVE · demo & real (uang sungguhan)",
+  "Auto-execute LIVE · demo & real",
 ];
 
 type ControlState = {

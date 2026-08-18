@@ -27,7 +27,7 @@
 //|  7. InpSymbol kosong = auto XAUUSDm dari chart
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.42"
+#property version   "2.43"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -353,16 +353,18 @@ bool HttpPostJson(const string url, const string json)
 //| Lapor hasil eksekusi ke server. Ini yang menyalakan cooldown dan
 //| mengisi jurnal order di dashboard.
 void ReportOrder(const string signalId, const string status, const string direction,
-                 const double lot, const long ticket, const double entryPrice,
+                 const double lot, const ulong ticket, const double entryPrice,
                  const double spreadPts, const double confidence,
                  const int errorCode, const string errorMessage)
 {
    if(!InpReportOrders) return;
+   // Ticket MT5 = ulong; jangan %d (bisa jadi angka negatif di dashboard).
+   string ticketStr = StringFormat("%I64u", ticket);
    string json = StringFormat(
       "{\"signalId\":\"%s\",\"status\":\"%s\",\"symbol\":\"%s\",\"direction\":\"%s\","
-      "\"lot\":%.2f,\"ticket\":%d,\"entryPrice\":%.5f,\"spread\":%.0f,\"confidence\":%.1f,"
+      "\"lot\":%.2f,\"ticket\":\"%s\",\"entryPrice\":%.5f,\"spread\":%.0f,\"confidence\":%.1f,"
       "\"accountMode\":\"%s\",\"accountLogin\":%d,\"errorCode\":%d,\"errorMessage\":\"%s\"}",
-      signalId, status, BrokerSymbol(), direction, lot, ticket, entryPrice, spreadPts,
+      signalId, status, BrokerSymbol(), direction, lot, ticketStr, entryPrice, spreadPts,
       confidence, AccountModeString(), AccountLogin(), errorCode, errorMessage);
    HttpPostJson(ReportUrl(), json);
 }
@@ -390,11 +392,11 @@ void PrintValidationBlock(const string decision, const double lot, const double 
    Print("---------------------------------");
 }
 
-void PrintFilled(const long ticket, const string direction, const double entryPrice,
+void PrintFilled(const ulong ticket, const string direction, const double entryPrice,
                  const double lot, const double spreadPts)
 {
    Print("ORDER_STATUS=FILLED");
-   Print("TICKET=", ticket);
+   Print("TICKET=", StringFormat("%I64u", ticket));
    Print("DIRECTION=", direction);
    Print("ENTRY_PRICE=", DoubleToString(entryPrice, 5));
    Print("LOT=", DoubleToString(lot, 2));
@@ -423,22 +425,46 @@ void CloseOurPosition(const string signalId, const double spreadPts, const doubl
 
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpSlippagePts);
+   trade.SetAsyncMode(false);
 
-   if(!trade.PositionClose(ticket))
+   bool ok = trade.PositionClose(ticket);
+   if(!ok)
    {
+      // Coba close by symbol sekali (Wine/Exness kadang gagal by ticket).
+      ok = trade.PositionClose(BrokerSymbol());
+   }
+
+   if(!ok)
+   {
+      Sleep(350);
+      ulong t2; long type2; double price2, lot2, sl2, tp2, pnl2;
+      // Posisi hilang → close sebenarnya sukses (retcode 0 palsu).
+      if(!SelectOurPosition(t2, type2, price2, lot2, sl2, tp2, pnl2))
+      {
+         Print("CTrade close retcode aneh — posisi sudah hilang. Laporkan CLOSED.");
+         Print("ORDER_STATUS=CLOSED");
+         Print("TICKET=", StringFormat("%I64u", ticket));
+         Print("DIRECTION=", (type == POSITION_TYPE_BUY ? "BUY" : "SELL"));
+         Print("LOT=", DoubleToString(lot, 2));
+         Print("PROFIT=", DoubleToString(pnl, 2));
+         ReportOrder(signalId, "CLOSED", "CLOSE", lot, ticket, price, spreadPts,
+                     confidence, 0, "recovered_after_retcode_0");
+         return;
+      }
+
       PrintFailed((int)trade.ResultRetcode(), trade.ResultRetcodeDescription());
-      ReportOrder(signalId, "CLOSE_FAILED", "CLOSE", lot, (long)ticket, price, spreadPts,
+      ReportOrder(signalId, "CLOSE_FAILED", "CLOSE", lot, ticket, price, spreadPts,
                   confidence, (int)trade.ResultRetcode(), trade.ResultRetcodeDescription());
       return;
    }
 
    Print("ORDER_STATUS=CLOSED");
-   Print("TICKET=", (long)ticket);
+   Print("TICKET=", StringFormat("%I64u", ticket));
    Print("DIRECTION=", (type == POSITION_TYPE_BUY ? "BUY" : "SELL"));
    Print("LOT=", DoubleToString(lot, 2));
    Print("PROFIT=", DoubleToString(pnl, 2));
    Print("TIME=", TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS));
-   ReportOrder(signalId, "CLOSED", "CLOSE", lot, (long)ticket, price, spreadPts,
+   ReportOrder(signalId, "CLOSED", "CLOSE", lot, ticket, price, spreadPts,
                confidence, 0, "");
 }
 
@@ -481,8 +507,8 @@ bool RecoverFilledFromPosition(const string signalId, const string decision,
    if(!sideOk) return false;
 
    Print("CTrade retcode kosong/aneh — posisi Gercep terdeteksi. Laporkan FILLED.");
-   PrintFilled((long)ticket, decision, price, lot > 0 ? lot : volume, spreadPts);
-   ReportOrder(signalId, "FILLED", decision, lot > 0 ? lot : volume, (long)ticket, price,
+   PrintFilled(ticket, decision, price, lot > 0 ? lot : volume, spreadPts);
+   ReportOrder(signalId, "FILLED", decision, lot > 0 ? lot : volume, ticket, price,
                spreadPts, confidence, 0, "recovered_after_retcode_0");
    return true;
 }
@@ -571,9 +597,11 @@ void OpenSide(const string signalId, const string decision, const double lot,
       return;
    }
 
-   long ticket = (long)trade.ResultOrder();
+   ulong ticket = trade.ResultOrder();
+   if(ticket == 0)
+      ticket = trade.ResultDeal();
    double entryPrice = trade.ResultPrice();
-   if(ticket <= 0 || entryPrice <= 0)
+   if(ticket == 0 || entryPrice <= 0)
    {
       if(RecoverFilledFromPosition(signalId, decision, volume, spreadPts, confidence))
          return;
@@ -742,7 +770,7 @@ int OnInit()
    g_brokerSym = ResolveBrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("==== GercepTradeExecutor v2.4.2 FINAL ====");
+   Print("==== GercepTradeExecutor v2.4.3 FINAL ====");
    Print("EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
          " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading));

@@ -27,7 +27,7 @@
 //|  7. InpSymbol kosong = auto XAUUSDm dari chart
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.30"
+#property version   "2.41"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -435,6 +435,36 @@ double NormalizeLot(const double lot)
    return volume;
 }
 
+double NormalizePrice(const string sym, const double price)
+{
+   if(price <= 0) return 0;
+   int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   return NormalizeDouble(price, digits);
+}
+
+//| Exness/Wine: CTrade kadang return false + retcode 0 padahal deal sudah masuk.
+//| Cek posisi magic kita sebelum laporkan FAILED.
+bool RecoverFilledFromPosition(const string signalId, const string decision,
+                               const double volume, const double spreadPts,
+                               const double confidence)
+{
+   Sleep(300);
+   ulong ticket; long type; double price, lot, sl, tp, pnl;
+   if(!SelectOurPosition(ticket, type, price, lot, sl, tp, pnl))
+      return false;
+
+   const bool sideOk =
+      (decision == "BUY"  && type == POSITION_TYPE_BUY) ||
+      (decision == "SELL" && type == POSITION_TYPE_SELL);
+   if(!sideOk) return false;
+
+   Print("CTrade retcode kosong/aneh — posisi Gercep terdeteksi. Laporkan FILLED.");
+   PrintFilled((long)ticket, decision, price, lot > 0 ? lot : volume, spreadPts);
+   ReportOrder(signalId, "FILLED", decision, lot > 0 ? lot : volume, (long)ticket, price,
+               spreadPts, confidence, 0, "recovered_after_retcode_0");
+   return true;
+}
+
 void OpenSide(const string signalId, const string decision, const double lot,
               const double sl, const double tp, const double spreadPts,
               const double confidence)
@@ -446,16 +476,21 @@ void OpenSide(const string signalId, const string decision, const double lot,
       return;
    }
 
+   string sym = BrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpSlippagePts);
-   ENUM_ORDER_TYPE_FILLING usedFill = ApplyFillingMode(BrokerSymbol());
+   trade.SetAsyncMode(false);
+   ENUM_ORDER_TYPE_FILLING usedFill = ApplyFillingMode(sym);
 
    double volume = NormalizeLot(lot);
+   double useSl  = NormalizePrice(sym, sl);
+   double useTp  = NormalizePrice(sym, tp);
+
    bool ok = false;
    if(decision == "BUY")
-      ok = trade.Buy(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain BUY");
+      ok = trade.Buy(volume, sym, 0, useSl, useTp, "Gercep Brain BUY");
    else if(decision == "SELL")
-      ok = trade.Sell(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain SELL");
+      ok = trade.Sell(volume, sym, 0, useSl, useTp, "Gercep Brain SELL");
    else
       return;
 
@@ -466,7 +501,7 @@ void OpenSide(const string signalId, const string decision, const double lot,
       if(rc == TRADE_RETCODE_INVALID_FILL)
       {
          Print("INVALID_FILL — coba filling alternatif...");
-         long filling = (long)SymbolInfoInteger(BrokerSymbol(), SYMBOL_FILLING_MODE);
+         long filling = (long)SymbolInfoInteger(sym, SYMBOL_FILLING_MODE);
          if(usedFill == ORDER_FILLING_IOC && (filling & SYMBOL_FILLING_FOK) == SYMBOL_FILLING_FOK)
             trade.SetTypeFilling(ORDER_FILLING_FOK);
          else if(usedFill == ORDER_FILLING_FOK && (filling & SYMBOL_FILLING_IOC) == SYMBOL_FILLING_IOC)
@@ -475,15 +510,38 @@ void OpenSide(const string signalId, const string decision, const double lot,
             trade.SetTypeFilling(ORDER_FILLING_RETURN);
 
          if(decision == "BUY")
-            ok = trade.Buy(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain BUY");
+            ok = trade.Buy(volume, sym, 0, useSl, useTp, "Gercep Brain BUY");
          else
-            ok = trade.Sell(volume, BrokerSymbol(), 0, sl, tp, "Gercep Brain SELL");
+            ok = trade.Sell(volume, sym, 0, useSl, useTp, "Gercep Brain SELL");
+      }
+      // Invalid stops: buka market tanpa SL/TP dulu, lalu modify.
+      else if(rc == TRADE_RETCODE_INVALID_STOPS || rc == TRADE_RETCODE_INVALID_PRICE)
+      {
+         Print("INVALID_STOPS/PRICE — buka market tanpa SL/TP lalu modify...");
+         if(decision == "BUY")
+            ok = trade.Buy(volume, sym, 0, 0, 0, "Gercep Brain BUY");
+         else
+            ok = trade.Sell(volume, sym, 0, 0, 0, "Gercep Brain SELL");
+         if(ok && (useSl > 0 || useTp > 0))
+         {
+            Sleep(200);
+            ulong pt; long ptype; double pprice, plot, psl, ptp, ppnl;
+            if(SelectOurPosition(pt, ptype, pprice, plot, psl, ptp, ppnl))
+               trade.PositionModify(pt, useSl, useTp);
+         }
       }
    }
 
+   // Wine/Exness quirk: Buy() false + retcode 0, tapi posisi sudah ada.
    if(!ok)
    {
+      if(RecoverFilledFromPosition(signalId, decision, volume, spreadPts, confidence))
+         return;
+
       PrintFailed((int)trade.ResultRetcode(), trade.ResultRetcodeDescription());
+      Print("GetLastError=", GetLastError(),
+            " ResultDeal=", (long)trade.ResultDeal(),
+            " ResultOrder=", (long)trade.ResultOrder());
       ReportOrder(signalId, "FAILED", decision, volume, 0, 0, spreadPts, confidence,
                   (int)trade.ResultRetcode(), trade.ResultRetcodeDescription());
       return;
@@ -491,6 +549,11 @@ void OpenSide(const string signalId, const string decision, const double lot,
 
    long ticket = (long)trade.ResultOrder();
    double entryPrice = trade.ResultPrice();
+   if(ticket <= 0 || entryPrice <= 0)
+   {
+      if(RecoverFilledFromPosition(signalId, decision, volume, spreadPts, confidence))
+         return;
+   }
    PrintFilled(ticket, decision, entryPrice, volume, spreadPts);
    ReportOrder(signalId, "FILLED", decision, volume, ticket, entryPrice, spreadPts,
                confidence, 0, "");
@@ -655,7 +718,7 @@ int OnInit()
    g_brokerSym = ResolveBrokerSymbol();
    trade.SetExpertMagicNumber(InpMagic);
    EventSetTimer(MathMax(5, InpPollSec));
-   Print("==== GercepTradeExecutor v2.4 FINAL ====");
+   Print("==== GercepTradeExecutor v2.4.1 FINAL ====");
    Print("EXECUTION_MODE=LIVE_AUTOTRADE");
    Print("account_mode=", AccountModeString(), " login=", AccountLogin(),
          " requireDemo=", BoolStr(InpRequireDemo), " allowTrading=", BoolStr(InpAllowTrading));

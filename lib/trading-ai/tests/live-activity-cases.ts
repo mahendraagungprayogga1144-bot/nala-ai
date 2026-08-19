@@ -83,6 +83,9 @@ import {
   estimateGoldFloatingUsd,
   journalReason,
   buildPipeline,
+  mapLiveDecision,
+  directionalBiasFromM5,
+  displayChannelState,
 } from "../quant-desk";
 
 assert(inferOpenPosition([filled])?.side === "BUY", "open from last fill");
@@ -107,5 +110,29 @@ assert(
   }).find((s) => s.id === "listen")?.status === "PASSED",
   "listen passed when feed ok",
 );
+
+assert(
+  mapLiveDecision({
+    feedFresh: false,
+    executorFresh: false,
+    liveDecision: "SELL",
+  }).decision === "WAIT" &&
+    mapLiveDecision({
+      feedFresh: false,
+      executorFresh: false,
+      liveDecision: "SELL",
+    }).stale,
+  "stale feed never shows live SELL",
+);
+assert(
+  mapLiveDecision({
+    feedFresh: true,
+    executorFresh: true,
+    liveDecision: "BUY",
+  }).decision === "BUY",
+  "fresh feed uses live brain",
+);
+assert(directionalBiasFromM5("bullish") === "BUY ONLY", "bullish = BUY ONLY");
+assert(displayChannelState("DISCONNECTED", 62431) === "STALE", "old heartbeat = STALE");
 
 console.log("PASS live-activity-cases");

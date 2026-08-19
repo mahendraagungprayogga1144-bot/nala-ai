@@ -42,6 +42,7 @@ export function detectSequencedSetup(
   config: TradingAiConfig,
   _sr: SupportResistanceAnalysis | null,
 ): SequencedSetup {
+  void _sr;
   if (trendDirection === "unknown") {
     return emptySetup("No directional bias — skip M1 hunt.");
   }
@@ -52,6 +53,13 @@ export function detectSequencedSetup(
   const closed = lastClosedIndex(m1Candles);
   const from = Math.max(0, closed - LOOKBACK + 1);
 
+  if (trendDirection === "bullish") {
+    return localBottomBuy(m1Candles, from, closed);
+  }
+  if (trendDirection === "bearish") {
+    return localTopSell(m1Candles, from, closed);
+  }
+  // sideways: range-scalp — BUY dasar / SELL pucuk.
   return pickBest(
     localTopSell(m1Candles, from, closed),
     localBottomBuy(m1Candles, from, closed),

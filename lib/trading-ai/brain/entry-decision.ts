@@ -128,6 +128,19 @@ export function decideEntry(input: {
     return WAIT("Waiting for local swing setup (dasar BUY / pucuk SELL).");
   }
 
+  if (
+    trend.direction === "bullish" &&
+    !(rejection.side === "bullish" && momentum.direction === "bullish")
+  ) {
+    return WAIT("M5 bullish — BUY bias only. M1 still bearish.");
+  }
+  if (
+    trend.direction === "bearish" &&
+    !(rejection.side === "bearish" && momentum.direction === "bearish")
+  ) {
+    return WAIT("M5 bearish — SELL bias only. M1 still bullish.");
+  }
+
   const common = {
     marketPrice,
     rejection,

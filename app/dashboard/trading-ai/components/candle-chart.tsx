@@ -25,19 +25,24 @@ export default function CandleChart({
   candles,
   overlay,
   emptyHint,
+  height = 220,
 }: {
   title: string;
   live: boolean;
   candles: Candle[];
   overlay?: ChartOverlay;
   emptyHint: string;
+  height?: number;
 }) {
   const w = 640;
-  const h = 220;
+  const h = height;
   const pad = 10;
   if (candles.length < 2) {
     return (
-      <div className="flex h-[220px] flex-col border border-white/[0.08] bg-black/40 px-3 py-2">
+      <div
+        className="flex flex-col border border-[#1c2430] bg-black/50 px-3 py-2"
+        style={{ height }}
+      >
         <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.22em]">
           <span className="text-[#8FB8C9]">{title}</span>
           <span className="text-[#6A8A99]">WAITING DATA</span>
@@ -61,6 +66,8 @@ export default function CandleChart({
     overlay?.sl,
     overlay?.tp,
     overlay?.entry,
+    overlay?.pullback,
+    overlay?.rejection,
   ].filter((n): n is number => n != null && Number.isFinite(n));
   for (const n of extras) {
     min = Math.min(min, n);
@@ -90,21 +97,38 @@ export default function CandleChart({
   if (overlay?.current != null) {
     lines.push({ price: overlay.current, color: "#E8F7FF", label: last.close.toFixed(3) });
   }
+  const zones: { price: number; color: string }[] = [];
+  if (overlay?.pullback != null) zones.push({ price: overlay.pullback, color: "#5CE1FF" });
+  if (overlay?.rejection != null) zones.push({ price: overlay.rejection, color: "#A78BFA" });
 
   return (
-    <div className="border border-white/[0.08] bg-black/40">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5">
+    <div className="border border-[#1c2430] bg-[#05080d]">
+      <div className="flex items-center justify-between border-b border-[#1c2430] px-3 py-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8FB8C9]">{title}</p>
-        <div className="flex items-center gap-2 text-[10px] font-mono">
+        <div className="flex items-center gap-2 font-mono text-[10px]">
           {live ? (
             <span className="text-[#00F0A8]">LIVE</span>
           ) : (
-            <span className="text-[#FFB14A]">STALE</span>
+            <span className="font-bold tracking-wider text-[#FFB14A]">STALE</span>
           )}
           <span className={lastUp ? "text-[#00F0A8]" : "text-[#FF3D7F]"}>{last.close.toFixed(3)}</span>
         </div>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="block h-[220px] w-full" role="img" aria-label={title}>
+      <svg viewBox={`0 0 ${w} ${h}`} className="block w-full" style={{ height }} role="img" aria-label={title}>
+        {zones.map((z) => {
+          const y = yScale(z.price, min, max, h, pad);
+          return (
+            <rect
+              key={`${z.color}-${z.price}`}
+              x={pad}
+              y={y - 8}
+              width={w - pad * 2}
+              height={16}
+              fill={z.color}
+              opacity={0.12}
+            />
+          );
+        })}
         {lines.map((ln) => {
           const y = yScale(ln.price, min, max, h, pad);
           return (

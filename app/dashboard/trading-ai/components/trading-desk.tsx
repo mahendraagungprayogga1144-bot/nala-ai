@@ -12,7 +12,6 @@ import {
   Radio,
   Settings,
   ShieldAlert,
-  SlidersHorizontal,
   User,
 } from "lucide-react";
 import type { Candle, LiveActivity, TradingDecisionResult } from "@/lib/trading-ai";
@@ -110,7 +109,7 @@ function Metric({
   return (
     <div className="min-w-0 border border-white/[0.07] bg-black/35 px-2.5 py-2">
       <p className="text-[9px] uppercase tracking-[0.16em] text-[#6A8A99]">{label}</p>
-      <p className={`mt-0.5 truncate font-mono text-[15px] font-semibold leading-tight ${tone || "text-[#E8F7FF]"}`}>
+      <p className={`mt-0.5 truncate font-mono text-[22px] font-semibold leading-none ${tone || "text-[#E8F7FF]"}`}>
         {value}
       </p>
       {sub ? <p className="mt-0.5 truncate text-[10px] text-[#5A7A88]">{sub}</p> : null}
@@ -179,10 +178,16 @@ export type DeskView = {
   spreadPts: number | null;
   m5Bias: string;
   m5Strength: string;
+  directionalBias: string;
   m1State: string;
   m1Momentum: string;
   entryQuality: string;
   exitStatus: string;
+  targetStatus: string;
+  longHold: boolean;
+  stale: boolean;
+  staleReason: string;
+  lastEaSignal: string;
   bid: string;
   ask: string;
   regime: string;
@@ -282,44 +287,49 @@ export default function TradingDesk({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] bg-[#05070C] px-3 py-2">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] text-white">GERCEP OS TRADING AI</p>
-            <p className="font-mono text-[10px] text-[#6A8A99]">
-              {view.serverTime} · {view.gmtLabel}
-            </p>
+        <header className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-[#1c2430] bg-[#03050a] px-3 py-1.5">
+          <div className="mr-2">
+            <p className="text-[9px] font-bold tracking-[0.32em] text-[#5CE1FF]">GERCEP OS</p>
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-white">TRADING AI</p>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em]">
-            <span className={healthTone(view.connection)}>MT5 {view.connection}</span>
-            <span className={view.accountMode === "REAL" ? "text-[#FFB14A]" : "text-[#5CE1FF]"}>
-              {view.accountMode}
-            </span>
-            <span className="text-[#8FB8C9]">BROKER {view.broker}</span>
-            <span className="text-[#8FB8C9]">SERVER {view.server}</span>
-            <span className="text-[#8FB8C9]">LOGIN {view.login}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-[#8FB8C9]">
-            <User size={13} />
-            <span>{view.userLabel}</span>
-            <SlidersHorizontal size={13} className="opacity-50" />
-          </div>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">
+            SERVER {view.serverTime} {view.gmtLabel}
+          </span>
+          <span className={`font-mono text-[10px] font-bold ${healthTone(view.connection)}`}>
+            MT5 {view.connection}
+          </span>
+          <span className={`font-mono text-[10px] ${view.accountMode === "REAL" ? "text-[#FFB14A]" : "text-[#5CE1FF]"}`}>
+            {view.accountMode}
+          </span>
+          <span className="font-mono text-[10px] text-[#6A8A99]">BROKER {view.broker}</span>
+          <span className="font-mono text-[10px] text-[#6A8A99]">SERVER {view.server}</span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">LOGIN {view.login}</span>
+          <span className="ml-auto flex items-center gap-2 font-mono text-[10px] text-[#8FB8C9]">
+            <User size={12} />
+            {view.userLabel}
+          </span>
         </header>
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-3 pb-16">
-          <div id="desk" className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-12">
+        <div className="flex-1 space-y-2 overflow-y-auto p-2 pb-14">
+          {view.stale ? (
+            <div className="flex items-center justify-between border border-[#FFB14A]/50 bg-[#FFB14A]/12 px-3 py-1.5">
+              <p className="text-[11px] font-bold tracking-[0.2em] text-[#FFB14A]">STALE</p>
+              <p className="text-[11px] text-[#FFD9A0]">{view.staleReason}</p>
+            </div>
+          ) : null}
+
+          <div id="desk" className="grid grid-cols-2 gap-1 sm:grid-cols-5 xl:grid-cols-10">
             {(
               [
-                ["TOTAL PNL HARI INI", view.kpis.totalPnl, view.kpis.totalPnl == null ? "waiting account feed" : "est. floating only", "money"],
-                ["REALIZED PNL", view.kpis.realized, "exit price belum di jurnal", "money"],
-                ["FLOATING PNL", view.kpis.floating, view.openPos ? "last fill vs last M1" : "no position", "money"],
-                ["EQUITY", view.kpis.equity, "belum ada feed akun", "money"],
-                ["BALANCE", view.kpis.balance, "belum ada feed akun", "money"],
-                ["WIN RATE", view.kpis.winRate, "butuh P/L close", "pct"],
-                ["TOTAL TRADES", view.kpis.trades, "fills EA journal", "count"],
-                ["AVG WIN", view.kpis.avgWin, "N/A", "money"],
-                ["AVG LOSS", view.kpis.avgLoss, "N/A", "money"],
+                ["TODAY PNL", view.kpis.totalPnl, view.kpis.totalPnl == null ? "N/A" : "est. floating", "money"],
+                ["REALIZED PNL", view.kpis.realized, "no exit P/L yet", "money"],
+                ["FLOATING PNL", view.kpis.floating, view.openPos ? "fill vs last M1" : "flat", "money"],
+                ["EQUITY", view.kpis.equity, "no account feed", "money"],
+                ["BALANCE", view.kpis.balance, "no account feed", "money"],
+                ["WIN RATE", view.kpis.winRate, "need close P/L", "pct"],
+                ["TRADES", view.kpis.trades, "EA fills", "count"],
                 ["PROFIT FACTOR", view.kpis.profitFactor, "N/A", "num"],
-                ["MAX DRAWDOWN", view.kpis.maxDd, "N/A", "money"],
+                ["MAX DD", view.kpis.maxDd, "N/A", "money"],
                 ["CURRENT RISK", view.kpis.risk, view.kpis.riskLabel, "risk"],
               ] as const
             ).map(([label, value, sub, kind]) => {
@@ -340,26 +350,32 @@ export default function TradingDesk({
             })}
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.35fr)]">
+          <div className="grid gap-2 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.4fr)]">
             <Panel id="posisi" title="Posisi Aktif" tone="lime">
               {view.openPos ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
+                  {view.longHold ? (
+                    <div className="border border-[#FFB14A]/50 bg-[#FFB14A]/15 px-2 py-1 text-[10px] font-bold tracking-[0.16em] text-[#FFB14A]">
+                      LONG HOLD WARNING · {view.duration} · scalp M1 tidak menahan 17h
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div>
-                      <p className="font-mono text-xs text-[#6A8A99]">XAUUSDm</p>
+                      <p className="font-mono text-[10px] text-[#6A8A99]">XAUUSDm</p>
                       <p
-                        className="text-3xl font-black tracking-tight"
+                        className="text-4xl font-black tracking-tight"
                         style={{ color: view.openPos.side === "SELL" ? "#FF3D7F" : "#00F0A8" }}
                       >
-                        {view.openPos.side} {view.openPos.lot != null ? view.openPos.lot.toFixed(2) : "N/A"}
+                        {view.openPos.side}{" "}
+                        {view.openPos.lot != null ? view.openPos.lot.toFixed(2) : "N/A"}
                       </p>
                     </div>
                     <div className="border border-[#A78BFA]/40 bg-[#A78BFA]/10 px-2 py-1 text-right">
-                      <p className="text-[9px] uppercase tracking-[0.16em] text-[#C4B5FD]">Position limit</p>
-                      <p className="font-mono text-lg font-bold text-[#C4B5FD]">{view.posCount}</p>
+                      <p className="text-[9px] uppercase tracking-[0.16em] text-[#C4B5FD]">Limit</p>
+                      <p className="font-mono text-xl font-bold text-[#C4B5FD]">{view.posCount}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
                     <Metric label="ENTRY" value={na(view.openPos.entryPrice?.toFixed(3))} />
                     <Metric label="CURRENT" value={na(view.currentPrice?.toFixed(3))} />
                     <Metric
@@ -368,103 +384,108 @@ export default function TradingDesk({
                       tone={pnlClass(view.floating)}
                     />
                     <Metric
-                      label="POINTS"
+                      label="PIPS"
                       value={view.floatingPts == null ? "N/A" : String(view.floatingPts)}
                       tone={pnlClass(view.floatingPts)}
                     />
-                    <Metric label="DURATION" value={view.duration} />
+                    <Metric label="DURATION" value={view.duration} tone={view.longHold ? "text-[#FFB14A]" : undefined} />
                     <Metric label="SPREAD" value={na(view.spreadPts)} />
                     <Metric label="M5 BIAS" value={view.m5Bias} />
                     <Metric label="M1 MOMENTUM" value={view.m1Momentum} />
                     <Metric label="ENTRY QUALITY" value={view.entryQuality} tone="text-[#C4B5FD]" />
                     <Metric label="EXIT STATUS" value={view.exitStatus} />
+                    <Metric label="TARGET STATUS" value={view.targetStatus} />
+                    <Metric label="CURRENT EXIT STATE" value={view.exitStatus} />
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3 py-6">
+                <div className="flex items-center justify-between gap-3 py-8">
                   <p className="text-sm tracking-[0.18em] text-[#6A8A99]">NO ACTIVE POSITION</p>
                   <p className="font-mono text-xs text-[#A78BFA]">POSITION LIMIT {view.posCount}</p>
                 </div>
               )}
             </Panel>
 
-            <Panel title="XAUUSDm · Live market" tone="cyan">
-              <div className="mb-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                <Metric label="BID" value={view.bid} />
-                <Metric label="ASK" value={view.ask} />
-                <Metric label="PRICE" value={na(view.currentPrice?.toFixed(3))} />
-                <Metric label="SPREAD" value={view.spreadPts == null ? "N/A" : `${view.spreadPts} pts`} />
-                <Metric label="M5" value={view.m5Bias} />
-                <Metric label="M5 STRENGTH" value={view.m5Strength} />
-                <Metric label="M1" value={view.m1State} />
-                <Metric label="REGIME" value={view.regime} tone="text-[#C4B5FD]" />
-                <Metric label="SUPPORT" value={view.support} />
-                <Metric label="RESISTANCE" value={view.resistance} />
-              </div>
-            </Panel>
+            <div id="charts" className="min-w-0 space-y-2">
+              <CandleChart
+                title="M5 CHART · XAUUSDm · PRIMARY"
+                live={view.feedLive}
+                candles={view.liveM5}
+                overlay={overlay}
+                height={280}
+                emptyHint="Candle M5 belum masuk. Jalankan GercepCandlePush di chart M5."
+              />
+              <CandleChart
+                title="M1 CHART · execution detail"
+                live={view.feedLive}
+                candles={view.liveM1}
+                overlay={overlay}
+                height={168}
+                emptyHint="Candle M1 belum masuk. Jalankan GercepCandlePush di chart M1."
+              />
+            </div>
           </div>
 
-          <div id="charts" className="grid gap-3 xl:grid-cols-2">
-            <CandleChart
-              title="M5 CHART · XAUUSDm"
-              live={view.feedLive}
-              candles={view.liveM5}
-              overlay={overlay}
-              emptyHint="Candle M5 belum masuk. Jalankan GercepCandlePush di chart M5."
-            />
-            <CandleChart
-              title="M1 CHART · XAUUSDm"
-              live={view.feedLive}
-              candles={view.liveM1}
-              overlay={overlay}
-              emptyHint="Candle M1 belum masuk. Jalankan GercepCandlePush di chart M1."
-            />
-          </div>
-
-          <div className="grid gap-3 xl:grid-cols-3">
-            <Panel id="otak" title="Trading Brain" tone="purple" className="xl:col-span-1">
-              <div className="grid grid-cols-2 gap-1.5">
-                <Metric label="M5 REGIME" value={view.m5Bias} />
+          <div className="grid gap-2 xl:grid-cols-[1.1fr_0.85fr_0.9fr]">
+            <Panel id="otak" title="Trading Brain" tone="purple">
+              <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                <Metric label="MARKET REGIME" value={view.regime} tone="text-[#C4B5FD]" />
+                <Metric label="DIRECTIONAL BIAS" value={view.directionalBias} tone="text-[#C4B5FD]" />
+                <Metric label="M5 BIAS" value={view.m5Bias} />
                 <Metric label="M5 STRENGTH" value={view.m5Strength} />
                 <Metric label="M1 STATE" value={view.m1State} />
-                <Metric label="M1 PULLBACK" value={view.brain.pullback} />
-                <Metric label="M1 REJECTION" value={view.brain.rejection} />
-                <Metric label="M1 MOMENTUM" value={view.m1Momentum} />
+                <Metric label="PULLBACK" value={view.brain.pullback} />
+                <Metric label="REJECTION" value={view.brain.rejection} />
+                <Metric label="MOMENTUM" value={view.m1Momentum} />
                 <Metric label="SUPPORT" value={view.support} />
                 <Metric label="RESISTANCE" value={view.resistance} />
                 <Metric label="SPREAD" value={view.spreadPts == null ? "N/A" : `${view.spreadPts}`} />
                 <Metric label="RISK GATE" value={view.brain.riskGate} />
                 <Metric label="POSITION LIMIT" value={view.posCount} />
-                <Metric label="ENTRY QUALITY" value={view.entryQuality} />
+                <Metric label="ENTRY QUALITY" value={view.stale ? "STALE" : view.entryQuality} />
               </div>
-              <p className="mt-3 text-[10px] uppercase tracking-[0.2em] text-[#6A8A99]">Final decision</p>
-              <p className="mt-1 text-3xl font-black" style={{ color: view.decisionColor }}>
-                {view.decision}
+              <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-[#1c2430] pt-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#6A8A99]">Final decision</p>
+                  <p className="text-5xl font-black tracking-tight" style={{ color: view.decisionColor }}>
+                    {view.stale ? "WAIT" : view.decision}
+                  </p>
+                  <p className="mt-1 font-mono text-sm text-[#C4B5FD]">{view.brain.final}</p>
+                </div>
+                {view.stale ? (
+                  <span className="border border-[#FFB14A]/50 bg-[#FFB14A]/15 px-3 py-1 text-[11px] font-bold tracking-[0.2em] text-[#FFB14A]">
+                    STALE
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-[#9BC5D4]">
+                REASON: {view.brain.reason}
               </p>
-              <p className="mt-1 font-mono text-sm text-[#C4B5FD]">{view.brain.final}</p>
-              <p className="mt-2 text-[11px] leading-relaxed text-[#9BC5D4]">{view.brain.reason}</p>
+              <p className="mt-1 text-[10px] text-[#5A7A88]">Last EA snapshot: {view.lastEaSignal}</p>
             </Panel>
 
             <Panel id="signal" title="Why this signal?" tone="cyan">
               <p className="mb-2 text-xs font-semibold text-white">{view.why.headline}</p>
-              <ul className="space-y-1.5">
-                {view.why.bullets.map((b, i) => (
+              <ul className="space-y-1">
+                {view.why.bullets.slice(0, 8).map((b, i) => (
                   <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-[#B7D7E4]">
                     <span className={b.ok ? "text-[#00F0A8]" : "text-[#FFB14A]"}>{b.ok ? "▸" : "·"}</span>
                     {b.text}
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-[10px] text-[#5A7A88]">
-                Sumber: Trading Brain (rule engine). Claude hanya menjelaskan, tidak memutuskan.
-              </p>
               {explain}
             </Panel>
 
             <Panel title="Live diagnostic" tone="amber">
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-1">
                 {Object.entries(view.diagnostic).map(([k, v]) => (
-                  <Metric key={k} label={k} value={v} />
+                  <Metric
+                    key={k}
+                    label={k}
+                    value={v}
+                    tone={String(v).startsWith("STALE") || v === "STALE" ? "text-[#FFB14A]" : undefined}
+                  />
                 ))}
               </div>
             </Panel>

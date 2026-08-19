@@ -645,7 +645,10 @@ function buildBearishM1(): Candle[] {
     marketPrice: 2311.8,
     config,
   });
-  assert(sellTop.decision === "SELL", `exhaustion top harus SELL, got ${sellTop.decision}`);
+  assert(
+    sellTop.decision === "WAIT",
+    `M5 bullish = BUY bias only, SELL pucuk harus WAIT, got ${sellTop.decision}`,
+  );
 
   const buyBottom = decideEntry({
     trend: { timeframe: "M5", direction: "bearish", strength: 0.7, notes: [] },
@@ -671,7 +674,10 @@ function buildBearishM1(): Candle[] {
     marketPrice: 2299.2,
     config,
   });
-  assert(buyBottom.decision === "BUY", `exhaustion bottom harus BUY, got ${buyBottom.decision}`);
+  assert(
+    buyBottom.decision === "WAIT",
+    `M5 bearish = SELL bias only, BUY dasar harus WAIT, got ${buyBottom.decision}`,
+  );
 
   console.log("PASS extreme-only + chase reject + top/bottom");
 }

@@ -93,8 +93,8 @@ export function buildPipeline(input: {
 
   const listen: PipelineStepStatus = input.feedOk
     ? "PASSED"
-    : input.feedAgeSec != null && input.feedAgeSec > 120
-      ? "ERROR"
+    : input.feedAgeSec != null
+      ? "BLOCKED"
       : "ACTIVE";
 
   const detect: PipelineStepStatus =
@@ -248,4 +248,103 @@ export function durationLabel(openedAt: string | null, nowMs: number): string {
   if (m < 60) return `${m}m ${String(s).padStart(2, "0")}s`;
   const h = Math.floor(m / 60);
   return `${h}h ${m % 60}m`;
+}
+
+export function durationSec(openedAt: string | null, nowMs: number): number | null {
+  if (!openedAt) return null;
+  const t = Date.parse(openedAt);
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.round((nowMs - t) / 1000));
+}
+
+/** Scalp M1: hold > 30 menit dianggap tidak normal. UI tidak force-close. */
+export const SCALP_LONG_HOLD_SEC = 30 * 60;
+
+export function directionalBiasFromM5(
+  direction: string | null | undefined,
+): "BUY ONLY" | "SELL ONLY" | "RANGE" | "UNCLEAR" {
+  const d = (direction || "").toLowerCase();
+  if (d === "bullish") return "BUY ONLY";
+  if (d === "bearish") return "SELL ONLY";
+  if (d === "sideways") return "RANGE";
+  return "UNCLEAR";
+}
+
+export function m1StateFromBrain(result: TradingDecisionResult | null): string {
+  if (!result) return "N/A";
+  if (result.pullback.detected && result.rejection.detected) return "SETUP";
+  if (result.pullback.detected) return "PULLBACK";
+  if (result.rejection.detected) return "REJECTION";
+  if (result.momentum.direction && result.momentum.direction !== "unknown") {
+    return result.momentum.direction.toUpperCase();
+  }
+  return "SCAN";
+}
+
+/** Heartbeat ada tapi lewat jendela sehat → STALE, bukan seolah CONNECTED. */
+export function displayChannelState(
+  raw: string,
+  ageSec: number | null,
+  healthyWindowSec = 90,
+): "CONNECTED" | "CONNECTING" | "STALE" | "DISCONNECTED" | "ERROR" {
+  const s = (raw || "").toUpperCase();
+  if (s === "ERROR") return "ERROR";
+  if (s === "CONNECTED") return "CONNECTED";
+  if (s === "CONNECTING") return "CONNECTING";
+  if (ageSec != null && ageSec > healthyWindowSec) return "STALE";
+  if (s === "DISCONNECTED") return "DISCONNECTED";
+  return "DISCONNECTED";
+}
+
+export type LiveDecisionMap = {
+  decision: "BUY" | "SELL" | "WAIT" | "CLOSE";
+  stale: boolean;
+  executableNow: boolean;
+  reason: string;
+};
+
+/**
+ * Keputusan tampilan = otak live, bukan last EA snapshot.
+ * Feed/sinyal basi → WAIT + STALE, tidak pernah memajang BUY/SELL lama sebagai live.
+ */
+export function mapLiveDecision(input: {
+  feedFresh: boolean;
+  executorFresh: boolean;
+  liveDecision: string | null;
+}): LiveDecisionMap {
+  if (!input.feedFresh) {
+    return {
+      decision: "WAIT",
+      stale: true,
+      executableNow: false,
+      reason: "STALE — candle feed heartbeat mati. Brain tidak mengeksekusi sinyal baru.",
+    };
+  }
+  const d = (input.liveDecision || "WAIT").toUpperCase();
+  const decision =
+    d === "BUY" || d === "SELL" || d === "CLOSE" || d === "WAIT" ? d : "WAIT";
+  if (!input.executorFresh && (decision === "BUY" || decision === "SELL" || decision === "CLOSE")) {
+    return {
+      decision: "WAIT",
+      stale: true,
+      executableNow: false,
+      reason: "STALE — executor heartbeat mati. Tidak ada order baru.",
+    };
+  }
+  return {
+    decision,
+    stale: false,
+    executableNow: decision === "BUY" || decision === "SELL" || decision === "CLOSE",
+    reason: "",
+  };
+}
+
+export function formatAgeLabel(sec: number | null, stale: boolean): string {
+  if (stale && (sec == null || sec > 20)) return sec == null ? "STALE" : `STALE ${sec}s`;
+  if (sec == null) return "N/A";
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }

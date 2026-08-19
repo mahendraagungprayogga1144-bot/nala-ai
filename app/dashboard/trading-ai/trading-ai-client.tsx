@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   Copy,
@@ -30,7 +30,10 @@ import {
   formatMt5Time,
   emptyQuantStats,
   HARD_RULES,
+  SIGNAL_FRESHNESS_MS,
   signalAgeMs,
+  parseAccountMode,
+  BRIDGE_HEALTHY_WINDOW_SEC,
   type BacktestResult,
   type BridgeConnectionState,
   type BridgeHealthResult,
@@ -47,12 +50,19 @@ import {
   buildWhySignal,
   countFillsSince,
   durationLabel,
+  durationSec,
+  directionalBiasFromM5,
+  displayChannelState,
   entryQuality,
   estimateGoldFloatingUsd,
+  formatAgeLabel,
   goldPoints,
   inferOpenPosition,
   journalReason,
+  m1StateFromBrain,
+  mapLiveDecision,
   marketRegime,
+  SCALP_LONG_HOLD_SEC,
 } from "@/lib/trading-ai/quant-desk";
 import { createClient } from "@/lib/supabase/client";
 import TradingDesk, { type DeskView, type JournalViewRow } from "./components/trading-desk";
@@ -233,6 +243,10 @@ export default function TradingAiClient({
   const [healthLatencyMs, setHealthLatencyMs] = useState<number | null>(null);
   const [activity, setActivity] = useState<LiveActivity>(initialActivity);
   const [clockTick, setClockTick] = useState(() => Date.now());
+  const activityRef = useRef(activity);
+  useEffect(() => {
+    activityRef.current = activity;
+  }, [activity]);
 
   useEffect(() => {
     const t = setInterval(() => setClockTick(Date.now()), 1000);
@@ -319,21 +333,45 @@ export default function TradingAiClient({
       ) {
         return;
       }
+      const act = activityRef.current;
       const last = m1[m1.length - 1].close;
-      const spreadPts = activity.signal.spread ?? 20;
-      const out = decideTradingAction({
-        symbol: "XAUUSD",
-        m5Candles: m5,
-        m1Candles: m1,
-        market: {
+      const spreadPts = act.signal.spread ?? 20;
+      const open = inferOpenPosition(act.orders);
+      const floatEst = open
+        ? estimateGoldFloatingUsd(open.side, open.entryPrice, last, open.lot)
+        : 0;
+      const out = decideTradingAction(
+        {
           symbol: "XAUUSD",
-          bid: last,
-          ask: last + spreadPts / 100,
-          spread: spreadPts,
-          at: nowMs(),
+          m5Candles: m5,
+          m1Candles: m1,
+          market: {
+            symbol: "XAUUSD",
+            bid: last,
+            ask: last + spreadPts / 100,
+            spread: spreadPts,
+            at: nowMs(),
+          },
+          openPositions: open
+            ? [
+                {
+                  id: String(open.ticket ?? open.signalId),
+                  symbol: "XAUUSD",
+                  side: open.side,
+                  lot: open.lot ?? 0.01,
+                  openPrice: open.entryPrice ?? last,
+                  stopLoss: null,
+                  takeProfit: null,
+                  openedAt: Date.parse(open.openedAt) || Date.now(),
+                  floatingPnl: floatEst ?? 0,
+                },
+              ]
+            : [],
         },
-        openPositions: [],
-      });
+        {
+          accountMode: parseAccountMode(String(act.signal.accountMode ?? "")),
+        },
+      );
       setResult(out);
     } catch {
       // indikator pakai snapshot EA kalau feed gagal
@@ -581,8 +619,17 @@ export default function TradingAiClient({
     });
   };
 
-  const d = (activity.signal.decision || result?.decision || "WAIT") as TradeDecision;
-  const liveConf = activity.signal.confidence ?? result?.confidence ?? 0;
+  const feedAge = channelAge(health, "feed");
+  const execAge = channelAge(health, "executor");
+  const feedFresh = feedAge != null && feedAge <= BRIDGE_HEALTHY_WINDOW_SEC;
+  const executorFresh = execAge != null && execAge <= BRIDGE_HEALTHY_WINDOW_SEC;
+  const liveMapped = mapLiveDecision({
+    feedFresh,
+    executorFresh,
+    liveDecision: result?.decision ?? null,
+  });
+  const d = liveMapped.decision;
+  const liveConf = liveMapped.stale ? null : (result?.confidence ?? null);
   const stats = activity.stats ?? emptyQuantStats();
   const maxSpread = DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints;
   const spreadPts = activity.signal.spread;
@@ -601,41 +648,38 @@ export default function TradingAiClient({
       ? null
       : openPos.side === "BUY"
         ? floatingPts
-        : floatingPts == null
-          ? null
-          : -floatingPts;
+        : -floatingPts;
   const riskScore =
     spreadPts == null ? 0 : Math.min(10, Math.round((spreadPts / Math.max(maxSpread, 1)) * 100) / 10);
   const spreadOk = spreadPts == null ? false : spreadPts <= maxSpread;
   const pipeline = buildPipeline({
-    feedOk,
-    feedAgeSec: channelAge(health, "feed"),
-    decision: activity.signal.decision ?? result?.decision ?? null,
+    feedOk: feedOk && feedFresh,
+    feedAgeSec: feedAge,
+    decision: liveMapped.stale ? "WAIT" : result?.decision ?? null,
     confidence: liveConf,
     minConfidence: EXECUTION_MIN_CONFIDENCE,
-    serverExecutable: activity.signal.serverExecutable,
+    serverExecutable: liveMapped.executableNow && executorFresh ? activity.signal.serverExecutable : false,
     lastStatus: stats.lastStatus,
     hasOpenPosition: Boolean(openPos),
     riskBlocked: result ? !result.risk.allowed : false,
   });
   const why = buildWhySignal({
     decision: String(d),
-    result,
+    result: liveMapped.stale ? null : result,
     spreadOk,
     hasOpenPosition: Boolean(openPos),
-    openHint: activity.openHint,
+    openHint: liveMapped.stale ? liveMapped.reason : activity.openHint,
   });
-  const m5Bias = activity.signal.m5Bias || result?.trend.direction || "N/A";
+  const m5Bias = result?.trend.direction || "N/A";
+  const directionalBias = directionalBiasFromM5(result?.trend.direction);
   const m5Strength =
     result?.trend.strength != null ? `${Math.round(result.trend.strength * 100)}%` : "N/A";
-  const m1Momentum = result?.momentum.direction || activity.signal.m1Direction || "N/A";
-  const quality = entryQuality(liveConf, EXECUTION_MIN_CONFIDENCE);
+  const m1Momentum = result?.momentum.direction || "N/A";
+  const quality = liveMapped.stale ? "STALE" : entryQuality(liveConf, EXECUTION_MIN_CONFIDENCE);
   const bid =
-    lastClose != null && spreadPts != null ? (lastClose).toFixed(3) : lastClose != null ? lastClose.toFixed(3) : "N/A";
+    lastClose != null && spreadPts != null ? lastClose.toFixed(3) : lastClose != null ? lastClose.toFixed(3) : "N/A";
   const ask =
-    lastClose != null && spreadPts != null
-      ? (lastClose + spreadPts / 100).toFixed(3)
-      : "N/A";
+    lastClose != null && spreadPts != null ? (lastClose + spreadPts / 100).toFixed(3) : "N/A";
   const accountMode = (activity.signal.accountMode || health.account.mode || "N/A").toUpperCase();
   const login =
     activity.signal.accountLogin != null
@@ -643,13 +687,32 @@ export default function TradingAiClient({
       : health.account.login != null
         ? String(health.account.login)
         : "N/A";
-  const sigAge = signalAgeMs(activity.signal.at ? Date.parse(activity.signal.at) : null, clockTick);
+  const liveBrainAge = result ? signalAgeMs(result.generatedAt, clockTick) : null;
+  const eaSigAge = signalAgeMs(activity.signal.at ? Date.parse(activity.signal.at) : null, clockTick);
+  const eaStale = eaSigAge == null || eaSigAge > SIGNAL_FRESHNESS_MS;
+  const holdSec = openPos ? durationSec(openPos.openedAt, clockTick) : null;
+  const longHold = holdSec != null && holdSec >= SCALP_LONG_HOLD_SEC;
+  const exitStatus = openPos
+    ? result?.exit.decision === "CLOSE"
+      ? result.exit.reason
+      : result?.exit.reason || "HOLD"
+    : stats.lastStatus || "FLAT";
+  const tp = result?.entry.suggestedTakeProfit ?? null;
+  const sl = result?.entry.suggestedStopLoss ?? null;
+  let targetStatus = "N/A";
+  if (openPos && lastClose != null && tp != null) {
+    const toward =
+      openPos.side === "BUY" ? lastClose >= tp : lastClose <= tp;
+    const againstSl = sl != null && (openPos.side === "BUY" ? lastClose <= sl : lastClose >= sl);
+    targetStatus = againstSl ? "NEAR SL" : toward ? "NEAR TP" : "IN PLAY";
+  }
   const rr =
-    result?.entry.suggestedStopLoss != null &&
-    result?.entry.suggestedTakeProfit != null &&
-    lastClose != null
+    sl != null && tp != null && lastClose != null
       ? DEFAULT_TRADING_AI_CONFIG.brain.takeProfitRr.toFixed(1)
       : "N/A";
+  const feedDisplay = displayChannelState(channelState(health, "feed"), feedAge);
+  const execDisplay = displayChannelState(channelState(health, "executor"), execAge);
+  const brainHealth = liveMapped.stale ? "STALE" : result ? "ACTIVE" : feedOk ? "WAITING" : "INACTIVE";
 
   const journalRows: JournalViewRow[] = activity.orders.map((o) => ({
     id: o.id,
@@ -687,10 +750,10 @@ export default function TradingAiClient({
       broker: "N/A",
       server: "N/A",
       decision: String(d).toUpperCase(),
-      decisionColor: decisionColor(d),
-      confidence: liveConf,
+      decisionColor: liveMapped.stale ? "#FFB14A" : decisionColor(d),
+      confidence: liveConf ?? 0,
       minConfidence: EXECUTION_MIN_CONFIDENCE,
-      openHint: activity.openHint,
+      openHint: liveMapped.stale ? liveMapped.reason : activity.openHint,
       kpis: {
         totalPnl: floating,
         realized: null,
@@ -715,13 +778,19 @@ export default function TradingAiClient({
       spreadPts: spreadPts ?? null,
       m5Bias,
       m5Strength,
-      m1State: activity.signal.m1Direction || result?.momentum.direction || "N/A",
+      directionalBias,
+      m1State: m1StateFromBrain(result),
       m1Momentum,
       entryQuality: quality,
-      exitStatus: openPos ? "HOLD" : stats.lastStatus || "FLAT",
+      exitStatus,
+      targetStatus,
+      longHold,
+      stale: liveMapped.stale,
+      staleReason: liveMapped.reason,
+      lastEaSignal: `${(activity.signal.decision || "N/A").toUpperCase()} · ${formatAgeLabel(eaSigAge, eaStale)}`,
       bid,
       ask,
-      regime: marketRegime(result?.trend.direction || activity.signal.m5Bias),
+      regime: marketRegime(result?.trend.direction),
       support:
         result?.supportResistance.nearestSupport != null
           ? result.supportResistance.nearestSupport.toFixed(3)
@@ -732,16 +801,19 @@ export default function TradingAiClient({
           : "N/A",
       liveM5,
       liveM1,
-      feedLive: (channelAge(health, "feed") ?? 999) < 90,
+      feedLive: feedFresh,
       brain: {
         pullback: result ? (result.pullback.detected ? "CONFIRMED" : "NO") : "N/A",
         rejection: result ? (result.rejection.detected ? "CONFIRMED" : "NO") : "N/A",
         riskGate: result ? (result.risk.allowed ? "PASS" : "BLOCK") : "N/A",
-        final:
-          d === "WAIT"
+        final: liveMapped.stale
+          ? "WAIT"
+          : d === "WAIT"
             ? "WAIT"
             : `${String(d)} ${control.lot.toFixed(2)}`,
-        reason: result?.reasons[0] || activity.openHint,
+        reason: liveMapped.stale
+          ? liveMapped.reason
+          : result?.reasons[0] || activity.openHint,
       },
       why,
       pipeline,
@@ -751,60 +823,45 @@ export default function TradingAiClient({
           state: healthErr ? "ERROR" : "CONNECTED",
           age: healthLatencyMs != null ? `${healthLatencyMs}ms` : "—",
         },
-        { label: "Candle feed", state: channelState(health, "feed"), age: fmtAge(channelAge(health, "feed")) },
+        { label: "Candle feed", state: feedDisplay, age: fmtAge(feedAge) },
+        { label: "Trading Brain", state: brainHealth, age: formatAgeLabel(liveBrainAge != null ? Math.round(liveBrainAge / 1000) : null, liveMapped.stale) },
+        { label: "Executor", state: execDisplay, age: fmtAge(execAge) },
         {
-          label: "Trading Brain",
-          state: result ? "ACTIVE" : feedOk ? "WAITING" : "INACTIVE",
+          label: "MT5 bridge",
+          state: feedFresh && executorFresh ? "CONNECTED" : feedAge != null || execAge != null ? "STALE" : health.state,
           age: "—",
         },
-        {
-          label: "Executor",
-          state: channelState(health, "executor"),
-          age: fmtAge(channelAge(health, "executor")),
-        },
-        { label: "MT5 bridge", state: health.state, age: "—" },
         { label: "Database", state: schemaReady ? "CONNECTED" : "ERROR", age: "—" },
       ],
       diagnostic: {
-        SIGNAL: String(d).toUpperCase(),
-        CONFIDENCE: String(liveConf),
+        SIGNAL: liveMapped.stale ? "STALE" : String(d).toUpperCase(),
+        CONFIDENCE: liveMapped.stale ? "STALE" : liveConf != null ? String(liveConf) : "N/A",
         "ENTRY QUALITY": quality,
-        TARGET: result?.entry.suggestedTakeProfit?.toFixed(3) ?? "N/A",
-        "STOP LOSS": result?.entry.suggestedStopLoss?.toFixed(3) ?? "N/A",
-        "TAKE PROFIT": result?.entry.suggestedTakeProfit?.toFixed(3) ?? "N/A",
-        "RISK REWARD": rr === "N/A" ? "N/A" : `1 : ${rr}`,
+        "SIGNAL AGE": formatAgeLabel(
+          liveBrainAge != null ? Math.round(liveBrainAge / 1000) : eaSigAge != null ? Math.round(eaSigAge / 1000) : null,
+          liveMapped.stale || eaStale,
+        ),
+        TARGET: liveMapped.stale ? "STALE" : result?.entry.suggestedTakeProfit?.toFixed(3) ?? "N/A",
+        STOP: liveMapped.stale ? "STALE" : result?.entry.suggestedStopLoss?.toFixed(3) ?? "N/A",
+        "TAKE PROFIT": liveMapped.stale ? "STALE" : result?.entry.suggestedTakeProfit?.toFixed(3) ?? "N/A",
+        "RISK REWARD": liveMapped.stale || rr === "N/A" ? "N/A" : `1 : ${rr}`,
         LOT: control.lot.toFixed(2),
         SPREAD: spreadPts == null ? "N/A" : String(spreadPts),
-        "SIGNAL AGE": sigAge == null ? "N/A" : `${Math.round(sigAge / 1000)}s`,
         COOLDOWN: control.cooldownRemaining > 0 ? fmtCooldown(control.cooldownRemaining) : "READY",
         "POSITION LIMIT": `${openPos ? 1 : 0} / ${HARD_RULES.MAX_POSITION}`,
       },
       tree: [
-        { id: "data", label: "MARKET DATA", on: health.state === "CONNECTED", sub: health.state },
-        { id: "candle", label: "CANDLE", on: feedOk, sub: `M5 ${feed.m5Count} · M1 ${feed.m1Count}` },
-        { id: "scan", label: "SCAN", on: feedOk, sub: feedOk ? "LIVE" : "WAIT" },
-        { id: "m5", label: "M5 REGIME", on: Boolean(result?.trend.direction || activity.signal.m5Bias), sub: m5Bias },
-        {
-          id: "m1",
-          label: "M1 SETUP",
-          on: Boolean(result?.pullback.detected || result?.rejection.detected),
-          sub: activity.signal.m1Direction || "—",
-        },
+        { id: "data", label: "MARKET DATA", on: feedFresh || executorFresh, sub: health.state },
+        { id: "candle", label: "CANDLE", on: feedFresh && feedOk, sub: feedFresh ? `M5 ${feed.m5Count}` : "STALE" },
+        { id: "scan", label: "SCAN", on: feedFresh && feedOk, sub: feedFresh ? "LIVE" : "STALE" },
+        { id: "m5", label: "M5 REGIME", on: Boolean(result?.trend.direction), sub: `${m5Bias}` },
+        { id: "bias", label: "DIR BIAS", on: directionalBias === "BUY ONLY" || directionalBias === "SELL ONLY", sub: directionalBias },
+        { id: "m1", label: "M1 SETUP", on: Boolean(result?.pullback.detected || result?.rejection.detected), sub: m1StateFromBrain(result) },
         { id: "pb", label: "PULLBACK", on: Boolean(result?.pullback.detected), sub: result?.pullback.detected ? "YES" : "NO" },
         { id: "rj", label: "REJECTION", on: Boolean(result?.rejection.detected), sub: result?.rejection.side || "NO" },
-        {
-          id: "mom",
-          label: "MOMENTUM",
-          on: Boolean(result?.momentum.alignedWithTrend),
-          sub: result?.momentum.direction || "—",
-        },
-        { id: "risk", label: "RISK GATE", on: Boolean(result?.risk.allowed), sub: result ? (result.risk.allowed ? "PASS" : "BLOCK") : "—" },
-        {
-          id: "out",
-          label: String(d).toUpperCase(),
-          on: d !== "WAIT",
-          sub: activity.signal.serverExecutable ? "READY" : "HOLD",
-        },
+        { id: "mom", label: "MOMENTUM", on: Boolean(result?.momentum.alignedWithTrend), sub: result?.momentum.direction || "—" },
+        { id: "risk", label: "RISK GATE", on: Boolean(result?.risk.allowed) && !liveMapped.stale, sub: liveMapped.stale ? "STALE" : result ? (result.risk.allowed ? "PASS" : "BLOCK") : "—" },
+        { id: "out", label: String(d).toUpperCase(), on: !liveMapped.stale && d !== "WAIT", sub: liveMapped.stale ? "STALE" : liveMapped.executableNow ? "READY" : "HOLD" },
       ],
       features: result?.validation.breakdown.features ?? [],
       analytics: {

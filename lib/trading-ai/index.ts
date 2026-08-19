@@ -114,6 +114,23 @@ export {
   type CycleStageId,
 } from "./quant-stats";
 
+export {
+  inferOpenPosition,
+  estimateGoldFloatingUsd,
+  goldPoints,
+  buildPipeline,
+  buildWhySignal,
+  journalReason,
+  entryQuality,
+  marketRegime,
+  countFillsSince,
+  durationLabel,
+  type DeskOpenPosition,
+  type PipelineStep,
+  type PipelineStepStatus,
+  type WhyBullet,
+} from "./quant-desk";
+
 export { normalizeTradingSymbol, normalizeGoldSpreadPoints } from "./symbol";
 
 export {

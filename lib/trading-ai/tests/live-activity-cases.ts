@@ -78,4 +78,34 @@ assert(activeCycleStage({
   lastStatus: null,
 }) === "detect", "wait cycle = detect");
 
+import {
+  inferOpenPosition,
+  estimateGoldFloatingUsd,
+  journalReason,
+  buildPipeline,
+} from "../quant-desk";
+
+assert(inferOpenPosition([filled])?.side === "BUY", "open from last fill");
+assert(
+  inferOpenPosition([{ ...filled, id: 3, status: "CLOSED", direction: "CLOSE" }, filled]) === null,
+  "closed then fill older = flat",
+);
+assert(estimateGoldFloatingUsd("BUY", 2500, 2501, 0.01) === 1, "gold float 0.01 lot $1/point");
+assert(journalReason("CLOSED", null) === "CLOSED", "journal closed");
+assert(journalReason("CLOSE_FAILED", "unknown retcode 0") === "SYSTEM STOP", "close failed reason");
+assert(
+  buildPipeline({
+    feedOk: true,
+    feedAgeSec: 8,
+    decision: "WAIT",
+    confidence: 31,
+    minConfidence: 65,
+    serverExecutable: false,
+    lastStatus: null,
+    hasOpenPosition: false,
+    riskBlocked: false,
+  }).find((s) => s.id === "listen")?.status === "PASSED",
+  "listen passed when feed ok",
+);
+
 console.log("PASS live-activity-cases");

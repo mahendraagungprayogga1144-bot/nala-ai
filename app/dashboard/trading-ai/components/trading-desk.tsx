@@ -109,10 +109,10 @@ function Metric({
   return (
     <div className="min-w-0 border border-white/[0.07] bg-black/35 px-2.5 py-2">
       <p className="text-[9px] uppercase tracking-[0.16em] text-[#6A8A99]">{label}</p>
-      <p className={`mt-0.5 truncate font-mono text-[22px] font-semibold leading-none ${tone || "text-[#E8F7FF]"}`}>
+      <p className={`mt-0.5 break-all font-mono text-[15px] font-semibold leading-tight ${tone || "text-[#E8F7FF]"}`}>
         {value}
       </p>
-      {sub ? <p className="mt-0.5 truncate text-[10px] text-[#5A7A88]">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 break-words text-[10px] leading-snug text-[#5A7A88]">{sub}</p> : null}
     </div>
   );
 }
@@ -354,11 +354,14 @@ export default function TradingDesk({
             <Panel id="posisi" title="Posisi Aktif" tone="lime">
               {view.openPos ? (
                 <div className="space-y-2">
-                  {view.longHold ? (
-                    <div className="border border-[#FFB14A]/50 bg-[#FFB14A]/15 px-2 py-1 text-[10px] font-bold tracking-[0.16em] text-[#FFB14A]">
-                      LONG HOLD WARNING · {view.duration} · scalp M1 tidak menahan 17h
+                    <div className="border border-[#FFB14A]/40 bg-[#FFB14A]/10 px-2 py-1 text-[10px] leading-snug text-[#FFD9A0]">
+                      Jurnal EA FILLED — bukan tab Transaksi MT5. Kalau MT5 kosong, posisi ini ghost.
                     </div>
-                  ) : null}
+                    {view.longHold ? (
+                      <div className="border border-[#FFB14A]/50 bg-[#FFB14A]/15 px-2 py-1 text-[10px] font-bold tracking-[0.16em] text-[#FFB14A]">
+                        LONG HOLD WARNING · {view.duration} · scalp M1 tidak menahan berjam-jam
+                      </div>
+                    ) : null}
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div>
                       <p className="font-mono text-[10px] text-[#6A8A99]">XAUUSDm</p>
@@ -384,7 +387,7 @@ export default function TradingDesk({
                       tone={pnlClass(view.floating)}
                     />
                     <Metric
-                      label="PIPS"
+                      label="POINTS"
                       value={view.floatingPts == null ? "N/A" : String(view.floatingPts)}
                       tone={pnlClass(view.floatingPts)}
                     />

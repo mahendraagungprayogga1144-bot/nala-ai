@@ -15,13 +15,22 @@ export type DeskOpenPosition = {
   spread: number | null;
   confidence: number | null;
   signalId: string;
+  /** Jurnal EA saja — bukan tab Transaksi MT5. */
+  fromJournalOnly: true;
 };
 
+/**
+ * Posisi "open" di dashboard = inferensi jurnal, bukan Positions MT5.
+ * CLOSE / CLOSE_FAILED (termasuk retcode 0 Exness) = jangan anggap FILLED lama masih hidup.
+ */
 export function inferOpenPosition(orders: LiveOrderRow[]): DeskOpenPosition | null {
   for (const o of orders) {
     const st = o.status.toUpperCase();
     const dir = (o.direction || "").toUpperCase();
-    if (st === "CLOSED") return null;
+    const recovered = (o.errorMessage || "").toLowerCase().includes("recovered");
+    if (st === "CLOSED" || recovered) return null;
+    if (st === "CLOSE_FAILED") return null;
+    if (dir === "CLOSE" && (st === "FILLED" || st === "READY")) return null;
     if (st === "FILLED" && (dir === "BUY" || dir === "SELL")) {
       return {
         side: dir,
@@ -32,6 +41,7 @@ export function inferOpenPosition(orders: LiveOrderRow[]): DeskOpenPosition | nu
         spread: o.spread,
         confidence: o.confidence,
         signalId: o.signalId,
+        fromJournalOnly: true,
       };
     }
   }

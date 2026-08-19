@@ -755,7 +755,7 @@ export default function TradingAiClient({
       minConfidence: EXECUTION_MIN_CONFIDENCE,
       openHint: liveMapped.stale ? liveMapped.reason : activity.openHint,
       kpis: {
-        totalPnl: floating,
+        totalPnl: null,
         realized: null,
         floating,
         equity: null,

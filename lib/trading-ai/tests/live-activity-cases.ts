@@ -93,6 +93,20 @@ assert(
   inferOpenPosition([{ ...filled, id: 3, status: "CLOSED", direction: "CLOSE" }, filled]) === null,
   "closed then fill older = flat",
 );
+assert(
+  inferOpenPosition([
+    { ...filled, id: 4, status: "CLOSE_FAILED", direction: "CLOSE", errorMessage: "unknown retcode 0" },
+    filled,
+  ]) === null,
+  "CLOSE_FAILED after fill = not live open (ghost Exness)",
+);
+assert(
+  inferOpenPosition([
+    { ...filled, id: 5, status: "CLOSE_FAILED", errorMessage: "recovered close retcode 0" },
+    filled,
+  ]) === null,
+  "recovered close = flat",
+);
 assert(estimateGoldFloatingUsd("BUY", 2500, 2501, 0.01) === 1, "gold float 0.01 lot $1/point");
 assert(journalReason("CLOSED", null) === "CLOSED", "journal closed");
 assert(journalReason("CLOSE_FAILED", "unknown retcode 0") === "SYSTEM STOP", "close failed reason");

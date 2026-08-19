@@ -157,6 +157,17 @@ export default async function TradingAiPage() {
       },
       orders: [],
       openHint: "Belum ada data sinyal dari EA.",
+      stats: {
+        fills: 0,
+        closed: 0,
+        failed: 0,
+        closeFailed: 0,
+        recovered: 0,
+        fillsToday: 0,
+        lastFillAt: null,
+        lastFillSide: null,
+        lastStatus: null,
+      },
     };
     try {
       activity = await collectLiveActivity(supabase, user.id);

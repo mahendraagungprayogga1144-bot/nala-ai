@@ -106,6 +106,14 @@ export {
   type LiveSignalSnapshot,
 } from "./live-activity";
 
+export {
+  buildQuantStats,
+  emptyQuantStats,
+  activeCycleStage,
+  type QuantStats,
+  type CycleStageId,
+} from "./quant-stats";
+
 export { normalizeTradingSymbol, normalizeGoldSpreadPoints } from "./symbol";
 
 export {

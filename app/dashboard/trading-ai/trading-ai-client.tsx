@@ -23,6 +23,7 @@ import {
 import {
   TRADING_AI_VERSION,
   DEFAULT_TRADING_AI_CONFIG,
+  EXECUTION_MIN_CONFIDENCE,
   decideTradingAction,
   journal,
   parseCandlesFile,
@@ -34,6 +35,8 @@ import {
   formatGmtOffsetLabel,
   formatMt5DateTime,
   formatMt5Time,
+  activeCycleStage,
+  emptyQuantStats,
   type BacktestResult,
   type BridgeConnectionState,
   type BridgeHealthResult,
@@ -315,18 +318,50 @@ export default function TradingAiClient({
         signal: json.signal,
         orders: json.orders ?? [],
         openHint: json.openHint ?? "",
+        stats: json.stats ?? emptyQuantStats(),
       });
     } catch {
       // panel live gagal diam-diam; health tetap jadi sumber koneksi
     }
   };
 
-  // Poll status bridge + panel sinyal/order.
+  const pulseLiveBrain = async () => {
+    try {
+      const { m5, m1 } = await refreshFeed();
+      if (
+        m5.length < DEFAULT_TRADING_AI_CONFIG.brain.minM5Candles ||
+        m1.length < DEFAULT_TRADING_AI_CONFIG.brain.minM1Candles
+      ) {
+        return;
+      }
+      const last = m1[m1.length - 1].close;
+      const out = decideTradingAction({
+        symbol: "XAUUSD",
+        m5Candles: m5,
+        m1Candles: m1,
+        market: {
+          symbol: "XAUUSD",
+          bid: last,
+          ask: last + 0.2,
+          spread: activity.signal.spread ?? 20,
+          at: nowMs(),
+        },
+        openPositions: [],
+      });
+      setResult(out);
+    } catch {
+      // indikator pakai snapshot EA kalau feed gagal
+    }
+  };
+
+  // Poll status bridge + panel sinyal/order + otak live (tampilan saja).
   useEffect(() => {
     const t = setInterval(() => {
       void refreshHealth();
       void refreshActivity();
+      void pulseLiveBrain();
     }, HEALTH_POLL_MS);
+    void pulseLiveBrain();
     return () => clearInterval(t);
   }, []);
 
@@ -571,8 +606,59 @@ export default function TradingAiClient({
     });
   };
 
-  const d = result?.decision ?? "WAIT";
+  const d = (activity.signal.decision || result?.decision || "WAIT") as TradeDecision;
   const color = decisionColor(d);
+  const liveConf = activity.signal.confidence ?? result?.confidence ?? 0;
+  const stats = activity.stats ?? emptyQuantStats();
+  const feedOk =
+    feed.m5Count >= DEFAULT_TRADING_AI_CONFIG.brain.minM5Candles &&
+    feed.m1Count >= DEFAULT_TRADING_AI_CONFIG.brain.minM1Candles;
+  const cycle = activeCycleStage({
+    feedOk,
+    decision: activity.signal.decision ?? result?.decision ?? null,
+    confidence: liveConf,
+    minConfidence: EXECUTION_MIN_CONFIDENCE,
+    serverExecutable: activity.signal.serverExecutable,
+    lastStatus: stats.lastStatus,
+  });
+  const features = result?.validation.breakdown.features ?? [];
+  const maxSpread = DEFAULT_TRADING_AI_CONFIG.risk.maxSpreadPoints;
+  const spreadPts = activity.signal.spread ?? 0;
+  const riskScore = Math.min(10, Math.round((spreadPts / Math.max(maxSpread, 1)) * 100) / 10);
+  const cycleSteps: { id: typeof cycle; label: string }[] = [
+    { id: "detect", label: "Detect" },
+    { id: "validate", label: "Validate" },
+    { id: "size", label: "Size" },
+    { id: "fill", label: "Fill" },
+    { id: "settle", label: "Settle" },
+  ];
+  const treeNodes = [
+    { id: "scan", label: "SCAN", on: feedOk, sub: `M5 ${feed.m5Count} · M1 ${feed.m1Count}` },
+    {
+      id: "m5",
+      label: "M5",
+      on: Boolean(activity.signal.m5Bias || result?.trend.direction),
+      sub: activity.signal.m5Bias || result?.trend.direction || "—",
+    },
+    {
+      id: "m1",
+      label: "M1 SWING",
+      on: Boolean(result?.pullback.detected || result?.rejection.detected),
+      sub: activity.signal.m1Direction || result?.rejection.side || "—",
+    },
+    {
+      id: "edge",
+      label: "EDGE CONF",
+      on: liveConf >= EXECUTION_MIN_CONFIDENCE,
+      sub: `${liveConf} / ${EXECUTION_MIN_CONFIDENCE}`,
+    },
+    {
+      id: "out",
+      label: String(d).toUpperCase(),
+      on: d !== "WAIT",
+      sub: activity.signal.serverExecutable ? "READY" : "HOLD",
+    },
+  ];
 
   return (
     <div className="cp-root relative min-h-[calc(100vh-2rem)] overflow-hidden px-3 py-4 sm:px-6 sm:py-6">
@@ -682,32 +768,86 @@ export default function TradingAiClient({
       `}</style>
 
       <div className="relative z-[1] mx-auto max-w-6xl">
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="mb-2 text-[10px] uppercase tracking-[0.35em] text-[#5CE1FF]/80">
-              Gercep Neural Desk · v{TRADING_AI_VERSION}
+        {/* Ticker — data live */}
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 overflow-hidden rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-[#8FB8C9]">
+          <span className="text-[#5CE1FF]">GERCEP × QUANT</span>
+          <span>XAUUSD</span>
+          <span>v{TRADING_AI_VERSION}</span>
+          <span className={health.state === "CONNECTED" ? "text-[#00F0A8]" : "text-[#FFB14A]"}>
+            {health.state}
+          </span>
+          <span>
+            {activity.signal.accountMode ?? "—"}
+            {activity.signal.accountLogin != null ? ` ${activity.signal.accountLogin}` : ""}
+          </span>
+          <span>spread {spreadPts || "—"}</span>
+          <span>lot {(control.lot ?? 0.01).toFixed(2)}</span>
+          <span className="text-[#6A8A99]">max 1 pos · local swing</span>
+        </div>
+
+        {/* Header KPI */}
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1.2fr_0.9fr_1fr]">
+          <div className="cp-panel relative overflow-hidden rounded-2xl p-5">
+            <p className="mb-1 text-[10px] uppercase tracking-[0.3em] text-[#5CE1FF]/80">
+              Gercep Quant Desk · operator {userLabel}
             </p>
-            <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#5CE1FF]/40 bg-[#5CE1FF]/10 text-[#5CE1FF]">
-                <Crosshair size={20} />
+            <p className="cp-decision text-5xl font-black tracking-tight sm:text-6xl" style={{ color }}>
+              {String(d).toUpperCase()}
+            </p>
+            <p className="mt-2 text-sm text-[#9BC5D4]">{activity.openHint}</p>
+            <div className="mt-3 flex flex-wrap gap-4 text-[11px]">
+              <span>
+                CONF <b className="text-white">{liveConf}</b>
+                <span className="text-[#6A8A99]"> / {EXECUTION_MIN_CONFIDENCE}</span>
               </span>
-              Trading AI Brain
-            </h1>
-            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#8FB8C9] sm:text-sm">
-              Otak XAUUSD gaya manual kamu. EA mengeksekusi order di akun MT5 demo
-              atau real saat autotrade dinyalakan. Akun real = uang sungguhan —
-              wajib LIVE ENABLE terpisah + lot kecil + emergency stop siap.
+              <span>
+                M5 <b className="text-white">{activity.signal.m5Bias ?? result?.trend.direction ?? "—"}</b>
+              </span>
+              <span>
+                M1 <b className="text-white">{activity.signal.m1Direction ?? "—"}</b>
+              </span>
+            </div>
+          </div>
+          <div className="cp-panel rounded-2xl p-5">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[#6A8A99]">fills (EA journal)</p>
+            <p className="mt-1 text-4xl font-black text-[#00F0A8]">{stats.fills}</p>
+            <p className="mt-1 text-[11px] text-[#9BC5D4]">
+              hari ini {stats.fillsToday} · closed {stats.closed} · recovered {stats.recovered}
+            </p>
+            <p className="mt-2 text-[10px] text-[#6A8A99]">
+              last {stats.lastFillSide ?? "—"}{" "}
+              {stats.lastFillAt
+                ? new Date(stats.lastFillAt).toLocaleTimeString("id-ID", { hour12: false })
+                : ""}
+            </p>
+            <p className="mt-3 text-[10px] uppercase tracking-wider text-[#6A8A99]">
+              risk spread {riskScore.toFixed(1)} / 10
+            </p>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-[#00F0A8]"
+                style={{ width: `${Math.min(100, riskScore * 10)}%` }}
+              />
+            </div>
+            <p className="mt-1 text-[10px] text-[#8FB8C9]">
+              {spreadPts} / {maxSpread} pts · {riskScore < 6 ? "SAFE" : "WIDE"}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest">
-            <span className="cp-chip rounded-full px-3 py-1.5 text-[#5CE1FF]">operator {userLabel}</span>
-            <span className="cp-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[#00F0A8]">
-              <Lock size={11} /> live on
-            </span>
-            <span className="cp-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[#00F0A8]">
-              <Shield size={11} /> max 1 pos
-            </span>
+          <div className="cp-panel rounded-2xl p-5">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[#6A8A99]">exec / report</p>
+            <p className="mt-2 text-lg font-bold text-white">
+              {activity.signal.serverExecutable ? "READY" : "HOLD"}
+            </p>
+            <p className="text-[11px] text-[#9BC5D4]">
+              {control.autotradeEnabled ? "AUTO ON" : "AUTO OFF"} ·{" "}
+              {control.liveEnable ? "LIVE ON" : "LIVE OFF"}
+            </p>
+            <p className="mt-3 text-[11px] text-[#FFC2D8]">
+              CLOSE_FAILED {stats.closeFailed} · FAILED {stats.failed}
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#6A8A99]">
+              Merah di jurnal sering retcode 0 Exness — cek Riwayat MT5. EA v2.4.3 recover close.
+            </p>
           </div>
         </div>
 
@@ -883,65 +1023,94 @@ export default function TradingAiClient({
         <div className="cp-panel mb-4 rounded-2xl p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#FFB14A]">
-              <Activity size={13} /> sinyal & order live
+              <Activity size={13} /> execution cycle · live
             </p>
             <button
               type="button"
-              onClick={() => void refreshActivity()}
+              onClick={() => {
+                void refreshActivity();
+                void pulseLiveBrain();
+              }}
               className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2 py-1 text-[10px] text-[#9BC5D4]"
             >
               <RefreshCw size={11} /> refresh
             </button>
           </div>
 
-          <p className="mb-3 text-[11px] leading-relaxed text-[#9BC5D4]">{activity.openHint}</p>
-
-          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Sinyal sekarang</p>
-              <p
-                className={`mt-1 inline-flex rounded-full border px-2.5 py-0.5 text-sm font-bold ${decisionChip(activity.signal.decision)}`}
-              >
-                {(activity.signal.decision || "—").toUpperCase()}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Confidence</p>
-              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
-                {activity.signal.confidence != null ? activity.signal.confidence : "—"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Auto / Live / Exec</p>
-              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
-                {activity.signal.autotrade ? "AUTO ON" : "AUTO OFF"}
-                {" · "}
-                {activity.signal.liveEnable ? "LIVE ON" : "LIVE OFF"}
-                {" · "}
-                {activity.signal.serverExecutable ? "READY" : "HOLD"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">M5 / M1</p>
-              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
-                {activity.signal.m5Bias ?? "—"} / {activity.signal.m1Direction ?? "—"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-wider text-[#6A8A99]">Akun</p>
-              <p className="mt-1 text-sm font-semibold text-[#E8F7FF]">
-                {activity.signal.accountMode ?? "—"}
-                {activity.signal.accountLogin != null
-                  ? ` · ${activity.signal.accountLogin}`
-                  : ""}
-              </p>
-            </div>
+          <div className="mb-5 grid grid-cols-5 gap-1">
+            {cycleSteps.map((s, i) => {
+              const active = s.id === cycle;
+              const settleFail = s.id === "settle" && stats.lastStatus === "CLOSE_FAILED";
+              return (
+                <div
+                  key={s.id}
+                  className={`rounded-lg border px-2 py-2 text-center ${
+                    settleFail
+                      ? "border-[#FF3D7F]/50 bg-[#FF3D7F]/15 text-[#FF3D7F]"
+                      : active
+                        ? "border-[#00F0A8]/50 bg-[#00F0A8]/12 text-[#00F0A8]"
+                        : "border-white/10 bg-black/25 text-[#6A8A99]"
+                  }`}
+                >
+                  <p className="text-[9px] uppercase tracking-wider">{i + 1}</p>
+                  <p className="text-[11px] font-bold">{s.label}</p>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[#6A8A99]">
-            <span>spread: {activity.signal.spread ?? "—"}</span>
-            <span>estop: {activity.signal.emergencyStop ? "ON" : "off"}</span>
-            <span className="break-all">id: {activity.signal.signalId ?? "—"}</span>
+          <p className="mb-4 text-[11px] leading-relaxed text-[#9BC5D4]">{activity.openHint}</p>
+
+          <div className="mb-5 grid gap-4 lg:grid-cols-2">
+            <div>
+              <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-[#6A8A99]">
+                strategy decision tree
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {treeNodes.map((n, i) => (
+                  <div key={n.id} className="flex items-center gap-1.5">
+                    {i > 0 ? <span className="text-[#5A7A88]">→</span> : null}
+                    <div
+                      className={`min-w-[4.5rem] rounded-lg border px-2 py-1.5 ${
+                        n.on
+                          ? "border-[#5CE1FF]/40 bg-[#5CE1FF]/10 text-[#5CE1FF]"
+                          : "border-white/10 text-[#6A8A99]"
+                      }`}
+                    >
+                      <p className="text-[9px] font-bold uppercase">{n.label}</p>
+                      <p className="text-[10px] text-[#E8F7FF]">{n.sub}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-[#6A8A99]">
+                feature matrix (brain live)
+              </p>
+              {features.length === 0 ? (
+                <p className="text-[11px] text-[#6A8A99]">
+                  Menunggu feed M1/M5 cukup untuk hitung fitur. CandlePush harus jalan.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                  {features.map((f) => (
+                    <div
+                      key={f.id}
+                      className={`rounded-md border px-2 py-1.5 text-[10px] ${
+                        f.passed
+                          ? "border-[#00F0A8]/35 bg-[#00F0A8]/10 text-[#00F0A8]"
+                          : "border-[#FF3D7F]/30 bg-[#FF3D7F]/10 text-[#FFC2D8]"
+                      }`}
+                      title={f.detail}
+                    >
+                      <p className="truncate font-semibold">{f.passed ? "OK" : "MISS"} {f.points}pt</p>
+                      <p className="truncate text-[9px] opacity-80">{f.label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-[#6A8A99]">

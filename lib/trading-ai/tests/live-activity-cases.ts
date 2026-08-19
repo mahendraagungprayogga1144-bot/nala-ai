@@ -63,4 +63,19 @@ const filled: LiveOrderRow = {
 };
 assert(/BUY/.test(buildOpenHint(base, filled)), "filled hint");
 
+import { buildQuantStats, activeCycleStage } from "../quant-stats";
+const qs = buildQuantStats([
+  filled,
+  { ...filled, id: 2, status: "CLOSE_FAILED", errorMessage: "unknown retcode 0" },
+]);
+assert(qs.fills === 1 && qs.closeFailed === 1, "quant stats counts");
+assert(activeCycleStage({
+  feedOk: true,
+  decision: "WAIT",
+  confidence: 31,
+  minConfidence: 65,
+  serverExecutable: false,
+  lastStatus: null,
+}) === "detect", "wait cycle = detect");
+
 console.log("PASS live-activity-cases");

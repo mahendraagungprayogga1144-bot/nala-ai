@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildQuantStats, emptyQuantStats, type QuantStats } from "./quant-stats";
 
 export type LiveSignalSnapshot = {
   signalId: string | null;
@@ -40,6 +41,7 @@ export type LiveActivity = {
   signal: LiveSignalSnapshot;
   orders: LiveOrderRow[];
   openHint: string;
+  stats: QuantStats;
 };
 
 const EMPTY_SIGNAL: LiveSignalSnapshot = {
@@ -92,7 +94,7 @@ export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrder
 export async function collectLiveActivity(
   supabase: SupabaseClient,
   userId: string,
-  orderLimit = 12,
+  orderLimit = 80,
 ): Promise<LiveActivity> {
   const [ctlRes, ordRes] = await Promise.all([
     supabase
@@ -155,5 +157,6 @@ export async function collectLiveActivity(
     signal,
     orders,
     openHint: buildOpenHint(signal, orders[0] ?? null),
+    stats: buildQuantStats(orders),
   };
 }

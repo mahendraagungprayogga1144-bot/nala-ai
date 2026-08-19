@@ -56,23 +56,25 @@ export function detectSequencedSetup(
   const closed = lastClosedIndex(m1Candles);
   const from = Math.max(0, closed - LOOKBACK + 1);
 
+  let setup: SequencedSetup;
   if (trendDirection === "bullish") {
-    return pickBest(
+    setup = pickBest(
       dipResumeBuy(m1Candles, from, closed),
       localBottomBuy(m1Candles, from, closed),
     );
-  }
-  if (trendDirection === "bearish") {
-    return pickBest(
+  } else if (trendDirection === "bearish") {
+    setup = pickBest(
       bounceResumeSell(m1Candles, from, closed),
       localTopSell(m1Candles, from, closed),
     );
+  } else {
+    // sideways: range-scalp — BUY dasar / SELL pucuk.
+    setup = pickBest(
+      localTopSell(m1Candles, from, closed),
+      localBottomBuy(m1Candles, from, closed),
+    );
   }
-  // sideways: range-scalp — BUY dasar / SELL pucuk.
-  return pickBest(
-    localTopSell(m1Candles, from, closed),
-    localBottomBuy(m1Candles, from, closed),
-  );
+  return vetoFadeBreakout(setup, m1Candles, closed);
 }
 
 function setupScore(s: SequencedSetup): number {
@@ -95,6 +97,66 @@ function pickBest(...setups: SequencedSetup[]): SequencedSetup {
     }
   }
   return best;
+}
+
+/** Jangan SELL ke rally M1, jangan BUY ke dump yang masih breakdown. */
+function vetoFadeBreakout(
+  setup: SequencedSetup,
+  candles: CandleLike[],
+  closed: number,
+): SequencedSetup {
+  if (!setup.pullback.detected || !setup.rejection.detected) return setup;
+
+  const last = candles[closed];
+  const rising = isRisingTape(candles, closed);
+  const falling = isFallingTape(candles, closed);
+
+  if (setup.rejection.side === "bearish" && rising) {
+    return waitingSell(
+      "M1 lagi naik — jangan SELL lawan tape. Nunggu turun/dip, bukan fade breakout.",
+      setup.pullback.depth,
+      last.high,
+    );
+  }
+  if (setup.rejection.side === "bullish" && falling && isBearishCandle(last)) {
+    return waitingBuy(
+      "M1 masih breakdown — jangan BUY jatuh. Nunggu stall di dasar.",
+      setup.pullback.depth,
+      last.low,
+    );
+  }
+  return setup;
+}
+
+function tapeWindow(candles: CandleLike[], closed: number): CandleLike[] {
+  const n = 16;
+  return candles.slice(Math.max(0, closed - n + 1), closed + 1);
+}
+
+function isRisingTape(candles: CandleLike[], closed: number): boolean {
+  const win = tapeWindow(candles, closed);
+  if (win.length < 8) return false;
+  const last = candles[closed];
+  const atr = atrApprox(candles) || last.close * 0.001;
+  const hi = Math.max(...win.map((c) => c.high));
+  const lo = Math.min(...win.map((c) => c.low));
+  const span = Math.max(hi - lo, atr);
+  const pos = (last.close - lo) / span;
+  const net = last.close - win[0].close;
+  return net >= atr * 0.7 && pos >= 0.55;
+}
+
+function isFallingTape(candles: CandleLike[], closed: number): boolean {
+  const win = tapeWindow(candles, closed);
+  if (win.length < 8) return false;
+  const last = candles[closed];
+  const atr = atrApprox(candles) || last.close * 0.001;
+  const hi = Math.max(...win.map((c) => c.high));
+  const lo = Math.min(...win.map((c) => c.low));
+  const span = Math.max(hi - lo, atr);
+  const pos = (last.close - lo) / span;
+  const net = last.close - win[0].close;
+  return net <= -atr * 0.7 && pos <= 0.45;
 }
 
 type CandleLike = {

@@ -126,7 +126,7 @@ export function decideEntry(input: {
 
   if (!pullback.detected || !rejection.detected || !momentum.alignedWithTrend) {
     if (trend.direction === "bearish") {
-      return WAIT("M5 bearish — nunggu bounce M1 lalu SELL. Jangan kejar dump.");
+      return WAIT("M5 bearish — nunggu bounce M1 lalu SELL, tapi jangan SELL kalau M1 masih naik.");
     }
     if (trend.direction === "bullish") {
       return WAIT("M5 bullish — nunggu dip M1 lalu BUY. Jangan kejar rally.");

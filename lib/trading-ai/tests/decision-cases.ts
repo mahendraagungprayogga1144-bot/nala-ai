@@ -107,7 +107,25 @@ function buildBullishM1(): Candle[] {
 }
 
 function buildBearishM1(): Candle[] {
-  return invertSeries(buildBullishM1());
+  const out: Candle[] = [];
+  let px = 2325;
+  for (let i = 0; i < 24; i++) {
+    const o = px;
+    const c = px - 0.4;
+    out.push(candle(i, o, o + 0.06, c - 0.08, c));
+    px = c;
+  }
+  for (let k = 0; k < 3; k++) {
+    const o = px;
+    const c = px + 0.22;
+    out.push(candle(out.length, o, c + 0.05, o - 0.04, c));
+    px = c;
+  }
+  const o = px;
+  const c = px - 0.14;
+  out.push(candle(out.length, o, o + 0.12, c - 0.04, c));
+  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  return out;
 }
 
 // --- WAIT: thin data ---
@@ -722,6 +740,23 @@ function buildDumpOnlyM1(): Candle[] {
   return out;
 }
 
+/** Rally M1 lalu 1 merah di high — jangan SELL lawan tape. */
+function buildRallyThenRedM1(): Candle[] {
+  const out: Candle[] = [];
+  let px = 2300;
+  for (let i = 0; i < 28; i++) {
+    const o = px;
+    const c = px + 0.45;
+    out.push(candle(i, o, c + 0.08, o - 0.04, c));
+    px = c;
+  }
+  const o = px;
+  const c = px - 0.12;
+  out.push(candle(out.length, o, o + 0.04, c - 0.04, c));
+  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  return out;
+}
+
 // --- Bisa ganti: dip/bounce lanjutan + structure break, tanpa kejar dump ---
 {
   const dipBuy = decideTradingAction(
@@ -767,6 +802,21 @@ function buildDumpOnlyM1(): Candle[] {
   assert(
     chaseDump.decision === "WAIT",
     `dump tanpa bounce harus WAIT, got ${chaseDump.decision} ${chaseDump.reasons.join(" | ")}`,
+  );
+
+  const fadeRally = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBearishM5(),
+      m1Candles: buildRallyThenRedM1(),
+      market: market(buildRallyThenRedM1().at(-1)!.close),
+      openPositions: [],
+    },
+    { config },
+  );
+  assert(
+    fadeRally.decision === "WAIT",
+    `M1 rally jangan di-SELL, got ${fadeRally.decision} ${fadeRally.reasons.join(" | ")}`,
   );
 
   const broken = buildBearishM5();

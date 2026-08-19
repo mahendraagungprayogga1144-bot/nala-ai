@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.7.7-switch-bias";
+export const TRADING_AI_VERSION = "0.7.8-no-fade-breakout";
 
 /**
  * Hard product rules — never weaken from UI.

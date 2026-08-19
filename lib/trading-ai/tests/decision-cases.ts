@@ -7,6 +7,7 @@ import { analyzeTrend } from "../brain/trend-analyzer";
 import { decideEntry } from "../brain/entry-decision";
 import { decideExit } from "../brain/exit-decision";
 import { dynamicTakeProfitDistance } from "../brain/dynamic-tp";
+import { findSwings, lastClosedIndex, lastSwings } from "../brain/price-action";
 import { decideTradingAction } from "../decide";
 import {
   DEFAULT_TRADING_AI_CONFIG,
@@ -680,6 +681,123 @@ function buildBearishM1(): Candle[] {
   );
 
   console.log("PASS extreme-only + chase reject + top/bottom");
+}
+
+function buildDipResumeBullishM1(): Candle[] {
+  const out: Candle[] = [];
+  let px = 2310;
+  for (let i = 0; i < 24; i++) {
+    const o = px;
+    const c = px + 0.25;
+    out.push(candle(i, o, c + 0.05, o - 0.05, c));
+    px = c;
+  }
+  for (let k = 0; k < 3; k++) {
+    const o = px;
+    const c = px - 0.38;
+    out.push(candle(out.length, o, o + 0.04, c - 0.1, c));
+    px = c;
+  }
+  const o = px;
+  const c = px + 0.14;
+  out.push(candle(out.length, o, c + 0.03, o - 0.16, c));
+  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  return out;
+}
+
+function buildBounceResumeBearishM1(): Candle[] {
+  return invertSeries(buildDipResumeBullishM1());
+}
+
+function buildDumpOnlyM1(): Candle[] {
+  const out: Candle[] = [];
+  let px = 2320;
+  for (let i = 0; i < 32; i++) {
+    const o = px;
+    const c = px - 0.4;
+    out.push(candle(i, o, o + 0.04, c - 0.04, c));
+    px = c;
+  }
+  out.push(candle(out.length, px, px + 0.02, px - 0.02, px));
+  return out;
+}
+
+// --- Bisa ganti: dip/bounce lanjutan + structure break, tanpa kejar dump ---
+{
+  const dipBuy = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBullishM5(),
+      m1Candles: buildDipResumeBullishM1(),
+      market: market(buildDipResumeBullishM1().at(-1)!.close),
+      openPositions: [],
+    },
+    { config },
+  );
+  assert(
+    dipBuy.decision === "BUY",
+    `M5 bullish + dip M1 harus BUY, got ${dipBuy.decision} conf=${dipBuy.confidence} ${dipBuy.reasons.join(" | ")}`,
+  );
+
+  const bounceSell = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBearishM5(),
+      m1Candles: buildBounceResumeBearishM1(),
+      market: market(buildBounceResumeBearishM1().at(-1)!.close),
+      openPositions: [],
+    },
+    { config },
+  );
+  assert(
+    bounceSell.decision === "SELL",
+    `M5 bearish + bounce M1 harus SELL, got ${bounceSell.decision} conf=${bounceSell.confidence} ${bounceSell.reasons.join(" | ")}`,
+  );
+
+  const chaseDump = decideTradingAction(
+    {
+      symbol: "XAUUSD",
+      m5Candles: buildBearishM5(),
+      m1Candles: buildDumpOnlyM1(),
+      market: market(buildDumpOnlyM1().at(-1)!.close),
+      openPositions: [],
+    },
+    { config },
+  );
+  assert(
+    chaseDump.decision === "WAIT",
+    `dump tanpa bounce harus WAIT, got ${chaseDump.decision} ${chaseDump.reasons.join(" | ")}`,
+  );
+
+  const broken = buildBearishM5();
+  const closed = lastClosedIndex(broken);
+  const lastHigh = lastSwings(findSwings(broken, 2, 2), "high", 1)[0]?.price;
+  assert(lastHigh != null && lastHigh > 0, "bearish M5 must have a swing high");
+  const modest = broken[closed];
+  broken[closed] = candle(
+    closed,
+    lastHigh - 0.15,
+    lastHigh + 0.35,
+    Math.min(modest.low, lastHigh - 0.2),
+    lastHigh + 0.22,
+  );
+  const brokenTrend = analyzeTrend(broken, config);
+  assert(
+    brokenTrend.direction !== "bearish",
+    `close di atas swing high tidak boleh tetap SELL-only, got ${brokenTrend.direction} notes=${brokenTrend.notes.join(" | ")}`,
+  );
+
+  const spike = buildBearishM5();
+  const spikeClosed = spike.length - 2;
+  const peak = Math.max(...spike.slice(0, spikeClosed).map((c) => c.high));
+  spike[spikeClosed] = candle(spikeClosed, peak - 0.2, peak + 3, peak - 0.4, peak + 2.4);
+  const spikeTrend = analyzeTrend(spike, config);
+  assert(
+    spikeTrend.direction !== "bearish",
+    `spike balik tidak boleh tetap SELL-only, got ${spikeTrend.direction}`,
+  );
+
+  console.log("PASS switch-bias dip/bounce + no-chase dump + structure break");
 }
 
 // --- Exit: momentum lost protects floating profit ---

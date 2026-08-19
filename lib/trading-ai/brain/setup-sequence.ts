@@ -1,8 +1,7 @@
 /**
- * Sequenced M1 — perampok lokal (yang kita omongin):
- * BUY di dasar swing lokal (stall hijau dekat low),
- * SELL di pucuk swing lokal (stall merah dekat high).
- * Lebih sering dari "dump/spike raksasa", tetap tolak kejar tengah.
+ * Sequenced M1 — ikut arah M5, tapi bisa ganti saat struktur pecah (RANGE).
+ * Trending: BUY dip / SELL bounce (lanjutan), plus fade di tepi swing lokal.
+ * Jangan kejar tengah: dump tanpa bounce ≠ SELL, rally tanpa dip ≠ BUY.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -35,6 +34,10 @@ const LOOKBACK = 80;
 const SWING_BARS = 8;
 const EXTREME_CLOSE_ATR = 0.75;
 const MIN_SPAN_ATR = 0.55;
+/** Bounce/dip pendek di dalam trend — 5 bar, bukan nunggu upswing 8 bar. */
+const BOUNCE_BARS = 4;
+const MIN_BOUNCE_ATR = 0.22;
+const NEAR_EXTREME_ATR = 0.45;
 
 export function detectSequencedSetup(
   m1Candles: CandleLike[],
@@ -54,10 +57,16 @@ export function detectSequencedSetup(
   const from = Math.max(0, closed - LOOKBACK + 1);
 
   if (trendDirection === "bullish") {
-    return localBottomBuy(m1Candles, from, closed);
+    return pickBest(
+      dipResumeBuy(m1Candles, from, closed),
+      localBottomBuy(m1Candles, from, closed),
+    );
   }
   if (trendDirection === "bearish") {
-    return localTopSell(m1Candles, from, closed);
+    return pickBest(
+      bounceResumeSell(m1Candles, from, closed),
+      localTopSell(m1Candles, from, closed),
+    );
   }
   // sideways: range-scalp — BUY dasar / SELL pucuk.
   return pickBest(
@@ -272,6 +281,155 @@ function localBottomBuy(
       direction: "bullish",
       strength: 0.7,
       notes: ["Local bottom bounce after downswing."],
+    },
+  };
+}
+
+/**
+ * SELL bounce pendek di M5 bearish: 1–3 bar naik, lalu merah di pucuk bounce.
+ * Tidak nunggu upswing 8 bar (itu yang bikin SCAN selamanya saat dump).
+ */
+function bounceResumeSell(
+  candles: CandleLike[],
+  from: number,
+  closed: number,
+): SequencedSetup {
+  const atr = atrApprox(candles) || candles[closed].close * 0.001;
+  const winFrom = Math.max(from, closed - BOUNCE_BARS);
+  const win = candles.slice(winFrom, closed + 1);
+  if (win.length < 4) return waitingSell("Bounce SELL: need more bars.");
+
+  const last = candles[closed];
+  const prior = win.slice(0, -1);
+  const winHigh = Math.max(...win.map((c) => c.high));
+  const winLow = Math.min(...win.map((c) => c.low));
+  const bounceHigh = Math.max(...prior.map((c) => c.high));
+  const bounceLow = Math.min(...prior.map((c) => c.low));
+  const bounceSpan = bounceHigh - bounceLow;
+
+  if (!prior.some(isBullishCandle)) {
+    return waitingSell("Bounce SELL: belum ada naik M1 — jangan kejar dump.", 0, winHigh);
+  }
+  if (bounceSpan < atr * MIN_BOUNCE_ATR) {
+    return waitingSell("Bounce SELL: bounce terlalu tipis.", 0, winHigh);
+  }
+  if (!isBearishCandle(last)) {
+    return waitingSell("Bounce SELL: nunggu candle merah di pucuk bounce.", 0, winHigh);
+  }
+  const nearHigh = Math.max(atr * NEAR_EXTREME_ATR, bounceSpan * 0.35);
+  const maxAway = Math.max(atr * 0.95, bounceSpan * 0.7);
+  if (winHigh - last.high > nearHigh) {
+    return waitingSell("Bounce SELL: high bounce sudah lewat — jangan kejar.", 0, winHigh);
+  }
+  if (winHigh - last.close > maxAway) {
+    return waitingSell("Bounce SELL: sudah jauh dari pucuk bounce.", 0, winHigh);
+  }
+  if (last.close - winLow < Math.min(atr * 0.12, bounceSpan * 0.2)) {
+    return waitingSell("Bounce SELL: sudah di dasar window — jangan kejar dump.", 0, winHigh);
+  }
+
+  const barRange = Math.max(last.high - last.low, 1e-9);
+  const rejectTop =
+    upperWick(last) >= barRange * 0.12 ||
+    last.close <= rangeMid(last) ||
+    bodySize(last) >= atr * 0.1;
+  if (!rejectTop) {
+    return waitingSell("Bounce SELL: candle merah belum reject pucuk.", 0, winHigh);
+  }
+
+  const depth = Math.min(0.5, bounceSpan / Math.max(atr * 2.2, bounceSpan));
+  return {
+    pullback: {
+      detected: true,
+      depth,
+      nearLevel: last.high,
+      notes: ["M5 bearish — SELL bounce M1 (bukan kejar dump)."],
+    },
+    rejection: {
+      detected: true,
+      side: "bearish",
+      atPrice: last.high,
+      notes: ["Red resume after short M1 bounce."],
+    },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bearish",
+      strength: 0.64,
+      notes: ["Trend continuation: sell the bounce."],
+    },
+  };
+}
+
+/**
+ * BUY dip pendek di M5 bullish: 1–3 bar turun, lalu hijau di dasar dip.
+ */
+function dipResumeBuy(
+  candles: CandleLike[],
+  from: number,
+  closed: number,
+): SequencedSetup {
+  const atr = atrApprox(candles) || candles[closed].close * 0.001;
+  const winFrom = Math.max(from, closed - BOUNCE_BARS);
+  const win = candles.slice(winFrom, closed + 1);
+  if (win.length < 4) return waitingBuy("Dip BUY: need more bars.");
+
+  const last = candles[closed];
+  const prior = win.slice(0, -1);
+  const winHigh = Math.max(...win.map((c) => c.high));
+  const winLow = Math.min(...win.map((c) => c.low));
+  const dipHigh = Math.max(...prior.map((c) => c.high));
+  const dipLow = Math.min(...prior.map((c) => c.low));
+  const dipSpan = dipHigh - dipLow;
+
+  if (!prior.some(isBearishCandle)) {
+    return waitingBuy("Dip BUY: belum ada turun M1 — jangan kejar rally.", 0, winLow);
+  }
+  if (dipSpan < atr * MIN_BOUNCE_ATR) {
+    return waitingBuy("Dip BUY: dip terlalu tipis.", 0, winLow);
+  }
+  if (!isBullishCandle(last)) {
+    return waitingBuy("Dip BUY: nunggu candle hijau di dasar dip.", 0, winLow);
+  }
+  const nearLow = Math.max(atr * NEAR_EXTREME_ATR, dipSpan * 0.35);
+  const maxAway = Math.max(atr * 0.95, dipSpan * 0.7);
+  if (last.low - winLow > nearLow) {
+    return waitingBuy("Dip BUY: low dip sudah lewat — jangan kejar.", 0, winLow);
+  }
+  if (last.close - winLow > maxAway) {
+    return waitingBuy("Dip BUY: sudah jauh dari dasar dip.", 0, winLow);
+  }
+  if (winHigh - last.close < Math.min(atr * 0.12, dipSpan * 0.2)) {
+    return waitingBuy("Dip BUY: sudah di pucuk window — jangan kejar rally.", 0, winLow);
+  }
+
+  const barRange = Math.max(last.high - last.low, 1e-9);
+  const rejectBottom =
+    lowerWick(last) >= barRange * 0.12 ||
+    last.close >= rangeMid(last) ||
+    bodySize(last) >= atr * 0.1;
+  if (!rejectBottom) {
+    return waitingBuy("Dip BUY: candle hijau belum reject dasar.", 0, winLow);
+  }
+
+  const depth = Math.min(0.5, dipSpan / Math.max(atr * 2.2, dipSpan));
+  return {
+    pullback: {
+      detected: true,
+      depth,
+      nearLevel: last.low,
+      notes: ["M5 bullish — BUY dip M1 (bukan kejar rally)."],
+    },
+    rejection: {
+      detected: true,
+      side: "bullish",
+      atPrice: last.low,
+      notes: ["Green resume after short M1 dip."],
+    },
+    momentum: {
+      alignedWithTrend: true,
+      direction: "bullish",
+      strength: 0.64,
+      notes: ["Trend continuation: buy the dip."],
     },
   };
 }

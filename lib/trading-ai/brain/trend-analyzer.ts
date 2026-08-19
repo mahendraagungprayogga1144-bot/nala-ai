@@ -1,11 +1,12 @@
 /**
  * Trend Analyzer — M5 swing structure (HH/HL vs LH/LL).
  * Price action only — no RSI/MACD/EMA as primary bias.
+ * Structure break unlocks RANGE so bias can switch instead of staying locked.
  */
 
 import type { TradingAiConfig } from "../config";
 import type { Candle, TrendAnalysis, TrendDirection } from "../types";
-import { findSwings, lastSwings } from "./price-action";
+import { findSwings, lastClosedIndex, lastSwings } from "./price-action";
 
 export function analyzeTrend(
   candles: Candle[],
@@ -49,7 +50,7 @@ export function analyzeTrend(
   if (hh && hl) {
     direction = "bullish";
     strength = 0.7;
-    notes.push("M5 structure: higher high + higher low → bullish (BUY bias only).");
+    notes.push("M5 structure: higher high + higher low → bullish (BUY bias).");
     if (highs.length >= 3 && highs[highs.length - 2].price > highs[highs.length - 3].price) {
       strength = 0.85;
       notes.push("Third swing continues HH — stronger bullish structure.");
@@ -57,13 +58,30 @@ export function analyzeTrend(
   } else if (lh && ll) {
     direction = "bearish";
     strength = 0.7;
-    notes.push("M5 structure: lower high + lower low → bearish (SELL bias only).");
+    notes.push("M5 structure: lower high + lower low → bearish (SELL bias).");
     if (lows.length >= 3 && lows[lows.length - 2].price < lows[lows.length - 3].price) {
       strength = 0.85;
       notes.push("Third swing continues LL — stronger bearish structure.");
     }
   } else {
-    notes.push("M5 mixed swings — sideways / unclear. Prefer WAIT.");
+    notes.push("M5 mixed swings — RANGE. Boleh ganti sisi di tepi box.");
+  }
+
+  const last = candles[lastClosedIndex(candles)];
+  const lastSwingHigh = highs[highs.length - 1].price;
+  const lastSwingLow = lows[lows.length - 1].price;
+  if (direction === "bearish" && last.close > lastSwingHigh) {
+    direction = "sideways";
+    strength = 0.42;
+    notes.push(
+      "Bearish structure broken (close above last swing high) — unlock RANGE, bias boleh ganti.",
+    );
+  } else if (direction === "bullish" && last.close < lastSwingLow) {
+    direction = "sideways";
+    strength = 0.42;
+    notes.push(
+      "Bullish structure broken (close below last swing low) — unlock RANGE, bias boleh ganti.",
+    );
   }
 
   return {

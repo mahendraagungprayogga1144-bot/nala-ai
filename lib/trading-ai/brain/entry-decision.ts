@@ -125,6 +125,12 @@ export function decideEntry(input: {
   }
 
   if (!pullback.detected || !rejection.detected || !momentum.alignedWithTrend) {
+    if (trend.direction === "bearish") {
+      return WAIT("M5 bearish — nunggu bounce M1 lalu SELL. Jangan kejar dump.");
+    }
+    if (trend.direction === "bullish") {
+      return WAIT("M5 bullish — nunggu dip M1 lalu BUY. Jangan kejar rally.");
+    }
     return WAIT("Waiting for local swing setup (dasar BUY / pucuk SELL).");
   }
 
@@ -156,7 +162,7 @@ export function decideEntry(input: {
     if (!chase.ok) return WAIT(chase.reason);
     return buildLong({
       ...common,
-      reason: `BUY di dasar lokal (M5 ${trend.direction}).`,
+      reason: pullback.notes[0] ?? `BUY dip / dasar (M5 ${trend.direction}).`,
     });
   }
 
@@ -165,7 +171,7 @@ export function decideEntry(input: {
     if (!chase.ok) return WAIT(chase.reason);
     return buildShort({
       ...common,
-      reason: `SELL di pucuk lokal (M5 ${trend.direction}).`,
+      reason: pullback.notes[0] ?? `SELL bounce / pucuk (M5 ${trend.direction}).`,
     });
   }
 

@@ -116,6 +116,7 @@ export {
 
 export {
   inferOpenPosition,
+  lastJournalLabel,
   estimateGoldFloatingUsd,
   goldPoints,
   buildPipeline,

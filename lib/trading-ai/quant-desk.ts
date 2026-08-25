@@ -48,6 +48,17 @@ export function inferOpenPosition(orders: LiveOrderRow[]): DeskOpenPosition | nu
   return null;
 }
 
+/** Ringkas order jurnal terbaru untuk panel FLAT — bukan posisi MT5. */
+export function lastJournalLabel(orders: LiveOrderRow[]): string {
+  const o = orders[0];
+  if (!o) return "N/A";
+  const dir = (o.direction || "—").toUpperCase();
+  const st = (o.status || "—").toUpperCase();
+  const lot = o.lot != null ? String(o.lot) : "?";
+  const px = o.entryPrice != null ? o.entryPrice.toFixed(3) : "—";
+  return `${st} · ${dir} ${lot} @ ${px}`;
+}
+
 /** Kontrak XAU standar: 100 oz / lot. Estimasi dari harga last vs entry — bukan P/L broker. */
 export function estimateGoldFloatingUsd(
   side: "BUY" | "SELL",

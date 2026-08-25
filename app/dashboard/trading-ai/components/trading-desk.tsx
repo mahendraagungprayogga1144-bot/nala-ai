@@ -171,6 +171,7 @@ export type DeskView = {
   kpis: DeskKpis;
   openPos: DeskOpenPosition | null;
   posCount: string;
+  lastJournal: string;
   currentPrice: number | null;
   floating: number | null;
   floatingPts: number | null;
@@ -402,9 +403,34 @@ export default function TradingDesk({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3 py-8">
-                  <p className="text-sm tracking-[0.18em] text-[#6A8A99]">NO ACTIVE POSITION</p>
-                  <p className="font-mono text-xs text-[#A78BFA]">POSITION LIMIT {view.posCount}</p>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <p className="font-mono text-[10px] text-[#6A8A99]">XAUUSDm · jurnal EA</p>
+                      <p className="text-4xl font-black tracking-tight text-[#6A8A99]">FLAT</p>
+                    </div>
+                    <div className="border border-[#A78BFA]/40 bg-[#A78BFA]/10 px-2 py-1 text-right">
+                      <p className="text-[9px] uppercase tracking-[0.16em] text-[#C4B5FD]">Limit</p>
+                      <p className="font-mono text-xl font-bold text-[#C4B5FD]">{view.posCount}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                    <Metric label="STATUS" value="NO ACTIVE POSITION" />
+                    <Metric label="POSITION LIMIT" value={view.posCount} />
+                    <Metric label="CURRENT" value={na(view.currentPrice?.toFixed(3))} />
+                    <Metric label="FLOATING" value="0.00" />
+                    <Metric label="LAST JOURNAL" value={view.lastJournal} />
+                    <Metric label="SPREAD" value={na(view.spreadPts)} />
+                    <Metric label="M5 BIAS" value={view.m5Bias} />
+                    <Metric label="M1 STATE" value={view.m1State} />
+                    <Metric label="EXIT STATUS" value={view.exitStatus} />
+                    <Metric label="ENTRY QUALITY" value={view.stale ? "STALE" : view.entryQuality} />
+                    <Metric label="DECISION" value={view.stale ? "WAIT" : view.decision} />
+                    <Metric label="SOURCE" value="Jurnal EA, bukan Transaksi MT5" />
+                  </div>
+                  <p className="text-[10px] leading-snug text-[#5A7A88]">
+                    0/1 artinya slot kosong. Posisi broker hanya di tab Transaksi MT5.
+                  </p>
                 </div>
               )}
             </Panel>

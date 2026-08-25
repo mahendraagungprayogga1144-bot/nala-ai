@@ -1,10 +1,13 @@
 /**
  * Support / Resistance Analyzer — cluster swing highs/lows on M5.
+ * Entry location helpers: near level vs middle of range.
  */
 
 import type { TradingAiConfig } from "../config";
 import type { Candle, SrLevel, SupportResistanceAnalysis } from "../types";
 import { atrApprox, clusterLevels, findSwings } from "./price-action";
+
+export type RangeZone = "near_support" | "near_resistance" | "middle" | "outside" | "incomplete";
 
 export function analyzeSupportResistance(
   candles: Candle[],
@@ -60,4 +63,46 @@ export function analyzeSupportResistance(
     nearestSupport,
     nearestResistance,
   };
+}
+
+export function levelTolerance(atr: number, config: TradingAiConfig, price: number): number {
+  return Math.max(atr * config.brain.levelTouchAtrMult, price * 0.00015, 0.35);
+}
+
+export function isNearLevel(
+  price: number,
+  level: number | null,
+  tolerance: number,
+): boolean {
+  if (level == null || !(level > 0)) return false;
+  return Math.abs(price - level) <= tolerance;
+}
+
+/**
+ * RANGE zone: near S / near R / middle / outside.
+ * Middle = between S and R and not within touch of either edge.
+ */
+export function classifyRangeZone(
+  price: number,
+  support: number | null,
+  resistance: number | null,
+  tolerance: number,
+): RangeZone {
+  if (support == null || resistance == null || resistance <= support) return "incomplete";
+  const nearS = isNearLevel(price, support, tolerance);
+  const nearR = isNearLevel(price, resistance, tolerance);
+  if (nearS && !nearR) return "near_support";
+  if (nearR && !nearS) return "near_resistance";
+  if (nearS && nearR) {
+    return Math.abs(price - support) <= Math.abs(price - resistance)
+      ? "near_support"
+      : "near_resistance";
+  }
+  if (price > support && price < resistance) return "middle";
+  return "outside";
+}
+
+export function entryDistanceToLevel(price: number, level: number | null): number | null {
+  if (level == null || !(level > 0)) return null;
+  return Math.abs(price - level);
 }

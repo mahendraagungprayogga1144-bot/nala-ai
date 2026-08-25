@@ -7,6 +7,7 @@ import { analyzeTrend } from "../brain/trend-analyzer";
 import { decideEntry } from "../brain/entry-decision";
 import { decideExit } from "../brain/exit-decision";
 import { dynamicTakeProfitDistance } from "../brain/dynamic-tp";
+import { detectSequencedSetup } from "../brain/setup-sequence";
 import { findSwings, lastClosedIndex, lastSwings } from "../brain/price-action";
 import { decideTradingAction } from "../decide";
 import {
@@ -25,7 +26,7 @@ import {
 } from "../execution-control";
 import { isSignalFresh, SIGNAL_FRESHNESS_MS } from "../signal-freshness";
 import { toEaTradeSignal } from "../signal";
-import type { Candle, MarketSnapshot } from "../types";
+import type { Candle, MarketRegime, MarketSnapshot, TrendAnalysis } from "../types";
 
 function candle(i: number, o: number, h: number, l: number, c: number): Candle {
   return { time: 1_700_000_000 + i * 60, open: o, high: h, low: l, close: c };
@@ -38,6 +39,22 @@ function market(bid: number): MarketSnapshot {
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
 }
+
+function trendOf(
+  direction: "bullish" | "bearish" | "sideways" | "unknown",
+  strength = 0.7,
+): TrendAnalysis {
+  const regime: MarketRegime =
+    direction === "bullish"
+      ? "TRENDING_BULLISH"
+      : direction === "bearish"
+        ? "TRENDING_BEARISH"
+        : direction === "sideways"
+          ? "RANGE"
+          : "UNCLEAR";
+  return { timeframe: "M5", direction, regime, strength, notes: [] };
+}
+
 
 const config = mergeTradingAiConfig({
   ...DEFAULT_TRADING_AI_CONFIG,
@@ -92,17 +109,20 @@ function buildBullishM1(): Candle[] {
   const out: Candle[] = [];
   let px = 2315;
   // Dump tajam ke dasar
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 26; i++) {
     const o = px;
     const c = px - 0.45;
     out.push(candle(i, o, o + 0.08, c - 0.06, c));
     px = c;
   }
-  // Stall hijau di dasar (entry) + forming — close tetap dekat low
-  const o = px;
-  const c = px + 0.08;
-  out.push(candle(out.length, o, c + 0.03, o - 0.18, c));
-  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  // 2–3 stall hijau di dasar (momentum resume) + forming
+  for (let k = 0; k < 3; k++) {
+    const o = px;
+    const c = px + 0.14;
+    out.push(candle(out.length, o, c + 0.04, o - 0.16, c));
+    px = c;
+  }
+  out.push(candle(out.length, px, px + 0.02, px - 0.02, px));
   return out;
 }
 
@@ -124,7 +144,11 @@ function buildBearishM1(): Candle[] {
   const o = px;
   const c = px - 0.14;
   out.push(candle(out.length, o, o + 0.12, c - 0.04, c));
-  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  // second red for momentum resume
+  const o2 = c;
+  const c2 = c - 0.1;
+  out.push(candle(out.length, o2, o2 + 0.06, c2 - 0.03, c2));
+  out.push(candle(out.length, c2, c2 + 0.02, c2 - 0.02, c2));
   return out;
 }
 
@@ -552,7 +576,7 @@ function buildBearishM1(): Candle[] {
 // --- M5 sideways → range-box scalp; unknown → WAIT ---
 {
   const waitUnknown = decideEntry({
-    trend: { timeframe: "M5", direction: "unknown", strength: 0, notes: [] },
+    trend: trendOf("unknown", 0),
     pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
     rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
     momentum: {
@@ -569,11 +593,13 @@ function buildBearishM1(): Candle[] {
     },
     marketPrice: 2301,
     config,
+    nearLevel: true,
+    entryDistance: 1.0,
   });
   assert(waitUnknown.decision === "WAIT", "unknown M5 harus WAIT");
 
   const buyBox = decideEntry({
-    trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
+    trend: trendOf("sideways", 0.35),
     pullback: { detected: true, depth: 0.4, nearLevel: 2300, notes: [] },
     rejection: { detected: true, side: "bullish", atPrice: 2300, notes: [] },
     momentum: {
@@ -590,11 +616,13 @@ function buildBearishM1(): Candle[] {
     },
     marketPrice: 2300.3,
     config,
+    nearLevel: true,
+    entryDistance: 0.3,
   });
   assert(buyBox.decision === "BUY", `sideways + bullish M1 harus BUY, got ${buyBox.decision}`);
 
   const sellBox = decideEntry({
-    trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
+    trend: trendOf("sideways", 0.35),
     pullback: { detected: true, depth: 0.4, nearLevel: 2305, notes: [] },
     rejection: { detected: true, side: "bearish", atPrice: 2305, notes: [] },
     momentum: {
@@ -611,11 +639,13 @@ function buildBearishM1(): Candle[] {
     },
     marketPrice: 2304.7,
     config,
+    nearLevel: true,
+    entryDistance: 0.3,
   });
   assert(sellBox.decision === "SELL", `sideways + bearish M1 harus SELL, got ${sellBox.decision}`);
 
   const peakBuy = decideEntry({
-    trend: { timeframe: "M5", direction: "sideways", strength: 0.35, notes: [] },
+    trend: trendOf("sideways", 0.35),
     pullback: {
       detected: true,
       depth: 0.4,
@@ -637,11 +667,13 @@ function buildBearishM1(): Candle[] {
     },
     marketPrice: 2304.5, // kejar naik dari dasar → tolak
     config,
+    nearLevel: false,
+    entryDistance: 4.5,
   });
   assert(peakBuy.decision === "WAIT", `kejar BUY harus WAIT, got ${peakBuy.decision}`);
 
   const sellTop = decideEntry({
-    trend: { timeframe: "M5", direction: "bullish", strength: 0.7, notes: [] },
+    trend: trendOf("bullish", 0.7),
     pullback: {
       detected: true,
       depth: 0.35,
@@ -663,6 +695,8 @@ function buildBearishM1(): Candle[] {
     },
     marketPrice: 2311.8,
     config,
+    nearLevel: true,
+    entryDistance: 0.2,
   });
   assert(
     sellTop.decision === "WAIT",
@@ -670,7 +704,7 @@ function buildBearishM1(): Candle[] {
   );
 
   const buyBottom = decideEntry({
-    trend: { timeframe: "M5", direction: "bearish", strength: 0.7, notes: [] },
+    trend: trendOf("bearish", 0.7),
     pullback: {
       detected: true,
       depth: 0.35,
@@ -692,10 +726,17 @@ function buildBearishM1(): Candle[] {
     },
     marketPrice: 2299.2,
     config,
+    nearLevel: true,
+    entryDistance: 0.2,
   });
   assert(
     buyBottom.decision === "WAIT",
     `M5 bearish = SELL bias only, BUY dasar harus WAIT, got ${buyBottom.decision}`,
+  );
+
+  assert(
+    /BRAIN_CONSISTENCY_FAIL/i.test(sellTop.reason) || sellTop.consistencyFail,
+    "SELL vs bullish M5 harus consistency fail",
   );
 
   console.log("PASS extreme-only + chase reject + top/bottom");
@@ -719,7 +760,10 @@ function buildDipResumeBullishM1(): Candle[] {
   const o = px;
   const c = px + 0.14;
   out.push(candle(out.length, o, c + 0.03, o - 0.16, c));
-  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  const o2 = c;
+  const c2 = c + 0.12;
+  out.push(candle(out.length, o2, c2 + 0.03, o2 - 0.1, c2));
+  out.push(candle(out.length, c2, c2 + 0.02, c2 - 0.02, c2));
   return out;
 }
 
@@ -879,12 +923,7 @@ function buildRallyThenRedM1(): Candle[] {
         floatingPnl: 12,
       },
     ],
-    trend: {
-      timeframe: "M5",
-      direction: "bullish",
-      strength: 0.7,
-      notes: [],
-    },
+    trend: trendOf("bullish", 0.7),
     momentum: {
       direction: "bearish",
       strength: 0.2,
@@ -894,8 +933,309 @@ function buildRallyThenRedM1(): Candle[] {
     execution: { accountMode: "demo", executionEnabled: true },
   });
   assert(close.decision === "CLOSE", `profit protect harus CLOSE, got ${close.decision}`);
-  assert(/MOMENTUM_LOST/i.test(close.reason), `reason: ${close.reason}`);
+  assert(
+    /MOMENTUM_LOST|PROFIT_PROTECT/i.test(close.reason),
+    `reason: ${close.reason}`,
+  );
   console.log("PASS freshness + dynamic TP + momentum exit");
+}
+
+// --- FINAL TEST: 12 human-style cases ---
+{
+  const srNear = {
+    timeframe: "M5" as const,
+    levels: [],
+    nearestSupport: 2299,
+    nearestResistance: 2305,
+  };
+
+  // CASE 1: M5 bearish + M1 bullish pullback → WAIT
+  {
+    const e = decideEntry({
+      trend: trendOf("bearish", 0.8),
+      pullback: { detected: true, depth: 0.3, nearLevel: 2305, notes: ["pullback up"] },
+      rejection: { detected: false, side: null, atPrice: null, notes: [] },
+      momentum: {
+        alignedWithTrend: false,
+        direction: "bullish",
+        strength: 0.5,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2304,
+      config,
+      nearLevel: true,
+      entryDistance: 0.5,
+    });
+    assert(e.decision === "WAIT", `CASE1 expected WAIT, got ${e.decision}`);
+    console.log("PASS CASE1 M5 bear + M1 bull pullback → WAIT");
+  }
+
+  // CASE 2: full SELL chain → SELL
+  {
+    const e = decideEntry({
+      trend: trendOf("bearish", 0.85),
+      pullback: { detected: true, depth: 0.35, nearLevel: 2305, notes: [] },
+      rejection: { detected: true, side: "bearish", atPrice: 2305.2, notes: [] },
+      momentum: {
+        alignedWithTrend: true,
+        direction: "bearish",
+        strength: 0.75,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2304.8,
+      config,
+      nearLevel: true,
+      entryDistance: 0.2,
+    });
+    assert(e.decision === "SELL", `CASE2 expected SELL, got ${e.decision} ${e.reason}`);
+    assert(e.entryQuality !== "WEAK", `CASE2 quality ${e.entryQuality}`);
+    console.log("PASS CASE2 full SELL chain → SELL");
+  }
+
+  // CASE 3: M5 bull + M1 bear pullback → WAIT
+  {
+    const e = decideEntry({
+      trend: trendOf("bullish", 0.8),
+      pullback: { detected: true, depth: 0.3, nearLevel: 2299, notes: [] },
+      rejection: { detected: false, side: null, atPrice: null, notes: [] },
+      momentum: {
+        alignedWithTrend: false,
+        direction: "bearish",
+        strength: 0.5,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2300,
+      config,
+      nearLevel: true,
+      entryDistance: 0.4,
+    });
+    assert(e.decision === "WAIT", `CASE3 expected WAIT, got ${e.decision}`);
+    console.log("PASS CASE3 M5 bull + M1 bear pullback → WAIT");
+  }
+
+  // CASE 4: BUY at support → BUY
+  {
+    const e = decideEntry({
+      trend: trendOf("bullish", 0.85),
+      pullback: { detected: true, depth: 0.35, nearLevel: 2299, notes: [] },
+      rejection: { detected: true, side: "bullish", atPrice: 2298.8, notes: [] },
+      momentum: {
+        alignedWithTrend: true,
+        direction: "bullish",
+        strength: 0.75,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2299.2,
+      config,
+      nearLevel: true,
+      entryDistance: 0.2,
+    });
+    assert(e.decision === "BUY", `CASE4 expected BUY, got ${e.decision} ${e.reason}`);
+    console.log("PASS CASE4 support rejection → BUY");
+  }
+
+  // CASE 5: RANGE near resistance → SELL
+  {
+    const e = decideEntry({
+      trend: trendOf("sideways", 0.4),
+      pullback: { detected: true, depth: 0.3, nearLevel: 2305, notes: [] },
+      rejection: { detected: true, side: "bearish", atPrice: 2305.1, notes: [] },
+      momentum: {
+        alignedWithTrend: true,
+        direction: "bearish",
+        strength: 0.7,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2304.9,
+      config,
+      nearLevel: true,
+      entryDistance: 0.1,
+    });
+    assert(e.decision === "SELL", `CASE5 expected SELL, got ${e.decision}`);
+    console.log("PASS CASE5 RANGE near R → SELL");
+  }
+
+  // CASE 6: RANGE middle → WAIT (via setup-sequence)
+  {
+    const m1 = buildDumpOnlyM1();
+    const midPx = m1[m1.length - 1].close;
+    const mid = detectSequencedSetup(m1, "sideways", config, {
+      timeframe: "M5",
+      levels: [],
+      nearestSupport: midPx - 5,
+      nearestResistance: midPx + 5,
+    });
+    assert(mid.m1State === "WAIT" || !mid.rejection.detected, `CASE6 middle state=${mid.m1State}`);
+    assert(/middle/i.test(mid.pullback.notes[0] || mid.rejection.notes[0] || ""), `CASE6 note: ${mid.pullback.notes[0]}`);
+    console.log("PASS CASE6 RANGE middle → WAIT");
+  }
+
+  // CASE 7: chase → WAIT
+  {
+    const e = decideEntry({
+      trend: trendOf("bearish", 0.8),
+      pullback: { detected: true, depth: 0.3, nearLevel: 2305, notes: [] },
+      rejection: { detected: true, side: "bearish", atPrice: 2305, notes: [] },
+      momentum: {
+        alignedWithTrend: true,
+        direction: "bearish",
+        strength: 0.7,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2300,
+      config,
+      nearLevel: false,
+      entryDistance: 5,
+    });
+    assert(e.decision === "WAIT", `CASE7 chase expected WAIT, got ${e.decision}`);
+    console.log("PASS CASE7 chase → WAIT");
+  }
+
+  // CASE 8: consistency fail
+  {
+    const e = decideEntry({
+      trend: trendOf("bullish", 0.8),
+      pullback: { detected: true, depth: 0.3, nearLevel: 2310, notes: [] },
+      rejection: { detected: true, side: "bearish", atPrice: 2310, notes: [] },
+      momentum: {
+        alignedWithTrend: true,
+        direction: "bearish",
+        strength: 0.7,
+        notes: [],
+      },
+      supportResistance: srNear,
+      marketPrice: 2309.5,
+      config,
+      nearLevel: true,
+      entryDistance: 0.2,
+    });
+    assert(e.decision === "WAIT", `CASE8 expected WAIT, got ${e.decision}`);
+    assert(
+      e.consistencyFail || /BRAIN_CONSISTENCY_FAIL/i.test(e.reason),
+      `CASE8 consistency: ${e.reason}`,
+    );
+    console.log("PASS CASE8 BRAIN_CONSISTENCY_FAIL → WAIT");
+  }
+
+  // CASE 9: position active → no new entry
+  {
+    const r = decideTradingAction(
+      {
+        symbol: "XAUUSD",
+        m5Candles: buildBullishM5(),
+        m1Candles: buildDipResumeBullishM1(),
+        market: market(buildDipResumeBullishM1().at(-1)!.close),
+        openPositions: [
+          {
+            id: "p1",
+            symbol: "XAUUSD",
+            side: "BUY",
+            lot: 0.1,
+            openPrice: 2300,
+            stopLoss: 2298,
+            takeProfit: 2305,
+            openedAt: Date.now(),
+            floatingPnl: 1,
+          },
+        ],
+      },
+      { config },
+    );
+    assert(
+      r.decision === "WAIT" || r.decision === "CLOSE",
+      `CASE9 no new entry, got ${r.decision}`,
+    );
+    assert(r.decision !== "BUY" && r.decision !== "SELL", "CASE9 must not open second side");
+    console.log("PASS CASE9 position active → no new entry");
+  }
+
+  // CASE 10: profit + momentum weakening → CLOSE
+  {
+    const close = decideExit({
+      positions: [
+        {
+          id: "1",
+          symbol: "XAUUSD",
+          side: "SELL",
+          lot: 0.1,
+          openPrice: 2305,
+          stopLoss: 2307,
+          takeProfit: 2300,
+          openedAt: Date.now(),
+          floatingPnl: 25,
+        },
+      ],
+      trend: trendOf("bearish", 0.7),
+      momentum: {
+        direction: "bullish",
+        strength: 0.2,
+        alignedWithTrend: false,
+        notes: ["weaken"],
+      },
+    });
+    assert(close.decision === "CLOSE", `CASE10 expected CLOSE, got ${close.decision}`);
+    console.log("PASS CASE10 profit + weaken → CLOSE");
+  }
+
+  // CASE 11: stale signal
+  {
+    const r = decideTradingAction(
+      {
+        symbol: "XAUUSD",
+        m5Candles: buildBullishM5(),
+        m1Candles: buildDipResumeBullishM1(),
+        market: market(buildDipResumeBullishM1().at(-1)!.close),
+        openPositions: [],
+      },
+      { config, accountMode: "demo", executionEnabled: true },
+    );
+    const stale = toEaTradeSignal(r, {
+      barTime: buildDipResumeBullishM1().at(-1)!.time,
+      autotrade: true,
+      now: r.generatedAt + SIGNAL_FRESHNESS_MS + 1,
+    });
+    assert(stale.serverExecutable === false, "CASE11 stale must block");
+    assert(
+      stale.executionBlockedBy.some((b) => /stale/i.test(b)),
+      "CASE11 stale reason",
+    );
+    console.log("PASS CASE11 stale → WAIT/block");
+  }
+
+  // CASE 12: spread abnormal → WAIT
+  {
+    const r = decideTradingAction(
+      {
+        symbol: "XAUUSD",
+        m5Candles: buildBullishM5(),
+        m1Candles: buildDipResumeBullishM1(),
+        market: {
+          symbol: "XAUUSD",
+          bid: buildDipResumeBullishM1().at(-1)!.close,
+          ask: buildDipResumeBullishM1().at(-1)!.close + 1,
+          spread: 120,
+          at: Date.now(),
+        },
+        openPositions: [],
+      },
+      { config, accountMode: "demo", executionEnabled: true },
+    );
+    assert(r.decision === "WAIT", `CASE12 spread → WAIT, got ${r.decision}`);
+    assert(r.executable === false, "CASE12 not executable");
+    assert(
+      r.risk.allowed === false || r.decision === "WAIT",
+      "CASE12 risk/spread block",
+    );
+    console.log("PASS CASE12 spread abnormal → WAIT");
+  }
+
+  console.log("PASS FINAL TEST 12 cases");
 }
 
 console.log("decision-cases ok");

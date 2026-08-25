@@ -50,16 +50,19 @@ function buildBullishM5(): Candle[] {
 function buildBullishM1Setup(): Candle[] {
   const out: Candle[] = [];
   let px = 2315;
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 26; i++) {
     const o = px;
     const c = px - 0.45;
     out.push(candle(i, o, o + 0.08, c - 0.06, c));
     px = c;
   }
-  const o = px;
-  const c = px + 0.08;
-  out.push(candle(out.length, o, c + 0.03, o - 0.18, c));
-  out.push(candle(out.length, c, c + 0.02, c - 0.02, c));
+  for (let k = 0; k < 3; k++) {
+    const o = px;
+    const c = px + 0.14;
+    out.push(candle(out.length, o, c + 0.04, o - 0.16, c));
+    px = c;
+  }
+  out.push(candle(out.length, px, px + 0.02, px - 0.02, px));
   return out;
 }
 
@@ -251,7 +254,13 @@ const closeDemo = decideExit({
       floatingPnl: 0,
     },
   ],
-  trend: { ...trend, direction: "bullish" },
+  trend: { ...trend, direction: "bullish", regime: "TRENDING_BULLISH" },
+  momentum: {
+    alignedWithTrend: true,
+    direction: "bullish",
+    strength: 0.7,
+    notes: ["M1 supports bullish reversal"],
+  },
   execution: { accountMode: "demo", executionEnabled: true },
 });
 assert(closeDemo.decision === "CLOSE", "flipped bias must CLOSE");
@@ -271,13 +280,23 @@ const closeLive = decideExit({
       floatingPnl: 0,
     },
   ],
-  trend: { ...trend, direction: "bullish" },
+  trend: { ...trend, direction: "bullish", regime: "TRENDING_BULLISH" },
+  momentum: {
+    alignedWithTrend: true,
+    direction: "bullish",
+    strength: 0.7,
+    notes: ["M1 supports bullish reversal"],
+  },
   execution: { accountMode: "real", executionEnabled: true },
 });
 assert(closeLive.decision === "CLOSE", "flipped bias must CLOSE on live too");
 assert(closeLive.executable === true, "CLOSE on live account must be executable");
 
-const holdSignal = decideExit({ positions: [], trend, execution: { accountMode: "demo", executionEnabled: true } });
+const holdSignal = decideExit({
+  positions: [],
+  trend,
+  execution: { accountMode: "demo", executionEnabled: true },
+});
 assert(holdSignal.decision === "HOLD" && holdSignal.executable === false, "HOLD never executable");
 
 console.log("smoke ok");

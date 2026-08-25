@@ -71,7 +71,7 @@ export function decideTradingAction(
     config,
     supportResistance,
   );
-  const { pullback, rejection, momentum } = setup;
+  const { pullback, rejection, momentum, entryDistance, nearLevel, m1State } = setup;
 
   const exit = decideExit({
     positions: ctx.openPositions,
@@ -88,6 +88,8 @@ export function decideTradingAction(
     supportResistance,
     marketPrice: entryPrice,
     config,
+    entryDistance,
+    nearLevel,
   });
 
   const spreadOk = checkSpread(ctx.market, config);
@@ -108,6 +110,8 @@ export function decideTradingAction(
     entry,
     risk,
     config,
+    nearLevel,
+    entryDistance,
   });
 
   let decision: TradeDecision = "WAIT";
@@ -119,23 +123,26 @@ export function decideTradingAction(
     (entry.decision === "BUY" || entry.decision === "SELL") &&
     risk.allowed &&
     validation.valid &&
-    validation.confidence >= config.brain.minConfidenceToEnter
+    validation.confidence >= config.brain.minConfidenceToEnter &&
+    entry.entryQuality !== "WEAK"
   ) {
     decision = entry.decision;
     reasons.push(entry.reason);
   } else {
     decision = "WAIT";
     reasons.push(entry.reason || "Setup not valid — WAIT.");
-    // risk.reasons sudah masuk lewat validation.failedRules — jangan digandakan.
     if (!validation.valid) reasons.push(...validation.failedRules);
     if (
       validation.valid &&
       risk.allowed &&
       (entry.decision === "BUY" || entry.decision === "SELL") &&
-      validation.confidence < config.brain.minConfidenceToEnter
+      (validation.confidence < config.brain.minConfidenceToEnter ||
+        entry.entryQuality === "WEAK")
     ) {
       reasons.push(
-        `Confidence ${validation.confidence} < min ${config.brain.minConfidenceToEnter}.`,
+        entry.entryQuality === "WEAK"
+          ? `ENTRY_QUALITY=WEAK — WAIT.`
+          : `Confidence ${validation.confidence} < min ${config.brain.minConfidenceToEnter}.`,
       );
     }
   }
@@ -167,6 +174,9 @@ export function decideTradingAction(
     pullback,
     rejection,
     momentum,
+    m1State,
+    entryDistance: entry.entryDistance ?? entryDistance,
+    entryQuality: entry.entryQuality,
     entry,
     exit,
     risk,

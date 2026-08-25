@@ -5,8 +5,15 @@
  */
 
 import type { TradingAiConfig } from "../config";
-import type { Candle, TrendAnalysis, TrendDirection } from "../types";
+import type { Candle, MarketRegime, TrendAnalysis, TrendDirection } from "../types";
 import { findSwings, lastClosedIndex, lastSwings } from "./price-action";
+
+export function regimeFromDirection(direction: TrendDirection): MarketRegime {
+  if (direction === "bullish") return "TRENDING_BULLISH";
+  if (direction === "bearish") return "TRENDING_BEARISH";
+  if (direction === "sideways") return "RANGE";
+  return "UNCLEAR";
+}
 
 export function analyzeTrend(
   candles: Candle[],
@@ -20,6 +27,7 @@ export function analyzeTrend(
     return {
       timeframe: config.trendTimeframe,
       direction: "unknown",
+      regime: "UNCLEAR",
       strength: 0,
       notes,
     };
@@ -34,6 +42,7 @@ export function analyzeTrend(
     return {
       timeframe: config.trendTimeframe,
       direction: "unknown",
+      regime: "UNCLEAR",
       strength: 0,
       notes,
     };
@@ -50,7 +59,7 @@ export function analyzeTrend(
   if (hh && hl) {
     direction = "bullish";
     strength = 0.7;
-    notes.push("M5 structure: higher high + higher low → bullish (BUY bias).");
+    notes.push("M5 structure: higher high + higher low → TRENDING_BULLISH (BUY bias).");
     if (highs.length >= 3 && highs[highs.length - 2].price > highs[highs.length - 3].price) {
       strength = 0.85;
       notes.push("Third swing continues HH — stronger bullish structure.");
@@ -58,7 +67,7 @@ export function analyzeTrend(
   } else if (lh && ll) {
     direction = "bearish";
     strength = 0.7;
-    notes.push("M5 structure: lower high + lower low → bearish (SELL bias).");
+    notes.push("M5 structure: lower high + lower low → TRENDING_BEARISH (SELL bias).");
     if (lows.length >= 3 && lows[lows.length - 2].price < lows[lows.length - 3].price) {
       strength = 0.85;
       notes.push("Third swing continues LL — stronger bearish structure.");
@@ -87,6 +96,7 @@ export function analyzeTrend(
   return {
     timeframe: config.trendTimeframe,
     direction,
+    regime: regimeFromDirection(direction),
     strength,
     notes,
   };

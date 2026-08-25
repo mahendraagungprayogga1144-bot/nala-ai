@@ -293,6 +293,7 @@ export function directionalBiasFromM5(
 
 export function m1StateFromBrain(result: TradingDecisionResult | null): string {
   if (!result) return "N/A";
+  if (result.m1State) return result.m1State;
   if (result.pullback.detected && result.rejection.detected) return "SETUP";
   if (result.pullback.detected) return "PULLBACK";
   if (result.rejection.detected) return "REJECTION";

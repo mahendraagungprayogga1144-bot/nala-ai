@@ -12,6 +12,15 @@ export type ExitDecision = "HOLD" | "CLOSE";
 /** M5 market structure labels. */
 export type TrendDirection = "bullish" | "bearish" | "sideways" | "unknown";
 
+/** Human-style market regime (audit / signal). */
+export type MarketRegime =
+  | "TRENDING_BULLISH"
+  | "TRENDING_BEARISH"
+  | "RANGE"
+  | "UNCLEAR";
+
+export type EntryQuality = "WEAK" | "MEDIUM" | "STRONG";
+
 export type Timeframe = "M1" | "M5" | "M15" | "H1" | "H4" | "D1";
 
 export type SymbolCode = "XAUUSD";
@@ -50,6 +59,8 @@ export type OpenPosition = {
 export type TrendAnalysis = {
   timeframe: Timeframe;
   direction: TrendDirection;
+  /** Human-style regime label derived from direction / structure. */
+  regime: MarketRegime;
   /** 0–1 how clear the structure is (from swings only). */
   strength: number;
   notes: string[];
@@ -105,6 +116,11 @@ export type EntrySignal = {
   suggestedStopLoss: number | null;
   suggestedTakeProfit: number | null;
   suggestedLot: number | null;
+  /** Distance from market to working S/R / extreme (price units). */
+  entryDistance: number | null;
+  entryQuality: EntryQuality;
+  /** True when M5 bias contradicts proposed M1 side outside RANGE. */
+  consistencyFail: boolean;
 };
 
 export type ExitSignal = {
@@ -157,6 +173,10 @@ export type TradingDecisionResult = {
   pullback: PullbackAnalysis;
   rejection: RejectionAnalysis;
   momentum: MomentumAnalysis;
+  /** M1 chain state from sequenced setup. */
+  m1State: string;
+  entryDistance: number | null;
+  entryQuality: EntryQuality;
   entry: EntrySignal;
   exit: ExitSignal;
   risk: RiskCheck;

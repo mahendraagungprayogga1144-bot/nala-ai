@@ -28,6 +28,8 @@ export type {
   EntryDecision,
   ExitDecision,
   TrendDirection,
+  MarketRegime,
+  EntryQuality,
   Timeframe,
   SymbolCode,
   Candle,

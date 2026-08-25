@@ -1,13 +1,19 @@
 /**
  * Support / Resistance Analyzer — cluster swing highs/lows on M5.
  * Entry location helpers: near level vs middle of range.
+ * Near-level default is TIGHT (~0.5–0.8 point) so entries stay at edges.
  */
 
 import type { TradingAiConfig } from "../config";
 import type { Candle, SrLevel, SupportResistanceAnalysis } from "../types";
 import { atrApprox, clusterLevels, findSwings } from "./price-action";
 
-export type RangeZone = "near_support" | "near_resistance" | "middle" | "outside" | "incomplete";
+export type RangeZone =
+  | "near_support"
+  | "near_resistance"
+  | "middle"
+  | "outside"
+  | "incomplete";
 
 export function analyzeSupportResistance(
   candles: Candle[],
@@ -65,8 +71,21 @@ export function analyzeSupportResistance(
   };
 }
 
+/**
+ * Tight near-level band for XAUUSD scalp.
+ * Preferred window ~0.5–0.8 point; scales lightly with ATR when mult is low.
+ * Higher levelTouchAtrMult (tests / research) may widen with ATR.
+ */
 export function levelTolerance(atr: number, config: TradingAiConfig, price: number): number {
-  return Math.max(atr * config.brain.levelTouchAtrMult, price * 0.00015, 0.35);
+  const raw = atr * config.brain.levelTouchAtrMult;
+  const floor = 0.5;
+  const preferredCap = 0.8;
+  // Production-tight path (default mult ≤ 0.35).
+  if (config.brain.levelTouchAtrMult <= 0.35) {
+    return Math.max(floor, Math.min(preferredCap, raw || floor));
+  }
+  // Wider path for fixtures / research — still ATR-bounded.
+  return Math.max(floor, Math.min(raw, Math.max(atr * 1.5, preferredCap), price * 0.002));
 }
 
 export function isNearLevel(
@@ -79,7 +98,7 @@ export function isNearLevel(
 }
 
 /**
- * RANGE zone: near S / near R / middle / outside.
+ * RANGE / hybrid zone: near S / near R / middle / outside.
  * Middle = between S and R and not within touch of either edge.
  */
 export function classifyRangeZone(

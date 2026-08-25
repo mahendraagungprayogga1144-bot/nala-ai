@@ -21,6 +21,9 @@ export type MarketRegime =
 
 export type EntryQuality = "WEAK" | "MEDIUM" | "STRONG";
 
+/** Hybrid setup class: with-trend, counter at S/R edge, or range edge. */
+export type SetupKind = "WITH_TREND" | "COUNTER" | "RANGE" | "NONE";
+
 export type Timeframe = "M1" | "M5" | "M15" | "H1" | "H4" | "D1";
 
 export type SymbolCode = "XAUUSD";
@@ -119,8 +122,10 @@ export type EntrySignal = {
   /** Distance from market to working S/R / extreme (price units). */
   entryDistance: number | null;
   entryQuality: EntryQuality;
-  /** True when M5 bias contradicts proposed M1 side outside RANGE. */
+  /** True when M5 bias contradicts proposed M1 side without valid counter/RANGE. */
   consistencyFail: boolean;
+  /** Hybrid setup class from sequenced router. */
+  setupKind: SetupKind;
 };
 
 export type ExitSignal = {

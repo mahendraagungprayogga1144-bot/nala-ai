@@ -1,6 +1,7 @@
 /**
- * Entry Decision — human scalp chain:
- * M5 bias → M1 pullback → rejection near S/R → momentum → distance/quality/SL width.
+ * Entry Decision — Hybrid S/R + M5 bias:
+ * M5 context + zone setupKind → M1 chain → distance/quality/SL width.
+ * Counter-trend only when setupKind=COUNTER with strongRejection + quality≥MEDIUM.
  */
 
 import type { TradingAiConfig } from "../config";
@@ -10,6 +11,7 @@ import type {
   MomentumAnalysis,
   PullbackAnalysis,
   RejectionAnalysis,
+  SetupKind,
   SupportResistanceAnalysis,
   TrendAnalysis,
 } from "../types";
@@ -19,7 +21,7 @@ import { dynamicTakeProfitDistance } from "./dynamic-tp";
 /** Max SL distance for XAU scalp (~25–30 points / ~2.5–3.0 price). */
 const MAX_SCALP_SL = 3.0;
 /** Max entry distance from working level before chase WAIT. */
-const MAX_ENTRY_DISTANCE = 1.2;
+const MAX_ENTRY_DISTANCE = 0.85;
 
 function buildLong(input: {
   marketPrice: number;
@@ -32,6 +34,7 @@ function buildLong(input: {
   reason: string;
   entryDistance: number | null;
   entryQuality: EntryQuality;
+  setupKind: SetupKind;
 }): EntrySignal {
   const { marketPrice, rejection, pullback, supportResistance, trend, momentum, config, reason } =
     input;
@@ -60,6 +63,7 @@ function buildLong(input: {
     entryDistance: input.entryDistance,
     entryQuality: input.entryQuality,
     consistencyFail: false,
+    setupKind: input.setupKind,
   };
 }
 
@@ -74,6 +78,7 @@ function buildShort(input: {
   reason: string;
   entryDistance: number | null;
   entryQuality: EntryQuality;
+  setupKind: SetupKind;
 }): EntrySignal {
   const { marketPrice, rejection, pullback, supportResistance, trend, momentum, config, reason } =
     input;
@@ -102,12 +107,15 @@ function buildShort(input: {
     entryDistance: input.entryDistance,
     entryQuality: input.entryQuality,
     consistencyFail: false,
+    setupKind: input.setupKind,
   };
 }
 
 const WAIT = (
   reason: string,
-  extra?: Partial<Pick<EntrySignal, "entryDistance" | "entryQuality" | "consistencyFail">>,
+  extra?: Partial<
+    Pick<EntrySignal, "entryDistance" | "entryQuality" | "consistencyFail" | "setupKind">
+  >,
 ): EntrySignal => ({
   decision: "WAIT",
   reason,
@@ -117,6 +125,7 @@ const WAIT = (
   entryDistance: extra?.entryDistance ?? null,
   entryQuality: extra?.entryQuality ?? "WEAK",
   consistencyFail: extra?.consistencyFail ?? false,
+  setupKind: extra?.setupKind ?? "NONE",
 });
 
 export function decideEntry(input: {
@@ -129,6 +138,9 @@ export function decideEntry(input: {
   config: TradingAiConfig;
   entryDistance?: number | null;
   nearLevel?: boolean;
+  setupKind?: SetupKind;
+  strongRejection?: boolean;
+  breakoutContinuation?: boolean;
 }): EntrySignal {
   const {
     trend,
@@ -140,35 +152,79 @@ export function decideEntry(input: {
     config,
     entryDistance = null,
     nearLevel = false,
+    setupKind = "NONE",
+    strongRejection = false,
+    breakoutContinuation = false,
   } = input;
 
   if (trend.direction === "unknown" || trend.regime === "UNCLEAR") {
-    return WAIT("Q1 M5 UNCLEAR — no entry.", { entryDistance });
+    return WAIT("Q1 M5 UNCLEAR — no entry.", { entryDistance, setupKind });
   }
 
-  // Consistency: trending bullish must not SELL (unless RANGE — already not bullish).
-  if (
-    trend.direction === "bullish" &&
-    rejection.detected &&
-    rejection.side === "bearish" &&
-    momentum.direction === "bearish"
-  ) {
-    return WAIT("BRAIN_CONSISTENCY_FAIL — M5 BULLISH but SELL setup without RANGE. WAIT.", {
+  if (breakoutContinuation) {
+    return WAIT("Breakout/breakdown continuation — jangan fade. WAIT.", {
       entryDistance,
-      consistencyFail: true,
+      setupKind,
       entryQuality: "WEAK",
     });
   }
+
+  const wantsSell =
+    rejection.detected && rejection.side === "bearish" && momentum.direction === "bearish";
+  const wantsBuy =
+    rejection.detected && rejection.side === "bullish" && momentum.direction === "bullish";
+
+  // Consistency: counter only when setupKind allows it.
+  if (trend.direction === "bullish" && wantsSell) {
+    const counterOk = setupKind === "COUNTER" || setupKind === "RANGE";
+    if (!counterOk || (setupKind === "COUNTER" && !strongRejection)) {
+      return WAIT(
+        "BRAIN_CONSISTENCY_FAIL — M5 BULLISH + SELL tanpa valid resistance counter. WAIT.",
+        {
+          entryDistance,
+          consistencyFail: true,
+          entryQuality: "WEAK",
+          setupKind,
+        },
+      );
+    }
+  }
+  if (trend.direction === "bearish" && wantsBuy) {
+    const counterOk = setupKind === "COUNTER" || setupKind === "RANGE";
+    if (!counterOk || (setupKind === "COUNTER" && !strongRejection)) {
+      return WAIT(
+        "BRAIN_CONSISTENCY_FAIL — M5 BEARISH + BUY tanpa valid support counter. WAIT.",
+        {
+          entryDistance,
+          consistencyFail: true,
+          entryQuality: "WEAK",
+          setupKind,
+        },
+      );
+    }
+  }
+
+  // With-trend side mismatch.
   if (
-    trend.direction === "bearish" &&
-    rejection.detected &&
-    rejection.side === "bullish" &&
-    momentum.direction === "bullish"
+    setupKind === "WITH_TREND" &&
+    trend.direction === "bullish" &&
+    wantsSell
   ) {
-    return WAIT("BRAIN_CONSISTENCY_FAIL — M5 BEARISH but BUY setup without RANGE. WAIT.", {
+    return WAIT("BRAIN_CONSISTENCY_FAIL — WITH_TREND bullish tidak boleh SELL.", {
       entryDistance,
       consistencyFail: true,
-      entryQuality: "WEAK",
+      setupKind,
+    });
+  }
+  if (
+    setupKind === "WITH_TREND" &&
+    trend.direction === "bearish" &&
+    wantsBuy
+  ) {
+    return WAIT("BRAIN_CONSISTENCY_FAIL — WITH_TREND bearish tidak boleh BUY.", {
+      entryDistance,
+      consistencyFail: true,
+      setupKind,
     });
   }
 
@@ -178,49 +234,41 @@ export function decideEntry(input: {
       `Q3 PULLBACK=${pullback.detected ? "YES" : "NO"}`,
       `Q4 REJECTION=${rejection.detected ? "YES" : "NO"}`,
       `Q5 MOMENTUM=${momentum.alignedWithTrend ? "YES" : "NO"}`,
+      `kind=${setupKind}`,
     ];
     const tip =
       pullback.notes[0] ||
       rejection.notes[0] ||
       momentum.notes[0] ||
       "Waiting for local swing setup.";
-    return WAIT(`${parts.join(" | ")} — WAIT. ${tip}`, { entryDistance, entryQuality: "WEAK" });
-  }
-
-  if (
-    trend.direction === "bullish" &&
-    !(rejection.side === "bullish" && momentum.direction === "bullish")
-  ) {
-    return WAIT("M5 TRENDING_BULLISH — BUY bias only. M1 still not bullish.", {
+    return WAIT(`${parts.join(" | ")} — WAIT. ${tip}`, {
       entryDistance,
-      consistencyFail: true,
-    });
-  }
-  if (
-    trend.direction === "bearish" &&
-    !(rejection.side === "bearish" && momentum.direction === "bearish")
-  ) {
-    return WAIT("M5 TRENDING_BEARISH — SELL bias only. M1 still not bearish.", {
-      entryDistance,
-      consistencyFail: true,
+      entryQuality: "WEAK",
+      setupKind,
     });
   }
 
-  const distanceOk =
-    entryDistance == null || entryDistance <= MAX_ENTRY_DISTANCE;
+  const distanceOk = entryDistance == null || entryDistance <= MAX_ENTRY_DISTANCE;
   if (!distanceOk) {
     return WAIT(
       `Q6 ENTRY_DISTANCE=${entryDistance?.toFixed(2)} terlalu jauh (>${MAX_ENTRY_DISTANCE}). No chase — WAIT.`,
-      { entryDistance, entryQuality: "WEAK" },
+      { entryDistance, entryQuality: "WEAK", setupKind },
     );
   }
 
   if (!nearLevel) {
-    return WAIT("Q6 Near S/R / working level = NO — jangan entry di tengah. WAIT.", {
+    return WAIT("Q6 Near S/R = NO — jangan entry di tengah. WAIT.", {
       entryDistance,
       entryQuality: "WEAK",
+      setupKind,
     });
   }
+
+  const isCounter = setupKind === "COUNTER";
+  const withTrend =
+    (trend.direction === "bullish" && wantsBuy) ||
+    (trend.direction === "bearish" && wantsSell) ||
+    setupKind === "RANGE";
 
   const qualityProbe = scoreEntryQuality({
     features: [
@@ -228,35 +276,42 @@ export function decideEntry(input: {
         id: "m5",
         label: "m5",
         passed: true,
-        points: Math.round(trend.strength * 30),
+        points: Math.round(trend.strength * (isCounter ? 18 : 28)),
         detail: "",
       },
       {
         id: "pb",
         label: "pb",
         passed: pullback.detected,
-        points: 20,
+        points: 18,
         detail: "",
       },
       {
         id: "rj",
         label: "rj",
         passed: rejection.detected,
-        points: 25,
+        points: isCounter && strongRejection ? 28 : 22,
         detail: "",
       },
       {
         id: "mom",
         label: "mom",
         passed: momentum.alignedWithTrend,
-        points: 15 + Math.round(momentum.strength * 10),
+        points: 12 + Math.round(momentum.strength * 12),
         detail: "",
       },
       {
         id: "lvl",
         label: "lvl",
         passed: nearLevel,
-        points: 10,
+        points: 12,
+        detail: "",
+      },
+      {
+        id: "align",
+        label: "align",
+        passed: withTrend || (isCounter && strongRejection),
+        points: withTrend ? 8 : isCounter && strongRejection ? 6 : 0,
         detail: "",
       },
     ],
@@ -266,13 +321,23 @@ export function decideEntry(input: {
     nearLevel,
     distanceOk,
     consistencyOk: true,
+    requireMedium: isCounter,
+    strongRejection: isCounter ? strongRejection : true,
   });
 
   if (qualityProbe.quality === "WEAK") {
     return WAIT(
       `ENTRY_QUALITY=WEAK (score=${qualityProbe.score}) — WAIT. Butuh MEDIUM/STRONG.`,
-      { entryDistance, entryQuality: "WEAK" },
+      { entryDistance, entryQuality: "WEAK", setupKind },
     );
+  }
+
+  if (isCounter && !strongRejection) {
+    return WAIT("COUNTER requires strongRejection — WAIT.", {
+      entryDistance,
+      entryQuality: "WEAK",
+      setupKind,
+    });
   }
 
   const common = {
@@ -285,41 +350,42 @@ export function decideEntry(input: {
     config,
     entryDistance,
     entryQuality: qualityProbe.quality,
+    setupKind,
   };
 
-  if (rejection.side === "bullish" && momentum.direction === "bullish") {
+  if (wantsBuy) {
     const draft = buildLong({
       ...common,
-      reason: `BUY: ${trend.regime}, pullback+rejection di support/dasar, M1 momentum bullish. quality=${qualityProbe.quality} dist=${entryDistance?.toFixed(2) ?? "n/a"}`,
+      reason: `BUY (${setupKind}): ${trend.regime}, near support, pullback+rejection+M1 bullish. quality=${qualityProbe.quality} dist=${entryDistance?.toFixed(2) ?? "n/a"}`,
     });
     if (draft.suggestedStopLoss != null) {
       const slWidth = Math.abs(marketPrice - draft.suggestedStopLoss);
       if (slWidth > MAX_SCALP_SL) {
         return WAIT(
-          `SL terlalu lebar untuk scalp (${slWidth.toFixed(2)} > ${MAX_SCALP_SL}). Setup buruk — WAIT.`,
-          { entryDistance, entryQuality: "WEAK" },
+          `SL terlalu lebar untuk scalp (${slWidth.toFixed(2)} > ${MAX_SCALP_SL}). WAIT.`,
+          { entryDistance, entryQuality: "WEAK", setupKind },
         );
       }
     }
     return draft;
   }
 
-  if (rejection.side === "bearish" && momentum.direction === "bearish") {
+  if (wantsSell) {
     const draft = buildShort({
       ...common,
-      reason: `SELL: ${trend.regime}, pullback+rejection di resistance/pucuk, M1 momentum bearish. quality=${qualityProbe.quality} dist=${entryDistance?.toFixed(2) ?? "n/a"}`,
+      reason: `SELL (${setupKind}): ${trend.regime}, near resistance, pullback+rejection+M1 bearish. quality=${qualityProbe.quality} dist=${entryDistance?.toFixed(2) ?? "n/a"}`,
     });
     if (draft.suggestedStopLoss != null) {
       const slWidth = Math.abs(draft.suggestedStopLoss - marketPrice);
       if (slWidth > MAX_SCALP_SL) {
         return WAIT(
-          `SL terlalu lebar untuk scalp (${slWidth.toFixed(2)} > ${MAX_SCALP_SL}). Setup buruk — WAIT.`,
-          { entryDistance, entryQuality: "WEAK" },
+          `SL terlalu lebar untuk scalp (${slWidth.toFixed(2)} > ${MAX_SCALP_SL}). WAIT.`,
+          { entryDistance, entryQuality: "WEAK", setupKind },
         );
       }
     }
     return draft;
   }
 
-  return WAIT("M1 setup side mismatch — WAIT.", { entryDistance });
+  return WAIT("M1 setup side mismatch — WAIT.", { entryDistance, setupKind });
 }

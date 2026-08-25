@@ -45,7 +45,8 @@ export function dynamicTakeProfitDistance(input: DynamicTpInput): number {
     momentumStrength >= 0.7 &&
     (roomToStructure == null || roomToStructure >= bandMax)
   ) {
-    dist = Math.min(Math.max(risk * Math.max(baseRr, 2.0), bandStrong), bandMax + 0.5);
+    // >30 pips allowed when momentum sangat kuat + ruang ke S/R lawan.
+    dist = Math.min(Math.max(risk * Math.max(baseRr, 2.2), 3.2), bandMax + 1.5);
   } else {
     dist = Math.min(Math.max(risk * baseRr, bandNormal), bandStrong);
   }

@@ -1,6 +1,7 @@
 /**
  * Entry quality from auditable features — never Claude.
  * WEAK → WAIT; MEDIUM/STRONG boleh entry jika hard gates PASS.
+ * Counter-trend requires MEDIUM+ and strongRejection.
  */
 
 import type { ConfidenceFeature } from "../types";
@@ -15,6 +16,9 @@ export function scoreEntryQuality(input: {
   nearLevel: boolean;
   distanceOk: boolean;
   consistencyOk: boolean;
+  /** Counter setups must clear MEDIUM floor. */
+  requireMedium?: boolean;
+  strongRejection?: boolean;
 }): { quality: EntryQuality; score: number } {
   const score = Math.max(
     0,
@@ -34,6 +38,12 @@ export function scoreEntryQuality(input: {
   ) {
     return { quality: "WEAK", score };
   }
+
+  if (input.requireMedium && input.strongRejection === false) {
+    return { quality: "WEAK", score };
+  }
+
   if (score >= 80) return { quality: "STRONG", score };
-  return { quality: "MEDIUM", score };
+  if (score >= 55) return { quality: "MEDIUM", score };
+  return { quality: "WEAK", score };
 }

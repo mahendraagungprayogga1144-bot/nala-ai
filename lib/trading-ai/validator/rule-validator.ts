@@ -218,19 +218,40 @@ export function validateRules(input: {
     input.entry.decision === "BUY" &&
     !(
       input.rejection.side === "bullish" &&
-      (input.trend.direction === "bullish" || input.trend.direction === "sideways")
+      (input.trend.direction === "bullish" ||
+        input.trend.direction === "sideways" ||
+        input.entry.setupKind === "COUNTER")
     )
   ) {
-    failed.push("BUY requires bullish M1 setup with bullish or RANGE M5.");
+    failed.push("BUY requires bullish M1 setup with bullish/RANGE M5 or valid COUNTER.");
   }
   if (
     input.entry.decision === "SELL" &&
     !(
       input.rejection.side === "bearish" &&
-      (input.trend.direction === "bearish" || input.trend.direction === "sideways")
+      (input.trend.direction === "bearish" ||
+        input.trend.direction === "sideways" ||
+        input.entry.setupKind === "COUNTER")
     )
   ) {
-    failed.push("SELL requires bearish M1 setup with bearish or RANGE M5.");
+    failed.push("SELL requires bearish M1 setup with bearish/RANGE M5 or valid COUNTER.");
+  }
+
+  if (
+    input.entry.decision === "BUY" &&
+    input.trend.direction === "bearish" &&
+    input.entry.setupKind !== "COUNTER" &&
+    input.entry.setupKind !== "RANGE"
+  ) {
+    failed.push("BRAIN_CONSISTENCY_FAIL — bearish M5 BUY without COUNTER/RANGE.");
+  }
+  if (
+    input.entry.decision === "SELL" &&
+    input.trend.direction === "bullish" &&
+    input.entry.setupKind !== "COUNTER" &&
+    input.entry.setupKind !== "RANGE"
+  ) {
+    failed.push("BRAIN_CONSISTENCY_FAIL — bullish M5 SELL without COUNTER/RANGE.");
   }
 
   if (!input.risk.allowed) failed.push(...input.risk.reasons);

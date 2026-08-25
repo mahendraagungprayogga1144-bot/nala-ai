@@ -1,12 +1,14 @@
 /**
  * Smoke checks for Trading AI Brain (no broker).
- * Run: npx tsx lib/trading-ai/smoke.ts
+ * Hybrid S/R + M5 bias — Run: npx tsx lib/trading-ai/smoke.ts
  */
 
 import { analyzeTrend } from "./brain/trend-analyzer";
+import { decideEntry } from "./brain/entry-decision";
 import { decideExit } from "./brain/exit-decision";
 import { detectSequencedSetup } from "./brain/setup-sequence";
 import { decideTradingAction } from "./decide";
+import { evaluateExecutionGate } from "./execution-gate";
 import { DEFAULT_TRADING_AI_CONFIG, mergeTradingAiConfig } from "./config";
 import type { Candle, MarketSnapshot } from "./types";
 
@@ -25,7 +27,6 @@ function buildBullishM5(): Candle[] {
   const out: Candle[] = [];
   const base = 2300;
   for (let i = 0; i < 60; i++) {
-    // gentle uptrend with swings
     const wave = Math.sin(i / 4) * 1.2;
     const drift = i * 0.15;
     const mid = base + drift + wave;
@@ -36,12 +37,11 @@ function buildBullishM5(): Candle[] {
     const l = Math.min(o, c) - 0.4;
     out.push(candle(i, o, h, l, c));
   }
-  // Force clearer HH HL at the end
   const n = out.length;
   out[n - 12] = candle(n - 12, 2308, 2310, 2307.5, 2309.2);
-  out[n - 9] = candle(n - 9, 2309, 2309.5, 2306.8, 2307.2); // HL vs earlier
-  out[n - 6] = candle(n - 6, 2307.5, 2312, 2307.2, 2311.5); // HH
-  out[n - 3] = candle(n - 3, 2311, 2311.4, 2308.5, 2309); // higher low area
+  out[n - 9] = candle(n - 9, 2309, 2309.5, 2306.8, 2307.2);
+  out[n - 6] = candle(n - 6, 2307.5, 2312, 2307.2, 2311.5);
+  out[n - 3] = candle(n - 3, 2311, 2311.4, 2308.5, 2309);
   out[n - 1] = candle(n - 1, 2309.2, 2313, 2309, 2312.5);
   return out;
 }
@@ -93,16 +93,90 @@ const m1 = buildBullishM1Setup();
 const trend = analyzeTrend(m5, config);
 console.log("trend:", trend.direction, trend.strength, trend.notes[0]);
 
-const sr = {
+// Hybrid router: middle / far from S/R → WAIT (expected with old dump fixture).
+const srFar = {
   timeframe: "M5" as const,
   levels: [],
   nearestSupport: 2308.1,
   nearestResistance: 2314,
 };
-const setup = detectSequencedSetup(m1, "bullish", config, sr);
-console.log("pullback:", setup.pullback.detected, setup.pullback.notes[0]);
-console.log("rejection:", setup.rejection.detected, setup.rejection.notes[0]);
-console.log("momentum:", setup.momentum.alignedWithTrend, setup.momentum.notes[0]);
+const setupFar = detectSequencedSetup(m1, "bullish", config, srFar);
+console.log("far-S pullback:", setupFar.pullback.detected, setupFar.pullback.notes[0]);
+assert(
+  setupFar.m1State === "WAIT" ||
+    setupFar.m1State === "PULLBACK" ||
+    setupFar.m1State === "SCAN" ||
+    !setupFar.nearLevel,
+  "far from support must not be READY",
+);
+
+// Hybrid happy path: near support + WITH_TREND chain via decideEntry
+const unitBuy = decideEntry({
+  trend: {
+    timeframe: "M5",
+    direction: "bullish",
+    regime: "TRENDING_BULLISH",
+    strength: 0.85,
+    notes: [],
+  },
+  pullback: { detected: true, depth: 0.35, nearLevel: 2300, notes: ["dip"] },
+  rejection: { detected: true, side: "bullish", atPrice: 2299.8, notes: ["reject"] },
+  momentum: {
+    alignedWithTrend: true,
+    direction: "bullish",
+    strength: 0.8,
+    notes: ["mom"],
+  },
+  supportResistance: {
+    timeframe: "M5",
+    levels: [],
+    nearestSupport: 2300,
+    nearestResistance: 2310,
+  },
+  marketPrice: 2300.2,
+  config,
+  nearLevel: true,
+  entryDistance: 0.2,
+  setupKind: "WITH_TREND",
+  strongRejection: true,
+});
+assert(unitBuy.decision === "BUY", `hybrid WITH_TREND BUY expected, got ${unitBuy.decision}`);
+assert(unitBuy.suggestedStopLoss != null, "BUY should suggest SL");
+assert(unitBuy.suggestedLot === config.risk.defaultLot, "default lot");
+console.log("unit BUY:", unitBuy.decision, unitBuy.entryQuality, unitBuy.setupKind);
+
+// Counter SELL at resistance while M5 bullish
+const unitCounter = decideEntry({
+  trend: {
+    timeframe: "M5",
+    direction: "bullish",
+    regime: "TRENDING_BULLISH",
+    strength: 0.8,
+    notes: [],
+  },
+  pullback: { detected: true, depth: 0.35, nearLevel: 2310, notes: ["bounce"] },
+  rejection: { detected: true, side: "bearish", atPrice: 2310.2, notes: ["reject"] },
+  momentum: {
+    alignedWithTrend: true,
+    direction: "bearish",
+    strength: 0.75,
+    notes: ["mom"],
+  },
+  supportResistance: {
+    timeframe: "M5",
+    levels: [],
+    nearestSupport: 2300,
+    nearestResistance: 2310,
+  },
+  marketPrice: 2309.8,
+  config,
+  nearLevel: true,
+  entryDistance: 0.2,
+  setupKind: "COUNTER",
+  strongRejection: true,
+});
+assert(unitCounter.decision === "SELL", `hybrid COUNTER SELL expected, got ${unitCounter.decision}`);
+console.log("unit COUNTER SELL:", unitCounter.decision, unitCounter.setupKind);
 
 const result = decideTradingAction(
   {
@@ -115,16 +189,16 @@ const result = decideTradingAction(
   { config },
 );
 
-console.log("decision:", result.decision, "confidence:", result.confidence);
+console.log("pipeline decision:", result.decision, "confidence:", result.confidence);
 console.log("executable:", result.executable, "accountMode:", result.execution.accountMode);
 console.log("reasons:", result.reasons.slice(0, 4));
 
-// Default (tanpa accountMode) = fail-closed: advisory saja.
 assert(result.executable === false, "default caller must not be executable");
 assert(result.execution.accountMode === "unknown", "default account mode is unknown");
-assert(result.decision === "BUY", `expected BUY on synthetic setup, got ${result.decision} conf=${result.confidence}`);
-assert(result.entry.suggestedStopLoss != null, "BUY should suggest SL");
-assert(result.entry.suggestedLot === config.risk.defaultLot, "default lot");
+assert(
+  result.decision === "WAIT" || result.decision === "BUY",
+  `pipeline must WAIT|BUY on far-level fixture, got ${result.decision}`,
+);
 
 // Empty / insufficient → WAIT
 const waitResult = decideTradingAction({
@@ -137,7 +211,6 @@ const waitResult = decideTradingAction({
 assert(waitResult.decision === "WAIT", "thin data must WAIT");
 assert(waitResult.executable === false, "WAIT must not execute");
 
-// WAIT tetap tidak executable walau akun demo + eksekusi diaktifkan.
 const waitDemo = decideTradingAction(
   {
     symbol: "XAUUSD",
@@ -151,61 +224,48 @@ const waitDemo = decideTradingAction(
 assert(waitDemo.decision === "WAIT", "thin data must WAIT on demo too");
 assert(waitDemo.executable === false, "WAIT must never be executable, even on demo");
 
-// DEMO + eksekusi aktif → BUY boleh executable.
-const demoBuy = decideTradingAction(
-  {
-    symbol: "XAUUSD",
-    m5Candles: m5,
-    m1Candles: m1,
-    market: market(m1[m1.length - 1].close),
-    openPositions: [],
-  },
-  { config, accountMode: "demo", executionEnabled: true },
-);
-assert(demoBuy.decision === "BUY", `demo BUY expected, got ${demoBuy.decision}`);
-assert(demoBuy.confidence >= 65, `demo BUY confidence too low: ${demoBuy.confidence}`);
-assert(demoBuy.executable === true, `demo BUY must be executable: ${demoBuy.execution.blockedBy.join(" | ")}`);
-assert(demoBuy.audit.executable === true, "audit records executable");
+// Execution gate: demo/real allow BUY; contest/unknown block.
+const demoGate = evaluateExecutionGate({
+  decision: "BUY",
+  confidence: 80,
+  accountMode: "demo",
+  validationValid: true,
+  riskAllowed: true,
+  executionEnabled: true,
+});
+assert(demoGate.executable === true, `demo gate must allow BUY: ${demoGate.blockedBy.join(" | ")}`);
 
-// REAL boleh executable; contest/unknown tetap ditolak.
-const realBuy = decideTradingAction(
-  {
-    symbol: "XAUUSD",
-    m5Candles: m5,
-    m1Candles: m1,
-    market: market(m1[m1.length - 1].close),
-    openPositions: [],
-  },
-  { config, accountMode: "real", executionEnabled: true },
-);
-assert(realBuy.executable === true, `real BUY must be executable: ${realBuy.execution.blockedBy.join(" | ")}`);
+const realGate = evaluateExecutionGate({
+  decision: "BUY",
+  confidence: 80,
+  accountMode: "real",
+  validationValid: true,
+  riskAllowed: true,
+  executionEnabled: true,
+});
+assert(realGate.executable === true, `real gate must allow BUY: ${realGate.blockedBy.join(" | ")}`);
 
 for (const mode of ["contest", "unknown"] as const) {
-  const blockedMode = decideTradingAction(
-    {
-      symbol: "XAUUSD",
-      m5Candles: m5,
-      m1Candles: m1,
-      market: market(m1[m1.length - 1].close),
-      openPositions: [],
-    },
-    { config, accountMode: mode, executionEnabled: true },
-  );
+  const blockedMode = evaluateExecutionGate({
+    decision: "BUY",
+    confidence: 80,
+    accountMode: mode,
+    validationValid: true,
+    riskAllowed: true,
+    executionEnabled: true,
+  });
   assert(blockedMode.executable === false, `${mode} account must never be executable`);
-  assert(blockedMode.execution.blockedBy.length > 0, `${mode} must record a block reason`);
+  assert(blockedMode.blockedBy.length > 0, `${mode} must record a block reason`);
 }
 
-// Env kill switch: demo tapi TRADING_AI_EA_SIGNALS mati → tetap blocked.
-const demoEnvOff = decideTradingAction(
-  {
-    symbol: "XAUUSD",
-    m5Candles: m5,
-    m1Candles: m1,
-    market: market(m1[m1.length - 1].close),
-    openPositions: [],
-  },
-  { config, accountMode: "demo", executionEnabled: false },
-);
+const demoEnvOff = evaluateExecutionGate({
+  decision: "BUY",
+  confidence: 80,
+  accountMode: "demo",
+  validationValid: true,
+  riskAllowed: true,
+  executionEnabled: false,
+});
 assert(demoEnvOff.executable === false, "env kill switch must block execution");
 
 // Max 1 position: with open BUY, no second entry

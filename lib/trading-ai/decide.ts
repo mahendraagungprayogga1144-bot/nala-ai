@@ -71,12 +71,24 @@ export function decideTradingAction(
     config,
     supportResistance,
   );
-  const { pullback, rejection, momentum, entryDistance, nearLevel, m1State } = setup;
+  const {
+    pullback,
+    rejection,
+    momentum,
+    entryDistance,
+    nearLevel,
+    m1State,
+    setupKind,
+    strongRejection,
+    breakoutContinuation,
+  } = setup;
 
   const exit = decideExit({
     positions: ctx.openPositions,
     trend,
     momentum,
+    supportResistance,
+    marketPrice: ctx.market.bid,
     execution: { accountMode, executionEnabled: opts.executionEnabled },
   });
   const entryPrice = trend.direction === "bearish" ? ctx.market.bid : ctx.market.ask;
@@ -90,6 +102,9 @@ export function decideTradingAction(
     config,
     entryDistance,
     nearLevel,
+    setupKind,
+    strongRejection,
+    breakoutContinuation,
   });
 
   const spreadOk = checkSpread(ctx.market, config);

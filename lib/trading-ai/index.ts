@@ -30,6 +30,7 @@ export type {
   TrendDirection,
   MarketRegime,
   EntryQuality,
+  SetupKind,
   Timeframe,
   SymbolCode,
   Candle,

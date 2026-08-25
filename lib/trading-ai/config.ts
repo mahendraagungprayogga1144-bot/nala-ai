@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.8.0-human-scalp";
+export const TRADING_AI_VERSION = "0.9.0-hybrid-sr";
 
 /**
  * Hard product rules — never weaken from UI.
@@ -125,7 +125,8 @@ export const DEFAULT_TRADING_AI_CONFIG: TradingAiConfig = {
     swingLeft: 2,
     swingRight: 2,
     srAtrMult: 0.35,
-    levelTouchAtrMult: 0.4,
+    /** Tight near-level (~0.5–0.8 with ATR); see levelTolerance(). */
+    levelTouchAtrMult: 0.28,
     takeProfitRr: 1.5,
   },
 };

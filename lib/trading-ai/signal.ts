@@ -18,8 +18,9 @@ export type EaTradeSignal = {
   confidence: number;
   /**
    * Izin eksekusi dari server. true HANYA kalau:
-   * BUY/SELL/CLOSE + confidence >= minimum + akun demo|real + env aktif.
-   * EA tetap wajib cek InpAllowTrading (+ InpRequireDemo kalau di-set).
+   * BUY/SELL/CLOSE + confidence >= minimum + akun demo|real + env aktif
+   * (+ runtime: autotrade; REAL butuh LIVE ENABLE).
+   * EA tetap wajib cek InpAllowTrading.
    */
   serverExecutable: boolean;
   /** Mode akun yang dipakai server saat evaluasi (dari EA). */
@@ -129,7 +130,7 @@ export function toEaTradeSignal(
     symbol: result.symbol,
     decision: result.decision,
     confidence: result.confidence,
-    // Execution gate (demo-only, confidence) + control runtime (tombol, cooldown).
+    // Execution gate (demo|real) + control runtime (autotrade / LIVE ENABLE / cooldown).
     serverExecutable,
     accountMode: result.execution.accountMode,
     minConfidence: result.execution.minConfidence,

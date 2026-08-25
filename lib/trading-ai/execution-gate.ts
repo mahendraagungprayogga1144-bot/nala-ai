@@ -1,12 +1,11 @@
 /**
- * Execution Gate — SATU-SATUNYA tempat yang boleh menghasilkan executable = true.
+ * Execution Gate — SATU-SATUNYA tempat yang boleh menghasilkan executable = true
+ * dari sisi prinsip sinyal (mode akun + env + validator + risk + confidence).
  *
- * Semua layer (decide, exit, signal API, EA response) wajib lewat sini.
- * Default fail-closed: kalau ada input yang tidak jelas, hasilnya false.
- *
- * Mode akun:
- * - "demo" selalu boleh (jika syarat lain lolos).
- * - "real" hanya kalau HARD_RULES.ALLOW_LIVE_EXECUTION === true.
+ * Account-agnostic: Trading Brain sama untuk DEMO dan REAL.
+ * - "demo" boleh (jika syarat lain lolos). LIVE ENABLE tidak dicek di sini.
+ * - "real" boleh jika HARD_RULES.ALLOW_LIVE_EXECUTION === true.
+ *   LIVE ENABLE untuk REAL ditegakkan di execution-control (runtime).
  * - "contest" / "unknown" selalu ditolak.
  */
 
@@ -97,7 +96,7 @@ export function evaluateExecutionGate(input: ExecutionGateInput): ExecutionGate 
   } else if (accountMode === "real") {
     if (!isLiveExecutionAllowed()) {
       blockedBy.push(
-        'Account mode "real" diblokir — ALLOW_LIVE_EXECUTION=false (hanya DEMO).',
+        'Account mode "real" diblokir — ALLOW_LIVE_EXECUTION=false di product config.',
       );
     } else {
       passed.push("Account mode = real (live execution allowed).");

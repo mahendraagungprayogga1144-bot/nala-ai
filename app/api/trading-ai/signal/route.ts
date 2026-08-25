@@ -13,6 +13,7 @@ import {
   loadCandles,
   normalizeGoldSpreadPoints,
   normalizeTradingSymbol,
+  resolveTradingSymbol,
   parseAccountMode,
   parseExecutionControlRow,
   buildSignalId,
@@ -74,14 +75,16 @@ export async function GET(request: Request) {
       eaSignalsEnv: isEaSignalExecutionEnabled(),
       execution: {
         mode: EXECUTION_MODE,
-        demoOnly: !HARD_RULES.ALLOW_LIVE_EXECUTION,
+        accountAgnostic: true,
+        allowDemo: true,
+        allowReal: HARD_RULES.ALLOW_LIVE_EXECUTION,
+        demoOnly: false,
         allowLiveExecution: HARD_RULES.ALLOW_LIVE_EXECUTION,
         minConfidence: EXECUTION_MIN_CONFIDENCE,
-        requiredParam: HARD_RULES.ALLOW_LIVE_EXECUTION
-          ? "account_mode=demo|real"
-          : "account_mode=demo",
+        requiredParam: "account_mode=demo|real",
+        realRequiresLiveEnable: true,
       },
-      note: "GET with API key to receive Brain decision for EA.",
+      note: "GET with API key to receive Brain decision for EA. Same brain for DEMO and REAL.",
     });
   }
 
@@ -111,12 +114,56 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const symbol = normalizeTradingSymbol(url.searchParams.get("symbol"));
+  const symbolRaw = url.searchParams.get("symbol");
+  const symbolResolved = resolveTradingSymbol(symbolRaw);
+  if (!symbolResolved.ok) {
+    await admin
+      .from("trading_ai_bridge_keys")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", keyRow.id);
+    return NextResponse.json({
+      ok: true,
+      signalId: `sig_block_symbol_${Date.now()}`,
+      version: TRADING_AI_VERSION,
+      symbol: normalizeTradingSymbol(symbolRaw),
+      decision: "WAIT",
+      confidence: 0,
+      serverExecutable: false,
+      accountMode: parseAccountMode(url.searchParams.get("account_mode")),
+      minConfidence: EXECUTION_MIN_CONFIDENCE,
+      executionBlockedBy: [symbolResolved.reason],
+      eaMayExecute: isEaSignalExecutionEnabled(),
+      executionMode: EXECUTION_MODE,
+      autotrade: false,
+      liveEnable: false,
+      emergencyStop: false,
+      cooldownRemaining: 0,
+      m5Bias: "unknown",
+      m1Direction: "unknown",
+      lot: null,
+      stopLoss: null,
+      takeProfit: null,
+      reasons: [symbolResolved.reason],
+      trend: "unknown",
+      support: null,
+      resistance: null,
+      pullback: false,
+      rejection: false,
+      momentum: false,
+      rulesPassed: [],
+      rulesFailed: ["Wrong symbol — XAUUSD only."],
+      generatedAt: Date.now(),
+    });
+  }
+  const symbol = symbolResolved.symbol;
 
   // Mode akun dari EA. Param hilang/typo -> "unknown" -> gate menolak.
-  // "real" boleh executable hanya jika ALLOW_LIVE_EXECUTION=true.
+  // "real" boleh executable jika ALLOW_LIVE_EXECUTION + LIVE ENABLE (runtime).
   const accountMode = parseAccountMode(url.searchParams.get("account_mode"));
   const accountLogin = num(url.searchParams.get("account_login"));
+  const brokerCompany = (url.searchParams.get("broker") || "").trim() || null;
+  const accountServer = (url.searchParams.get("server") || "").trim() || null;
+  const accountCurrency = (url.searchParams.get("currency") || "").trim() || null;
   // Jam server broker dari EA — sama dengan yang tampil di chart MT5.
   const brokerTime = num(url.searchParams.get("broker_time"));
   const gmtOffsetSec = num(url.searchParams.get("gmt_offset_sec"));
@@ -234,6 +281,9 @@ export async function GET(request: Request) {
     num(url.searchParams.get("spread")) ?? Math.max(0, Math.round((ask - bid) * 100));
   const spread = normalizeGoldSpreadPoints({ spread: spreadRaw, bid, ask });
   const balance = num(url.searchParams.get("balance"));
+  const equity = num(url.searchParams.get("equity"));
+  const freeMargin = num(url.searchParams.get("free_margin"));
+  const requiredMargin = num(url.searchParams.get("required_margin"));
 
   const openSideRaw = (url.searchParams.get("open_side") || "none").toUpperCase();
   const openPositions: OpenPosition[] = [];
@@ -262,7 +312,13 @@ export async function GET(request: Request) {
       market: { symbol, bid, ask, spread, at: Date.now() },
       openPositions,
     },
-    { balance, accountMode },
+    {
+      balance,
+      freeMargin,
+      requiredMargin,
+      brokerTimeSec: brokerTime,
+      accountMode,
+    },
   );
 
   await admin
@@ -339,6 +395,12 @@ export async function GET(request: Request) {
       last_signal_executable: signal.serverExecutable,
       last_broker_time: brokerTime,
       broker_gmt_offset_sec: gmtOffsetSec,
+      last_account_broker: brokerCompany,
+      last_account_server: accountServer,
+      last_account_currency: accountCurrency,
+      last_account_balance: balance,
+      last_account_equity: equity,
+      last_account_free_margin: freeMargin,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },
@@ -351,5 +413,14 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ ...signal, accountLogin });
+  return NextResponse.json({
+    ...signal,
+    accountLogin,
+    accountBroker: brokerCompany,
+    accountServer,
+    accountCurrency,
+    accountBalance: balance,
+    accountEquity: equity,
+    accountFreeMargin: freeMargin,
+  });
 }

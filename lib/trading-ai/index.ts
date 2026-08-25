@@ -110,6 +110,15 @@ export {
 } from "./live-activity";
 
 export {
+  buildAccountExecutionStatus,
+  accountModeLabel,
+  verifyAccountSnapshot,
+  type AccountSnapshot,
+  type AccountExecutionFlags,
+  type AccountExecutionStatus,
+} from "./account-execution";
+
+export {
   buildQuantStats,
   emptyQuantStats,
   activeCycleStage,
@@ -138,7 +147,20 @@ export {
   type WhyBullet,
 } from "./quant-desk";
 
-export { normalizeTradingSymbol, normalizeGoldSpreadPoints } from "./symbol";
+export {
+  normalizeTradingSymbol,
+  normalizeGoldSpreadPoints,
+  resolveTradingSymbol,
+  isAllowedGoldSymbol,
+} from "./symbol";
+
+export {
+  checkMargin,
+  checkMarketSession,
+  checkSpread,
+  checkPositionLimit,
+  checkFloatingRisk,
+} from "./risk";
 
 export {
   SIGNAL_FRESHNESS_MS,

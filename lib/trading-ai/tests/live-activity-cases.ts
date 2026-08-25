@@ -18,13 +18,19 @@ const base: LiveSignalSnapshot = {
   serverExecutable: false,
   accountMode: "demo",
   accountLogin: 1,
+  broker: null,
+  server: null,
+  currency: null,
+  balance: null,
+  equity: null,
+  freeMargin: null,
   autotrade: true,
   liveEnable: false,
   emergencyStop: false,
   at: new Date().toISOString(),
 };
 
-assert(/WAIT/.test(buildOpenHint(base, null)), "wait hint");
+assert(/DEMO ACCOUNT — AUTO EXECUTION AVAILABLE/.test(buildOpenHint(base, null)), "demo wait hint");
 assert(
   /AUTO OFF/.test(buildOpenHint({ ...base, autotrade: false }, null)) ||
     /OFF/.test(buildOpenHint({ ...base, autotrade: false }, null)),

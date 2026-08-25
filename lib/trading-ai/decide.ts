@@ -26,6 +26,8 @@ import {
 import { evaluateExecutionGate, type AccountMode } from "./execution-gate";
 import {
   checkFloatingRisk,
+  checkMargin,
+  checkMarketSession,
   checkPositionLimit,
   checkSpread,
 } from "./risk";
@@ -36,6 +38,12 @@ export type DecideOptions = {
   config?: Parameters<typeof mergeTradingAiConfig>[0];
   /** Optional account balance for floating-risk gate. */
   balance?: number | null;
+  /** Free margin from MT5 — margin gate (DEMO/REAL sama). */
+  freeMargin?: number | null;
+  /** Required margin for next entry from EA OrderCalcMargin. */
+  requiredMargin?: number | null;
+  /** Broker TimeCurrent() seconds — market session gate. */
+  brokerTimeSec?: number | null;
   /**
    * Mode akun yang dilaporkan EA. Default "unknown" supaya semua pemanggil
    * lama (dashboard, backtest) tetap dapat executable=false.
@@ -110,10 +118,27 @@ export function decideTradingAction(
   const spreadOk = checkSpread(ctx.market, config);
   const positionOk = checkPositionLimit(ctx.openPositions, entry.decision, config);
   const floatingOk = checkFloatingRisk(ctx.openPositions, opts.balance ?? null, config);
+  const marginOk = checkMargin({
+    freeMargin: opts.freeMargin ?? null,
+    requiredMargin: opts.requiredMargin ?? null,
+    lot: entry.suggestedLot ?? config.risk.defaultLot,
+  });
+  const marketOk = checkMarketSession(opts.brokerTimeSec ?? null);
 
-  const riskReasons = [...spreadOk.reasons, ...positionOk.reasons, ...floatingOk.reasons];
+  const riskReasons = [
+    ...spreadOk.reasons,
+    ...positionOk.reasons,
+    ...floatingOk.reasons,
+    ...marginOk.reasons,
+    ...marketOk.reasons,
+  ];
   const risk = {
-    allowed: spreadOk.allowed && positionOk.allowed && floatingOk.allowed,
+    allowed:
+      spreadOk.allowed &&
+      positionOk.allowed &&
+      floatingOk.allowed &&
+      marginOk.allowed &&
+      marketOk.allowed,
     reasons: riskReasons,
   };
 

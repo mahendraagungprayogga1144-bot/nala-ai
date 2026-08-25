@@ -1,12 +1,12 @@
 /**
  * Execution Control — lapisan runtime di ATAS execution-gate.
  *
- * execution-gate menjawab "apakah sinyal ini secara prinsip boleh dieksekusi?"
- * (demo-only, confidence, rule/risk). Modul ini menjawab "apakah user sedang
- * mengizinkan robot bekerja sekarang?" (tombol ON/OFF, emergency stop, cooldown).
+ * execution-gate: apakah sinyal secara prinsip boleh dieksekusi (mode demo|real, risk, conf).
+ * Modul ini: apakah user sedang mengizinkan robot bekerja sekarang
+ * (autotrade ON/OFF, LIVE ENABLE untuk REAL, emergency stop, cooldown).
  *
- * Keduanya harus lolos sebelum EA mengirim order. Trading Brain tidak disentuh:
- * modul ini hanya boleh MEMPERSEMPIT izin, tidak pernah melebarkan.
+ * Account-agnostic: Trading Brain tidak diubah saat ganti DEMO ↔ REAL.
+ * DEMO: autotrade cukup. REAL: autotrade + LIVE ENABLE wajib.
  */
 
 import type { TradeDecision } from "./types";

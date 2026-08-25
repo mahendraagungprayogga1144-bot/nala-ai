@@ -4,7 +4,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildQuantStats, emptyQuantStats, type QuantStats } from "./quant-stats";
+import { buildQuantStats, type QuantStats } from "./quant-stats";
 
 export type LiveSignalSnapshot = {
   signalId: string | null;
@@ -16,6 +16,12 @@ export type LiveSignalSnapshot = {
   serverExecutable: boolean | null;
   accountMode: string | null;
   accountLogin: number | null;
+  broker: string | null;
+  server: string | null;
+  currency: string | null;
+  balance: number | null;
+  equity: number | null;
+  freeMargin: number | null;
   autotrade: boolean;
   liveEnable: boolean;
   emergencyStop: boolean;
@@ -54,6 +60,12 @@ const EMPTY_SIGNAL: LiveSignalSnapshot = {
   serverExecutable: null,
   accountMode: null,
   accountLogin: null,
+  broker: null,
+  server: null,
+  currency: null,
+  balance: null,
+  equity: null,
+  freeMargin: null,
   autotrade: false,
   liveEnable: false,
   emergencyStop: false,
@@ -69,7 +81,7 @@ export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrder
   if (signal.emergencyStop) return "EMERGENCY STOP — entry baru ditahan.";
   if (!signal.autotrade) return "LIVE AUTOTRADE OFF — nyalakan di dashboard.";
   if (signal.accountMode === "real" && !signal.liveEnable) {
-    return "REAL ACCOUNT DETECTED — LIVE EXECUTION DISABLED. Nyalakan LIVE ENABLE.";
+    return "REAL ACCOUNT DETECTED — LIVE EXECUTION DISABLED";
   }
   if (latestOrder?.status === "FILLED" && latestOrder.direction !== "CLOSE") {
     return `Posisi terakhir ${latestOrder.direction} lot ${latestOrder.lot ?? "?"} @ ${latestOrder.entryPrice ?? "?"} (tiket ${latestOrder.ticket ?? "—"}).`;
@@ -78,9 +90,6 @@ export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrder
     return `Order terakhir GAGAL: ${latestOrder.errorMessage || latestOrder.errorCode || "unknown"}.`;
   }
   const d = (signal.decision || "").toUpperCase();
-  if (d === "WAIT" || !d) {
-    return "Sinyal sekarang WAIT — menunggu setup BUY/SELL dari Trading Brain.";
-  }
   if ((d === "BUY" || d === "SELL") && signal.serverExecutable) {
     return `Sinyal ${d} siap dieksekusi EA (confidence ${signal.confidence ?? "—"}).`;
   }
@@ -88,6 +97,12 @@ export function buildOpenHint(signal: LiveSignalSnapshot, latestOrder: LiveOrder
     return `Sinyal ${d} ada tapi belum executable di server.`;
   }
   if (d === "CLOSE") return "Sinyal CLOSE — EA harus menutup posisi.";
+  if (signal.accountMode === "demo" && signal.autotrade) {
+    return "DEMO ACCOUNT — AUTO EXECUTION AVAILABLE";
+  }
+  if (d === "WAIT" || !d) {
+    return "Sinyal sekarang WAIT — menunggu setup BUY/SELL dari Trading Brain.";
+  }
   return "Menunggu update dari GercepTradeExecutor.";
 }
 
@@ -100,7 +115,7 @@ export async function collectLiveActivity(
     supabase
       .from("trading_ai_execution_control")
       .select(
-        "autotrade_enabled, live_enable, emergency_stop, last_signal_at, last_signal_id, last_signal_decision, last_signal_confidence, last_signal_spread, last_signal_m5_bias, last_signal_m1_direction, last_signal_executable, last_signal_account_mode, last_signal_account_login",
+        "autotrade_enabled, live_enable, emergency_stop, last_signal_at, last_signal_id, last_signal_decision, last_signal_confidence, last_signal_spread, last_signal_m5_bias, last_signal_m1_direction, last_signal_executable, last_signal_account_mode, last_signal_account_login, last_account_broker, last_account_server, last_account_currency, last_account_balance, last_account_equity, last_account_free_margin",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -129,6 +144,12 @@ export async function collectLiveActivity(
             : null,
         accountMode: (ctl.last_signal_account_mode as string) ?? null,
         accountLogin: numOrNull(ctl.last_signal_account_login),
+        broker: (ctl.last_account_broker as string) ?? null,
+        server: (ctl.last_account_server as string) ?? null,
+        currency: (ctl.last_account_currency as string) ?? null,
+        balance: numOrNull(ctl.last_account_balance),
+        equity: numOrNull(ctl.last_account_equity),
+        freeMargin: numOrNull(ctl.last_account_free_margin),
         autotrade: ctl.autotrade_enabled === true,
         liveEnable: ctl.live_enable === true,
         emergencyStop: ctl.emergency_stop === true,

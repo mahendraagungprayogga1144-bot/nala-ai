@@ -221,6 +221,14 @@ export type DeskView = {
   lot: string;
   safetyNote: string;
   aiActive: boolean;
+  accountStatus: {
+    accountMode: string;
+    liveEnable: string;
+    liveExecution: string;
+    mt5: string;
+    execution: string;
+    banner: string;
+  };
 };
 
 function healthTone(state: string) {

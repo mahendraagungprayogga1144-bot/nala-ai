@@ -23,8 +23,15 @@ import {
 export type BridgeAccountInfo = {
   mode: string | null;
   login: number | null;
+  broker: string | null;
+  server: string | null;
+  currency: string | null;
+  balance: number | null;
+  equity: number | null;
+  freeMargin: number | null;
   lastDecision: string | null;
   autotrade: boolean;
+  liveEnable: boolean;
   emergencyStop: boolean;
   /** TimeCurrent() terakhir dari EA — detik epoch ala MT5. */
   brokerTimeSec: number | null;
@@ -144,7 +151,7 @@ export async function collectBridgeHealth(
       supabase
         .from("trading_ai_execution_control")
         .select(
-          "last_signal_at, last_signal_account_mode, last_signal_account_login, last_signal_decision, autotrade_enabled, emergency_stop, last_broker_time, broker_gmt_offset_sec",
+          "last_signal_at, last_signal_account_mode, last_signal_account_login, last_signal_decision, autotrade_enabled, live_enable, emergency_stop, last_broker_time, broker_gmt_offset_sec, last_account_broker, last_account_server, last_account_currency, last_account_balance, last_account_equity, last_account_free_margin",
         )
         .eq("user_id", userId)
         .maybeSingle(),
@@ -159,9 +166,16 @@ export async function collectBridgeHealth(
     last_signal_account_login?: number;
     last_signal_decision?: string;
     autotrade_enabled?: boolean;
+    live_enable?: boolean;
     emergency_stop?: boolean;
     last_broker_time?: number | null;
     broker_gmt_offset_sec?: number | null;
+    last_account_broker?: string | null;
+    last_account_server?: string | null;
+    last_account_currency?: string | null;
+    last_account_balance?: number | null;
+    last_account_equity?: number | null;
+    last_account_free_margin?: number | null;
   } | null;
 
   const hasApiKey = Boolean(keyRow);
@@ -205,8 +219,25 @@ export async function collectBridgeHealth(
     account: {
       mode: execRow?.last_signal_account_mode ?? null,
       login: execRow?.last_signal_account_login ?? null,
+      broker: execRow?.last_account_broker ?? null,
+      server: execRow?.last_account_server ?? null,
+      currency: execRow?.last_account_currency ?? null,
+      balance:
+        execRow?.last_account_balance != null && Number.isFinite(Number(execRow.last_account_balance))
+          ? Number(execRow.last_account_balance)
+          : null,
+      equity:
+        execRow?.last_account_equity != null && Number.isFinite(Number(execRow.last_account_equity))
+          ? Number(execRow.last_account_equity)
+          : null,
+      freeMargin:
+        execRow?.last_account_free_margin != null &&
+        Number.isFinite(Number(execRow.last_account_free_margin))
+          ? Number(execRow.last_account_free_margin)
+          : null,
       lastDecision: execRow?.last_signal_decision ?? null,
       autotrade: execRow?.autotrade_enabled === true,
+      liveEnable: execRow?.live_enable === true,
       emergencyStop: execRow?.emergency_stop === true,
       brokerTimeSec:
         execRow?.last_broker_time != null && Number.isFinite(Number(execRow.last_broker_time))

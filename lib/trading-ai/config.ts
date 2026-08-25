@@ -5,7 +5,7 @@
 
 import type { SymbolCode, Timeframe } from "./types";
 
-export const TRADING_AI_VERSION = "0.9.0-hybrid-sr";
+export const TRADING_AI_VERSION = "0.9.1-account-agnostic";
 
 /**
  * Hard product rules — never weaken from UI.

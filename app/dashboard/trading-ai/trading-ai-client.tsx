@@ -44,6 +44,7 @@ import {
   EXECUTION_MODE,
   type TradeDecision,
   type TradingDecisionResult,
+  buildAccountExecutionStatus,
 } from "@/lib/trading-ai";
 import {
   buildPipeline,
@@ -739,6 +740,15 @@ export default function TradingAiClient({
     status: o.status,
   }));
 
+  const accountExec = buildAccountExecutionStatus(accountMode.toLowerCase(), {
+    autotrade: control.autotradeEnabled,
+    liveEnable: control.liveEnable,
+    emergencyStop: control.emergencyStop,
+    mt5Connected: feedFresh && executorFresh,
+    riskAllowed: result ? result.risk.allowed : true,
+    serverExecutable: activity.signal.serverExecutable,
+  });
+
   const now = clockTick;
   const day = 86_400_000;
   const view: DeskView = {
@@ -748,8 +758,8 @@ export default function TradingAiClient({
       connection: health.state,
       accountMode,
       login,
-      broker: "N/A",
-      server: "N/A",
+      broker: activity.signal.broker || health.account.broker || "N/A",
+      server: activity.signal.server || health.account.server || "N/A",
       decision: String(d).toUpperCase(),
       decisionColor: liveMapped.stale ? "#FFB14A" : decisionColor(d),
       confidence: liveConf ?? 0,
@@ -759,8 +769,8 @@ export default function TradingAiClient({
         totalPnl: null,
         realized: null,
         floating,
-        equity: null,
-        balance: null,
+        equity: activity.signal.equity ?? health.account.equity,
+        balance: activity.signal.balance ?? health.account.balance,
         winRate: null,
         trades: stats.fills,
         avgWin: null,
@@ -879,15 +889,16 @@ export default function TradingAiClient({
       killSwitch: control.emergencyStop,
       cooldown: control.cooldownRemaining > 0 ? fmtCooldown(control.cooldownRemaining) : "siap",
       lot: control.lot.toFixed(2),
-      safetyNote:
-        accountMode === "REAL" && !control.liveEnable
-          ? "REAL ACCOUNT · LIVE EXECUTION DISABLED"
-          : accountMode === "DEMO"
-            ? control.autotradeEnabled
-              ? "DEMO ACCOUNT · AUTO EXECUTION ACTIVE"
-              : "DEMO ACCOUNT · AUTO OFF"
-            : `${accountMode} · ${control.autotradeEnabled ? "AUTO ON" : "AUTO OFF"}`,
+      safetyNote: accountExec.banner,
       aiActive: Boolean(result) || health.state === "CONNECTED",
+      accountStatus: {
+        accountMode: accountExec.accountModeLabel,
+        liveEnable: accountExec.liveEnableLabel,
+        liveExecution: accountExec.liveExecutionLabel,
+        mt5: accountExec.mt5Label,
+        execution: accountExec.executionLabel,
+        banner: accountExec.banner,
+      },
     };
 
   const box = "border border-white/[0.09] bg-[#070B12]/90 p-3";
@@ -933,9 +944,38 @@ export default function TradingAiClient({
           </div>
           {!controlReady && (
             <div className="mb-3 border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
-              Jalankan SQL migrasi live_enable di Supabase kalau tombol LIVE ENABLE error.
+              Jalankan SQL migrasi live_enable + account_snapshot di Supabase kalau tombol LIVE ENABLE error.
             </div>
           )}
+          <div className="mb-3 grid grid-cols-2 gap-2 border border-white/10 bg-black/30 p-3 text-[10px] sm:grid-cols-3 lg:grid-cols-5">
+            <div>
+              <p className="uppercase tracking-[0.16em] text-[#6A8A99]">Account Mode</p>
+              <p className={`mt-1 font-mono font-bold ${view.accountStatus.accountMode === "REAL" ? "text-[#FFB14A]" : "text-[#5CE1FF]"}`}>
+                {view.accountStatus.accountMode}
+              </p>
+            </div>
+            <div>
+              <p className="uppercase tracking-[0.16em] text-[#6A8A99]">Live Execution</p>
+              <p className="mt-1 font-mono font-bold text-white">{view.accountStatus.liveExecution}</p>
+            </div>
+            <div>
+              <p className="uppercase tracking-[0.16em] text-[#6A8A99]">Live Enable</p>
+              <p className="mt-1 font-mono font-bold text-white">{view.accountStatus.liveEnable}</p>
+            </div>
+            <div>
+              <p className="uppercase tracking-[0.16em] text-[#6A8A99]">MT5</p>
+              <p className="mt-1 font-mono font-bold text-white">{view.accountStatus.mt5}</p>
+            </div>
+            <div>
+              <p className="uppercase tracking-[0.16em] text-[#6A8A99]">Execution</p>
+              <p className={`mt-1 font-mono font-bold ${view.accountStatus.execution === "READY" ? "text-[#00F0A8]" : "text-[#FFB14A]"}`}>
+                {view.accountStatus.execution}
+              </p>
+            </div>
+          </div>
+          <p className="mb-3 border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-[#C8E7F2]">
+            {view.accountStatus.banner}
+          </p>
           <div className="mb-3 flex flex-wrap gap-2">
             <button
               type="button"

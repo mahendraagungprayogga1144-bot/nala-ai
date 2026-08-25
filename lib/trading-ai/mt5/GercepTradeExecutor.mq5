@@ -2,17 +2,18 @@
 //| GercepTradeExecutor.mq5
 //| EXECUTION_MODE = LIVE_AUTOTRADE
 //|
-//| Order sungguhan ke akun MT5 demo ATAU real (bukan paper/simulation).
-//| Alur: Trading Brain -> Risk Gate -> Account check -> MT5 Order
-//|       -> Order Confirmation -> Position Monitor -> Exit Engine
+//| Account-agnostic: Trading Brain sama untuk DEMO dan REAL.
+//| Alur: Trading Brain -> Risk Gate -> LIVE ENABLE (REAL) -> Account check
+//|       -> MT5 Order -> Confirmation -> Position Monitor -> Exit Engine
 //|
 //| Hard rules yang ditegakkan di EA:
 //|  - MAX_POSITION = 1 (magic-filtered)
 //|  - NO_AVERAGING / NO_MARTINGALE / NO_GRID / NO_HEDGE
-//|  - Contest ditolak. Real diizinkan saat InpRequireDemo=false (default)
+//|  - Contest ditolak. DEMO selalu boleh. REAL boleh (InpRequireDemo=false)
+//|    dan server wajib LIVE ENABLE ON untuk REAL.
 //|  - Satu signalId = maksimal SATU order attempt (tanpa retry otomatis)
 //|  - Order hanya jalan kalau SEMUA benar:
-//|      serverExecutable=true (gate + tombol dashboard + cooldown)
+//|      serverExecutable=true (gate + tombol dashboard + cooldown + LIVE ENABLE)
 //|      eaMayExecute=true     (TRADING_AI_EA_SIGNALS=1)
 //|      InpAllowTrading=true
 //|      akun demo ATAU real (kecuali InpRequireDemo=true → demo saja)
@@ -23,11 +24,12 @@
 //|  3. MT5 -> Allow WebRequest untuk base URL
 //|  4. Attach ke chart gold broker (XAUUSDm OK). Algo Trading ON
 //|  5. Nyalakan [LIVE AUTOTRADE ON] di dashboard Gercep
-//|  6. InpAllowTrading default true (demo Exness). Matikan kalau observasi saja.
-//|  7. InpSymbol kosong = auto XAUUSDm dari chart
+//|  6. Untuk REAL: nyalakan juga [LIVE ENABLE]
+//|  7. InpAllowTrading default true. Matikan kalau observasi saja.
+//|  8. InpSymbol kosong = auto XAUUSDm dari chart
 //+------------------------------------------------------------------
 #property copyright "Gercep AI"
-#property version   "2.43"
+#property version   "2.50"
 #property strict
 
 #include <Trade/Trade.mqh>
@@ -176,6 +178,18 @@ string AccountModeString()
 }
 
 long AccountLogin() { return AccountInfoInteger(ACCOUNT_LOGIN); }
+
+string UrlSafe(const string s)
+{
+   string out = s;
+   StringReplace(out, " ", "%20");
+   StringReplace(out, "&", "%26");
+   StringReplace(out, "=", "%3D");
+   StringReplace(out, "+", "%2B");
+   StringReplace(out, "#", "%23");
+   StringReplace(out, "?", "%3F");
+   return out;
+}
 
 int CountOurPositions()
 {
@@ -653,6 +667,16 @@ void PollAndAct()
    if(LooksLikeGold(sym) && digits >= 3)
       spreadPts = spreadPts / 10.0;
    double balance   = AccountInfoDouble(ACCOUNT_BALANCE);
+   double equity    = AccountInfoDouble(ACCOUNT_EQUITY);
+   double freeMarg  = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   string currency  = AccountInfoString(ACCOUNT_CURRENCY);
+   string company   = AccountInfoString(ACCOUNT_COMPANY);
+   string server    = AccountInfoString(ACCOUNT_SERVER);
+
+   // Estimasi margin untuk lot fallback (OrderCalcMargin).
+   double reqMargin = 0.0;
+   if(!OrderCalcMargin(ORDER_TYPE_BUY, sym, InpLotFallback, ask, reqMargin))
+      reqMargin = 0.0;
 
    // POSITION MONITOR — kirim posisi berjalan supaya Brain memutuskan HOLD/CLOSE
    // dan Risk Gate tahu MAX_POSITION sudah terpakai.
@@ -679,9 +703,13 @@ void PollAndAct()
    int gmtOffsetSec = (int)(TimeCurrent() - TimeGMT());
 
    string qs = StringFormat(
-      "symbol=%s&account_mode=%s&account_login=%d&bid=%.5f&ask=%.5f&spread=%.0f&balance=%.2f"
+      "symbol=%s&account_mode=%s&account_login=%d&bid=%.5f&ask=%.5f&spread=%.0f"
+      "&balance=%.2f&equity=%.2f&free_margin=%.2f&required_margin=%.2f"
+      "&currency=%s&broker=%s&server=%s"
       "&broker_time=%d&gmt_offset_sec=%d%s",
-      ApiSymbol(), AccountModeString(), AccountLogin(), bid, ask, spreadPts, balance,
+      ApiSymbol(), AccountModeString(), AccountLogin(), bid, ask, spreadPts,
+      balance, equity, freeMarg, reqMargin,
+      UrlSafe(currency), UrlSafe(company), UrlSafe(server),
       brokerTime, gmtOffsetSec, open_qs
    );
 
@@ -695,6 +723,7 @@ void PollAndAct()
    bool   eaMay     = ExtractJsonBool(body, "eaMayExecute", false);
    bool   srvExec   = ExtractJsonBool(body, "serverExecutable", false);
    bool   autotrade = ExtractJsonBool(body, "autotrade", false);
+   bool   liveEnable= ExtractJsonBool(body, "liveEnable", false);
    bool   estop     = ExtractJsonBool(body, "emergencyStop", false);
    double cooldown  = ExtractJsonNumber(body, "cooldownRemaining", 0);
    double confidence= ExtractJsonNumber(body, "confidence", 0);
@@ -710,7 +739,8 @@ void PollAndAct()
          " conf=", DoubleToString(confidence, 1),
          " spread=", DoubleToString(spreadPts, 0),
          " srvExec=", BoolStr(srvExec), " eaMay=", BoolStr(eaMay),
-         " autotrade=", BoolStr(autotrade), " estop=", BoolStr(estop),
+         " autotrade=", BoolStr(autotrade), " liveEnable=", BoolStr(liveEnable),
+         " estop=", BoolStr(estop),
          " cooldown=", DoubleToString(cooldown, 0),
          " fresh=", BoolStr(fresh),
          " mode=", AccountModeString(), " pos=", CountOurPositions());
@@ -740,10 +770,14 @@ void PollAndAct()
    }
    else if(!IsAllowedAccount())
       executionStatus = "BLOCKED:account mode tidak diizinkan";
+   else if(IsRealAccount() && !liveEnable)
+      executionStatus = "BLOCKED:REAL ACCOUNT DETECTED — LIVE EXECUTION DISABLED";
    else if(decision != "CLOSE" && confidence < InpMinConfidence)
       executionStatus = StringFormat("BLOCKED:confidence %.1f < %d", confidence, InpMinConfidence);
    else if(decision != "CLOSE" && CountOurPositions() > 0)
       executionStatus = "BLOCKED:MAX_POSITION=1 sudah terpakai";
+   else if(decision != "CLOSE" && freeMarg <= 0.0)
+      executionStatus = "BLOCKED:margin insufficient";
 
    PrintValidationBlock(decision, (decision == "CLOSE" ? olot : NormalizeLot(lot)),
                         spreadPts, m5Bias, m1Dir, confidence, srvExec, executionStatus);

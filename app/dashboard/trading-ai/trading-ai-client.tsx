@@ -760,6 +760,8 @@ export default function TradingAiClient({
       login,
       broker: activity.signal.broker || health.account.broker || "N/A",
       server: activity.signal.server || health.account.server || "N/A",
+      currency: activity.signal.currency || health.account.currency || "N/A",
+      freeMargin: activity.signal.freeMargin ?? health.account.freeMargin ?? null,
       decision: String(d).toUpperCase(),
       decisionColor: liveMapped.stale ? "#FFB14A" : decisionColor(d),
       confidence: liveConf ?? 0,

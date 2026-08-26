@@ -380,6 +380,16 @@ export async function GET(request: Request) {
 
   // Heartbeat + snapshot untuk panel live dashboard. Gagal di sini
   // tidak boleh menjatuhkan respons sinyal ke EA.
+  // Snapshot fields only written when EA sends them (v2.50+) so older EAs
+  // cannot wipe broker/equity/free_margin with nulls.
+  const accountSnapshot: Record<string, string | number> = {};
+  if (brokerCompany) accountSnapshot.last_account_broker = brokerCompany;
+  if (accountServer) accountSnapshot.last_account_server = accountServer;
+  if (accountCurrency) accountSnapshot.last_account_currency = accountCurrency;
+  if (balance != null) accountSnapshot.last_account_balance = balance;
+  if (equity != null) accountSnapshot.last_account_equity = equity;
+  if (freeMargin != null) accountSnapshot.last_account_free_margin = freeMargin;
+
   const { error: hbErr } = await admin.from("trading_ai_execution_control").upsert(
     {
       user_id: keyRow.user_id,
@@ -395,12 +405,7 @@ export async function GET(request: Request) {
       last_signal_executable: signal.serverExecutable,
       last_broker_time: brokerTime,
       broker_gmt_offset_sec: gmtOffsetSec,
-      last_account_broker: brokerCompany,
-      last_account_server: accountServer,
-      last_account_currency: accountCurrency,
-      last_account_balance: balance,
-      last_account_equity: equity,
-      last_account_free_margin: freeMargin,
+      ...accountSnapshot,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },

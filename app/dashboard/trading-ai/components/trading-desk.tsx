@@ -163,6 +163,8 @@ export type DeskView = {
   login: string;
   broker: string;
   server: string;
+  currency: string;
+  freeMargin: number | null;
   decision: string;
   decisionColor: string;
   confidence: number;
@@ -308,11 +310,30 @@ export default function TradingDesk({
             MT5 {view.connection}
           </span>
           <span className={`font-mono text-[10px] ${view.accountMode === "REAL" ? "text-[#FFB14A]" : "text-[#5CE1FF]"}`}>
-            {view.accountMode}
+            ACCOUNT {view.accountMode}
           </span>
           <span className="font-mono text-[10px] text-[#6A8A99]">BROKER {view.broker}</span>
           <span className="font-mono text-[10px] text-[#6A8A99]">SERVER {view.server}</span>
           <span className="font-mono text-[10px] text-[#8FB8C9]">LOGIN {view.login}</span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">CURRENCY {view.currency}</span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">
+            BALANCE {view.kpis.balance == null ? "N/A" : view.kpis.balance.toFixed(2)}
+          </span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">
+            EQUITY {view.kpis.equity == null ? "N/A" : view.kpis.equity.toFixed(2)}
+          </span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">
+            FREE MARGIN {view.freeMargin == null ? "N/A" : view.freeMargin.toFixed(2)}
+          </span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">
+            AUTO EXECUTION {view.autotrade ? "ON" : "OFF"}
+          </span>
+          <span className="font-mono text-[10px] text-[#8FB8C9]">
+            LIVE ENABLE {view.liveEnable ? "ON" : "OFF"}
+          </span>
+          <span className={`font-mono text-[10px] font-bold ${view.accountStatus.execution === "READY" ? "text-[#00F0A8]" : "text-[#FFB14A]"}`}>
+            EXECUTION {view.accountStatus.execution}
+          </span>
           <span className="ml-auto flex items-center gap-2 font-mono text-[10px] text-[#8FB8C9]">
             <User size={12} />
             {view.userLabel}

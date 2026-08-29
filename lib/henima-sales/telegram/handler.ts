@@ -143,7 +143,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       } else if (effect.type === "send_pdf" && actor) {
         await sendPdf(db, actor, chatId, effect.kind as ReportKind);
       } else if (effect.type === "send_nota" && actor) {
-        await sendNota(db, actor, chatId, effect.orderId);
+        await sendNota(db, actor, chatId, effect.orderId, effect.query);
       } else if (effect.type === "send_riwayat" && actor) {
         await sendRiwayat(db, actor, chatId);
       } else if (effect.type === "send_target" && actor) {
@@ -467,21 +467,67 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
   );
 }
 
-async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: string) {
+async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: string, query?: string) {
   try {
-    let id = orderId;
-    if (!id) {
-      const { rows } = await listOrders(db, actor, { pageSize: 1 });
-      id = rows[0]?.id;
+    if (orderId) {
+      const { bytes, filename, caption } = await buildOrderNota(db, actor, orderId);
+      await sendDocument(chatId, filename, bytes, caption);
+      return;
     }
+
+    if (query) {
+      const { rows: customers } = await listCustomers(db, actor, { q: query, pageSize: 8 });
+      if (!customers.length) {
+        await sendMessage(chatId, `Customer "${query}" tidak ditemukan.\nKetik: nota nama customer\nContoh: nota regan`);
+        return;
+      }
+      const lower = query.toLowerCase();
+      const ranked = [...customers].sort((a, b) => {
+        const an = a.nama.toLowerCase();
+        const bn = b.nama.toLowerCase();
+        const score = (n: string) => (n === lower ? 0 : n.startsWith(lower) ? 1 : n.includes(lower) ? 2 : 3);
+        return score(an) - score(bn);
+      });
+      const bestScore = ranked[0].nama.toLowerCase() === lower ? 0 : ranked[0].nama.toLowerCase().startsWith(lower) ? 1 : 2;
+      const top = ranked.filter((c) => {
+        const n = c.nama.toLowerCase();
+        const s = n === lower ? 0 : n.startsWith(lower) ? 1 : n.includes(lower) ? 2 : 3;
+        return s === bestScore;
+      });
+
+      const choices: { nama: string; orderId: string; date: string; total: number }[] = [];
+      for (const c of top.slice(0, 5)) {
+        const { rows } = await listOrders(db, actor, { customerId: c.id, pageSize: 1 });
+        const o = rows[0];
+        if (o) choices.push({ nama: c.nama, orderId: o.id, date: o.order_date, total: Number(o.total || 0) });
+      }
+      if (!choices.length) {
+        await sendMessage(chatId, `Customer ${top[0]?.nama || query} belum punya transaksi.`);
+        return;
+      }
+      if (choices.length === 1) {
+        const { bytes, filename, caption } = await buildOrderNota(db, actor, choices[0].orderId);
+        await sendDocument(chatId, filename, bytes, caption);
+        return;
+      }
+      await sendMessage(
+        chatId,
+        `Beberapa customer cocok untuk "${query}". Pilih nota:`,
+        choices.map((c) => [{ text: `${c.nama} · ${fmtDateLongId(c.date)} · ${fmtRp(c.total)}`, data: `nota:${c.orderId}` }]),
+      );
+      return;
+    }
+
+    const { rows } = await listOrders(db, actor, { pageSize: 1 });
+    const id = rows[0]?.id;
     if (!id) {
-      await sendMessage(chatId, "Belum ada transaksi untuk dibuatkan nota.");
+      await sendMessage(chatId, "Belum ada transaksi untuk dibuatkan nota.\nKetik: nota nama customer");
       return;
     }
     const { bytes, filename, caption } = await buildOrderNota(db, actor, id);
     await sendDocument(chatId, filename, bytes, caption);
   } catch (err) {
-    salesLogError("nota", err, { staffId: actor.staffId, orderId });
+    salesLogError("nota", err, { staffId: actor.staffId, orderId, query });
     await sendMessage(chatId, "Nota gagal dibuat. Silakan coba lagi.");
   }
 }

@@ -256,14 +256,28 @@ test("founder closings are served-by not top sales", () => {
 test("nota intent and customer invoice number", () => {
   assert.deepEqual(parseOpsIntent("nota"), { type: "nota" });
   assert.deepEqual(parseOpsIntent("invoice customer"), { type: "nota" });
+  assert.deepEqual(parseOpsIntent("nota regan"), { type: "nota", query: "regan" });
+  assert.deepEqual(parseOpsIntent("nota untuk dimas"), { type: "nota", query: "dimas" });
   const out = reduceBot(
     { state: "idle", draft: newDraft() },
     { kind: "text", text: "nota" },
     { actor: sales, products: [] },
   );
   assert.equal(out.effects[0].type, "send_nota");
-  const cmd = reduceBot({ state: "idle", draft: newDraft() }, { kind: "command", cmd: "/nota" }, { actor: sales, products: [] });
+  const named = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "nota regan" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(named.effects[0].type, "send_nota");
+  if (named.effects[0].type === "send_nota") assert.equal(named.effects[0].query, "regan");
+  const cmd = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "command", cmd: "/nota", arg: "Dimas" },
+    { actor: sales, products: [] },
+  );
   assert.equal(cmd.effects[0].type, "send_nota");
+  if (cmd.effects[0].type === "send_nota") assert.equal(cmd.effects[0].query, "Dimas");
   assert.equal(formatNotaNumber("a1b2c3d4-e5f6-7890-abcd-ef1234567890", "2026-08-29"), "HNM-20260829-A1B2C3");
   const payload = notaFromOrder({
     order: {

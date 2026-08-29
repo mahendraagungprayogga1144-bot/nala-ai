@@ -100,7 +100,10 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           ],
         };
       case "/nota":
-        return { session: go(session, "idle"), effects: [{ type: "send_nota" }] };
+        return {
+          session: go(session, "idle"),
+          effects: [{ type: "send_nota", query: incoming.arg?.trim() || undefined }],
+        };
       default:
         return { session, effects: [reply("Perintah tidak dikenali. Ketik /help.")] };
     }
@@ -344,7 +347,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\nlaku 2 paket new member harga 250k atas nama Dimas no 08...\nAtau: rekapan hari ini · riwayat · nota · target · /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\nlaku 2 paket new member harga 250k atas nama Dimas no 08...\nAtau: rekapan hari ini · nota regan · riwayat · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -364,7 +367,7 @@ function applyNaturalChat(
     return { session: idle, effects: [{ type: "send_pdf", kind: ops.period }] };
   }
   if (ops.type === "nota") {
-    return { session: idle, effects: [{ type: "send_nota" }] };
+    return { session: idle, effects: [{ type: "send_nota", query: ops.query }] };
   }
   if (ops.type === "riwayat") {
     return { session: idle, effects: [{ type: "send_riwayat" }] };

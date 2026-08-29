@@ -17,7 +17,7 @@ export type ParsedSaleChat = {
 export type OpsIntent =
   | { type: "rekap"; period: "today" | "this_week" | "this_month" }
   | { type: "pdf"; period: "today" | "this_week" | "this_month" }
-  | { type: "nota" }
+  | { type: "nota"; query?: string }
   | { type: "riwayat" }
   | { type: "target" }
   | { type: "help" }
@@ -33,12 +33,30 @@ export function parseOpsIntent(text: string): OpsIntent {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return { type: "none" };
   if (/^(help|bantuan|menu|perintah|\?)$/.test(t)) return { type: "help" };
-  if (/\b(nota|invoice|kwitansi|struk)\b/.test(t)) return { type: "nota" };
+  if (/\b(nota|invoice|kwitansi|struk)\b/.test(t)) {
+    const query = extractNotaQuery(t);
+    return query ? { type: "nota", query } : { type: "nota" };
+  }
   if (/\b(pdf|laporan pdf)\b/.test(t)) return { type: "pdf", period: periodFromText(t) };
   if (/\b(rekap|rekapan|ringkasan)\b/.test(t)) return { type: "rekap", period: periodFromText(t) };
   if (/\b(riwayat|histori|history)\b/.test(t)) return { type: "riwayat" };
   if (/\b(target|pencapaian)\b/.test(t)) return { type: "target" };
   return { type: "none" };
+}
+
+/** "nota untuk regan" / "nota dimas" → "regan" / "dimas". Bare "nota" → undefined. */
+export function extractNotaQuery(text: string): string | undefined {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  const m = t.match(/^(?:\/)?(?:nota|invoice|kwitansi|struk)(?:\s+(?:untuk|buat|kepada|ke|atas\s+nama|a\/n|an))?\s*(.*)$/);
+  if (!m) {
+    const anywhere = t.match(/\b(?:nota|invoice|kwitansi|struk)(?:\s+(?:untuk|buat|kepada|ke|atas\s+nama|a\/n|an))?\s+([a-z0-9][\w .'-]{0,40})$/);
+    const q = anywhere?.[1]?.trim();
+    return q || undefined;
+  }
+  let q = (m[1] || "").trim();
+  q = q.replace(/^(?:untuk|buat|kepada|ke|atas\s+nama|a\/n|an)\s+/i, "").trim();
+  if (!q || /^(customer|pelanggan)$/i.test(q)) return undefined;
+  return q.slice(0, 60);
 }
 
 const SALE_HINT =

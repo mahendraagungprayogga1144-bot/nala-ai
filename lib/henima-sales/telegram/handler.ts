@@ -15,9 +15,9 @@ import { fmtDateLongId, fmtRp } from "../money";
 import { writeAudit } from "../audit";
 import { displayPhone } from "../phone";
 import type { Actor } from "../types";
-import { reduceBot, customerFoundText } from "./fsm";
+import { reduceBot, customerFoundText, confirmKeyboard } from "./fsm";
 import type { Session } from "./session";
-import { HELP_TEXT, connectedStatusText, newDraft } from "./session";
+import { HELP_TEXT, connectedStatusText, newDraft, formatConfirm } from "./session";
 import { answerCallback, downloadTelegramFile, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -235,29 +235,64 @@ async function continueAfterPhone(
     if (found) {
       session.draft.customerId = found.id;
       session.draft.customerName = found.nama;
+    } else if (!session.draft.customerName) {
+      session.state = "input_new_name";
+      await sendMessage(chatId, "Customer baru. Masukkan nama customer.");
+      return;
+    }
+
+    if (!products.length) {
+      await sendMessage(chatId, "Belum ada produk. Founder menambahkannya di Henima Sales → Settings.");
+      return;
+    }
+
+    if (!session.draft.productId) {
       session.state = "input_product";
-      await sendMessage(
-        chatId,
-        customerFoundText({
-          nama: found.nama,
-          phone: found.whatsapp_phone || found.telepon,
-          totalSpent: Number(found.total_spent || 0),
-          lastPurchase: found.last_purchase_at,
-        }),
-      );
-      if (!products.length) {
-        await sendMessage(chatId, "Belum ada produk. Founder menambahkannya di Henima Sales → Settings.");
-        return;
+      if (found) {
+        await sendMessage(
+          chatId,
+          customerFoundText({
+            nama: found.nama,
+            phone: found.whatsapp_phone || found.telepon,
+            totalSpent: Number(found.total_spent || 0),
+            lastPurchase: found.last_purchase_at,
+          }),
+        );
       }
       await sendMessage(
         chatId,
         "Pilih produk:",
         products.slice(0, 10).map((p) => [{ text: p.name, data: `p:${p.id}` }]),
       );
-    } else {
-      session.state = "input_new_name";
-      await sendMessage(chatId, "Customer baru. Masukkan nama customer.");
+      return;
     }
+
+    if (!session.draft.quantity) {
+      session.state = "input_qty";
+      await sendMessage(chatId, `Produk: ${session.draft.productName}\nBerapa jumlah botol?`);
+      return;
+    }
+
+    if (session.draft.unitPrice == null) {
+      session.state = "input_price";
+      await sendMessage(chatId, "Masukkan harga jual per botol.");
+      return;
+    }
+
+    session.draft.paymentMethod = session.draft.paymentMethod || "OTHER";
+    session.draft.paymentStatus = session.draft.paymentStatus || "PAID";
+    if (session.draft.nlChat) {
+      await runConfirm(db, actor, chatId, session);
+      session.state = "idle";
+      session.draft = newDraft();
+      return;
+    }
+    session.state = "input_confirm";
+    await sendMessage(
+      chatId,
+      formatConfirm(session.draft, actor, fmtDateLongId(todayWib())),
+      confirmKeyboard(),
+    );
   } catch (err) {
     await sendMessage(chatId, err instanceof Error ? err.message : "Gagal cek customer.");
   }

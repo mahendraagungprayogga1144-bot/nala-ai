@@ -6,6 +6,7 @@ import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
 import { formatConfirm, HELP_TEXT, connectedStatusText, kb, newDraft } from "./session";
+import { parseSalesChat } from "./nl-sale";
 
 export type World = {
   actor: Actor | null;
@@ -109,13 +110,38 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       const productId = data.slice(2);
       const product = world.products.find((p) => p.id === productId);
       if (!product) return { session, effects: [reply("Produk tidak valid.")] };
+      const draft = {
+        ...session.draft,
+        productId,
+        productName: product.name,
+        suggestedPrice: product.price ?? undefined,
+        unitPrice: session.draft.unitPrice ?? product.price ?? undefined,
+      };
+      if (draft.quantity && draft.unitPrice != null) {
+        const ready = {
+          ...draft,
+          paymentMethod: draft.paymentMethod || "OTHER",
+          paymentStatus: draft.paymentStatus || "PAID",
+        };
+        if (session.draft.nlChat) {
+          return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+        }
+        return confirmEffects(session, actor, ready);
+      }
+      if (draft.quantity) {
+        return {
+          session: go(session, "input_price", draft),
+          effects: [
+            reply(
+              product.price
+                ? `Masukkan harga jual per botol.\nHarga produk: ${fmtRp(product.price)}`
+                : "Masukkan harga jual per botol.",
+            ),
+          ],
+        };
+      }
       return {
-        session: go(session, "input_qty", {
-          ...session.draft,
-          productId,
-          productName: product.name,
-          suggestedPrice: product.price ?? undefined,
-        }),
+        session: go(session, "input_qty", draft),
         effects: [reply(`Produk: ${product.name}\nBerapa jumlah botol?`)],
       };
     }
@@ -187,6 +213,16 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
         return { session: go(session, session.state, { ...session.draft, phone: text }), effects: [reply("Memeriksa customer…")] };
       case "input_new_name":
         if (!text) return { session, effects: [reply("Nama customer wajib.")] };
+        if (session.draft.nlChat) {
+          const named = { ...session.draft, customerName: text };
+          if (named.productId && named.quantity && named.unitPrice != null) {
+            return { session: go(session, "input_confirm", named), effects: [{ type: "confirm_sale" }] };
+          }
+          return {
+            session: go(session, "input_product", named),
+            effects: [productPrompt(world.products)],
+          };
+        }
         return {
           session: go(session, "input_new_city", { ...session.draft, customerName: text }),
           effects: [reply("Kota customer? (ketik - untuk skip)")],
@@ -240,12 +276,70 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
         };
       case "customer_query":
         return { session: go(session, "idle", { ...session.draft, phone: text }), effects: [reply("Mencari customer…")] };
-      default:
-        return { session, effects: [reply("Ketik /help untuk melihat perintah.")] };
+      case "idle":
+      default: {
+        if (session.state !== "idle" && session.state !== "input_confirm") {
+          return { session, effects: [reply("Ketik /help untuk melihat perintah.")] };
+        }
+        return applyNaturalSale(session, actor, text, world.products);
+      }
     }
   }
 
   return { session, effects: [{ type: "noop" }] };
+}
+
+const CHAT_HINT =
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\n\nAtau ketik /input /help";
+
+function applyNaturalSale(
+  session: Session,
+  _actor: Actor,
+  text: string,
+  products: ProductRow[],
+): { session: Session; effects: BotEffect[] } {
+  const parsed = parseSalesChat(text, products);
+  if (!parsed.looksLikeSale) {
+    return { session: { state: "idle", draft: newDraft() }, effects: [reply(CHAT_HINT)] };
+  }
+
+  const quantity = parsed.quantity || (parsed.unitPrice ? 1 : undefined);
+  let productId = parsed.productId || undefined;
+  let productName = parsed.productName || undefined;
+  let unitPrice = parsed.unitPrice ?? undefined;
+  if (!productId && products.length === 1) {
+    productId = products[0].id;
+    productName = products[0].name;
+    unitPrice = unitPrice ?? products[0].price ?? undefined;
+  } else if (productId && unitPrice == null) {
+    const p = products.find((x) => x.id === productId);
+    unitPrice = p?.price ?? undefined;
+  }
+
+  const draft: Draft = {
+    ...newDraft(),
+    idempotencyKey: randomUUID(),
+    phone: parsed.phone || undefined,
+    customerName: parsed.customerName || undefined,
+    quantity,
+    unitPrice,
+    productId,
+    productName,
+    paymentMethod: parsed.paymentMethod || "OTHER",
+    paymentStatus: "PAID",
+    nlChat: true,
+  };
+
+  if (!draft.phone) {
+    return {
+      session: go(session, "input_phone", draft),
+      effects: [reply("Nomor WhatsApp customer?")],
+    };
+  }
+  return {
+    session: go(session, "input_phone", draft),
+    effects: [reply("Membaca chat penjualan…")],
+  };
 }
 
 function productPrompt(products: ProductRow[]): BotEffect {
@@ -256,18 +350,19 @@ function productPrompt(products: ProductRow[]): BotEffect {
   return reply("Pilih produk:", kb(rows));
 }
 
+export function confirmKeyboard(): { text: string; data: string }[][] {
+  return [
+    [{ text: "CONFIRM", data: "confirm_yes" }],
+    [{ text: "EDIT", data: "confirm_edit" }, { text: "CANCEL", data: "confirm_cancel" }],
+  ];
+}
+
 function confirmEffects(session: Session, actor: Actor, draft: Draft): { session: Session; effects: BotEffect[] } {
   const dateLabel = fmtDateLongId(todayWib());
   return {
     session: go(session, "input_confirm", draft),
     effects: [
-      reply(
-        formatConfirm(draft, actor, dateLabel),
-        kb([
-          [{ text: "CONFIRM", data: "confirm_yes" }],
-          [{ text: "EDIT", data: "confirm_edit" }, { text: "CANCEL", data: "confirm_cancel" }],
-        ]),
-      ),
+      reply(formatConfirm(draft, actor, dateLabel), confirmKeyboard()),
     ],
   };
 }

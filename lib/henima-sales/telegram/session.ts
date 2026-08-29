@@ -42,6 +42,7 @@ export type Draft = {
   orderId?: string;
   followupCustomerId?: string;
   followupDate?: string;
+  nlChat?: boolean;
 };
 
 export type Session = {
@@ -79,7 +80,7 @@ export function connectedStatusText(actor: Actor, extraHelp?: string) {
   ];
   if (actor.tagline?.trim()) lines.push(actor.tagline.trim());
   lines.push("");
-  lines.push(extraHelp || "Ketik /input untuk catat penjualan. /help untuk daftar perintah.");
+  lines.push(extraHelp || "Boleh chat penjualan biasa, atau ketik /input /help.");
   return lines.join("\n");
 }
 
@@ -94,7 +95,8 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /pdf — laporan PDF
 /help — bantuan
 
-Sales cukup pakai Telegram. KPI & dashboard di modul Henima Sales.`;
+Sales cukup pakai Telegram. Boleh chat biasa, contoh:
+laku 1 harga 150rb atas nama Regan no 0877...`;
 
 export function newDraft(): Draft {
   return { paymentStatus: "PAID" };

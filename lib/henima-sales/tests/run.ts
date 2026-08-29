@@ -10,6 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
+import { parseSalesChat, parseIdrAmountToken } from "../telegram/nl-sale";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -156,6 +157,32 @@ test("product pick then quantity", () => {
   );
   assert.equal(out.session.state, "input_qty");
   assert.equal(out.session.draft.productName, "Afternoon");
+});
+
+test("nl chat parses Indonesian sale message", () => {
+  const msg = "hari ini laku 1 harga 150rb atas nama regan no telfone 087779853453";
+  const parsed = parseSalesChat(msg, [{ id: "1", name: "Afternoon", price: 199000, cost: 0, stock: 10, unit: "pcs" }]);
+  assert.equal(parsed.looksLikeSale, true);
+  assert.equal(parsed.quantity, 1);
+  assert.equal(parsed.unitPrice, 150000);
+  assert.equal(parsed.customerName?.toLowerCase(), "regan");
+  assert.equal(parsed.phone, "6287779853453");
+  assert.equal(parseIdrAmountToken("150", "rb"), 150000);
+});
+
+test("idle chat sale fills draft instead of help", () => {
+  const products = [{ id: "1", name: "Afternoon", price: 199000, cost: 0, stock: 10, unit: "pcs" }];
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "hari ini laku 1 harga 150rb atas nama regan no telfone 087779853453" },
+    { actor: sales, products },
+  );
+  assert.equal(out.session.state, "input_phone");
+  assert.equal(out.session.draft.quantity, 1);
+  assert.equal(out.session.draft.unitPrice, 150000);
+  assert.equal(out.session.draft.customerName?.toLowerCase(), "regan");
+  assert.equal(out.session.draft.productName, "Afternoon");
+  assert.equal(out.session.draft.nlChat, true);
 });
 
 test("/help lists commands", () => {

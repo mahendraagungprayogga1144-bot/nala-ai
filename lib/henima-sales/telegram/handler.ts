@@ -9,7 +9,7 @@ import { confirmSale, listOrders, getOrder, softDeleteOrder } from "../order-ser
 import { createFollowUp } from "../followup-service";
 import { saveTestimonial } from "../testimonial-service";
 import { achievementFor } from "../target-service";
-import { buildSalesReport, type ReportKind } from "../report-service";
+import { buildSalesReport, servedByLabel, type ReportKind } from "../report-service";
 import { buildSalesReportPdf } from "../pdf";
 import { fmtDateLongId, fmtRp } from "../money";
 import { writeAudit } from "../audit";
@@ -430,6 +430,11 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
     .slice(0, 5)
     .map((s, i) => `${i + 1}. ${s.nama} — ${s.qty} pcs`)
     .join("\n");
+  const served = servedByLabel(report.servedBy);
+  const rankBlock = report.ranking.length
+    ? ["", "TOP SALES", top, "================================"]
+    : [];
+  const servedBlock = served ? ["", served, "================================"] : [];
   await sendMessage(
     chatId,
     [
@@ -445,10 +450,8 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
       "",
       `Omzet:\n${fmtRp(report.totalRevenue)}`,
       "================================",
-      "",
-      "TOP SALES",
-      top || "—",
-      "================================",
+      ...rankBlock,
+      ...servedBlock,
       `CUSTOMER BARU:\n${report.newCustomers}`,
       "",
       `REPEAT CUSTOMER:\n${report.repeatCustomers}`,

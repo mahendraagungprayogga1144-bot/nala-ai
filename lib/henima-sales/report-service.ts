@@ -8,6 +8,34 @@ import { listCommissionLedger } from "./commission-service";
 export type ReportKind = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "custom";
 export type RankMetric = "quantity" | "revenue" | "count";
 
+export type RankRow = {
+  salesId: string;
+  nama: string;
+  role: string;
+  qty: number;
+  revenue: number;
+  count: number;
+};
+
+function rankValue(row: RankRow, rankBy: RankMetric) {
+  return rankBy === "revenue" ? row.revenue : rankBy === "count" ? row.count : row.qty;
+}
+
+/** TOP SALES is team only. Founder closings are "dilayani oleh …", not a ranking. */
+export function splitSalesRanking(rows: RankRow[], rankBy: RankMetric = "quantity") {
+  const sortRows = (list: RankRow[]) => [...list].sort((a, b) => rankValue(b, rankBy) - rankValue(a, rankBy));
+  return {
+    ranking: sortRows(rows.filter((r) => r.role === "SALES" || r.role === "LEADER")),
+    servedBy: sortRows(rows.filter((r) => r.role === "FOUNDER")),
+  };
+}
+
+export function servedByLabel(rows: { nama: string }[]) {
+  const names = [...new Set(rows.map((r) => r.nama.trim()).filter(Boolean))];
+  if (!names.length) return "";
+  return `Dilayani oleh ${names.join(", ")}`;
+}
+
 type OrderAgg = {
   id: string;
   sales_id: string | null;
@@ -86,20 +114,25 @@ export async function buildSalesReport(
     : { data: [] as { id: string; nama: string; role: string }[] };
   const staffMap = Object.fromEntries((staffRows || []).map((s) => [s.id, s]));
 
-  const bySales: Record<string, { salesId: string; nama: string; qty: number; revenue: number; count: number }> = {};
+  const bySales: Record<string, RankRow> = {};
   for (const o of paid) {
     const id = o.sales_id || "unknown";
     if (!bySales[id]) {
-      bySales[id] = { salesId: id, nama: staffMap[id]?.nama || "—", qty: 0, revenue: 0, count: 0 };
+      bySales[id] = {
+        salesId: id,
+        nama: staffMap[id]?.nama || "—",
+        role: staffMap[id]?.role || "",
+        qty: 0,
+        revenue: 0,
+        count: 0,
+      };
     }
     bySales[id].qty += qtyOf(o);
     bySales[id].revenue += Number(o.total || 0);
     bySales[id].count += 1;
   }
   const rankBy = opts.rankBy || "quantity";
-  const rankValue = (row: { qty: number; revenue: number; count: number }) =>
-    rankBy === "revenue" ? row.revenue : rankBy === "count" ? row.count : row.qty;
-  const ranking = Object.values(bySales).sort((a, b) => rankValue(b) - rankValue(a));
+  const { ranking, servedBy } = splitSalesRanking(Object.values(bySales), rankBy);
 
   const byDay: Record<string, number> = {};
   for (const o of paid) {
@@ -153,6 +186,7 @@ export async function buildSalesReport(
     byProduct: Object.values(byProduct).sort((a, b) => b.qty - a.qty),
     byPay,
     ranking,
+    servedBy,
     byDay,
     newCustomers,
     repeatCustomers,

@@ -12,6 +12,7 @@ import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, buildPackLines, splitTotalAcrossLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
+import { splitSalesRanking, servedByLabel } from "../report-service";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -232,6 +233,23 @@ test("rekapan hari ini is a rekap intent", () => {
   );
   assert.equal(out.effects[0].type, "send_report");
   if (out.effects[0].type === "send_report") assert.equal(out.effects[0].kind, "today");
+});
+
+test("founder closings are served-by not top sales", () => {
+  const { ranking, servedBy } = splitSalesRanking([
+    { salesId: "f1", nama: "ima", role: "FOUNDER", qty: 1, revenue: 150000, count: 1 },
+    { salesId: "s1", nama: "Andi", role: "SALES", qty: 3, revenue: 450000, count: 2 },
+  ]);
+  assert.equal(ranking.length, 1);
+  assert.equal(ranking[0].nama, "Andi");
+  assert.equal(servedBy.length, 1);
+  assert.equal(servedBy[0].nama, "ima");
+  assert.equal(servedByLabel(servedBy), "Dilayani oleh ima");
+  const onlyFounder = splitSalesRanking([
+    { salesId: "f1", nama: "ima", role: "FOUNDER", qty: 1, revenue: 150000, count: 1 },
+  ]);
+  assert.equal(onlyFounder.ranking.length, 0);
+  assert.equal(servedByLabel(onlyFounder.servedBy), "Dilayani oleh ima");
 });
 
 test("/help lists commands", () => {

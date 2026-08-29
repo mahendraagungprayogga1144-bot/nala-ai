@@ -76,20 +76,31 @@ export default function SalesDashboardPage() {
           <div className={MODULE_CARD}>
             <h2 className="mb-3 text-sm font-semibold">Ranking sales</h2>
             {month.ranking.length === 0 ? (
-              <p className="text-sm text-[#8B8AA0]">Belum ada penjualan paid bulan ini.</p>
+              <p className="text-sm text-[#8B8AA0]">
+                {month.servedBy.length
+                  ? `Dilayani oleh ${month.servedBy.map((s) => s.nama).join(", ")}`
+                  : "Belum ada penjualan paid bulan ini."}
+              </p>
             ) : (
-              <ol className="space-y-2">
-                {month.ranking.map((s, i) => (
-                  <li key={s.salesId} className="flex justify-between text-sm">
-                    <span>
-                      {i + 1}. {s.nama}
-                    </span>
-                    <span className="font-mono text-[#2DD4BF]">
-                      {s.qty} pcs · {fmtRp(s.revenue)}
-                    </span>
-                  </li>
-                ))}
-              </ol>
+              <>
+                <ol className="space-y-2">
+                  {month.ranking.map((s, i) => (
+                    <li key={s.salesId} className="flex justify-between text-sm">
+                      <span>
+                        {i + 1}. {s.nama}
+                      </span>
+                      <span className="font-mono text-[#2DD4BF]">
+                        {s.qty} pcs · {fmtRp(s.revenue)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {month.servedBy.length > 0 && (
+                  <p className="mt-3 text-sm text-[#8B8AA0]">
+                    Dilayani oleh {month.servedBy.map((s) => s.nama).join(", ")}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <div className={MODULE_CARD}>

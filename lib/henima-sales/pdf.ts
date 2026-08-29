@@ -1,6 +1,6 @@
 import { PDFDocument, RGB, rgb, StandardFonts } from "pdf-lib";
 import { fmtDateLongId, fmtRp } from "./money";
-import type { SalesReport } from "./report-service";
+import { servedByLabel, type SalesReport } from "./report-service";
 
 function colorTeal(): RGB {
   return rgb(0.18, 0.72, 0.66);
@@ -89,11 +89,21 @@ export async function buildSalesReportPdf(opts: {
   ensure(160);
   draw("RANKING SALES", 40, y, 11, true);
   y -= 16;
-  opts.report.ranking.forEach((s, i) => {
-    ensure(16);
-    draw(`${i + 1}. ${s.nama}  —  ${s.qty} pcs  ·  ${fmtRp(s.revenue)}  ·  ${s.count} trx`, 40, y, 10);
+  if (!opts.report.ranking.length) {
+    draw(opts.report.servedBy.length ? servedByPdf(opts.report.servedBy) : "Belum ada penjualan sales.", 40, y, 10, false, colorMuted());
     y -= 14;
-  });
+  } else {
+    opts.report.ranking.forEach((s, i) => {
+      ensure(16);
+      draw(`${i + 1}. ${s.nama}  —  ${s.qty} pcs  ·  ${fmtRp(s.revenue)}  ·  ${s.count} trx`, 40, y, 10);
+      y -= 14;
+    });
+  }
+  if (opts.report.servedBy.length && opts.report.ranking.length) {
+    y -= 4;
+    draw(servedByPdf(opts.report.servedBy), 40, y, 10, false, colorMuted());
+    y -= 14;
+  }
   y -= 12;
 
   const days = Object.entries(opts.report.byDay).sort((a, b) => a[0].localeCompare(b[0]));
@@ -139,6 +149,10 @@ export async function buildSalesReportPdf(opts: {
   return doc.save();
 }
 
+function servedByPdf(rows: { nama: string }[]) {
+  return servedByLabel(rows) || "";
+}
+
 export function reportToCsv(report: SalesReport) {
   const lines = [
     "metric,value",
@@ -152,6 +166,9 @@ export function reportToCsv(report: SalesReport) {
     "",
     "ranking,nama,pcs,omzet,trx",
     ...report.ranking.map((s, i) => `${i + 1},${s.nama},${s.qty},${s.revenue},${s.count}`),
+    "",
+    "dilayani_oleh,nama,pcs,omzet,trx",
+    ...report.servedBy.map((s) => `${s.nama},${s.nama},${s.qty},${s.revenue},${s.count}`),
     "",
     "produk,pcs,omzet",
     ...report.byProduct.map((p) => `${p.name},${p.qty},${p.omzet}`),

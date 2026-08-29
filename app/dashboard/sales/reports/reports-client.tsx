@@ -14,6 +14,7 @@ type Report = {
   totalCommission: number;
   byProduct: { name: string; qty: number; omzet: number }[];
   ranking: { salesId: string; nama: string; qty: number; revenue: number; count: number }[];
+  servedBy?: { salesId: string; nama: string; qty: number; revenue: number; count: number }[];
   byPay: Record<string, number>;
 };
 
@@ -104,13 +105,26 @@ export default function ReportsClient({ initial }: { initial: Report }) {
         ))}
       </div>
       <div className={MODULE_CARD + " mb-4"}>
-        <h3 className="mb-2 text-sm font-semibold">Ranking</h3>
-        {data.ranking.map((s, i) => (
-          <p key={s.salesId} className="flex justify-between text-sm">
-            <span>{i + 1}. {s.nama}</span>
-            <span className="font-mono">{s.qty} pcs · {fmtRp(s.revenue)}</span>
+        <h3 className="mb-2 text-sm font-semibold">Ranking sales</h3>
+        {data.ranking.length === 0 ? (
+          <p className="text-sm text-[#8B8AA0]">
+            {(data.servedBy || []).length
+              ? `Dilayani oleh ${(data.servedBy || []).map((s) => s.nama).join(", ")}`
+              : "Belum ada penjualan sales pada periode ini."}
           </p>
-        ))}
+        ) : (
+          data.ranking.map((s, i) => (
+            <p key={s.salesId} className="flex justify-between text-sm">
+              <span>{i + 1}. {s.nama}</span>
+              <span className="font-mono">{s.qty} pcs · {fmtRp(s.revenue)}</span>
+            </p>
+          ))
+        )}
+        {(data.servedBy || []).length > 0 && data.ranking.length > 0 && (
+          <p className="mt-2 text-sm text-[#8B8AA0]">
+            Dilayani oleh {(data.servedBy || []).map((s) => s.nama).join(", ")}
+          </p>
+        )}
       </div>
       <div className={MODULE_CARD}>
         <h3 className="mb-2 text-sm font-semibold">Produk</h3>

@@ -142,6 +142,13 @@ export type ProductRow = {
   unit: string | null;
 };
 
+export type SaleLine = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+};
+
 export type ConfirmSaleInput = {
   customerId: string;
   productId: string;
@@ -154,6 +161,7 @@ export type ConfirmSaleInput = {
   notes?: string | null;
   orderDate?: string;
   idempotencyKey: string;
+  lines?: SaleLine[];
 };
 
 export function isRevenueStatus(status: string | null | undefined) {
@@ -169,6 +177,17 @@ export function calculateOrderTotal(quantity: number, unitPrice: number, discoun
     throw new SalesError("Diskon tidak valid.", "discount_invalid");
   }
   const gross = Math.round(quantity * unitPrice);
+  const disc = Math.round(discount);
+  if (disc > gross) throw new SalesError("Diskon melebihi total.", "discount_invalid");
+  return gross - disc;
+}
+
+export function calculateLinesTotal(lines: SaleLine[], discount: number) {
+  if (!lines.length) throw new SalesError("Produk belum dipilih.", "quantity_invalid");
+  let gross = 0;
+  for (const line of lines) {
+    gross += calculateOrderTotal(line.quantity, line.unitPrice, 0);
+  }
   const disc = Math.round(discount);
   if (disc > gross) throw new SalesError("Diskon melebihi total.", "discount_invalid");
   return gross - disc;

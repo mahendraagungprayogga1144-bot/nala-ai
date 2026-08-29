@@ -70,10 +70,12 @@ ${fmtRp(customer.total_spent)}`}
         <h2 className="mb-2 text-sm font-semibold">PURCHASE HISTORY</h2>
         <div className="mb-6 space-y-2">
           {orders.rows.map((o) => {
-            const item = o.order_items?.[0];
+            const items = (o.order_items || [])
+              .map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`)
+              .join(" + ") || "—";
             return (
               <div key={o.id} className={MODULE_CARD + " text-sm"}>
-                {fmtDateLongId(o.order_date)} · {item?.product_name_snapshot} — {item?.qty} pcs · {fmtRp(o.total)}
+                {fmtDateLongId(o.order_date)} · {items} · {fmtRp(o.total)}
               </div>
             );
           })}

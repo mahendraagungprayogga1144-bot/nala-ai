@@ -1,6 +1,6 @@
 import { todayWib } from "@/lib/date";
-import type { Actor, ConfirmSaleInput, PaymentMethod, PaymentStatus } from "./types";
-import { ForbiddenError, NotFoundError, SalesError, SALES_ORDER_SOURCE, calculateOrderTotal } from "./types";
+import type { Actor, ConfirmSaleInput, PaymentMethod, PaymentStatus, SaleLine } from "./types";
+import { ForbiddenError, NotFoundError, SalesError, SALES_ORDER_SOURCE, calculateOrderTotal, calculateLinesTotal } from "./types";
 import type { SalesDb } from "./db";
 import { rpcMessage } from "./db";
 import { writeAudit } from "./audit";
@@ -41,12 +41,32 @@ function assertWritableOrder(actor: Actor, order: SalesOrder, teamIds: string[])
 }
 
 export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleInput) {
-  calculateOrderTotal(input.quantity, input.unitPrice, input.discount);
+  const lines: SaleLine[] =
+    input.lines?.length && input.lines.length > 1
+      ? input.lines
+      : [
+          {
+            productId: input.productId,
+            productName: input.productName,
+            quantity: input.quantity,
+            unitPrice: input.unitPrice,
+          },
+        ];
+  if (lines.length > 1) calculateLinesTotal(lines, input.discount);
+  else calculateOrderTotal(input.quantity, input.unitPrice, input.discount);
+
   await getCustomer(db, actor, input.customerId);
   const products = await listProducts(db, actor.businessId);
-  const product = products.find((p) => p.id === input.productId);
-  if (!product) throw new SalesError("Produk tidak valid.", "product_invalid");
+  for (const line of lines) {
+    const product = products.find((p) => p.id === line.productId);
+    if (!product) throw new SalesError(`Produk tidak valid: ${line.productName}.`, "product_invalid");
+  }
 
+  if (lines.length > 1) {
+    return confirmSaleItems(db, actor, input, lines);
+  }
+
+  const product = products.find((p) => p.id === input.productId)!;
   const { data, error } = await db.rpc("henima_confirm_sale", {
     p_business_id: actor.businessId,
     p_owner_user_id: actor.ownerUserId,
@@ -69,6 +89,52 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
     throw new SalesError(rpcMessage(error), "confirm_failed", 500);
   }
 
+  return finishConfirm(db, actor, input, data, input.productName, input.quantity);
+}
+
+async function confirmSaleItems(db: SalesDb, actor: Actor, input: ConfirmSaleInput, lines: SaleLine[]) {
+  const { data, error } = await db.rpc("henima_confirm_sale_items", {
+    p_business_id: actor.businessId,
+    p_owner_user_id: actor.ownerUserId,
+    p_sales_staff_id: actor.staffId,
+    p_idempotency_key: input.idempotencyKey,
+    p_customer_id: input.customerId,
+    p_lines: lines.map((line) => ({
+      product_id: line.productId,
+      product_name: line.productName,
+      qty: line.quantity,
+      unit_price: line.unitPrice,
+    })),
+    p_discount: input.discount || 0,
+    p_payment_method: input.paymentMethod,
+    p_payment_status: input.paymentStatus,
+    p_notes: input.notes || lines.map((l) => `${l.productName} x${l.quantity}`).join(" + "),
+    p_order_date: input.orderDate || todayWib(),
+  });
+
+  if (error) {
+    salesLogError("confirm_sale_items", error, { businessId: actor.businessId, staffId: actor.staffId });
+    throw new SalesError(rpcMessage(error), "confirm_failed", 500);
+  }
+
+  return finishConfirm(
+    db,
+    actor,
+    input,
+    data,
+    lines.map((l) => `${l.productName} × ${l.quantity}`).join(" + "),
+    lines.reduce((sum, l) => sum + l.quantity, 0),
+  );
+}
+
+async function finishConfirm(
+  db: SalesDb,
+  actor: Actor,
+  input: ConfirmSaleInput,
+  data: unknown,
+  productLabel: string,
+  quantity: number,
+) {
   const result = data as { ok?: boolean; duplicate?: boolean; order_id?: string; total?: number };
   if (!result?.order_id) {
     throw new SalesError(rpcMessage({ message: "empty" }), "confirm_failed", 500);
@@ -81,8 +147,8 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
       entityType: "order",
       entityId: result.order_id,
       newValue: {
-        product: input.productName,
-        quantity: input.quantity,
+        product: productLabel,
+        quantity,
         total: result.total,
         payment: input.paymentMethod,
         duplicate: false,

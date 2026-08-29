@@ -15,9 +15,10 @@ import { fmtDateLongId, fmtRp } from "../money";
 import { writeAudit } from "../audit";
 import { displayPhone } from "../phone";
 import type { Actor } from "../types";
-import { reduceBot, customerFoundText, confirmKeyboard } from "./fsm";
+import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard } from "./fsm";
 import type { Session } from "./session";
-import { connectedStatusText, newDraft, formatConfirm } from "./session";
+import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft } from "./session";
+import { buildPackLines } from "./nl-sale";
 import { answerCallback, downloadTelegramFile, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -187,12 +188,11 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     await sendTarget(db, actor, chatId);
   } else if (actor && incoming.kind === "callback" && incoming.data.startsWith("od:")) {
     const order = await getOrder(db, actor, incoming.data.slice(3));
-    const item = order.order_items?.[0];
     await sendMessage(
       chatId,
       [
         `${fmtDateLongId(order.order_date)}`,
-        `${item?.product_name_snapshot || "Produk"} — ${item?.qty || 0} pcs — ${fmtRp(order.total)}`,
+        `${orderItemsLabel(order.order_items)} — ${fmtRp(order.total)}`,
         `Bayar: ${order.metode_bayar} / ${order.payment_status}`,
       ].join("\n"),
       [
@@ -234,7 +234,22 @@ async function continueAfterPhone(
       return;
     }
 
-    if (!session.draft.productId) {
+    if (
+      (session.draft.packProductIds?.length || 0) >= 2 &&
+      !session.draft.lines?.length &&
+      session.draft.packQty &&
+      session.draft.unitPrice != null
+    ) {
+      const pack = products.filter((p) => session.draft.packProductIds?.includes(p.id));
+      if (pack.length >= 2) {
+        session.draft = applyLinesToDraft(
+          session.draft,
+          buildPackLines(pack, session.draft.packQty, session.draft.unitPrice),
+        );
+      }
+    }
+
+    if (!session.draft.productId && !session.draft.lines?.length && (session.draft.packProductIds?.length || 0) < 2) {
       session.state = "input_product";
       if (found) {
         await sendMessage(
@@ -249,21 +264,29 @@ async function continueAfterPhone(
       }
       await sendMessage(
         chatId,
-        "Pilih produk:",
-        products.slice(0, 10).map((p) => [{ text: p.name, data: `p:${p.id}` }]),
+        "Pilih produk (atau ketik afternoon dan the distance):",
+        productKeyboard(products),
       );
       return;
     }
 
-    if (!session.draft.quantity) {
+    if (!session.draft.quantity && !session.draft.packQty) {
       session.state = "input_qty";
-      await sendMessage(chatId, `Produk: ${session.draft.productName}\nBerapa jumlah botol?`);
+      await sendMessage(
+        chatId,
+        session.draft.packProductIds?.length
+          ? `Paket: ${session.draft.productName}\nBerapa jumlah paket?`
+          : `Produk: ${session.draft.productName}\nBerapa jumlah botol?`,
+      );
       return;
     }
 
-    if (session.draft.unitPrice == null) {
+    if (session.draft.unitPrice == null && !session.draft.orderTotal) {
       session.state = "input_price";
-      await sendMessage(chatId, "Masukkan harga jual per botol.");
+      await sendMessage(
+        chatId,
+        session.draft.packProductIds?.length ? "Masukkan harga paket (total 2 produk)." : "Masukkan harga jual per botol.",
+      );
       return;
     }
 
@@ -300,7 +323,8 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
       await sendMessage(chatId, "Customer sudah terdaftar. Melanjutkan transaksi ke customer existing.");
     }
   }
-  if (!d.customerId || !d.productId || !d.quantity || d.unitPrice == null) {
+  const lines = draftSaleLines(d);
+  if (!d.customerId || !lines.length) {
     await sendMessage(chatId, "Data transaksi belum lengkap. Ulangi /input.");
     return;
   }
@@ -308,15 +332,16 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
   let photoFailed = false;
   const { order, duplicate } = await confirmSale(db, actor, {
     customerId: d.customerId,
-    productId: d.productId,
-    productName: d.productName || "Produk",
-    quantity: d.quantity,
-    unitPrice: d.unitPrice,
+    productId: lines[0].productId,
+    productName: lines.map((line) => `${line.productName} × ${line.quantity}`).join(" + "),
+    quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+    unitPrice: lines[0].unitPrice,
     discount: 0,
     paymentMethod: d.paymentMethod || "OTHER",
     paymentStatus: d.paymentStatus || "PAID",
-    notes: d.notes,
+    notes: d.notes || (lines.length > 1 ? "paket" : null),
     idempotencyKey: d.idempotencyKey || randomUUID(),
+    lines: lines.length > 1 ? lines : undefined,
   });
 
   if (d.photoFileId && !duplicate) {
@@ -345,12 +370,17 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
     chatId,
     [
       "Transaksi tersimpan.",
-      `${d.productName} × ${d.quantity} = ${fmtRp(order.total)}`,
+      `${d.productName || lines.map((line) => line.productName).join(" + ")} = ${fmtRp(order.total)}`,
       photoFailed ? "Foto testimoni gagal diunggah. Transaksi tetap tercatat." : "",
     ]
       .filter(Boolean)
       .join("\n"),
   );
+}
+
+function orderItemsLabel(items?: { product_name_snapshot: string | null; qty: number }[]) {
+  if (!items?.length) return "Produk";
+  return items.map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`).join(" + ");
 }
 
 async function sendTarget(db: SalesDb, actor: Actor, chatId: number) {
@@ -380,10 +410,9 @@ async function sendRiwayat(db: SalesDb, actor: Actor, chatId: number) {
     return;
   }
   for (const o of rows) {
-    const item = o.order_items?.[0];
     await sendMessage(
       chatId,
-      `${fmtDateLongId(o.order_date)}\n${item?.product_name_snapshot || "Produk"} — ${item?.qty || 0} pcs — ${fmtRp(o.total)}`,
+      `${fmtDateLongId(o.order_date)}\n${orderItemsLabel(o.order_items)} — ${fmtRp(o.total)}`,
       [
         [
           { text: "DETAIL", data: `od:${o.id}` },

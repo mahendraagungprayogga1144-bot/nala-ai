@@ -15,6 +15,9 @@ export function salesDb(): SalesDb {
 export function rpcMessage(err: { message?: string } | null | undefined) {
   const m = err?.message || "";
   if (m.includes("stock_insufficient")) return "Stok tidak cukup untuk transaksi ini.";
+  if (m.includes("Could not find the function") && m.includes("henima_confirm_sale_items")) {
+    return "Paket 2 produk belum aktif. Jalankan SQL henima_confirm_sale_items di Supabase dulu.";
+  }
   if (m.includes("product_not_found")) return "Produk tidak ditemukan.";
   if (m.includes("quantity_invalid")) return "Jumlah tidak valid.";
   if (m.includes("price_invalid")) return "Harga tidak valid.";

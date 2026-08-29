@@ -25,16 +25,17 @@ export async function POST(request: Request) {
     const body = await readJson(request);
     return confirmSale(db, actor, {
       customerId: String(body.customerId),
-      productId: String(body.productId),
+      productId: String(body.productId || body.lines?.[0]?.productId || ""),
       productName: String(body.productName || ""),
-      quantity: Number(body.quantity),
-      unitPrice: Number(body.unitPrice),
+      quantity: Number(body.quantity || 0),
+      unitPrice: Number(body.unitPrice || 0),
       discount: Number(body.discount || 0),
       paymentMethod: body.paymentMethod as PaymentMethod,
       paymentStatus: (body.paymentStatus || "PAID") as PaymentStatus,
       notes: body.notes || null,
       orderDate: body.orderDate,
       idempotencyKey: String(body.idempotencyKey || randomUUID()),
+      lines: Array.isArray(body.lines) ? body.lines : undefined,
     });
   });
 }

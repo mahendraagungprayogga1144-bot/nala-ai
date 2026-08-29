@@ -30,7 +30,10 @@ Ini akun sales *${brand}*. Ikuti 3 langkah ini:
 Habis CONNECTED, catat penjualan dengan chat biasa, contoh:
 laku 1 harga 150rb atas nama Regan no 087712345678
 
-Kalau produknya lebih dari satu, pilih Afternoon atau The Distance.
+Paket 2 produk (Afternoon + The Distance):
+laku 2 paket new member harga 250k atas nama Dimas no 08xxxxxxxxxx
+
+Bisa juga ketik: afternoon dan the distance
 
 Cek hasil kapan saja:
 rekapan hari ini
@@ -55,7 +58,9 @@ export function salesHowToText() {
 CATAT PENJUALAN — ketik seperti chat biasa:
 laku 1 harga 150rb atas nama NamaCustomer no 08xxxxxxxxxx
 
-Kalau produknya 2, pilih Afternoon atau The Distance.
+Paket 2 produk (Afternoon + The Distance) cukup satu chat:
+laku 2 paket new member harga 250k atas nama NamaCustomer no 08xxxxxxxxxx
+atau ketik: afternoon dan the distance
 
 CEK HASIL:
 rekapan hari ini

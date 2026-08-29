@@ -1,4 +1,4 @@
-import type { Actor, PaymentMethod, PaymentStatus } from "../types";
+import type { Actor, PaymentMethod, PaymentStatus, SaleLine } from "../types";
 import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
 
 export { UNLINKED_MSG };
@@ -37,6 +37,10 @@ export type Draft = {
   suggestedPrice?: number;
   quantity?: number;
   unitPrice?: number;
+  lines?: SaleLine[];
+  packProductIds?: string[];
+  packQty?: number;
+  orderTotal?: number;
   paymentMethod?: PaymentMethod;
   paymentStatus?: PaymentStatus;
   idempotencyKey?: string;
@@ -99,6 +103,8 @@ export const HELP_TEXT = `Perintah Henima Sales:
 
 Sales cukup pakai Telegram. Chat biasa juga bisa:
 laku 1 harga 150rb atas nama Regan no 0877...
+laku 2 paket new member harga 250k atas nama Dimas no 08...
+afternoon dan the distance
 rekapan hari ini
 riwayat
 target
@@ -109,7 +115,50 @@ export function newDraft(): Draft {
   return { paymentStatus: "PAID" };
 }
 
+export function applyLinesToDraft(draft: Draft, lines: SaleLine[]): Draft {
+  const total = lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitPrice), 0);
+  const qtySum = lines.reduce((sum, line) => sum + line.quantity, 0);
+  return {
+    ...draft,
+    lines,
+    packProductIds: lines.map((line) => line.productId),
+    packQty: lines[0]?.quantity,
+    productId: lines[0]?.productId,
+    productName: lines.map((line) => `${line.productName} × ${line.quantity}`).join(" + "),
+    quantity: qtySum,
+    unitPrice: qtySum > 0 ? Math.round(total / qtySum) : draft.unitPrice,
+    orderTotal: total,
+  };
+}
+
+export function draftSaleLines(d: Draft): SaleLine[] {
+  if (d.lines?.length) return d.lines;
+  if (d.productId && d.quantity && d.unitPrice != null) {
+    return [
+      {
+        productId: d.productId,
+        productName: d.productName || "Produk",
+        quantity: d.quantity,
+        unitPrice: d.unitPrice,
+      },
+    ];
+  }
+  return [];
+}
+
 export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {
+  const lines = draftSaleLines(d);
+  const productBlock = lines.length
+    ? lines.map((line) => `${line.productName} × ${line.quantity}`).join("\n")
+    : d.productName || "—";
+  const total =
+    d.orderTotal ??
+    lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitPrice), 0) ??
+    Math.round((d.quantity || 0) * (d.unitPrice || 0));
+  const qtyLabel =
+    lines.length > 1
+      ? lines.map((line) => `${line.quantity} ${line.productName}`).join(" + ")
+      : `${d.quantity || 0} pcs`;
   return [
     "================================",
     "TRANSAKSI HENIMA",
@@ -120,13 +169,13 @@ export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {
     "",
     `Sales:\n${actor.nama}`,
     "",
-    `Produk:\n${d.productName || "—"}`,
+    `Produk:\n${productBlock}`,
     "",
-    `Quantity:\n${d.quantity || 0} pcs`,
+    `Quantity:\n${qtyLabel}`,
     "",
-    `Harga:\nRp${Math.round(d.unitPrice || 0).toLocaleString("id-ID")}`,
+    `Harga:\nRp${Math.round(lines.length > 1 ? total : d.unitPrice || 0).toLocaleString("id-ID")}`,
     "",
-    `Total:\nRp${Math.round((d.quantity || 0) * (d.unitPrice || 0)).toLocaleString("id-ID")}`,
+    `Total:\nRp${Math.round(total).toLocaleString("id-ID")}`,
     "",
     `Pembayaran:\n${d.paymentMethod || "—"} (${d.paymentStatus || "PAID"})`,
     "",

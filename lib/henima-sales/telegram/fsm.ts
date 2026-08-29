@@ -5,8 +5,16 @@ import { displayPhone } from "../phone";
 import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
-import { formatConfirm, HELP_TEXT, UNLINKED_MSG, connectedStatusText, kb, newDraft } from "./session";
-import { parseOpsIntent, parseSalesChat } from "./nl-sale";
+import { formatConfirm, HELP_TEXT, UNLINKED_MSG, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
+import {
+  buildPackLines,
+  defaultPackProducts,
+  looksLikePack,
+  matchAllProducts,
+  parseOpsIntent,
+  parseSalesChat,
+  resolvePackProducts,
+} from "./nl-sale";
 
 export type World = {
   actor: Actor | null;
@@ -108,42 +116,14 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
     }
     if (data.startsWith("p:")) {
       const productId = data.slice(2);
+      if (productId === "ALL") {
+        const pack = defaultPackProducts(world.products);
+        if (pack.length < 2) return { session, effects: [reply("Paket butuh 2 produk di katalog.")] };
+        return finishProductPick(session, actor, pack, true);
+      }
       const product = world.products.find((p) => p.id === productId);
       if (!product) return { session, effects: [reply("Produk tidak valid.")] };
-      const draft = {
-        ...session.draft,
-        productId,
-        productName: product.name,
-        suggestedPrice: product.price ?? undefined,
-        unitPrice: session.draft.unitPrice ?? product.price ?? undefined,
-      };
-      if (draft.quantity && draft.unitPrice != null) {
-        const ready = {
-          ...draft,
-          paymentMethod: draft.paymentMethod || "OTHER",
-          paymentStatus: draft.paymentStatus || "PAID",
-        };
-        if (session.draft.nlChat) {
-          return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
-        }
-        return confirmEffects(session, actor, ready);
-      }
-      if (draft.quantity) {
-        return {
-          session: go(session, "input_price", draft),
-          effects: [
-            reply(
-              product.price
-                ? `Masukkan harga jual per botol.\nHarga produk: ${fmtRp(product.price)}`
-                : "Masukkan harga jual per botol.",
-            ),
-          ],
-        };
-      }
-      return {
-        session: go(session, "input_qty", draft),
-        effects: [reply(`Produk: ${product.name}\nBerapa jumlah botol?`)],
-      };
+      return finishProductPick(session, actor, [product], false);
     }
     if (data.startsWith("pm:")) {
       const method = data.slice(3) as Draft["paymentMethod"];
@@ -219,7 +199,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
         if (!text) return { session, effects: [reply("Nama customer wajib.")] };
         if (session.draft.nlChat) {
           const named = { ...session.draft, customerName: text };
-          if (named.productId && named.quantity && named.unitPrice != null) {
+          if ((named.lines?.length || named.productId) && named.quantity && named.unitPrice != null) {
             return { session: go(session, "input_confirm", named), effects: [{ type: "confirm_sale" }] };
           }
           return {
@@ -241,9 +221,50 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           session: go(session, "input_product", { ...session.draft, notes: text === "-" ? "" : text }),
           effects: [productPrompt(world.products)],
         };
+      case "input_product": {
+        const lower = text.toLowerCase();
+        const matched = matchAllProducts(lower, world.products);
+        const asPack = looksLikePack(lower) || matched.length > 1;
+        if (asPack || matched.length >= 2) {
+          const pack = resolvePackProducts(matched, world.products);
+          if (pack.length < 2) {
+            return { session, effects: [reply("Ketik nama 2 produk, contoh: afternoon dan the distance")] };
+          }
+          return finishProductPick(session, actor, pack, true);
+        }
+        if (matched.length === 1) {
+          return finishProductPick(session, actor, matched, false);
+        }
+        return {
+          session,
+          effects: [reply("Ketik nama produk, contoh: afternoon dan the distance", productKeyboard(world.products))],
+        };
+      }
       case "input_qty": {
         const quantity = Number(text.replace(",", "."));
         if (!(quantity > 0)) return { session, effects: [reply("Jumlah harus lebih dari 0.")] };
+        if ((session.draft.packProductIds?.length || 0) >= 2) {
+          const pack = world.products.filter((p) => session.draft.packProductIds?.includes(p.id));
+          const draft = { ...session.draft, packQty: quantity, quantity: quantity * Math.max(pack.length, 2) };
+          const catalogTotal = pack.reduce((sum, p) => sum + (p.price || 0) * quantity, 0);
+          const total = session.draft.orderTotal ?? session.draft.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
+          if (total != null && pack.length >= 2) {
+            const lined = applyLinesToDraft(draft, buildPackLines(pack, quantity, total));
+            const ready = {
+              ...lined,
+              paymentMethod: lined.paymentMethod || "OTHER",
+              paymentStatus: lined.paymentStatus || "PAID",
+            };
+            if (session.draft.nlChat) {
+              return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+            }
+            return confirmEffects(session, actor, ready);
+          }
+          return {
+            session: go(session, "input_price", draft),
+            effects: [reply("Masukkan harga paket (total 2 produk).")],
+          };
+        }
         const suggested = session.draft.suggestedPrice;
         return {
           session: go(session, "input_price", { ...session.draft, quantity }),
@@ -259,9 +280,33 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       case "input_price": {
         const unitPrice = Number(text.replace(/[^\d]/g, ""));
         try {
-          calculateOrderTotal(session.draft.quantity || 0, unitPrice, 0);
+          calculateOrderTotal(session.draft.quantity || 1, unitPrice, 0);
         } catch {
           return { session, effects: [reply("Harga tidak valid.")] };
+        }
+        if ((session.draft.packProductIds?.length || 0) >= 2) {
+          const pack = world.products.filter((p) => session.draft.packProductIds?.includes(p.id));
+          if (pack.length >= 2) {
+            const qty = session.draft.packQty || session.draft.lines?.[0]?.quantity || 1;
+            const draft = applyLinesToDraft(session.draft, buildPackLines(pack, qty, unitPrice));
+            const ready = {
+              ...draft,
+              paymentMethod: draft.paymentMethod || "OTHER",
+              paymentStatus: draft.paymentStatus || "PAID",
+            };
+            if (session.draft.nlChat) {
+              return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+            }
+            return {
+              session: go(session, "input_pay_method", ready),
+              effects: [
+                reply("Pilih metode pembayaran.", kb([
+                  [{ text: "CASH", data: "pm:CASH" }, { text: "TRANSFER", data: "pm:TRANSFER" }],
+                  [{ text: "QRIS", data: "pm:QRIS" }, { text: "OTHER", data: "pm:OTHER" }],
+                ])),
+              ],
+            };
+          }
         }
         return {
           session: go(session, "input_pay_method", { ...session.draft, unitPrice }),
@@ -294,7 +339,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\n\nAtau: rekapan hari ini · riwayat · target · /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\nlaku 2 paket new member harga 250k atas nama Dimas no 08...\n\nAtau: rekapan hari ini · riwayat · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -337,16 +382,16 @@ function applyNaturalSale(
   let productId = parsed.productId || undefined;
   let productName = parsed.productName || undefined;
   let unitPrice = parsed.unitPrice ?? undefined;
-  if (!productId && products.length === 1) {
+  if (!productId && !parsed.isPack && products.length === 1) {
     productId = products[0].id;
     productName = products[0].name;
     unitPrice = unitPrice ?? products[0].price ?? undefined;
-  } else if (productId && unitPrice == null) {
+  } else if (productId && unitPrice == null && !parsed.isPack) {
     const p = products.find((x) => x.id === productId);
     unitPrice = p?.price ?? undefined;
   }
 
-  const draft: Draft = {
+  let draft: Draft = {
     ...newDraft(),
     idempotencyKey: randomUUID(),
     phone: parsed.phone || undefined,
@@ -360,6 +405,22 @@ function applyNaturalSale(
     nlChat: true,
   };
 
+  if (parsed.isPack || parsed.matchedProducts.length > 1) {
+    const pack = resolvePackProducts(parsed.matchedProducts, products);
+    if (pack.length >= 2) {
+      const packQty = quantity || 1;
+      const catalogTotal = pack.reduce((sum, p) => sum + (p.price || 0) * packQty, 0);
+      const total = parsed.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
+      draft.packProductIds = pack.map((p) => p.id);
+      draft.packQty = packQty;
+      draft.quantity = packQty * pack.length;
+      draft.productName = pack.map((p) => p.name).join(" + ");
+      if (total != null) {
+        draft = applyLinesToDraft(draft, buildPackLines(pack, packQty, total));
+      }
+    }
+  }
+
   if (!draft.phone) {
     return {
       session: go(session, "input_phone", draft),
@@ -372,12 +433,99 @@ function applyNaturalSale(
   };
 }
 
+function finishProductPick(
+  session: Session,
+  actor: Actor,
+  picked: ProductRow[],
+  asPack: boolean,
+): { session: Session; effects: BotEffect[] } {
+  if (asPack && picked.length >= 2) {
+    const packQty = session.draft.packQty || session.draft.lines?.[0]?.quantity || undefined;
+    let draft: Draft = {
+      ...session.draft,
+      packProductIds: picked.map((p) => p.id),
+      productName: picked.map((p) => p.name).join(" + "),
+    };
+    if (!packQty) {
+      return {
+        session: go(session, "input_qty", draft),
+        effects: [reply(`Paket: ${picked.map((p) => p.name).join(" + ")}\nBerapa jumlah paket?`)],
+      };
+    }
+    const catalogTotal = picked.reduce((sum, p) => sum + (p.price || 0) * packQty, 0);
+    const total = session.draft.orderTotal ?? session.draft.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
+    draft = { ...draft, packQty, quantity: packQty * picked.length };
+    if (total != null) {
+      draft = applyLinesToDraft(draft, buildPackLines(picked, packQty, total));
+      const ready = {
+        ...draft,
+        paymentMethod: draft.paymentMethod || "OTHER",
+        paymentStatus: draft.paymentStatus || "PAID",
+      };
+      if (session.draft.nlChat) {
+        return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+      }
+      return confirmEffects(session, actor, ready);
+    }
+    return {
+      session: go(session, "input_price", draft),
+      effects: [reply("Masukkan harga paket (total 2 produk).")],
+    };
+  }
+
+  const product = picked[0];
+  const draft = {
+    ...session.draft,
+    productId: product.id,
+    productName: product.name,
+    suggestedPrice: product.price ?? undefined,
+    unitPrice: session.draft.unitPrice ?? product.price ?? undefined,
+    lines: undefined,
+    packProductIds: undefined,
+    orderTotal: undefined,
+  };
+  if (draft.quantity && draft.unitPrice != null) {
+    const ready = {
+      ...draft,
+      paymentMethod: draft.paymentMethod || "OTHER",
+      paymentStatus: draft.paymentStatus || "PAID",
+    };
+    if (session.draft.nlChat) {
+      return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+    }
+    return confirmEffects(session, actor, ready);
+  }
+  if (draft.quantity) {
+    return {
+      session: go(session, "input_price", draft),
+      effects: [
+        reply(
+          product.price
+            ? `Masukkan harga jual per botol.\nHarga produk: ${fmtRp(product.price)}`
+            : "Masukkan harga jual per botol.",
+        ),
+      ],
+    };
+  }
+  return {
+    session: go(session, "input_qty", draft),
+    effects: [reply(`Produk: ${product.name}\nBerapa jumlah botol?`)],
+  };
+}
+
+export function productKeyboard(products: ProductRow[]): { text: string; data: string }[][] {
+  const rows = products.slice(0, 10).map((p) => [{ text: p.name, data: `p:${p.id}` }]);
+  if (products.length >= 2) {
+    rows.push([{ text: "KEDUANYA (PAKET)", data: "p:ALL" }]);
+  }
+  return rows;
+}
+
 function productPrompt(products: ProductRow[]): BotEffect {
   if (!products.length) {
     return reply("Belum ada produk parfum. Founder menambah Afternoon / The Distance di Henima Sales → Settings.");
   }
-  const rows = products.slice(0, 10).map((p) => [{ text: p.name, data: `p:${p.id}` }]);
-  return reply("Pilih produk:", kb(rows));
+  return reply("Pilih produk (atau ketik afternoon dan the distance):", kb(productKeyboard(products)));
 }
 
 export function confirmKeyboard(): { text: string; data: string }[][] {

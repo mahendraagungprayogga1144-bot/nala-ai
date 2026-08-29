@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, buildPackLines, splitTotalAcrossLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 
 let failed = 0;
@@ -240,6 +240,75 @@ test("/help lists commands", () => {
     assert.match(out.effects[0].reply.text, /\/input/);
     assert.match(out.effects[0].reply.text, /\/pdf/);
   }
+});
+
+const perfume = [
+  { id: "1", name: "Afternoon", price: 150000, cost: 0, stock: 20, unit: "pcs" },
+  { id: "2", name: "The Distance", price: 150000, cost: 0, stock: 20, unit: "pcs" },
+];
+
+test("2 paket new member fills both products and splits 250k", () => {
+  const msg = "hari ini juga laku lagi 2 paket new member di harga 250k atas nama dimas no telfone 085965948759";
+  const parsed = parseSalesChat(msg, perfume);
+  assert.equal(parsed.looksLikeSale, true);
+  assert.equal(parsed.isPack, true);
+  assert.equal(parsed.quantity, 2);
+  assert.equal(parsed.unitPrice, 250000);
+  assert.equal(parsed.customerName?.toLowerCase(), "dimas");
+
+  const out = reduceBot({ state: "idle", draft: newDraft() }, { kind: "text", text: msg }, { actor: sales, products: perfume });
+  assert.equal(out.session.draft.lines?.length, 2);
+  assert.equal(out.session.draft.packQty, 2);
+  const total = (out.session.draft.lines || []).reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  assert.equal(total, 250000);
+  assert.equal(out.session.draft.lines?.[0].quantity, 2);
+  assert.equal(out.session.draft.lines?.[1].quantity, 2);
+  const names = (out.session.draft.lines || []).map((l) => l.productName.toLowerCase()).sort();
+  assert.deepEqual(names, ["afternoon", "the distance"]);
+});
+
+test("input_product text afternoon dan the distance does not send help", () => {
+  const out = reduceBot(
+    {
+      state: "input_product",
+      draft: {
+        ...newDraft(),
+        nlChat: true,
+        phone: "6285965948759",
+        customerName: "dimas",
+        packQty: 2,
+        quantity: 2,
+        unitPrice: 250000,
+        idempotencyKey: "k",
+      },
+    },
+    { kind: "text", text: "afternoon dan the distance" },
+    { actor: sales, products: perfume },
+  );
+  assert.equal(out.effects[0]?.type, "confirm_sale");
+  assert.equal(out.session.draft.lines?.length, 2);
+  assert.notEqual(out.effects[0]?.type, "reply");
+});
+
+test("KEDUANYA button confirms pack when qty and total exist", () => {
+  const out = reduceBot(
+    {
+      state: "input_product",
+      draft: { ...newDraft(), nlChat: true, packQty: 2, unitPrice: 250000, idempotencyKey: "k" },
+    },
+    { kind: "callback", data: "p:ALL" },
+    { actor: sales, products: perfume },
+  );
+  assert.equal(out.effects[0]?.type, "confirm_sale");
+  assert.equal(out.session.draft.lines?.length, 2);
+});
+
+test("split 250k across 2x2 lines", () => {
+  const units = splitTotalAcrossLines(250000, [2, 2]);
+  assert.equal(units[0] * 2 + units[1] * 2, 250000);
+  const lines = buildPackLines(perfume, 2, 250000);
+  assert.equal(lines.length, 2);
+  assert.equal(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 250000);
 });
 
 if (failed) {

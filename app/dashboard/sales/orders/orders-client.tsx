@@ -19,12 +19,14 @@ export default function OrdersClient({ rows }: { rows: Order[] }) {
   return (
     <div className="space-y-2">
       {rows.map((o) => {
-        const item = o.order_items?.[0];
+        const items = (o.order_items || [])
+          .map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`)
+          .join(" + ") || "—";
         return (
           <div key={o.id} className={MODULE_CARD + " flex flex-wrap items-center justify-between gap-3"}>
             <div>
               <p className="text-sm font-medium">
-                {fmtDateLongId(o.order_date)} · {item?.product_name_snapshot} — {item?.qty} pcs
+                {fmtDateLongId(o.order_date)} · {items}
               </p>
               <p className="text-[11px] text-[#8B8AA0]">
                 {o.metode_bayar} · {o.payment_status} · {fmtRp(o.total)}

@@ -138,79 +138,77 @@ function drawRight(page: PDFPage, text: string, rightX: number, y: number, size:
   page.drawText(t, { x: rightX - w, y, size, font, color });
 }
 
+function glyphWidth(font: PDFFont, text: string, size: number) {
+  return [...text].reduce((sum, ch) => sum + font.widthOfTextAtSize(ch, size), 0);
+}
+
+function drawChars(page: PDFPage, text: string, x: number, y: number, size: number, font: PDFFont, color = MUTED) {
+  let cx = x;
+  for (const ch of text) {
+    page.drawText(ch, { x: cx, y, size, font, color });
+    cx += font.widthOfTextAtSize(ch, size);
+  }
+}
+
 function drawIgIcon(page: PDFPage, x: number, y: number, s: number) {
-  const r = s * 0.22;
-  page.drawSvgPath(
-    `M ${r},0 H ${s - r} Q ${s},0 ${s},${r} V ${s - r} Q ${s},${s} ${s - r},${s} H ${r} Q 0,${s} 0,${s - r} V ${r} Q 0,0 ${r},0 Z`,
-    { x, y, borderColor: INK, borderWidth: 0.75 },
-  );
-  page.drawCircle({ x: x + s / 2, y: y + s / 2, size: s * 0.2, borderColor: INK, borderWidth: 0.65 });
+  page.drawRectangle({ x, y, width: s, height: s, borderColor: INK, borderWidth: 0.8 });
+  page.drawCircle({ x: x + s / 2, y: y + s / 2, size: s * 0.22, borderColor: INK, borderWidth: 0.7 });
   page.drawCircle({ x: x + s * 0.74, y: y + s * 0.74, size: s * 0.055, color: INK });
 }
 
-function drawBagIcon(page: PDFPage, x: number, y: number, s: number) {
-  page.drawRectangle({
-    x: x + s * 0.08,
-    y,
-    width: s * 0.84,
-    height: s * 0.62,
-    borderColor: INK,
-    borderWidth: 0.75,
-  });
-  page.drawSvgPath(
-    `M ${s * 0.28},${s * 0.62} V ${s * 0.86} Q ${s * 0.28},${s} ${s * 0.5},${s} Q ${s * 0.72},${s} ${s * 0.72},${s * 0.86} V ${s * 0.62}`,
-    { x, y, borderColor: INK, borderWidth: 0.75 },
-  );
+function drawWebIcon(page: PDFPage, x: number, y: number, s: number) {
+  const cx = x + s / 2;
+  const cy = y + s / 2;
+  page.drawCircle({ x: cx, y: cy, size: s * 0.42, borderColor: INK, borderWidth: 0.8 });
+  page.drawLine({ start: { x: x + s * 0.12, y: cy }, end: { x: x + s * 0.88, y: cy }, thickness: 0.6, color: INK });
+  page.drawLine({ start: { x: cx, y: y + s * 0.1 }, end: { x: cx, y: y + s * 0.9 }, thickness: 0.6, color: INK });
 }
 
 function drawTikTokIcon(page: PDFPage, x: number, y: number, s: number) {
+  const stemX = x + s * 0.62;
   page.drawEllipse({
     x: x + s * 0.34,
     y: y + s * 0.28,
-    xScale: s * 0.26,
-    yScale: s * 0.16,
+    xScale: s * 0.24,
+    yScale: s * 0.15,
     color: INK,
   });
   page.drawLine({
-    start: { x: x + s * 0.58, y: y + s * 0.28 },
-    end: { x: x + s * 0.58, y: y + s * 0.92 },
-    thickness: 1.05,
+    start: { x: stemX, y: y + s * 0.28 },
+    end: { x: stemX, y: y + s * 0.9 },
+    thickness: 1.15,
     color: INK,
   });
-  page.drawSvgPath(`M ${s * 0.58},${s * 0.92} Q ${s * 0.92},${s * 0.78} ${s * 0.86},${s * 0.48}`, {
-    x,
-    y,
-    borderColor: INK,
-    borderWidth: 1.05,
+  page.drawLine({
+    start: { x: stemX, y: y + s * 0.9 },
+    end: { x: x + s * 0.9, y: y + s * 0.68 },
+    thickness: 1.15,
+    color: INK,
+  });
+  page.drawLine({
+    start: { x: x + s * 0.9, y: y + s * 0.68 },
+    end: { x: x + s * 0.9, y: y + s * 0.52 },
+    thickness: 1.15,
+    color: INK,
   });
 }
 
-function drawSocials(page: PDFPage, cx: number, y: number, font: PDFFont) {
-  const size = 7;
+function drawSocials(page: PDFPage, cx: number, top: number, font: PDFFont) {
+  const size = 8;
   const icon = 8;
-  const gap = 3.5;
+  const gap = 5;
+  const lineH = 13;
   const items: { draw: (page: PDFPage, x: number, y: number, s: number) => void; label: string }[] = [
     { draw: drawIgIcon, label: "@henima.id" },
-    { draw: drawBagIcon, label: "henimaofficial" },
+    { draw: drawWebIcon, label: "henimaofficial.com" },
     { draw: drawTikTokIcon, label: "henima collection" },
   ];
-  const widths = items.map((item) => icon + gap + font.widthOfTextAtSize(item.label, size));
-  const divider = 10;
-  const total = widths.reduce((a, b) => a + b, 0) + divider * (items.length - 1);
-  let x = cx - total / 2;
+  const blockW = Math.max(...items.map((item) => icon + gap + glyphWidth(font, item.label, size)));
+  const x = cx - blockW / 2;
   items.forEach((item, i) => {
-    if (i > 0) {
-      page.drawLine({
-        start: { x: x + divider / 2, y: y - 1 },
-        end: { x: x + divider / 2, y: y + icon - 1 },
-        thickness: 0.4,
-        color: RULE,
-      });
-      x += divider;
-    }
-    item.draw(page, x, y - 0.5, icon);
-    page.drawText(item.label, { x: x + icon + gap, y: y + 0.6, size, font, color: MUTED });
-    x += widths[i];
+    const y = top - i * lineH;
+    item.draw(page, x, y, icon);
+    drawChars(page, item.label, x + icon + gap, y + 0.8, size, font, INK);
   });
 }
 
@@ -299,17 +297,15 @@ export async function buildSalesNotaPdf(payload: NotaPayload): Promise<Uint8Arra
     y -= 8;
   }
 
-  page.drawRectangle({ x: left, y: 78, width: right - left, height: 0.5, color: RULE });
+  page.drawRectangle({ x: left, y: 96, width: right - left, height: 0.5, color: RULE });
   const company = "PT HENIMA COLLECTION INDONESIA";
   const cw = sansBold.widthOfTextAtSize(company, 8);
-  page.drawText(company, { x: cx - cw / 2, y: 62, size: 8, font: sansBold, color: INK });
-  drawSocials(page, cx, 45, sans);
+  page.drawText(company, { x: cx - cw / 2, y: 80, size: 8, font: sansBold, color: INK });
+  drawSocials(page, cx, 62, sans);
   const thanks = "Terima kasih telah berbelanja.";
-  const tw = sans.widthOfTextAtSize(thanks, 8);
-  page.drawText(thanks, { x: cx - tw / 2, y: 32, size: 8, font: sans, color: MUTED });
+  page.drawText(thanks, { x: cx - sans.widthOfTextAtSize(thanks, 8) / 2, y: 20, size: 8, font: sans, color: MUTED });
   const policy = "Barang yang sudah dibeli tidak dapat dikembalikan.";
-  const pw = sans.widthOfTextAtSize(policy, 7);
-  page.drawText(policy, { x: cx - pw / 2, y: 20, size: 7, font: sans, color: MUTED });
+  page.drawText(policy, { x: cx - sans.widthOfTextAtSize(policy, 7) / 2, y: 8, size: 7, font: sans, color: MUTED });
 
   return doc.save();
 }

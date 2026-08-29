@@ -12,6 +12,31 @@ export type ParsedSaleChat = {
   paymentMethod: PaymentMethod | null;
 };
 
+export type OpsIntent =
+  | { type: "rekap"; period: "today" | "this_week" | "this_month" }
+  | { type: "pdf"; period: "today" | "this_week" | "this_month" }
+  | { type: "riwayat" }
+  | { type: "target" }
+  | { type: "help" }
+  | { type: "none" };
+
+function periodFromText(t: string): "today" | "this_week" | "this_month" {
+  if (/\b(minggu|mingguan|weekly|week)\b/.test(t)) return "this_week";
+  if (/\b(bulan|bulanan|monthly|month)\b/.test(t)) return "this_month";
+  return "today";
+}
+
+export function parseOpsIntent(text: string): OpsIntent {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return { type: "none" };
+  if (/^(help|bantuan|menu|perintah|\?)$/.test(t)) return { type: "help" };
+  if (/\b(pdf|laporan pdf)\b/.test(t)) return { type: "pdf", period: periodFromText(t) };
+  if (/\b(rekap|rekapan|ringkasan)\b/.test(t)) return { type: "rekap", period: periodFromText(t) };
+  if (/\b(riwayat|histori|history)\b/.test(t)) return { type: "riwayat" };
+  if (/\b(target|pencapaian)\b/.test(t)) return { type: "target" };
+  return { type: "none" };
+}
+
 const SALE_HINT =
   /\b(laku|terjual|jual|closing|order|omzet|pcs|botol|harga|atas nama|a\/n|no\.?\s*(telp|telfon|telfone|telepon|hp|wa))\b/i;
 

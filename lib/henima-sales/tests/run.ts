@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent } from "../telegram/nl-sale";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -204,6 +204,19 @@ test("idle chat sale fills draft instead of help", () => {
   assert.equal(out.session.draft.customerName?.toLowerCase(), "regan");
   assert.equal(out.session.draft.productName, "Afternoon");
   assert.equal(out.session.draft.nlChat, true);
+});
+
+test("rekapan hari ini is a rekap intent", () => {
+  assert.deepEqual(parseOpsIntent("rekapan hari ini"), { type: "rekap", period: "today" });
+  assert.deepEqual(parseOpsIntent("rekap minggu ini"), { type: "rekap", period: "this_week" });
+  assert.deepEqual(parseOpsIntent("rekap bulan ini"), { type: "rekap", period: "this_month" });
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "rekapan hari ini" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_report");
+  if (out.effects[0].type === "send_report") assert.equal(out.effects[0].kind, "today");
 });
 
 test("/help lists commands", () => {

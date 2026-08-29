@@ -65,6 +65,8 @@ export type BotEffect =
   | { type: "save_photo" }
   | { type: "send_report"; kind: string; from?: string; to?: string }
   | { type: "send_pdf"; kind: string }
+  | { type: "send_riwayat" }
+  | { type: "send_target" }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 
@@ -95,8 +97,11 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /pdf — laporan PDF
 /help — bantuan
 
-Sales cukup pakai Telegram. Boleh chat biasa, contoh:
-laku 1 harga 150rb atas nama Regan no 0877...`;
+Sales cukup pakai Telegram. Chat biasa juga bisa:
+laku 1 harga 150rb atas nama Regan no 0877...
+rekapan hari ini
+riwayat
+target`;
 
 export function newDraft(): Draft {
   return { paymentStatus: "PAID" };

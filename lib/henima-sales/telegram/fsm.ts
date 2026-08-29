@@ -6,7 +6,7 @@ import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
 import { formatConfirm, HELP_TEXT, connectedStatusText, kb, newDraft } from "./session";
-import { parseSalesChat } from "./nl-sale";
+import { parseOpsIntent, parseSalesChat } from "./nl-sale";
 
 export type World = {
   actor: Actor | null;
@@ -285,7 +285,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
         if (session.state !== "idle" && session.state !== "input_confirm") {
           return { session, effects: [reply("Ketik /help untuk melihat perintah.")] };
         }
-        return applyNaturalSale(session, actor, text, world.products);
+        return applyNaturalChat(session, actor, text, world.products);
       }
     }
   }
@@ -294,7 +294,33 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\n\nAtau ketik /input /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\n\nAtau: rekapan hari ini · riwayat · target · /help";
+
+function applyNaturalChat(
+  session: Session,
+  actor: Actor,
+  text: string,
+  products: ProductRow[],
+): { session: Session; effects: BotEffect[] } {
+  const ops = parseOpsIntent(text);
+  const idle = { state: "idle" as const, draft: newDraft() };
+  if (ops.type === "help") {
+    return { session: idle, effects: [reply(HELP_TEXT)] };
+  }
+  if (ops.type === "rekap") {
+    return { session: idle, effects: [{ type: "send_report", kind: ops.period }] };
+  }
+  if (ops.type === "pdf") {
+    return { session: idle, effects: [{ type: "send_pdf", kind: ops.period }] };
+  }
+  if (ops.type === "riwayat") {
+    return { session: idle, effects: [{ type: "send_riwayat" }] };
+  }
+  if (ops.type === "target") {
+    return { session: idle, effects: [{ type: "send_target" }] };
+  }
+  return applyNaturalSale(session, actor, text, products);
+}
 
 function applyNaturalSale(
   session: Session,

@@ -140,6 +140,10 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         await sendRekap(db, actor, chatId, effect.kind as ReportKind);
       } else if (effect.type === "send_pdf" && actor) {
         await sendPdf(db, actor, chatId, effect.kind as ReportKind);
+      } else if (effect.type === "send_riwayat" && actor) {
+        await sendRiwayat(db, actor, chatId);
+      } else if (effect.type === "send_target" && actor) {
+        await sendTarget(db, actor, chatId);
       }
     } catch (err) {
       salesLogError("telegram_effect", err, { type: effect.type, telegramUserId });
@@ -180,23 +184,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   } else if (actor && incoming.kind === "command" && incoming.cmd === "/riwayat") {
     await sendRiwayat(db, actor, chatId);
   } else if (actor && incoming.kind === "command" && incoming.cmd === "/target") {
-    const monthly = await achievementFor(db, actor, "monthly");
-    const weekly = await achievementFor(db, actor, "weekly");
-    const daily = await achievementFor(db, actor, "daily");
-    await sendMessage(
-      chatId,
-      [
-        `SALES: ${actor.nama.toUpperCase()}`,
-        "",
-        `Hari ini: ${daily.sold} pcs (target ${daily.target})`,
-        `Minggu ini: ${weekly.sold} pcs (target ${weekly.target})`,
-        `Bulan ini: ${monthly.sold} pcs`,
-        `Target: ${monthly.target} pcs`,
-        `Achievement: ${monthly.achievement}%`,
-        `Sisa: ${monthly.remaining} pcs`,
-        `Omzet bulan ini: ${fmtRp(monthly.omzet)}`,
-      ].join("\n"),
-    );
+    await sendTarget(db, actor, chatId);
   } else if (actor && incoming.kind === "callback" && incoming.data.startsWith("od:")) {
     const order = await getOrder(db, actor, incoming.data.slice(3));
     const item = order.order_items?.[0];
@@ -362,6 +350,26 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
     ]
       .filter(Boolean)
       .join("\n"),
+  );
+}
+
+async function sendTarget(db: SalesDb, actor: Actor, chatId: number) {
+  const monthly = await achievementFor(db, actor, "monthly");
+  const weekly = await achievementFor(db, actor, "weekly");
+  const daily = await achievementFor(db, actor, "daily");
+  await sendMessage(
+    chatId,
+    [
+      `SALES: ${actor.nama.toUpperCase()}`,
+      "",
+      `Hari ini: ${daily.sold} pcs (target ${daily.target})`,
+      `Minggu ini: ${weekly.sold} pcs (target ${weekly.target})`,
+      `Bulan ini: ${monthly.sold} pcs`,
+      `Target: ${monthly.target} pcs`,
+      `Achievement: ${monthly.achievement}%`,
+      `Sisa: ${monthly.remaining} pcs`,
+      `Omzet bulan ini: ${fmtRp(monthly.omzet)}`,
+    ].join("\n"),
   );
 }
 

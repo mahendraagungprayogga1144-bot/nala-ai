@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import ConfirmDelete from "../confirm-delete";
+import NotaDownload from "../nota-download";
 import { MODULE_CARD } from "../../components/module-form-styles";
 import { fmtDateLongId, fmtRp } from "@/lib/henima-sales/money";
 
@@ -32,13 +33,16 @@ export default function OrdersClient({ rows }: { rows: Order[] }) {
                 {o.metode_bayar} · {o.payment_status} · {fmtRp(o.total)}
               </p>
             </div>
-            <ConfirmDelete
-              label="DELETE"
-              onConfirm={async () => {
-                await fetch(`/api/sales/orders/${o.id}`, { method: "DELETE" });
-                router.refresh();
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <NotaDownload orderId={o.id} />
+              <ConfirmDelete
+                label="DELETE"
+                onConfirm={async () => {
+                  await fetch(`/api/sales/orders/${o.id}`, { method: "DELETE" });
+                  router.refresh();
+                }}
+              />
+            </div>
           </div>
         );
       })}

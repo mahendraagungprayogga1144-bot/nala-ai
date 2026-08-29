@@ -13,6 +13,7 @@ import { listStaff } from "@/lib/henima-sales/staff-service";
 import { displayPhone } from "@/lib/henima-sales/phone";
 import { fmtDateLongId, fmtRp } from "@/lib/henima-sales/money";
 import FollowUpActions from "../../follow-ups/followup-actions";
+import NotaDownload from "../../nota-download";
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return guardPage("Customer", async () => {
@@ -74,8 +75,11 @@ ${fmtRp(customer.total_spent)}`}
               .map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`)
               .join(" + ") || "—";
             return (
-              <div key={o.id} className={MODULE_CARD + " text-sm"}>
-                {fmtDateLongId(o.order_date)} · {items} · {fmtRp(o.total)}
+              <div key={o.id} className={MODULE_CARD + " flex flex-wrap items-center justify-between gap-3 text-sm"}>
+                <span>
+                  {fmtDateLongId(o.order_date)} · {items} · {fmtRp(o.total)}
+                </span>
+                <NotaDownload orderId={o.id} />
               </div>
             );
           })}

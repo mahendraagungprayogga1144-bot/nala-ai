@@ -38,6 +38,7 @@ Bisa juga ketik: afternoon dan the distance
 Cek hasil kapan saja:
 rekapan hari ini
 riwayat
+nota
 target
 
 Jangan kirim kode ini ke orang lain. Kalau gagal, minta founder kode baru.`;
@@ -66,6 +67,7 @@ CEK HASIL:
 rekapan hari ini
 rekap minggu ini
 riwayat
+nota (invoice customer)
 target
 
 Masih bisa pakai /input /help kalau perlu.`;

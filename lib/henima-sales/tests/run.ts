@@ -13,6 +13,7 @@ import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service"
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, buildPackLines, splitTotalAcrossLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
+import { formatNotaNumber, notaFromOrder, pdfSafe } from "../nota";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -250,6 +251,51 @@ test("founder closings are served-by not top sales", () => {
   ]);
   assert.equal(onlyFounder.ranking.length, 0);
   assert.equal(servedByLabel(onlyFounder.servedBy), "Dilayani oleh ima");
+});
+
+test("nota intent and customer invoice number", () => {
+  assert.deepEqual(parseOpsIntent("nota"), { type: "nota" });
+  assert.deepEqual(parseOpsIntent("invoice customer"), { type: "nota" });
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "nota" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_nota");
+  const cmd = reduceBot({ state: "idle", draft: newDraft() }, { kind: "command", cmd: "/nota" }, { actor: sales, products: [] });
+  assert.equal(cmd.effects[0].type, "send_nota");
+  assert.equal(formatNotaNumber("a1b2c3d4-e5f6-7890-abcd-ef1234567890", "2026-08-29"), "HNM-20260829-A1B2C3");
+  const payload = notaFromOrder({
+    order: {
+      id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      business_id: "b1",
+      customer_id: "c1",
+      sales_id: "f1",
+      total: 250000,
+      diskon: 0,
+      metode_bayar: "OTHER",
+      payment_status: "PAID",
+      catatan: "paket",
+      order_date: "2026-08-29",
+      created_at: "2026-08-29T00:00:00Z",
+      deleted_at: null,
+      source: "henima_sales",
+      order_items: [
+        { id: "i1", product_id: "1", qty: 2, harga_jual: 62500, product_name_snapshot: "Afternoon" },
+        { id: "i2", product_id: "2", qty: 2, harga_jual: 62500, product_name_snapshot: "The Distance" },
+      ],
+    },
+    brandName: "Henima Scent",
+    customerName: "Dimas",
+    customerPhone: "085965948759",
+    staffName: "ima",
+    staffRole: "FOUNDER",
+  });
+  assert.equal(payload.servedBy, "Dilayani oleh ima");
+  assert.equal(payload.paymentStatus, "LUNAS");
+  assert.equal(payload.lines.length, 2);
+  assert.equal(payload.total, 250000);
+  assert.equal(pdfSafe("Afternoon × 2"), "Afternoon x 2");
 });
 
 test("/help lists commands", () => {

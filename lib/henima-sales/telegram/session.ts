@@ -72,6 +72,7 @@ export type BotEffect =
   | { type: "save_photo" }
   | { type: "send_report"; kind: string; from?: string; to?: string }
   | { type: "send_pdf"; kind: string }
+  | { type: "send_nota"; orderId?: string }
   | { type: "send_riwayat" }
   | { type: "send_target" }
   | { type: "link_invite"; code: string }
@@ -99,6 +100,7 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /target — target & pencapaian
 /followup — buat reminder
 /pdf — laporan PDF
+/nota — nota / invoice customer
 /help — bantuan
 
 Sales cukup pakai Telegram. Chat biasa juga bisa:
@@ -107,6 +109,7 @@ laku 2 paket new member harga 250k atas nama Dimas no 08...
 afternoon dan the distance
 rekapan hari ini
 riwayat
+nota
 target
 
 Belum CONNECTED? Minta kode ke founder, lalu /start KODE`;

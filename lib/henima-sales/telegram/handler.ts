@@ -11,6 +11,7 @@ import { saveTestimonial } from "../testimonial-service";
 import { achievementFor } from "../target-service";
 import { buildSalesReport, servedByLabel, type ReportKind } from "../report-service";
 import { buildSalesReportPdf } from "../pdf";
+import { buildOrderNota } from "../nota";
 import { fmtDateLongId, fmtRp } from "../money";
 import { writeAudit } from "../audit";
 import { displayPhone } from "../phone";
@@ -141,6 +142,8 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         await sendRekap(db, actor, chatId, effect.kind as ReportKind);
       } else if (effect.type === "send_pdf" && actor) {
         await sendPdf(db, actor, chatId, effect.kind as ReportKind);
+      } else if (effect.type === "send_nota" && actor) {
+        await sendNota(db, actor, chatId, effect.orderId);
       } else if (effect.type === "send_riwayat" && actor) {
         await sendRiwayat(db, actor, chatId);
       } else if (effect.type === "send_target" && actor) {
@@ -197,6 +200,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       ].join("\n"),
       [
         [{ text: "EDIT", data: "confirm_edit" }, { text: "DELETE", data: `del:${order.id}` }],
+        [{ text: "NOTA", data: `nota:${order.id}` }],
       ],
     );
   } else if (actor && next.state === "idle" && incoming.kind === "text" && session.state === "customer_query") {
@@ -372,9 +376,11 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
       "Transaksi tersimpan.",
       `${d.productName || lines.map((line) => line.productName).join(" + ")} = ${fmtRp(order.total)}`,
       photoFailed ? "Foto testimoni gagal diunggah. Transaksi tetap tercatat." : "",
+      "Ketik NOTA atau tekan tombol untuk invoice customer.",
     ]
       .filter(Boolean)
       .join("\n"),
+    [[{ text: "NOTA", data: `nota:${order.id}` }]],
   );
 }
 
@@ -416,6 +422,7 @@ async function sendRiwayat(db: SalesDb, actor: Actor, chatId: number) {
       [
         [
           { text: "DETAIL", data: `od:${o.id}` },
+          { text: "NOTA", data: `nota:${o.id}` },
           { text: "DELETE", data: `del:${o.id}` },
         ],
       ],
@@ -458,6 +465,25 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
       "================================",
     ].join("\n"),
   );
+}
+
+async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: string) {
+  try {
+    let id = orderId;
+    if (!id) {
+      const { rows } = await listOrders(db, actor, { pageSize: 1 });
+      id = rows[0]?.id;
+    }
+    if (!id) {
+      await sendMessage(chatId, "Belum ada transaksi untuk dibuatkan nota.");
+      return;
+    }
+    const { bytes, filename, caption } = await buildOrderNota(db, actor, id);
+    await sendDocument(chatId, filename, bytes, caption);
+  } catch (err) {
+    salesLogError("nota", err, { staffId: actor.staffId, orderId });
+    await sendMessage(chatId, "Nota gagal dibuat. Silakan coba lagi.");
+  }
 }
 
 async function sendPdf(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind) {

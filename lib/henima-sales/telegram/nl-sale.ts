@@ -17,6 +17,7 @@ export type ParsedSaleChat = {
 export type OpsIntent =
   | { type: "rekap"; period: "today" | "this_week" | "this_month" }
   | { type: "pdf"; period: "today" | "this_week" | "this_month" }
+  | { type: "nota" }
   | { type: "riwayat" }
   | { type: "target" }
   | { type: "help" }
@@ -32,6 +33,7 @@ export function parseOpsIntent(text: string): OpsIntent {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return { type: "none" };
   if (/^(help|bantuan|menu|perintah|\?)$/.test(t)) return { type: "help" };
+  if (/\b(nota|invoice|kwitansi|struk)\b/.test(t)) return { type: "nota" };
   if (/\b(pdf|laporan pdf)\b/.test(t)) return { type: "pdf", period: periodFromText(t) };
   if (/\b(rekap|rekapan|ringkasan)\b/.test(t)) return { type: "rekap", period: periodFromText(t) };
   if (/\b(riwayat|histori|history)\b/.test(t)) return { type: "riwayat" };

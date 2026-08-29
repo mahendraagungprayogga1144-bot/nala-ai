@@ -45,10 +45,19 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 export const TESTIMONIAL_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 export const TESTIMONIAL_MAX_BYTES = 5 * 1024 * 1024;
 
+export const SALES_PRODUCT_CATEGORY = "Henima Sales";
+
 export const DEFAULT_HENIMA_PRODUCTS = [
   { name: "Afternoon", unit: "pcs" },
   { name: "The Distance", unit: "pcs" },
 ] as const;
+
+export function isSalesCatalogProduct(p: { name?: string | null; category?: string | null }) {
+  const cat = (p.category || "").trim().toLowerCase();
+  if (cat === "henima sales" || cat === "parfum") return true;
+  const name = (p.name || "").trim().toLowerCase();
+  return DEFAULT_HENIMA_PRODUCTS.some((d) => d.name.toLowerCase() === name);
+}
 
 export type Actor = {
   staffId: string;

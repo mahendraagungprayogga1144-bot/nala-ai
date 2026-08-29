@@ -170,9 +170,9 @@ export default function TeamClient({
       {founder && (
         <div className={MODULE_CARD + " mb-6 space-y-4"}>
           <div>
-            <p className="text-sm font-medium">Produk Telegram</p>
+            <p className="text-sm font-medium">Produk parfum</p>
             <p className="text-xs text-[#8B8AA0]">
-              Produk di sini yang muncul saat sales ketik /input. Harga dan stok bisa diubah kapan saja.
+              Hanya produk ini yang muncul di Telegram. Es batu / stok Gercep lain tidak ikut.
             </p>
           </div>
           <form onSubmit={addProduct} className="grid gap-3 sm:grid-cols-3">

@@ -3,7 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch } from "../phone";
-import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus } from "../types";
+import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
 import { reduceBot } from "../telegram/fsm";
@@ -157,6 +157,27 @@ test("product pick then quantity", () => {
   );
   assert.equal(out.session.state, "input_qty");
   assert.equal(out.session.draft.productName, "Afternoon");
+});
+
+test("sales catalog is perfume only", () => {
+  assert.equal(isSalesCatalogProduct({ name: "Es batu", category: null }), false);
+  assert.equal(isSalesCatalogProduct({ name: "Samsung", category: "Elektronik" }), false);
+  assert.equal(isSalesCatalogProduct({ name: "Afternoon", category: null }), true);
+  assert.equal(isSalesCatalogProduct({ name: "The Distance", category: "Parfum" }), true);
+  assert.equal(isSalesCatalogProduct({ name: "Rose Oud", category: "Henima Sales" }), true);
+});
+
+test("input_phone sale chat is not treated as a phone number", () => {
+  const products = [{ id: "1", name: "Afternoon", price: 199000, cost: 0, stock: 10, unit: "pcs" }];
+  const out = reduceBot(
+    { state: "input_phone", draft: { ...newDraft(), idempotencyKey: "k" } },
+    { kind: "text", text: "hari ini laku 1 harga 150rb atas nama regan no telfone 087779853453" },
+    { actor: sales, products },
+  );
+  assert.equal(out.session.draft.nlChat, true);
+  assert.equal(out.session.draft.quantity, 1);
+  assert.equal(out.session.draft.unitPrice, 150000);
+  assert.equal(out.session.draft.phone, "6287779853453");
 });
 
 test("nl chat parses Indonesian sale message", () => {

@@ -242,7 +242,7 @@ async function continueAfterPhone(
     }
 
     if (!products.length) {
-      await sendMessage(chatId, "Belum ada produk. Founder menambahkannya di Henima Sales → Settings.");
+      await sendMessage(chatId, "Belum ada produk parfum. Founder menambah Afternoon / The Distance di Henima Sales → Settings.");
       return;
     }
 

@@ -3,7 +3,7 @@ import type { Actor, SalesRole, StaffRow } from "./types";
 import { ForbiddenError, SalesError } from "./types";
 import type { SalesDb } from "./db";
 import { writeAudit } from "./audit";
-import { DEFAULT_HENIMA_PRODUCTS } from "./types";
+import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct } from "./types";
 
 export function newInviteCode() {
   return randomBytes(4).toString("hex").toUpperCase();
@@ -83,7 +83,6 @@ export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
     .eq("business_id", actor.businessId);
   const names = new Set((existing || []).map((p: { name: string }) => p.name.toLowerCase()));
   const toInsert = DEFAULT_HENIMA_PRODUCTS.filter((p) => !names.has(p.name.toLowerCase()));
-  if (!toInsert.length) return existing || [];
   const rows = toInsert.map((p) => ({
     user_id: actor.ownerUserId,
     business_id: actor.businessId,
@@ -91,12 +90,21 @@ export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
     unit: p.unit,
     stock: 0,
     min_stock: 0,
-    category: "Parfum",
+    category: SALES_PRODUCT_CATEGORY,
   }));
-  const { error } = await db.from("products").insert(rows);
-  if (error) throw new SalesError(error.message, "product_seed");
-  const { data } = await db.from("products").select("id, name, price, cost, stock, unit").eq("business_id", actor.businessId).order("name");
-  return data || [];
+  if (toInsert.length) {
+    const { error } = await db.from("products").insert(rows);
+    if (error) throw new SalesError(error.message, "product_seed");
+  }
+  await db
+    .from("products")
+    .update({ category: SALES_PRODUCT_CATEGORY })
+    .eq("business_id", actor.businessId)
+    .in(
+      "name",
+      DEFAULT_HENIMA_PRODUCTS.map((p) => p.name),
+    );
+  return listProducts(db, actor.businessId);
 }
 
 export async function upsertSalesProduct(
@@ -119,6 +127,7 @@ export async function upsertSalesProduct(
         price: input.price,
         stock,
         unit,
+        category: SALES_PRODUCT_CATEGORY,
       })
       .eq("id", input.id)
       .eq("business_id", actor.businessId)
@@ -145,7 +154,7 @@ export async function upsertSalesProduct(
       stock,
       min_stock: 0,
       unit,
-      category: "Henima Sales",
+      category: SALES_PRODUCT_CATEGORY,
     })
     .select("id, name, price, cost, stock, unit")
     .single();
@@ -177,11 +186,11 @@ export async function setStaffStatus(db: SalesDb, actor: Actor, staffId: string,
 export async function listProducts(db: SalesDb, businessId: string) {
   const { data, error } = await db
     .from("products")
-    .select("id, name, price, cost, stock, unit")
+    .select("id, name, price, cost, stock, unit, category")
     .eq("business_id", businessId)
     .order("name");
   if (error) throw new SalesError(error.message, "product_list");
-  return (data || []).map((p) => ({
+  return (data || []).filter(isSalesCatalogProduct).map((p) => ({
     id: String(p.id),
     name: p.name as string,
     price: p.price == null ? null : Number(p.price),

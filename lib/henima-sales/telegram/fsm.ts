@@ -208,7 +208,11 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
   if (incoming.kind === "text") {
     const text = incoming.text.trim();
     switch (session.state) {
-      case "input_phone":
+      case "input_phone": {
+        const asSale = parseSalesChat(text, world.products);
+        if (asSale.looksLikeSale) return applyNaturalSale(session, actor, text, world.products);
+        return { session: go(session, "input_phone", { ...session.draft, phone: text }), effects: [reply("Memeriksa customer…")] };
+      }
       case "followup_phone":
         return { session: go(session, session.state, { ...session.draft, phone: text }), effects: [reply("Memeriksa customer…")] };
       case "input_new_name":
@@ -344,7 +348,7 @@ function applyNaturalSale(
 
 function productPrompt(products: ProductRow[]): BotEffect {
   if (!products.length) {
-    return reply("Belum ada produk. Founder menambahkannya di Henima Sales → Settings.");
+    return reply("Belum ada produk parfum. Founder menambah Afternoon / The Distance di Henima Sales → Settings.");
   }
   const rows = products.slice(0, 10).map((p) => [{ text: p.name, data: `p:${p.id}` }]);
   return reply("Pilih produk:", kb(rows));

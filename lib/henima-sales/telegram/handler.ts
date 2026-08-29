@@ -3,7 +3,7 @@ import { todayWib } from "@/lib/date";
 import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
-import { listProducts } from "../staff-service";
+import { listProducts, listStaff } from "../staff-service";
 import { createCustomer, findCustomerByPhone, listCustomers } from "../customer-service";
 import { confirmSale, listOrders, getOrder, softDeleteOrder } from "../order-service";
 import { createFollowUp } from "../followup-service";
@@ -395,24 +395,65 @@ function orderItemsLabel(items?: { product_name_snapshot: string | null; qty: nu
   return items.map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`).join(" + ");
 }
 
+function progressBar(pct: number) {
+  const filled = Math.min(10, Math.max(0, Math.round(pct / 10)));
+  return `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
+}
+
+function targetStatus(sold: number, goal: number, pct: number) {
+  if (!(goal > 0)) return "belum di-set";
+  if (sold >= goal) return "TERCAPAI";
+  if (pct >= 70) return "MENDEKATI";
+  return "BELUM";
+}
+
+function periodLine(label: string, a: { sold: number; target: number; achievement: number; remaining: number }) {
+  if (!(a.target > 0)) {
+    return `${label}: ${a.sold} pcs · target belum di-set`;
+  }
+  return [
+    `${label}: ${a.sold} / ${a.target} pcs`,
+    `${progressBar(a.achievement)} ${a.achievement}%  ${targetStatus(a.sold, a.target, a.achievement)}`,
+    a.sold >= a.target ? "Sudah terlaksana." : `Sisa ${a.remaining} pcs`,
+  ].join("\n");
+}
+
 async function sendTarget(db: SalesDb, actor: Actor, chatId: number) {
   const monthly = await achievementFor(db, actor, "monthly");
   const weekly = await achievementFor(db, actor, "weekly");
   const daily = await achievementFor(db, actor, "daily");
-  await sendMessage(
-    chatId,
-    [
-      `SALES: ${actor.nama.toUpperCase()}`,
-      "",
-      `Hari ini: ${daily.sold} pcs (target ${daily.target})`,
-      `Minggu ini: ${weekly.sold} pcs (target ${weekly.target})`,
-      `Bulan ini: ${monthly.sold} pcs`,
-      `Target: ${monthly.target} pcs`,
-      `Achievement: ${monthly.achievement}%`,
-      `Sisa: ${monthly.remaining} pcs`,
-      `Omzet bulan ini: ${fmtRp(monthly.omzet)}`,
-    ].join("\n"),
-  );
+  const lines = [
+    `SALES: ${actor.nama.toUpperCase()}`,
+    "",
+    periodLine("Hari ini", daily),
+    "",
+    periodLine("Minggu ini", weekly),
+    "",
+    periodLine("Bulan ini", monthly),
+    `Omzet bulan ini: ${fmtRp(monthly.omzet)}`,
+  ];
+
+  if (actor.role === "FOUNDER" || actor.role === "LEADER") {
+    const staff = (await listStaff(db, actor)).filter((s) => s.role === "SALES" || s.role === "LEADER");
+    if (staff.length) {
+      lines.push("", "PER SALES (bulan ini):");
+      for (const s of staff) {
+        const a = await achievementFor(db, actor, "monthly", s.id);
+        const status = targetStatus(a.sold, a.target, a.achievement);
+        lines.push(
+          a.target > 0
+            ? `${s.nama}: ${a.sold} / ${a.target} pcs  ${a.achievement}%  ${status}`
+            : `${s.nama}: ${a.sold} pcs · target belum di-set`,
+        );
+      }
+    }
+  }
+
+  if (!(daily.target > 0) && !(weekly.target > 0) && !(monthly.target > 0)) {
+    lines.push("", "Founder set target di Henima Sales → Targets.");
+  }
+
+  await sendMessage(chatId, lines.join("\n"));
 }
 
 async function sendRiwayat(db: SalesDb, actor: Actor, chatId: number) {

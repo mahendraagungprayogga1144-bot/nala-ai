@@ -40,7 +40,7 @@ export function parseOpsIntent(text: string): OpsIntent {
   if (/\b(pdf|laporan pdf)\b/.test(t)) return { type: "pdf", period: periodFromText(t) };
   if (/\b(rekap|rekapan|ringkasan)\b/.test(t)) return { type: "rekap", period: periodFromText(t) };
   if (/\b(riwayat|histori|history)\b/.test(t)) return { type: "riwayat" };
-  if (/\b(target|pencapaian)\b/.test(t)) return { type: "target" };
+  if (/(target|pencapaian|tercapai)/.test(t)) return { type: "target" };
   return { type: "none" };
 }
 

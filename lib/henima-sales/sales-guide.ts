@@ -41,7 +41,7 @@ Cek hasil kapan saja:
 rekapan hari ini
 riwayat
 nota regan
-target
+target / targetku
 
 Jangan kirim kode ini ke orang lain. Kalau gagal, minta founder kode baru.`;
 }
@@ -72,7 +72,7 @@ rekapan hari ini
 rekap minggu ini
 riwayat
 nota (invoice customer, contoh: nota regan)
-target
+target / targetku (ada indikator tercapai)
 
 Masih bisa pakai /input /help kalau perlu.`;
 }

@@ -224,6 +224,18 @@ test("idle chat sale fills draft instead of help", () => {
   assert.equal(out.session.draft.nlChat, true);
 });
 
+test("targetku per sales is a target intent", () => {
+  assert.deepEqual(parseOpsIntent("target"), { type: "target" });
+  assert.deepEqual(parseOpsIntent("targetku per sales berapa"), { type: "target" });
+  assert.deepEqual(parseOpsIntent("sudah tercapai belum"), { type: "target" });
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "targetku per sales berapa" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_target");
+});
+
 test("rekapan hari ini is a rekap intent", () => {
   assert.deepEqual(parseOpsIntent("rekapan hari ini"), { type: "rekap", period: "today" });
   assert.deepEqual(parseOpsIntent("rekap minggu ini"), { type: "rekap", period: "this_week" });

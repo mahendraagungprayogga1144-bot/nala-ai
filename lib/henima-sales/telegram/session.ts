@@ -112,7 +112,7 @@ Metode bayar: tf / qris / cash / lainnya
 rekapan hari ini
 riwayat
 nota regan
-target
+target / targetku
 
 Belum CONNECTED? Minta kode ke founder, lalu /start KODE`;
 

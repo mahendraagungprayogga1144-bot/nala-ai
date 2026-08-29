@@ -11,6 +11,7 @@ import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent } from "../telegram/nl-sale";
+import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -121,11 +122,25 @@ test("telegram /start includes founder tagline from settings", () => {
   assert.match(text, /Bisnis: Henima/);
 });
 
+test("invite share text includes code and how to start", () => {
+  const text = salesInviteShareText({
+    staffName: "Andi",
+    code: "43E33258",
+    brandName: "Henima Scent",
+    botUsername: "henimaofficial_bot",
+  });
+  assert.match(text, /\/start 43E33258/);
+  assert.match(text, /@henimaofficial_bot/);
+  assert.match(text, /Andi/);
+  assert.match(UNLINKED_MSG, /\/start KODE/);
+});
+
 test("telegram unlinked user cannot input", () => {
   const out = reduceBot({ state: "idle", draft: newDraft() }, { kind: "command", cmd: "/input" }, { actor: null, products: [] });
   assert.equal(out.effects[0].type, "reply");
   if (out.effects[0].type === "reply") {
     assert.match(out.effects[0].reply.text, /belum terdaftar/i);
+    assert.match(out.effects[0].reply.text, /\/start KODE/);
   }
 });
 

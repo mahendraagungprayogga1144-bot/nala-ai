@@ -17,7 +17,7 @@ import { displayPhone } from "../phone";
 import type { Actor } from "../types";
 import { reduceBot, customerFoundText, confirmKeyboard } from "./fsm";
 import type { Session } from "./session";
-import { HELP_TEXT, connectedStatusText, newDraft, formatConfirm } from "./session";
+import { connectedStatusText, newDraft, formatConfirm } from "./session";
 import { answerCallback, downloadTelegramFile, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -125,7 +125,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
             newValue: { telegram_user_id: telegramUserId },
           });
           next = { state: "idle", draft: newDraft() };
-          await sendMessage(chatId, connectedStatusText(actor, HELP_TEXT));
+          await sendMessage(chatId, connectedStatusText(actor));
         } catch (err) {
           await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak valid.");
         }

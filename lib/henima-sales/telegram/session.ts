@@ -1,4 +1,7 @@
 import type { Actor, PaymentMethod, PaymentStatus } from "../types";
+import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
+
+export { UNLINKED_MSG };
 
 export type BotState =
   | "idle"
@@ -70,9 +73,6 @@ export type BotEffect =
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 
-export const UNLINKED_MSG =
-  "Telegram Anda belum terdaftar. Hubungi admin Henima.";
-
 export function connectedStatusText(actor: Actor, extraHelp?: string) {
   const lines = [
     "Telegram Account: CONNECTED",
@@ -82,7 +82,7 @@ export function connectedStatusText(actor: Actor, extraHelp?: string) {
   ];
   if (actor.tagline?.trim()) lines.push(actor.tagline.trim());
   lines.push("");
-  lines.push(extraHelp || "Boleh chat penjualan biasa, atau ketik /input /help.");
+  lines.push(extraHelp || salesHowToText());
   return lines.join("\n");
 }
 
@@ -101,7 +101,9 @@ Sales cukup pakai Telegram. Chat biasa juga bisa:
 laku 1 harga 150rb atas nama Regan no 0877...
 rekapan hari ini
 riwayat
-target`;
+target
+
+Belum CONNECTED? Minta kode ke founder, lalu /start KODE`;
 
 export function newDraft(): Draft {
   return { paymentStatus: "PAID" };

@@ -5,7 +5,7 @@ import { displayPhone } from "../phone";
 import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
-import { formatConfirm, HELP_TEXT, connectedStatusText, kb, newDraft } from "./session";
+import { formatConfirm, HELP_TEXT, UNLINKED_MSG, connectedStatusText, kb, newDraft } from "./session";
 import { parseOpsIntent, parseSalesChat } from "./nl-sale";
 
 export type World = {
@@ -34,7 +34,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
     const arg = (incoming.arg || "").trim();
     if (arg) return { session, effects: [{ type: "link_invite", code: arg }] };
     if (!actor) {
-      return { session: { state: "idle", draft: newDraft() }, effects: [reply("Telegram Anda belum terdaftar. Hubungi admin Henima.")] };
+      return { session: { state: "idle", draft: newDraft() }, effects: [reply(UNLINKED_MSG)] };
     }
     return {
       session: { state: "idle", draft: newDraft() },
@@ -45,7 +45,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
   }
 
   if (!actor) {
-    return { session, effects: [reply("Telegram Anda belum terdaftar. Hubungi admin Henima.")] };
+    return { session, effects: [reply(UNLINKED_MSG)] };
   }
 
   if (incoming.kind === "command") {

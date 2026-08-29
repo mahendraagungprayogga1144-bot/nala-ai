@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../../components/module-form-styles";
+import { salesInviteShareText, salesHowToText, salesBotHandle } from "@/lib/henima-sales/sales-guide";
 import { fmtRp } from "@/lib/henima-sales/money";
 
 type Staff = {
@@ -26,10 +27,12 @@ export default function TeamClient({
   actor,
   staff,
   products,
+  botUsername,
 }: {
   actor: { role: string; nama: string; businessName: string; tagline?: string | null; staffId?: string };
   staff: Staff[];
   products: Product[];
+  botUsername?: string;
 }) {
   const router = useRouter();
   const [form, setForm] = useState({ nama: "", role: "SALES" });
@@ -38,6 +41,27 @@ export default function TeamClient({
   const [productForm, setProductForm] = useState({ name: "", price: "", stock: "" });
   const [msg, setMsg] = useState("");
   const founder = actor.role === "FOUNDER";
+  const bot = salesBotHandle(botUsername);
+
+  const copyText = async (text: string, ok: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(ok);
+    } catch {
+      flash(text);
+    }
+  };
+
+  const copyInvite = (nama: string, code: string) =>
+    copyText(
+      salesInviteShareText({
+        staffName: nama,
+        code,
+        brandName: actor.businessName,
+        botUsername: bot,
+      }),
+      `Panduan + kode ${code} disalin. Tempel di WhatsApp ke sales.`,
+    );
 
   const flash = (text: string) => setMsg(text);
 
@@ -83,6 +107,9 @@ export default function TeamClient({
     });
     const json = await res.json();
     flash(json.error || (json.invite_code ? `Kode undangan: ${json.invite_code}` : "Tersimpan"));
+    if (json.invite_code) {
+      await copyInvite(form.nama, json.invite_code);
+    }
     router.refresh();
   };
 
@@ -93,7 +120,11 @@ export default function TeamClient({
       body: JSON.stringify({ action: "rotate_invite", staffId }),
     });
     const json = await res.json();
-    flash(json.invite_code ? `Kode baru: ${json.invite_code} — minta sales kirim /start ${json.invite_code}` : json.error);
+    flash(json.invite_code ? `Kode baru: ${json.invite_code}` : json.error);
+    if (json.invite_code) {
+      const row = staff.find((s) => s.id === staffId);
+      await copyInvite(row?.nama || "Sales", json.invite_code);
+    }
     router.refresh();
   };
 
@@ -128,6 +159,27 @@ export default function TeamClient({
   return (
     <>
       {msg && <p className="mb-4 text-sm text-[#F59E0B]">{msg}</p>}
+
+      <div className={MODULE_CARD + " mb-6 space-y-3"}>
+        <p className="text-sm font-medium">Panduan sales</p>
+        <p className="text-xs text-[#8B8AA0]">
+          Founder undang anggota → salin pesan → kirim ke WhatsApp sales. Mereka buka @{bot} lalu ketik{" "}
+          <code>/start KODE</code>.
+        </p>
+        <ol className="list-decimal space-y-1 pl-5 text-sm text-[#F0EFF8]">
+          <li>Cari @{bot} di Telegram</li>
+          <li>Ketik /start lalu kode undangan (ada spasi)</li>
+          <li>Tunggu CONNECTED, lalu chat penjualan biasa</li>
+        </ol>
+        <pre className="whitespace-pre-wrap rounded-xl bg-[#0A0A12] p-3 text-[11px] text-[#8B8AA0]">{salesHowToText()}</pre>
+        <button
+          type="button"
+          className={MODULE_BTN}
+          onClick={() => copyText(salesHowToText(), "Panduan cara pakai disalin.")}
+        >
+          Salin cara pakai
+        </button>
+      </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Link href="/dashboard/sales" className={MODULE_CARD + " block hover:border-[#2DD4BF]/40"}>
@@ -271,6 +323,11 @@ export default function TeamClient({
             </div>
             {actor.role !== "SALES" && (
               <div className="flex flex-wrap gap-3">
+                {s.invite_code && (
+                  <button type="button" onClick={() => copyInvite(s.nama, s.invite_code!)} className="text-xs text-[#2DD4BF]">
+                    Salin panduan + kode
+                  </button>
+                )}
                 <button type="button" onClick={() => rotate(s.id)} className="text-xs text-[#2DD4BF]">
                   Buat kode undangan
                 </button>

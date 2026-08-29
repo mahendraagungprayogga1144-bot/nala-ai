@@ -22,6 +22,7 @@ export default function TeamPage() {
             tagline: actor.tagline,
             staffId: actor.staffId,
           }}
+          botUsername={process.env.TELEGRAM_BOT_USERNAME || "henimaofficial_bot"}
           staff={staff}
           products={products.map((p) => ({
             id: p.id,

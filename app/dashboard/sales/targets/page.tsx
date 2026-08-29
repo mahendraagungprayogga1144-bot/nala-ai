@@ -19,7 +19,7 @@ export default function TargetsPage() {
     ]);
     return (
       <div className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-        <ModuleHeader icon={Target} title="Targets" subtitle="Target configurable — bukan hardcode" />
+        <ModuleHeader icon={Target} title="Targets" subtitle={`${actor.businessName} — target & pencapaian modul ini`} />
         <SalesNav />
         <TargetsClient
           targets={targets}

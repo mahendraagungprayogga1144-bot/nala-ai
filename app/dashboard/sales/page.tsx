@@ -22,7 +22,7 @@ function Kpi({ label, value }: { label: string; value: string }) {
 }
 
 export default function SalesDashboardPage() {
-  return guardPage("Sales Management", async () => {
+  return guardPage("Henima Sales", async () => {
     const { actor, db } = await loadSalesContext();
     const [month, week, today, follow, staff] = await Promise.all([
       buildSalesReport(db, actor, { kind: "this_month" }),
@@ -49,19 +49,23 @@ export default function SalesDashboardPage() {
       <div className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
         <ModuleHeader
           icon={Target}
-          title="Sales Management"
-          subtitle={`${actor.businessName} · ${actor.nama} · ${actor.role}`}
+          title={actor.businessName}
+          subtitle={`Dashboard KPI modul sales · ${actor.nama} · ${actor.role}`}
         />
         <SalesNav />
 
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi label="Total sales" value={String(staff.length)} />
           <Kpi label="Active sales" value={String(activeSales)} />
+          <Kpi label="Pcs hari ini" value={String(today.totalQty)} />
+          <Kpi label="Omzet hari ini" value={fmtRp(today.totalRevenue)} />
+          <Kpi label="Pcs minggu ini" value={String(week.totalQty)} />
+          <Kpi label="Omzet minggu ini" value={fmtRp(week.totalRevenue)} />
           <Kpi label="Pcs bulan ini" value={String(month.totalQty)} />
           <Kpi label="Omzet bulan ini" value={fmtRp(month.totalRevenue)} />
           <Kpi label="Trx hari ini" value={String(today.totalOrders)} />
-          <Kpi label="Trx minggu ini" value={String(week.totalOrders)} />
           <Kpi label="Trx bulan ini" value={String(month.totalOrders)} />
+          <Kpi label="AOV bulan ini" value={fmtRp(month.aov)} />
           <Kpi
             label="Target / achievement"
             value={`${target.sold}/${target.target} · ${target.achievement}%`}

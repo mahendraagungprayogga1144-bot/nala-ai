@@ -203,12 +203,12 @@ Commands: `/start` `/input` `/riwayat` `/customer` `/rekap` `/target` `/followup
 
 ## 11. Go-live (ops)
 
-1. Run `supabase/migrations/20260829_henima_sales_crm.sql` on the Gercep Supabase project (SQL Editor). Additive only.
+1. Run `supabase/migrations/20260829_henima_sales_crm.sql` then `supabase/migrations/20260829_henima_sales_settings.sql` (nama bisnis modul, terpisah dari tenant Gercep).
 2. Set env (Vercel / `.env.local`) — **do not commit**:
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_WEBHOOK_SECRET` (random string, also used as Telegram `secret_token`)
    - `SUPABASE_SERVICE_ROLE_KEY` (already required by Gercep)
-3. Open **Sales Management → Settings** as business owner (auto-created as FOUNDER).
+3. Open **Henima Sales → Settings** as business owner (auto-created as FOUNDER). Edit **nama bisnis modul** (bukan nama tenant `g`).
 4. **Seed Afternoon / The Distance** if those products are not in Inventory yet. Set harga jual di Inventory (tidak di-hardcode).
 5. Undang sales/leader → kirim kode. Sales di Telegram: `/start KODE`.
 6. **Set Telegram webhook** (tombol di Settings) ke `https://<domain>/api/telegram/webhook`.

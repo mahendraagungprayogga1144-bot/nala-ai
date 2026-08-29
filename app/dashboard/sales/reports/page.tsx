@@ -12,7 +12,7 @@ export default function ReportsPage() {
     const report = await buildSalesReport(db, actor, { kind: "this_month" });
     return (
       <div className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-        <ModuleHeader icon={BarChart3} title="Reports" subtitle="Filter periode · ranking · PDF" />
+        <ModuleHeader icon={BarChart3} title="Reports" subtitle={`${actor.businessName} — filter periode · ranking · PDF`} />
         <SalesNav />
         <ReportsClient initial={report} />
       </div>

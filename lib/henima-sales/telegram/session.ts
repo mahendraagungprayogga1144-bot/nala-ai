@@ -81,7 +81,7 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /pdf — laporan PDF
 /help — bantuan
 
-Sales cukup pakai Telegram. Data tersimpan di Gercep.`;
+Sales cukup pakai Telegram. KPI & dashboard di modul Henima Sales.`;
 
 export function newDraft(): Draft {
   return { paymentStatus: "PAID" };

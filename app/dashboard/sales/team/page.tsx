@@ -12,7 +12,7 @@ export default function TeamPage() {
     const [staff, products] = await Promise.all([listStaff(db, actor), listProducts(db, actor.businessId)]);
     return (
       <div className="mx-auto max-w-3xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-        <ModuleHeader icon={Smartphone} title="Settings" subtitle="Tim sales, undangan Telegram, produk awal" />
+        <ModuleHeader icon={Smartphone} title="Settings" subtitle={`${actor.businessName} — tim, Telegram, nama bisnis modul`} />
         <SalesNav />
         <TeamClient
           actor={{ role: actor.role, nama: actor.nama, businessName: actor.businessName }}

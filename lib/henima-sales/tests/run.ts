@@ -9,6 +9,7 @@ import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { newDraft } from "../telegram/session";
 import type { Actor } from "../types";
+import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -95,6 +96,21 @@ test("period ranges are Jakarta calendar windows", () => {
   const custom = periodRange("custom", { from: "2026-08-01", to: "2026-08-31" });
   assert.equal(custom.from, "2026-08-01");
   assert.equal(custom.to, "2026-08-31");
+});
+
+test("sales brand ignores short tenant names like g", () => {
+  assert.equal(resolveSalesBrandName(null, "g"), DEFAULT_SALES_BRAND);
+  assert.equal(resolveSalesBrandName("", "ab"), DEFAULT_SALES_BRAND);
+  assert.equal(resolveSalesBrandName("Henima Official", "g"), "Henima Official");
+  assert.equal(resolveSalesBrandName(null, "Toko Besar"), "Toko Besar");
+});
+
+test("telegram /start shows module brand", () => {
+  const out = reduceBot({ state: "idle", draft: newDraft() }, { kind: "command", cmd: "/start" }, { actor: founder, products: [] });
+  if (out.effects[0].type === "reply") {
+    assert.match(out.effects[0].reply.text, /Bisnis: Henima/);
+    assert.doesNotMatch(out.effects[0].reply.text, /Bisnis: g\b/);
+  }
 });
 
 test("telegram unlinked user cannot input", () => {

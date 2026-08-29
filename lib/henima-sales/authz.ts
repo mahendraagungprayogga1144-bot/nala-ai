@@ -1,6 +1,7 @@
 import type { Actor, SalesRole, StaffRow } from "./types";
 import { ForbiddenError, NotFoundError, SalesError } from "./types";
 import type { SalesDb } from "./db";
+import { getSalesBrandName } from "./settings-service";
 
 export function staffScopeIds(actor: Actor, teamIds: string[]): string[] | null {
   if (actor.role === "FOUNDER") return null;
@@ -45,14 +46,16 @@ async function businessOf(db: SalesDb, businessId: string) {
   return data as { id: string; name: string; user_id: string };
 }
 
-function toActor(
+async function toActor(
+  db: SalesDb,
   staff: StaffRow,
   business: { id: string; name: string; user_id: string },
-): Actor {
+): Promise<Actor> {
+  const brand = await getSalesBrandName(db, business.id, business.name);
   return {
     staffId: staff.id,
     businessId: staff.business_id,
-    businessName: business.name,
+    businessName: brand,
     ownerUserId: business.user_id,
     userId: staff.user_id,
     telegramUserId: staff.telegram_user_id,
@@ -134,7 +137,7 @@ export async function resolveActorByUserId(
       ownerUserId: userId,
       nama: displayName || "Owner",
     });
-    return toActor(staff, ownedBiz);
+    return toActor(db, staff, ownedBiz);
   }
 
   const { data: staff } = await db
@@ -146,7 +149,7 @@ export async function resolveActorByUserId(
     .maybeSingle();
   if (!staff) throw new ForbiddenError("Akun ini belum terdaftar sebagai tim sales Henima.");
   const biz = await businessOf(db, staff.business_id);
-  return toActor(staff as StaffRow, biz);
+  return toActor(db, staff as StaffRow, biz);
 }
 
 export async function resolveActorByTelegramId(db: SalesDb, telegramUserId: number): Promise<Actor | null> {
@@ -158,7 +161,7 @@ export async function resolveActorByTelegramId(db: SalesDb, telegramUserId: numb
     .maybeSingle();
   if (!staff) return null;
   const biz = await businessOf(db, staff.business_id);
-  return toActor(staff as StaffRow, biz);
+  return toActor(db, staff as StaffRow, biz);
 }
 
 export async function linkTelegramByInvite(
@@ -197,5 +200,5 @@ export async function linkTelegramByInvite(
     .single();
   if (error || !updated) throw new SalesError("Gagal menghubungkan Telegram.", "telegram_link");
   const biz = await businessOf(db, updated.business_id);
-  return toActor(updated as StaffRow, biz);
+  return toActor(db, updated as StaffRow, biz);
 }

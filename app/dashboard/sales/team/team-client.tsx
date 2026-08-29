@@ -23,7 +23,20 @@ export default function TeamClient({
 }) {
   const router = useRouter();
   const [form, setForm] = useState({ nama: "", role: "SALES" });
+  const [brand, setBrand] = useState(actor.businessName);
   const [msg, setMsg] = useState("");
+
+  const saveBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch("/api/sales/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: brand }),
+    });
+    const json = await res.json();
+    setMsg(json.error || `Nama bisnis modul: ${json.businessName}`);
+    router.refresh();
+  };
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +79,24 @@ export default function TeamClient({
   return (
     <>
       {msg && <p className="mb-4 text-sm text-[#F59E0B]">{msg}</p>}
+
+      {actor.role === "FOUNDER" && (
+        <form onSubmit={saveBrand} className={MODULE_CARD + " mb-6 grid gap-3"}>
+          <p className="text-sm font-medium">Nama bisnis modul ini</p>
+          <p className="text-xs text-[#8B8AA0]">
+            Terpisah dari nama tenant Gercep. Muncul di Telegram, dashboard KPI, dan PDF.
+          </p>
+          <input
+            className={MODULE_INPUT}
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            placeholder="Henima Scent"
+            required
+          />
+          <button className={MODULE_BTN}>Simpan nama bisnis</button>
+        </form>
+      )}
+
       <div className={MODULE_CARD + " mb-6"}>
         <p className="text-sm">
           Telegram: {actor.nama} · {actor.role} · {actor.businessName}

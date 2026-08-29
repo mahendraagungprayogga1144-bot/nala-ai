@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/dashboard/sales", label: "Dashboard" },
+  { href: "/dashboard/sales", label: "Dashboard KPI" },
   { href: "/dashboard/sales/customers", label: "Customers" },
   { href: "/dashboard/sales/orders", label: "Orders" },
   { href: "/dashboard/sales/testimonials", label: "Testimonials" },

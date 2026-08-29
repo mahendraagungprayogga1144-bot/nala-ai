@@ -1,3 +1,4 @@
+import type { Actor, PaymentMethod, PaymentStatus, SaleLine } from "../types";
 import { paymentLabel } from "../types";
 import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
 

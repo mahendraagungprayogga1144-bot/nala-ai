@@ -1,4 +1,4 @@
-import type { Actor, PaymentMethod, PaymentStatus, SaleLine } from "../types";
+import { paymentLabel } from "../types";
 import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
 
 export { UNLINKED_MSG };
@@ -104,9 +104,10 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /help — bantuan
 
 Sales cukup pakai Telegram. Chat biasa juga bisa:
-laku 1 harga 150rb atas nama Regan no 0877...
-laku 2 paket new member harga 250k atas nama Dimas no 08...
+laku 1 harga 150rb atas nama Regan no 0877... tf
+laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
+Metode bayar: tf / qris / cash / lainnya
 rekapan hari ini
 riwayat
 nota regan
@@ -180,7 +181,7 @@ export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {
     "",
     `Total:\nRp${Math.round(total).toLocaleString("id-ID")}`,
     "",
-    `Pembayaran:\n${d.paymentMethod || "—"} (${d.paymentStatus || "PAID"})`,
+    `Pembayaran:\n${d.paymentMethod ? paymentLabel(d.paymentMethod) : "—"} (${d.paymentStatus || "PAID"})`,
     "",
     `Testimoni:\n${d.photoFileId ? "1 foto" : "tidak ada"}`,
     "",

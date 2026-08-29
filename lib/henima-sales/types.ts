@@ -9,6 +9,21 @@ export type CustomerStatus = (typeof CUSTOMER_STATUSES)[number];
 export const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "OTHER"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export function paymentLabel(method?: string | null) {
+  switch ((method || "").toUpperCase()) {
+    case "TRANSFER":
+      return "Transfer";
+    case "QRIS":
+      return "QRIS";
+    case "CASH":
+      return "Cash";
+    case "OTHER":
+      return "Lainnya";
+    default:
+      return method || "—";
+  }
+}
+
 export const PAYMENT_STATUSES = ["PAID", "PENDING", "CANCELLED"] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 

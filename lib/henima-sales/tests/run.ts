@@ -3,17 +3,17 @@
  */
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch } from "../phone";
-import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct } from "../types";
+import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, buildPackLines, splitTotalAcrossLines } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
-import { formatNotaNumber, notaFromOrder, pdfSafe } from "../nota";
+import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -205,6 +205,7 @@ test("nl chat parses Indonesian sale message", () => {
   assert.equal(parsed.unitPrice, 150000);
   assert.equal(parsed.customerName?.toLowerCase(), "regan");
   assert.equal(parsed.phone, "6287779853453");
+  assert.equal(parsed.paymentMethod, null);
   assert.equal(parseIdrAmountToken("150", "rb"), 150000);
 });
 
@@ -287,7 +288,7 @@ test("nota intent and customer invoice number", () => {
       sales_id: "f1",
       total: 250000,
       diskon: 0,
-      metode_bayar: "OTHER",
+      metode_bayar: "TRANSFER",
       payment_status: "PAID",
       catatan: "paket",
       order_date: "2026-08-29",
@@ -305,7 +306,8 @@ test("nota intent and customer invoice number", () => {
     staffName: "ima",
     staffRole: "FOUNDER",
   });
-  assert.equal(payload.servedBy, "Dilayani oleh ima");
+  assert.equal(payload.servedBy, "ima");
+  assert.equal(payload.paymentMethod, "Transfer");
   assert.equal(payload.paymentStatus, "LUNAS");
   assert.equal(payload.lines.length, 2);
   assert.equal(payload.total, 250000);
@@ -345,7 +347,7 @@ test("2 paket new member fills both products and splits 250k", () => {
   assert.deepEqual(names, ["afternoon", "the distance"]);
 });
 
-test("input_product text afternoon dan the distance does not send help", () => {
+test("input_product text afternoon dan the distance asks payment then confirms", () => {
   const out = reduceBot(
     {
       state: "input_product",
@@ -363,12 +365,17 @@ test("input_product text afternoon dan the distance does not send help", () => {
     { kind: "text", text: "afternoon dan the distance" },
     { actor: sales, products: perfume },
   );
-  assert.equal(out.effects[0]?.type, "confirm_sale");
+  assert.equal(out.session.state, "input_pay_method");
   assert.equal(out.session.draft.lines?.length, 2);
-  assert.notEqual(out.effects[0]?.type, "reply");
+  if (out.effects[0].type === "reply") {
+    assert.match(out.effects[0].reply.text, /tf \/ qris \/ cash/i);
+  }
+  const paid = reduceBot(out.session, { kind: "text", text: "tf" }, { actor: sales, products: perfume });
+  assert.equal(paid.effects[0]?.type, "confirm_sale");
+  assert.equal(paid.session.draft.paymentMethod, "TRANSFER");
 });
 
-test("KEDUANYA button confirms pack when qty and total exist", () => {
+test("KEDUANYA button asks payment then QRIS confirms pack", () => {
   const out = reduceBot(
     {
       state: "input_product",
@@ -377,8 +384,26 @@ test("KEDUANYA button confirms pack when qty and total exist", () => {
     { kind: "callback", data: "p:ALL" },
     { actor: sales, products: perfume },
   );
-  assert.equal(out.effects[0]?.type, "confirm_sale");
+  assert.equal(out.session.state, "input_pay_method");
   assert.equal(out.session.draft.lines?.length, 2);
+  const paid = reduceBot(out.session, { kind: "callback", data: "pm:QRIS" }, { actor: sales, products: perfume });
+  assert.equal(paid.effects[0]?.type, "confirm_sale");
+  assert.equal(paid.session.draft.paymentMethod, "QRIS");
+});
+
+test("parsePaymentMethod reads tf qris cash lainnya", () => {
+  assert.equal(parsePaymentMethod("tf"), "TRANSFER");
+  assert.equal(parsePaymentMethod("transef"), "TRANSFER");
+  assert.equal(parsePaymentMethod("qris"), "QRIS");
+  assert.equal(parsePaymentMethod("cash"), "CASH");
+  assert.equal(parsePaymentMethod("tunai"), "CASH");
+  assert.equal(parsePaymentMethod("lainnya"), "OTHER");
+  assert.equal(paymentLabel("TRANSFER"), "Transfer");
+  const withPay = parseSalesChat(
+    "hari ini laku 1 harga 150rb atas nama regan no telfone 087779853453 tf",
+    perfume,
+  );
+  assert.equal(withPay.paymentMethod, "TRANSFER");
 });
 
 test("split 250k across 2x2 lines", () => {
@@ -393,4 +418,42 @@ if (failed) {
   console.error(`\n${failed} failed`);
   process.exit(1);
 }
-console.log("\nall henima sales tests passed");
+
+const embedPayload = notaFromOrder({
+  order: {
+    id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    business_id: "b1",
+    customer_id: "c1",
+    sales_id: "f1",
+    total: 250000,
+    diskon: 0,
+    metode_bayar: "TRANSFER",
+    payment_status: "PAID",
+    catatan: "paket",
+    order_date: "2026-08-29",
+    created_at: "2026-08-29T00:00:00Z",
+    deleted_at: null,
+    source: "henima_sales",
+    order_items: [
+      { id: "i1", product_id: "1", qty: 2, harga_jual: 62500, product_name_snapshot: "Afternoon" },
+      { id: "i2", product_id: "2", qty: 2, harga_jual: 62500, product_name_snapshot: "The Distance" },
+    ],
+  },
+  brandName: "Henima Scent",
+  tagline: "SIGNATURE SCENT",
+  customerName: "adit",
+  customerPhone: "081236445927",
+  staffName: "ima",
+  staffRole: "FOUNDER",
+});
+
+buildSalesNotaPdf(embedPayload)
+  .then((bytes) => {
+    assert.ok(bytes.byteLength > 20000, `pdf too small to contain fonts: ${bytes.byteLength}`);
+    console.log("ok  nota pdf embeds custom fonts");
+    console.log("\nall henima sales tests passed");
+  })
+  .catch((err) => {
+    console.error("FAIL nota pdf embeds custom fonts", err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

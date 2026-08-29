@@ -28,10 +28,12 @@ Ini akun sales *${brand}*. Ikuti 3 langkah ini:
 3. Tunggu bot bilang CONNECTED
 
 Habis CONNECTED, catat penjualan dengan chat biasa, contoh:
-laku 1 harga 150rb atas nama Regan no 087712345678
+laku 1 harga 150rb atas nama Regan no 087712345678 tf
 
 Paket 2 produk (Afternoon + The Distance):
-laku 2 paket new member harga 250k atas nama Dimas no 08xxxxxxxxxx
+laku 2 paket new member harga 250k atas nama Dimas no 08xxxxxxxxxx qris
+
+Metode bayar: ketik tf / qris / cash / lainnya (bot juga tanya kalau belum disebutkan)
 
 Bisa juga ketik: afternoon dan the distance
 
@@ -57,11 +59,13 @@ export function salesHowToText() {
   return `Cara pakai (jangan bingung):
 
 CATAT PENJUALAN — ketik seperti chat biasa:
-laku 1 harga 150rb atas nama NamaCustomer no 08xxxxxxxxxx
+laku 1 harga 150rb atas nama NamaCustomer no 08xxxxxxxxxx tf
 
 Paket 2 produk (Afternoon + The Distance) cukup satu chat:
-laku 2 paket new member harga 250k atas nama NamaCustomer no 08xxxxxxxxxx
+laku 2 paket new member harga 250k atas nama NamaCustomer no 08xxxxxxxxxx qris
 atau ketik: afternoon dan the distance
+
+Metode bayar: tf (transfer), qris, cash, atau lainnya. Kalau belum disebut, bot tanya dulu.
 
 CEK HASIL:
 rekapan hari ini

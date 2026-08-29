@@ -16,7 +16,8 @@ import { fmtDateLongId, fmtRp } from "../money";
 import { writeAudit } from "../audit";
 import { displayPhone } from "../phone";
 import type { Actor } from "../types";
-import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard } from "./fsm";
+import { paymentLabel } from "../types";
+import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import type { Session } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft } from "./session";
 import { buildPackLines } from "./nl-sale";
@@ -196,7 +197,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       [
         `${fmtDateLongId(order.order_date)}`,
         `${orderItemsLabel(order.order_items)} — ${fmtRp(order.total)}`,
-        `Bayar: ${order.metode_bayar} / ${order.payment_status}`,
+        `Bayar: ${paymentLabel(order.metode_bayar)} / ${order.payment_status}`,
       ].join("\n"),
       [
         [{ text: "EDIT", data: "confirm_edit" }, { text: "DELETE", data: `del:${order.id}` }],
@@ -294,7 +295,12 @@ async function continueAfterPhone(
       return;
     }
 
-    session.draft.paymentMethod = session.draft.paymentMethod || "OTHER";
+    if (!session.draft.paymentMethod) {
+      session.state = "input_pay_method";
+      await sendMessage(chatId, "Metode pembayaran?\nKetik tf / qris / cash atau pilih tombol.", paymentKeyboard());
+      return;
+    }
+
     session.draft.paymentStatus = session.draft.paymentStatus || "PAID";
     if (session.draft.nlChat) {
       await runConfirm(db, actor, chatId, session);

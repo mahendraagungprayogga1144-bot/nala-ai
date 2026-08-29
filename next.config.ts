@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingIncludes: {
+    "/api/sales/orders/*/nota": ["./lib/henima-sales/fonts/**/*"],
+    "/api/telegram/webhook": ["./lib/henima-sales/fonts/**/*"],
+  },
 };
 
 export default nextConfig;

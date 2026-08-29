@@ -246,8 +246,16 @@ function cleanName(s: string) {
 }
 
 function extractPay(lower: string): PaymentMethod | null {
-  if (/\b(qris|qr)\b/.test(lower)) return "QRIS";
-  if (/\b(transfer|tf|bank)\b/.test(lower)) return "TRANSFER";
-  if (/\b(cash|tunai)\b/.test(lower)) return "CASH";
+  return parsePaymentMethod(lower);
+}
+
+/** tf / transfer / qris / cash / tunai / lainnya */
+export function parsePaymentMethod(text: string): PaymentMethod | null {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (/\b(qris|qr)\b/.test(t)) return "QRIS";
+  if (/\b(transfer|transef|tranfer|trf|tf|bank)\b/.test(t)) return "TRANSFER";
+  if (/\b(cash|tunai|kontan)\b/.test(t)) return "CASH";
+  if (/^(lainnya|other|lain)$/.test(t) || /\blainnya\b/.test(t)) return "OTHER";
   return null;
 }

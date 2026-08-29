@@ -4,6 +4,7 @@ import ConfirmDelete from "../confirm-delete";
 import NotaDownload from "../nota-download";
 import { MODULE_CARD } from "../../components/module-form-styles";
 import { fmtDateLongId, fmtRp } from "@/lib/henima-sales/money";
+import { paymentLabel } from "@/lib/henima-sales/types";
 
 type Order = {
   id: string;
@@ -30,7 +31,7 @@ export default function OrdersClient({ rows }: { rows: Order[] }) {
                 {fmtDateLongId(o.order_date)} · {items}
               </p>
               <p className="text-[11px] text-[#8B8AA0]">
-                {o.metode_bayar} · {o.payment_status} · {fmtRp(o.total)}
+                {paymentLabel(o.metode_bayar)} · {o.payment_status} · {fmtRp(o.total)}
               </p>
             </div>
             <div className="flex items-center gap-2">

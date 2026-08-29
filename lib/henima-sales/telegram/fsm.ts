@@ -12,6 +12,7 @@ import {
   looksLikePack,
   matchAllProducts,
   parseOpsIntent,
+  parsePaymentMethod,
   parseSalesChat,
   resolvePackProducts,
 } from "./nl-sale";
@@ -135,8 +136,16 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
     }
     if (data.startsWith("pm:")) {
       const method = data.slice(3) as Draft["paymentMethod"];
+      const ready = {
+        ...session.draft,
+        paymentMethod: method,
+        paymentStatus: session.draft.paymentStatus || "PAID",
+      };
+      if (ready.nlChat) {
+        return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+      }
       return {
-        session: go(session, "input_pay_status", { ...session.draft, paymentMethod: method }),
+        session: go(session, "input_pay_status", ready),
         effects: [
           reply("Status pembayaran:", kb([
             [{ text: "PAID", data: "ps:PAID" }, { text: "PENDING", data: "ps:PENDING" }],
@@ -208,7 +217,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
         if (session.draft.nlChat) {
           const named = { ...session.draft, customerName: text };
           if ((named.lines?.length || named.productId) && named.quantity && named.unitPrice != null) {
-            return { session: go(session, "input_confirm", named), effects: [{ type: "confirm_sale" }] };
+            return saleReady(session, actor, named);
           }
           return {
             session: go(session, "input_product", named),
@@ -258,15 +267,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           const total = session.draft.orderTotal ?? session.draft.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
           if (total != null && pack.length >= 2) {
             const lined = applyLinesToDraft(draft, buildPackLines(pack, quantity, total));
-            const ready = {
-              ...lined,
-              paymentMethod: lined.paymentMethod || "OTHER",
-              paymentStatus: lined.paymentStatus || "PAID",
-            };
-            if (session.draft.nlChat) {
-              return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
-            }
-            return confirmEffects(session, actor, ready);
+            return saleReady(session, actor, lined);
           }
           return {
             session: go(session, "input_price", draft),
@@ -297,31 +298,30 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           if (pack.length >= 2) {
             const qty = session.draft.packQty || session.draft.lines?.[0]?.quantity || 1;
             const draft = applyLinesToDraft(session.draft, buildPackLines(pack, qty, unitPrice));
-            const ready = {
-              ...draft,
-              paymentMethod: draft.paymentMethod || "OTHER",
-              paymentStatus: draft.paymentStatus || "PAID",
-            };
-            if (session.draft.nlChat) {
-              return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
-            }
-            return {
-              session: go(session, "input_pay_method", ready),
-              effects: [
-                reply("Pilih metode pembayaran.", kb([
-                  [{ text: "CASH", data: "pm:CASH" }, { text: "TRANSFER", data: "pm:TRANSFER" }],
-                  [{ text: "QRIS", data: "pm:QRIS" }, { text: "OTHER", data: "pm:OTHER" }],
-                ])),
-              ],
-            };
+            return saleReady(session, actor, draft);
           }
         }
+        return saleReady(session, actor, { ...session.draft, unitPrice });
+      }
+      case "input_pay_method": {
+        const method = parsePaymentMethod(text);
+        if (!method) {
+          return { session, effects: [reply("Ketik tf, qris, cash, atau pilih tombol.", kb(paymentKeyboard()))] };
+        }
+        const ready = {
+          ...session.draft,
+          paymentMethod: method,
+          paymentStatus: session.draft.paymentStatus || "PAID",
+        };
+        if (ready.nlChat) {
+          return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+        }
         return {
-          session: go(session, "input_pay_method", { ...session.draft, unitPrice }),
+          session: go(session, "input_pay_status", ready),
           effects: [
-            reply("Pilih metode pembayaran.", kb([
-              [{ text: "CASH", data: "pm:CASH" }, { text: "TRANSFER", data: "pm:TRANSFER" }],
-              [{ text: "QRIS", data: "pm:QRIS" }, { text: "OTHER", data: "pm:OTHER" }],
+            reply("Status pembayaran:", kb([
+              [{ text: "PAID", data: "ps:PAID" }, { text: "PENDING", data: "ps:PENDING" }],
+              [{ text: "CANCELLED", data: "ps:CANCELLED" }],
             ])),
           ],
         };
@@ -347,7 +347,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877...\nlaku 2 paket new member harga 250k atas nama Dimas no 08...\nAtau: rekapan hari ini · nota regan · riwayat · target · /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877... tf\nlaku 2 paket new member harga 250k atas nama Dimas no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · nota regan · riwayat · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -411,7 +411,7 @@ function applyNaturalSale(
     unitPrice,
     productId,
     productName,
-    paymentMethod: parsed.paymentMethod || "OTHER",
+    paymentMethod: parsed.paymentMethod || undefined,
     paymentStatus: "PAID",
     nlChat: true,
   };
@@ -468,15 +468,7 @@ function finishProductPick(
     draft = { ...draft, packQty, quantity: packQty * picked.length };
     if (total != null) {
       draft = applyLinesToDraft(draft, buildPackLines(picked, packQty, total));
-      const ready = {
-        ...draft,
-        paymentMethod: draft.paymentMethod || "OTHER",
-        paymentStatus: draft.paymentStatus || "PAID",
-      };
-      if (session.draft.nlChat) {
-        return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
-      }
-      return confirmEffects(session, actor, ready);
+      return saleReady(session, actor, draft);
     }
     return {
       session: go(session, "input_price", draft),
@@ -496,15 +488,7 @@ function finishProductPick(
     orderTotal: undefined,
   };
   if (draft.quantity && draft.unitPrice != null) {
-    const ready = {
-      ...draft,
-      paymentMethod: draft.paymentMethod || "OTHER",
-      paymentStatus: draft.paymentStatus || "PAID",
-    };
-    if (session.draft.nlChat) {
-      return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
-    }
-    return confirmEffects(session, actor, ready);
+    return saleReady(session, actor, draft);
   }
   if (draft.quantity) {
     return {
@@ -522,6 +506,34 @@ function finishProductPick(
     session: go(session, "input_qty", draft),
     effects: [reply(`Produk: ${product.name}\nBerapa jumlah botol?`)],
   };
+}
+
+export function paymentKeyboard(): { text: string; data: string }[][] {
+  return [
+    [{ text: "TRANSFER / TF", data: "pm:TRANSFER" }, { text: "QRIS", data: "pm:QRIS" }],
+    [{ text: "CASH", data: "pm:CASH" }, { text: "LAINNYA", data: "pm:OTHER" }],
+  ];
+}
+
+function payPrompt(): BotEffect {
+  return reply("Metode pembayaran?\nKetik tf / qris / cash atau pilih tombol.", kb(paymentKeyboard()));
+}
+
+function saleReady(session: Session, actor: Actor, draft: Draft): { session: Session; effects: BotEffect[] } {
+  const ready: Draft = {
+    ...draft,
+    paymentStatus: draft.paymentStatus || "PAID",
+  };
+  if (!ready.paymentMethod) {
+    return {
+      session: go(session, "input_pay_method", ready),
+      effects: [payPrompt()],
+    };
+  }
+  if (ready.nlChat) {
+    return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
+  }
+  return confirmEffects(session, actor, ready);
 }
 
 export function productKeyboard(products: ProductRow[]): { text: string; data: string }[][] {

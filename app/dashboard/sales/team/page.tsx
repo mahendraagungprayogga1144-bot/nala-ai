@@ -12,12 +12,24 @@ export default function TeamPage() {
     const [staff, products] = await Promise.all([listStaff(db, actor), listProducts(db, actor.businessId)]);
     return (
       <div className="mx-auto max-w-3xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
-        <ModuleHeader icon={Smartphone} title="Settings" subtitle={`${actor.businessName} — tim, Telegram, nama bisnis modul`} />
+        <ModuleHeader icon={Smartphone} title="Settings" subtitle={`${actor.businessName} — atur sendiri identitas, produk, tim, Telegram`} />
         <SalesNav />
         <TeamClient
-          actor={{ role: actor.role, nama: actor.nama, businessName: actor.businessName }}
+          actor={{
+            role: actor.role,
+            nama: actor.nama,
+            businessName: actor.businessName,
+            tagline: actor.tagline,
+            staffId: actor.staffId,
+          }}
           staff={staff}
-          products={products.map((p) => ({ id: p.id, name: p.name }))}
+          products={products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            stock: p.stock,
+            unit: p.unit,
+          }))}
         />
       </div>
     );

@@ -7,7 +7,7 @@ import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isR
 import { staffScopeIds, canAccessStaff } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
 import { reduceBot } from "../telegram/fsm";
-import { newDraft } from "../telegram/session";
+import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 
@@ -111,6 +111,13 @@ test("telegram /start shows module brand", () => {
     assert.match(out.effects[0].reply.text, /Bisnis: Henima/);
     assert.doesNotMatch(out.effects[0].reply.text, /Bisnis: g\b/);
   }
+});
+
+test("telegram /start includes founder tagline from settings", () => {
+  const withTag = { ...founder, tagline: "Parfum premium" };
+  const text = connectedStatusText(withTag);
+  assert.match(text, /Parfum premium/);
+  assert.match(text, /Bisnis: Henima/);
 });
 
 test("telegram unlinked user cannot input", () => {

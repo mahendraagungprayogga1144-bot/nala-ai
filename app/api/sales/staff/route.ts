@@ -1,5 +1,5 @@
 import { withSalesActor, readJson } from "@/lib/henima-sales/http";
-import { createStaff, ensureDefaultProducts, listStaff, rotateInvite } from "@/lib/henima-sales/staff-service";
+import { createStaff, ensureDefaultProducts, listStaff, rotateInvite, setStaffStatus } from "@/lib/henima-sales/staff-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
 import type { SalesRole } from "@/lib/henima-sales/types";
 
@@ -15,6 +15,9 @@ export async function POST(request: Request) {
     const body = await readJson(request);
     if (body.action === "seed_products") return { products: await ensureDefaultProducts(db, actor) };
     if (body.action === "rotate_invite") return rotateInvite(db, actor, String(body.staffId));
+    if (body.action === "set_status") {
+      return setStaffStatus(db, actor, String(body.staffId), body.status === "disabled" ? "disabled" : "active");
+    }
     return createStaff(db, actor, {
       nama: String(body.nama),
       role: body.role as SalesRole,

@@ -70,6 +70,19 @@ export type BotEffect =
 export const UNLINKED_MSG =
   "Telegram Anda belum terdaftar. Hubungi admin Henima.";
 
+export function connectedStatusText(actor: Actor, extraHelp?: string) {
+  const lines = [
+    "Telegram Account: CONNECTED",
+    `Sales: ${actor.nama}`,
+    `Role: ${actor.role}`,
+    `Bisnis: ${actor.businessName}`,
+  ];
+  if (actor.tagline?.trim()) lines.push(actor.tagline.trim());
+  lines.push("");
+  lines.push(extraHelp || "Ketik /input untuk catat penjualan. /help untuk daftar perintah.");
+  return lines.join("\n");
+}
+
 export const HELP_TEXT = `Perintah Henima Sales:
 
 /input — catat penjualan

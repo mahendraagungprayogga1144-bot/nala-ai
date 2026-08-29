@@ -99,6 +99,81 @@ export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
   return data || [];
 }
 
+export async function upsertSalesProduct(
+  db: SalesDb,
+  actor: Actor,
+  input: { id?: string | null; name: string; price: number; stock?: number; unit?: string | null },
+) {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang dapat mengatur produk modul ini.");
+  const name = input.name.trim();
+  if (name.length < 1) throw new SalesError("Nama produk wajib.", "product_name");
+  if (!Number.isFinite(input.price) || input.price < 0) throw new SalesError("Harga tidak valid.", "product_price");
+  const stock = Number.isFinite(input.stock) ? Number(input.stock) : 0;
+  const unit = (input.unit || "pcs").trim() || "pcs";
+
+  if (input.id) {
+    const { data, error } = await db
+      .from("products")
+      .update({
+        name,
+        price: input.price,
+        stock,
+        unit,
+      })
+      .eq("id", input.id)
+      .eq("business_id", actor.businessId)
+      .select("id, name, price, cost, stock, unit")
+      .single();
+    if (error || !data) throw new SalesError(error?.message || "Gagal update produk.", "product_update");
+    return {
+      id: String(data.id),
+      name: data.name as string,
+      price: data.price == null ? null : Number(data.price),
+      cost: data.cost == null ? null : Number(data.cost),
+      stock: data.stock == null ? null : Number(data.stock),
+      unit: data.unit as string | null,
+    };
+  }
+
+  const { data, error } = await db
+    .from("products")
+    .insert({
+      user_id: actor.ownerUserId,
+      business_id: actor.businessId,
+      name,
+      price: input.price,
+      stock,
+      min_stock: 0,
+      unit,
+      category: "Henima Sales",
+    })
+    .select("id, name, price, cost, stock, unit")
+    .single();
+  if (error || !data) throw new SalesError(error?.message || "Gagal tambah produk.", "product_create");
+  return {
+    id: String(data.id),
+    name: data.name as string,
+    price: data.price == null ? null : Number(data.price),
+    cost: data.cost == null ? null : Number(data.cost),
+    stock: data.stock == null ? null : Number(data.stock),
+    unit: data.unit as string | null,
+  };
+}
+
+export async function setStaffStatus(db: SalesDb, actor: Actor, staffId: string, status: "active" | "disabled") {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang dapat mengubah status tim.");
+  if (staffId === actor.staffId) throw new SalesError("Tidak dapat menonaktifkan akun sendiri.", "self_disable");
+  const { data, error } = await db
+    .from("module_sales_staff")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", staffId)
+    .eq("business_id", actor.businessId)
+    .select("*")
+    .single();
+  if (error || !data) throw new SalesError(error?.message || "Gagal ubah status.", "staff_status");
+  return data as StaffRow;
+}
+
 export async function listProducts(db: SalesDb, businessId: string) {
   const { data, error } = await db
     .from("products")

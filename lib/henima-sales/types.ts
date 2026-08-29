@@ -60,6 +60,7 @@ export type Actor = {
   role: SalesRole;
   nama: string;
   leaderId: string | null;
+  tagline?: string | null;
 };
 
 export class SalesError extends Error {

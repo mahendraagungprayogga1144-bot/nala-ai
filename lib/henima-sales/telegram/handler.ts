@@ -17,7 +17,7 @@ import { displayPhone } from "../phone";
 import type { Actor } from "../types";
 import { reduceBot, customerFoundText } from "./fsm";
 import type { Session } from "./session";
-import { HELP_TEXT, newDraft } from "./session";
+import { HELP_TEXT, connectedStatusText, newDraft } from "./session";
 import { answerCallback, downloadTelegramFile, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -125,10 +125,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
             newValue: { telegram_user_id: telegramUserId },
           });
           next = { state: "idle", draft: newDraft() };
-          await sendMessage(
-            chatId,
-            `Telegram Account: CONNECTED\nSales: ${actor.nama}\nRole: ${actor.role}\nBisnis: ${actor.businessName}\n\n${HELP_TEXT}`,
-          );
+          await sendMessage(chatId, connectedStatusText(actor, HELP_TEXT));
         } catch (err) {
           await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak valid.");
         }
@@ -249,7 +246,7 @@ async function continueAfterPhone(
         }),
       );
       if (!products.length) {
-        await sendMessage(chatId, "Belum ada produk. Minta founder menambahkan di Inventory.");
+        await sendMessage(chatId, "Belum ada produk. Founder menambahkannya di Henima Sales → Settings.");
         return;
       }
       await sendMessage(

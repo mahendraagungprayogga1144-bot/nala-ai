@@ -5,7 +5,7 @@ import { displayPhone } from "../phone";
 import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
-import { formatConfirm, HELP_TEXT, kb, newDraft } from "./session";
+import { formatConfirm, HELP_TEXT, connectedStatusText, kb, newDraft } from "./session";
 
 export type World = {
   actor: Actor | null;
@@ -38,9 +38,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
     return {
       session: { state: "idle", draft: newDraft() },
       effects: [
-        reply(
-          `Telegram Account: CONNECTED\nSales: ${actor.nama}\nRole: ${actor.role}\nBisnis: ${actor.businessName}\n\nKetik /input untuk catat penjualan. /help untuk daftar perintah.`,
-        ),
+        reply(connectedStatusText(actor)),
       ],
     };
   }
@@ -252,7 +250,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 
 function productPrompt(products: ProductRow[]): BotEffect {
   if (!products.length) {
-    return reply("Belum ada produk. Minta founder menambahkan Afternoon / The Distance di Inventory.");
+    return reply("Belum ada produk. Founder menambahkannya di Henima Sales → Settings.");
   }
   const rows = products.slice(0, 10).map((p) => [{ text: p.name, data: `p:${p.id}` }]);
   return reply("Pilih produk:", kb(rows));

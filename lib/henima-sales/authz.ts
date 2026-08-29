@@ -1,7 +1,7 @@
 import type { Actor, SalesRole, StaffRow } from "./types";
 import { ForbiddenError, NotFoundError, SalesError } from "./types";
 import type { SalesDb } from "./db";
-import { getSalesBrandName } from "./settings-service";
+import { getSalesSettings } from "./settings-service";
 
 export function staffScopeIds(actor: Actor, teamIds: string[]): string[] | null {
   if (actor.role === "FOUNDER") return null;
@@ -51,17 +51,18 @@ async function toActor(
   staff: StaffRow,
   business: { id: string; name: string; user_id: string },
 ): Promise<Actor> {
-  const brand = await getSalesBrandName(db, business.id, business.name);
+  const settings = await getSalesSettings(db, business.id, business.name);
   return {
     staffId: staff.id,
     businessId: staff.business_id,
-    businessName: brand,
+    businessName: settings.displayName,
     ownerUserId: business.user_id,
     userId: staff.user_id,
     telegramUserId: staff.telegram_user_id,
     role: staff.role,
     nama: staff.nama,
     leaderId: staff.leader_id,
+    tagline: settings.tagline,
   };
 }
 

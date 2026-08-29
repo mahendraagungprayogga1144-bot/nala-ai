@@ -1,0 +1,117 @@
+import { randomBytes } from "crypto";
+import type { Actor, SalesRole, StaffRow } from "./types";
+import { ForbiddenError, SalesError } from "./types";
+import type { SalesDb } from "./db";
+import { writeAudit } from "./audit";
+import { DEFAULT_HENIMA_PRODUCTS } from "./types";
+
+export function newInviteCode() {
+  return randomBytes(4).toString("hex").toUpperCase();
+}
+
+export async function listStaff(db: SalesDb, actor: Actor) {
+  if (actor.role === "SALES") {
+    const { data } = await db.from("module_sales_staff").select("*").eq("id", actor.staffId).maybeSingle();
+    return data ? [data as StaffRow] : [];
+  }
+  let q = db
+    .from("module_sales_staff")
+    .select("*")
+    .eq("business_id", actor.businessId)
+    .order("nama");
+  if (actor.role === "LEADER") {
+    q = q.or(`id.eq.${actor.staffId},leader_id.eq.${actor.staffId}`);
+  }
+  const { data, error } = await q;
+  if (error) throw new SalesError(error.message, "staff_list");
+  return (data || []) as StaffRow[];
+}
+
+export async function createStaff(
+  db: SalesDb,
+  actor: Actor,
+  input: { nama: string; role: SalesRole; leaderId?: string | null; telepon?: string | null },
+) {
+  if (actor.role === "SALES") throw new ForbiddenError();
+  if (input.role === "FOUNDER" && actor.role !== "FOUNDER") throw new ForbiddenError();
+  if (actor.role === "LEADER" && input.role !== "SALES") throw new ForbiddenError();
+
+  const leaderId = input.role === "SALES" ? input.leaderId || (actor.role === "LEADER" ? actor.staffId : null) : null;
+  const { data, error } = await db
+    .from("module_sales_staff")
+    .insert({
+      business_id: actor.businessId,
+      nama: input.nama.trim(),
+      role: input.role,
+      leader_id: leaderId,
+      telepon: input.telepon || null,
+      invite_code: newInviteCode(),
+      status: "pending",
+    })
+    .select("*")
+    .single();
+  if (error || !data) throw new SalesError(error?.message || "Gagal menambah sales.", "staff_create");
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "TELEGRAM_LINK",
+    entityType: "staff",
+    entityId: data.id,
+    newValue: { nama: data.nama, role: data.role, invite_code: data.invite_code },
+  });
+  return data as StaffRow;
+}
+
+export async function rotateInvite(db: SalesDb, actor: Actor, staffId: string) {
+  if (actor.role === "SALES" && staffId !== actor.staffId) throw new ForbiddenError();
+  const code = newInviteCode();
+  const { data, error } = await db
+    .from("module_sales_staff")
+    .update({ invite_code: code, updated_at: new Date().toISOString() })
+    .eq("id", staffId)
+    .eq("business_id", actor.businessId)
+    .select("*")
+    .single();
+  if (error || !data) throw new SalesError(error?.message || "Gagal membuat kode.", "invite");
+  return data as StaffRow;
+}
+
+export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError();
+  const { data: existing } = await db
+    .from("products")
+    .select("id, name")
+    .eq("business_id", actor.businessId);
+  const names = new Set((existing || []).map((p: { name: string }) => p.name.toLowerCase()));
+  const toInsert = DEFAULT_HENIMA_PRODUCTS.filter((p) => !names.has(p.name.toLowerCase()));
+  if (!toInsert.length) return existing || [];
+  const rows = toInsert.map((p) => ({
+    user_id: actor.ownerUserId,
+    business_id: actor.businessId,
+    name: p.name,
+    unit: p.unit,
+    stock: 0,
+    min_stock: 0,
+    category: "Parfum",
+  }));
+  const { error } = await db.from("products").insert(rows);
+  if (error) throw new SalesError(error.message, "product_seed");
+  const { data } = await db.from("products").select("id, name, price, cost, stock, unit").eq("business_id", actor.businessId).order("name");
+  return data || [];
+}
+
+export async function listProducts(db: SalesDb, businessId: string) {
+  const { data, error } = await db
+    .from("products")
+    .select("id, name, price, cost, stock, unit")
+    .eq("business_id", businessId)
+    .order("name");
+  if (error) throw new SalesError(error.message, "product_list");
+  return (data || []).map((p) => ({
+    id: String(p.id),
+    name: p.name as string,
+    price: p.price == null ? null : Number(p.price),
+    cost: p.cost == null ? null : Number(p.cost),
+    stock: p.stock == null ? null : Number(p.stock),
+    unit: p.unit as string | null,
+  }));
+}

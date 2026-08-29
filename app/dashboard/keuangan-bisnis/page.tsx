@@ -52,6 +52,7 @@ async function loadKasirOrders(
       .from("orders")
       .select(orderSelect)
       .eq("business_id", businessId)
+      .or("source.is.null,source.neq.henima_sales")
       .gte("order_date", startDate)
       .lte("order_date", endDate)
       .order("created_at", { ascending: false }),
@@ -66,6 +67,7 @@ async function loadKasirOrders(
       .from("orders")
       .select(orderSelectFallback)
       .eq("business_id", businessId)
+      .or("source.is.null,source.neq.henima_sales")
       .gte("order_date", startDate)
       .lte("order_date", endDate)
       .order("created_at", { ascending: false });

@@ -5,7 +5,7 @@ import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { listProducts, listStaff } from "../staff-service";
 import { createCustomer, findCustomerByPhone, listCustomers } from "../customer-service";
-import { confirmSale, listOrders, getOrder, softDeleteOrder } from "../order-service";
+import { confirmSale, listOrders, getOrder, softDeleteOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
 import { createFollowUp } from "../followup-service";
 import { saveTestimonial } from "../testimonial-service";
 import { achievementFor } from "../target-service";
@@ -20,8 +20,8 @@ import { paymentLabel } from "../types";
 import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import type { Session } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft } from "./session";
-import { buildPackLines } from "./nl-sale";
-import { answerCallback, downloadTelegramFile, sendDocument, sendMessage } from "./api";
+import { buildPackLines, parseOpsIntent } from "./nl-sale";
+import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
 type TgUpdate = {
@@ -71,44 +71,84 @@ function parseCommand(text: string) {
   return { cmd, arg: rest.join(" ").trim() };
 }
 
-export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
+async function claimUpdate(db: SalesDb, updateId: number): Promise<boolean> {
+  const { error } = await db.from("module_sales_telegram_updates").insert({ update_id: updateId });
+  if (!error) return true;
+  const code = (error as { code?: string }).code;
+  if (code === "23505" || /duplicate|unique/i.test(error.message || "")) return false;
   const { data: seen } = await db
     .from("module_sales_telegram_updates")
     .select("update_id")
-    .eq("update_id", update.update_id)
+    .eq("update_id", updateId)
     .maybeSingle();
-  if (seen) return;
-  await db.from("module_sales_telegram_updates").insert({ update_id: update.update_id });
+  return !seen;
+}
 
+function parseIncoming(update: TgUpdate): Parameters<typeof reduceBot>[1] | null {
+  if (update.callback_query?.data) return { kind: "callback", data: update.callback_query.data };
+  if (update.message?.photo?.length) {
+    const fileId = update.message.photo[update.message.photo.length - 1].file_id;
+    return { kind: "photo", fileId, caption: update.message.caption };
+  }
+  if (update.message?.text) {
+    const parsed = parseCommand(update.message.text);
+    return parsed
+      ? { kind: "command", cmd: parsed.cmd, arg: parsed.arg }
+      : { kind: "text", text: update.message.text };
+  }
+  return null;
+}
+
+function needsProductCatalog(incoming: Parameters<typeof reduceBot>[1], session: Session) {
+  if (session.state === "input_product" || session.state === "input_phone" || session.state === "input_new_name") {
+    return true;
+  }
+  if (incoming.kind === "callback") {
+    return /^(p:|prod:|pack:|item:)/.test(incoming.data);
+  }
+  if (incoming.kind === "command") {
+    return incoming.cmd === "/input";
+  }
+  if (incoming.kind === "text") {
+    return parseOpsIntent(incoming.text).type === "none";
+  }
+  return false;
+}
+
+function sameSession(a: Session, b: Session) {
+  return a.state === b.state && JSON.stringify(a.draft) === JSON.stringify(b.draft);
+}
+
+export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   const from = update.message?.from || update.callback_query?.from;
   const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id;
   if (!from || !chatId) return;
   const telegramUserId = from.id;
+
+  void sendChatAction(chatId, "typing");
+  if (update.callback_query?.id) void answerCallback(update.callback_query.id);
+
+  const incoming = parseIncoming(update);
+  if (!incoming) {
+    await claimUpdate(db, update.update_id);
+    return;
+  }
+
+  const [fresh, resolvedActor, session] = await Promise.all([
+    claimUpdate(db, update.update_id),
+    resolveActorByTelegramId(db, telegramUserId),
+    loadSession(db, telegramUserId),
+  ]);
+  if (!fresh) return;
+  let actor = resolvedActor;
 
   if (!telegramRateOk(telegramUserId)) {
     await sendMessage(chatId, "Terlalu banyak permintaan. Coba lagi sebentar.");
     return;
   }
 
-  if (update.callback_query?.id) await answerCallback(update.callback_query.id);
-
-  let actor = await resolveActorByTelegramId(db, telegramUserId);
-  const session = await loadSession(db, telegramUserId);
-  const products = actor ? await listProducts(db, actor.businessId) : [];
-
-  let incoming: Parameters<typeof reduceBot>[1] | null = null;
-  if (update.callback_query?.data) {
-    incoming = { kind: "callback", data: update.callback_query.data };
-  } else if (update.message?.photo?.length) {
-    const fileId = update.message.photo[update.message.photo.length - 1].file_id;
-    incoming = { kind: "photo", fileId, caption: update.message.caption };
-  } else if (update.message?.text) {
-    const parsed = parseCommand(update.message.text);
-    incoming = parsed
-      ? { kind: "command", cmd: parsed.cmd, arg: parsed.arg }
-      : { kind: "text", text: update.message.text };
-  }
-  if (!incoming) return;
+  const products =
+    actor && needsProductCatalog(incoming, session) ? await listProducts(db, actor.businessId) : [];
 
   const reduced = reduceBot(session, incoming, { actor, products });
   let next = reduced.session;
@@ -142,8 +182,10 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       } else if (effect.type === "send_report" && actor) {
         await sendRekap(db, actor, chatId, effect.kind as ReportKind);
       } else if (effect.type === "send_pdf" && actor) {
+        void sendChatAction(chatId, "upload_document");
         await sendPdf(db, actor, chatId, effect.kind as ReportKind);
       } else if (effect.type === "send_nota" && actor) {
+        void sendChatAction(chatId, "upload_document");
         await sendNota(db, actor, chatId, effect.orderId, effect.query);
       } else if (effect.type === "send_riwayat" && actor) {
         await sendRiwayat(db, actor, chatId);
@@ -213,7 +255,9 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     }
   }
 
-  await saveSession(db, telegramUserId, actor, next);
+  if (!sameSession(session, next)) {
+    await saveSession(db, telegramUserId, actor, next);
+  }
 }
 
 async function continueAfterPhone(
@@ -523,7 +567,7 @@ async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: str
     }
 
     if (query) {
-      const { rows: customers } = await listCustomers(db, actor, { q: query, pageSize: 8 });
+      const { rows: customers } = await listCustomers(db, actor, { q: query, pageSize: 8, skipCount: true });
       if (!customers.length) {
         await sendMessage(chatId, `Customer "${query}" tidak ditemukan.\nKetik: nota nama customer\nContoh: nota regan`);
         return;
@@ -542,12 +586,15 @@ async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: str
         return s === bestScore;
       });
 
-      const choices: { nama: string; orderId: string; date: string; total: number }[] = [];
-      for (const c of top.slice(0, 5)) {
-        const { rows } = await listOrders(db, actor, { customerId: c.id, pageSize: 1 });
-        const o = rows[0];
-        if (o) choices.push({ nama: c.nama, orderId: o.id, date: o.order_date, total: Number(o.total || 0) });
-      }
+      const orders = await latestOrdersByCustomerIds(db, actor, top.slice(0, 5).map((c) => c.id));
+      const byCustomer = new Map(orders.map((o) => [o.customer_id, o]));
+      const choices = top
+        .slice(0, 5)
+        .map((c) => {
+          const o = byCustomer.get(c.id);
+          return o ? { nama: c.nama, orderId: o.id, date: o.order_date, total: o.total } : null;
+        })
+        .filter((c): c is { nama: string; orderId: string; date: string; total: number } => Boolean(c));
       if (!choices.length) {
         await sendMessage(chatId, `Customer ${top[0]?.nama || query} belum punya transaksi.`);
         return;
@@ -565,8 +612,7 @@ async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: str
       return;
     }
 
-    const { rows } = await listOrders(db, actor, { pageSize: 1 });
-    const id = rows[0]?.id;
+    const id = await latestOrderId(db, actor);
     if (!id) {
       await sendMessage(chatId, "Belum ada transaksi untuk dibuatkan nota.\nKetik: nota nama customer");
       return;

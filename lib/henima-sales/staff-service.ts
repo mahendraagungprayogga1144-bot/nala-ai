@@ -96,6 +96,7 @@ export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
     const { error } = await db.from("products").insert(rows);
     if (error) throw new SalesError(error.message, "product_seed");
   }
+  invalidateProductCache(actor.businessId);
   await db
     .from("products")
     .update({ category: SALES_PRODUCT_CATEGORY })
@@ -134,6 +135,7 @@ export async function upsertSalesProduct(
       .select("id, name, price, cost, stock, unit")
       .single();
     if (error || !data) throw new SalesError(error?.message || "Gagal update produk.", "product_update");
+    invalidateProductCache(actor.businessId);
     return {
       id: String(data.id),
       name: data.name as string,
@@ -159,6 +161,7 @@ export async function upsertSalesProduct(
     .select("id, name, price, cost, stock, unit")
     .single();
   if (error || !data) throw new SalesError(error?.message || "Gagal tambah produk.", "product_create");
+  invalidateProductCache(actor.businessId);
   return {
     id: String(data.id),
     name: data.name as string,
@@ -183,14 +186,21 @@ export async function setStaffStatus(db: SalesDb, actor: Actor, staffId: string,
   return data as StaffRow;
 }
 
-export async function listProducts(db: SalesDb, businessId: string) {
-  const { data, error } = await db
-    .from("products")
-    .select("id, name, price, cost, stock, unit, category")
-    .eq("business_id", businessId)
-    .order("name");
-  if (error) throw new SalesError(error.message, "product_list");
-  return (data || []).filter(isSalesCatalogProduct).map((p) => ({
+const PRODUCT_TTL_MS = 30_000;
+const productCache = new Map<string, { at: number; value: ReturnType<typeof mapProductRows> }>();
+
+function mapProductRows(
+  data: {
+    id: unknown;
+    name: string | null;
+    price: unknown;
+    cost: unknown;
+    stock: unknown;
+    unit: string | null;
+    category?: string | null;
+  }[],
+) {
+  return data.filter(isSalesCatalogProduct).map((p) => ({
     id: String(p.id),
     name: p.name as string,
     price: p.price == null ? null : Number(p.price),
@@ -198,4 +208,23 @@ export async function listProducts(db: SalesDb, businessId: string) {
     stock: p.stock == null ? null : Number(p.stock),
     unit: p.unit as string | null,
   }));
+}
+
+export function invalidateProductCache(businessId?: string) {
+  if (businessId) productCache.delete(businessId);
+  else productCache.clear();
+}
+
+export async function listProducts(db: SalesDb, businessId: string) {
+  const hit = productCache.get(businessId);
+  if (hit && Date.now() - hit.at < PRODUCT_TTL_MS) return hit.value;
+  const { data, error } = await db
+    .from("products")
+    .select("id, name, price, cost, stock, unit, category")
+    .eq("business_id", businessId)
+    .order("name");
+  if (error) throw new SalesError(error.message, "product_list");
+  const value = mapProductRows((data || []) as Parameters<typeof mapProductRows>[0]);
+  productCache.set(businessId, { at: Date.now(), value });
+  return value;
 }

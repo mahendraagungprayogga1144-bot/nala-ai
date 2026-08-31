@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { salesDb } from "@/lib/henima-sales/db";
 import { handleTelegramUpdate, verifyTelegramSecret } from "@/lib/henima-sales/telegram/handler";
 import { salesLog, salesLogError } from "@/lib/henima-sales/log";
@@ -22,10 +22,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   if (!update?.update_id) return NextResponse.json({ ok: true });
-  try {
-    await handleTelegramUpdate(salesDb(), update as Parameters<typeof handleTelegramUpdate>[1]);
-  } catch (err) {
-    salesLogError("telegram_webhook", err, { update_id: update.update_id });
-  }
+  after(async () => {
+    try {
+      await handleTelegramUpdate(salesDb(), update as Parameters<typeof handleTelegramUpdate>[1]);
+    } catch (err) {
+      salesLogError("telegram_webhook", err, { update_id: update.update_id });
+    }
+  });
   return NextResponse.json({ ok: true });
 }

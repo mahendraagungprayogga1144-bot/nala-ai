@@ -169,6 +169,7 @@ export async function listCustomers(
     salesId?: string;
     page?: number;
     pageSize?: number;
+    skipCount?: boolean;
   },
 ) {
   const page = Math.max(1, opts.page || 1);
@@ -177,12 +178,11 @@ export async function listCustomers(
   const teamIds = await loadTeamIds(db, actor);
   const scope = scopedCustomerFilter(actor, teamIds);
 
-  let q = db
-    .from("module_crm_customers")
-    .select("*", { count: "exact" })
-    .eq("business_id", actor.businessId)
-    .order("updated_at", { ascending: false })
-    .range(from, from + pageSize - 1);
+  const table = db.from("module_crm_customers");
+  let q = opts.skipCount
+    ? table.select("id, nama").eq("business_id", actor.businessId)
+    : table.select("*", { count: "exact" }).eq("business_id", actor.businessId);
+  q = q.order("updated_at", { ascending: false }).range(from, from + pageSize - 1);
 
   if (scope) q = q.in("assigned_sales_id", scope);
   if (opts.salesId) {

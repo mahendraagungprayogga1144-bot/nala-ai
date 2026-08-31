@@ -1,11 +1,9 @@
-import { readFileSync } from "fs";
-import { join } from "path";
-import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { pdfSafe } from "./nota";
 import { paymentLabel } from "./types";
 import { fmtDateId } from "./money";
 import { servedByLabel, type SalesReport } from "./report-service";
+import { embedBrandFonts } from "./pdf-fonts";
 
 const INK = rgb(0.08, 0.08, 0.08);
 const MUTED = rgb(0.42, 0.42, 0.42);
@@ -22,25 +20,6 @@ function rp(n: number) {
   const abs = Math.abs(Math.round(Number(n) || 0));
   const s = String(abs).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${n < 0 ? "-" : ""}Rp${s}`;
-}
-
-function fontPath(file: string) {
-  return join(process.cwd(), "lib/henima-sales/fonts", file);
-}
-
-async function embedFonts(doc: PDFDocument) {
-  doc.registerFontkit(fontkit);
-  try {
-    const sans = await doc.embedFont(readFileSync(fontPath("SourceSans3-Regular.ttf")));
-    const sansBold = await doc.embedFont(readFileSync(fontPath("SourceSans3-Semibold.ttf")));
-    const serif = await doc.embedFont(readFileSync(fontPath("PlayfairDisplay-Bold.ttf")));
-    return { sans, sansBold, serif };
-  } catch {
-    const sans = await doc.embedFont(StandardFonts.Helvetica);
-    const sansBold = await doc.embedFont(StandardFonts.HelveticaBold);
-    const serif = await doc.embedFont(StandardFonts.TimesRomanBold);
-    return { sans, sansBold, serif };
-  }
 }
 
 function T(
@@ -76,7 +55,7 @@ export async function buildSalesReportPdf(opts: {
   report: SalesReport;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const { sans, sansBold, serif } = await embedFonts(doc);
+  const { sans, sansBold, serif } = await embedBrandFonts(doc);
   const r = opts.report;
   let page = doc.addPage([PAGE_W, PAGE_H]);
   let y = PAGE_H - 36;

@@ -15,6 +15,7 @@ import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 import { buildSalesReportPdf } from "../pdf";
+import { brandFontBytes } from "../pdf-fonts";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -274,6 +275,13 @@ test("founder closings are served-by not top sales", () => {
   ]);
   assert.equal(onlyFounder.ranking.length, 0);
   assert.equal(servedByLabel(onlyFounder.servedBy), "Dilayani oleh ima");
+});
+
+test("brand fonts load once from disk", () => {
+  const a = brandFontBytes();
+  const b = brandFontBytes();
+  assert.ok(a && a.serif.byteLength > 1000);
+  assert.equal(a, b);
 });
 
 test("nota intent and customer invoice number", () => {

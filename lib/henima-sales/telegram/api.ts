@@ -21,6 +21,14 @@ async function tg(method: string, body: Record<string, unknown>) {
   return json.result;
 }
 
+export async function sendChatAction(chatId: number, action: "typing" | "upload_document" = "typing") {
+  try {
+    await tg("sendChatAction", { chat_id: chatId, action });
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function sendMessage(
   chatId: number,
   text: string,

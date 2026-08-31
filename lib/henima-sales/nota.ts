@@ -1,15 +1,11 @@
-import { readFileSync } from "fs";
-import { join } from "path";
-import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { Actor } from "./types";
 import { paymentLabel } from "./types";
 import type { SalesDb } from "./db";
 import { getOrder, type SalesOrder } from "./order-service";
-import { getCustomer } from "./customer-service";
-import { getSalesSettings } from "./settings-service";
 import { displayPhone } from "./phone";
 import { fmtDateLongId, fmtRp } from "./money";
+import { embedBrandFonts } from "./pdf-fonts";
 
 export type NotaLine = {
   name: string;
@@ -92,25 +88,6 @@ export function notaFromOrder(opts: {
     discount: Number(opts.order.diskon || 0),
     total: Number(opts.order.total || 0),
   };
-}
-
-function fontPath(file: string) {
-  return join(process.cwd(), "lib/henima-sales/fonts", file);
-}
-
-async function embedBrandFonts(doc: PDFDocument) {
-  doc.registerFontkit(fontkit);
-  try {
-    const serif = await doc.embedFont(readFileSync(fontPath("PlayfairDisplay-Bold.ttf")));
-    const sans = await doc.embedFont(readFileSync(fontPath("SourceSans3-Regular.ttf")));
-    const sansBold = await doc.embedFont(readFileSync(fontPath("SourceSans3-Semibold.ttf")));
-    return { serif, sans, sansBold };
-  } catch {
-    const sans = await doc.embedFont(StandardFonts.Helvetica);
-    const sansBold = await doc.embedFont(StandardFonts.HelveticaBold);
-    const serif = await doc.embedFont(StandardFonts.TimesRomanBold);
-    return { serif, sans, sansBold };
-  }
 }
 
 function drawSpaced(
@@ -350,41 +327,28 @@ export async function buildSalesNotaPdf(payload: NotaPayload): Promise<Uint8Arra
 
 export async function buildOrderNota(db: SalesDb, actor: Actor, orderId: string) {
   const order = await getOrder(db, actor, orderId);
-  let customerName: string | null = null;
-  let customerPhone: string | null = null;
-  if (order.customer_id) {
-    try {
-      const customer = await getCustomer(db, actor, order.customer_id);
-      customerName = customer.nama;
-      customerPhone = customer.whatsapp_phone || customer.telepon;
-    } catch {
-      customerName = null;
-    }
-  }
-
-  let staffName: string | null = actor.nama;
-  let staffRole: string | null = actor.role;
-  if (order.sales_id) {
-    const { data: staff } = await db
-      .from("module_sales_staff")
-      .select("nama, role")
-      .eq("id", order.sales_id)
-      .maybeSingle();
-    if (staff) {
-      staffName = staff.nama;
-      staffRole = staff.role;
-    }
-  }
-
-  const settings = await getSalesSettings(db, actor.businessId, actor.businessName);
+  const [customerRes, staffRes] = await Promise.all([
+    order.customer_id
+      ? db
+          .from("module_crm_customers")
+          .select("nama, whatsapp_phone, telepon")
+          .eq("id", order.customer_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null as { nama?: string; whatsapp_phone?: string | null; telepon?: string | null } | null }),
+    order.sales_id && order.sales_id !== actor.staffId
+      ? db.from("module_sales_staff").select("nama, role").eq("id", order.sales_id).maybeSingle()
+      : Promise.resolve({ data: null as { nama?: string; role?: string } | null }),
+  ]);
+  const customer = customerRes.data;
+  const staff = staffRes.data;
   const payload = notaFromOrder({
     order,
-    brandName: settings.displayName,
-    tagline: settings.tagline,
-    customerName,
-    customerPhone,
-    staffName,
-    staffRole,
+    brandName: actor.businessName,
+    tagline: actor.tagline,
+    customerName: customer?.nama || null,
+    customerPhone: customer?.whatsapp_phone || customer?.telepon || null,
+    staffName: staff?.nama || actor.nama,
+    staffRole: staff?.role || actor.role,
   });
   const bytes = await buildSalesNotaPdf(payload);
   const filename = `nota-${payload.notaNumber}.pdf`;

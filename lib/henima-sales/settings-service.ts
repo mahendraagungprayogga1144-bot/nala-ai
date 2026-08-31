@@ -18,31 +18,37 @@ export function resolveSalesBrandName(saved?: string | null, tenantName?: string
   return DEFAULT_SALES_BRAND;
 }
 
+const SETTINGS_TTL_MS = 60_000;
+const settingsCache = new Map<string, { at: number; value: { displayName: string; tagline: string | null } }>();
+
+export function invalidateSalesSettingsCache(businessId?: string) {
+  if (businessId) settingsCache.delete(businessId);
+  else settingsCache.clear();
+}
+
 export async function getSalesSettings(
   db: SalesDb,
   businessId: string,
   tenantName?: string | null,
 ): Promise<{ displayName: string; tagline: string | null }> {
+  const hit = settingsCache.get(businessId);
+  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return hit.value;
+  const fallback = { displayName: resolveSalesBrandName(null, tenantName), tagline: null };
   try {
     const { data, error } = await db
       .from("module_sales_settings")
       .select("display_name, tagline")
       .eq("business_id", businessId)
       .maybeSingle();
-    if (error) return { displayName: resolveSalesBrandName(null, tenantName), tagline: null };
-    const displayName = resolveSalesBrandName(data?.display_name, tenantName);
-    const tagline = (data?.tagline || "").trim() || null;
-    if (!(data?.display_name || "").trim()) {
-      await db.from("module_sales_settings").upsert({
-        business_id: businessId,
-        display_name: displayName,
-        tagline,
-        updated_at: new Date().toISOString(),
-      });
-    }
-    return { displayName, tagline };
+    if (error) return fallback;
+    const value = {
+      displayName: resolveSalesBrandName(data?.display_name, tenantName),
+      tagline: (data?.tagline || "").trim() || null,
+    };
+    settingsCache.set(businessId, { at: Date.now(), value });
+    return value;
   } catch {
-    return { displayName: resolveSalesBrandName(null, tenantName), tagline: null };
+    return fallback;
   }
 }
 
@@ -75,6 +81,7 @@ export async function upsertSalesSettings(
     .select("*")
     .single();
   if (error || !data) throw new SalesError(error?.message || "Gagal simpan pengaturan.", "settings_save");
+  invalidateSalesSettingsCache(actor.businessId);
   await writeAudit(db, actor, {
     businessId: actor.businessId,
     action: "UPDATE_SETTINGS",

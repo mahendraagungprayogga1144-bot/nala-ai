@@ -153,16 +153,32 @@ export async function resolveActorByUserId(
   return toActor(db, staff as StaffRow, biz);
 }
 
+const TELEGRAM_ACTOR_TTL_MS = 30_000;
+const telegramActorCache = new Map<number, { at: number; actor: Actor | null }>();
+
+export function invalidateTelegramActorCache(telegramUserId?: number) {
+  if (telegramUserId != null) telegramActorCache.delete(telegramUserId);
+  else telegramActorCache.clear();
+}
+
 export async function resolveActorByTelegramId(db: SalesDb, telegramUserId: number): Promise<Actor | null> {
+  const hit = telegramActorCache.get(telegramUserId);
+  if (hit && Date.now() - hit.at < TELEGRAM_ACTOR_TTL_MS) return hit.actor;
+
   const { data: staff } = await db
     .from("module_sales_staff")
     .select("*")
     .eq("telegram_user_id", telegramUserId)
     .eq("status", "active")
     .maybeSingle();
-  if (!staff) return null;
+  if (!staff) {
+    telegramActorCache.set(telegramUserId, { at: Date.now(), actor: null });
+    return null;
+  }
   const biz = await businessOf(db, staff.business_id);
-  return toActor(db, staff as StaffRow, biz);
+  const actor = await toActor(db, staff as StaffRow, biz);
+  telegramActorCache.set(telegramUserId, { at: Date.now(), actor });
+  return actor;
 }
 
 export async function linkTelegramByInvite(
@@ -200,6 +216,7 @@ export async function linkTelegramByInvite(
     .select("*")
     .single();
   if (error || !updated) throw new SalesError("Gagal menghubungkan Telegram.", "telegram_link");
+  invalidateTelegramActorCache(telegramUserId);
   const biz = await businessOf(db, updated.business_id);
   return toActor(db, updated as StaffRow, biz);
 }

@@ -231,6 +231,61 @@ export async function listOrders(
   return { rows, total: count || 0, page, pageSize };
 }
 
+export async function latestOrderId(db: SalesDb, actor: Actor): Promise<string | null> {
+  const teamIds = await loadTeamIds(db, actor);
+  let q = db
+    .from("orders")
+    .select("id")
+    .eq("business_id", actor.businessId)
+    .eq("source", SALES_ORDER_SOURCE)
+    .is("deleted_at", null)
+    .order("order_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (actor.role === "SALES") q = q.eq("sales_id", actor.staffId);
+  else if (actor.role === "LEADER") q = q.in("sales_id", [actor.staffId, ...teamIds]);
+  const { data, error } = await q.maybeSingle();
+  if (error) throw new SalesError(error.message, "order_list");
+  return data?.id ? String(data.id) : null;
+}
+
+export async function latestOrdersByCustomerIds(
+  db: SalesDb,
+  actor: Actor,
+  customerIds: string[],
+): Promise<{ id: string; customer_id: string; total: number; order_date: string }[]> {
+  if (!customerIds.length) return [];
+  const teamIds = await loadTeamIds(db, actor);
+  let q = db
+    .from("orders")
+    .select("id, customer_id, total, order_date")
+    .eq("business_id", actor.businessId)
+    .eq("source", SALES_ORDER_SOURCE)
+    .in("customer_id", customerIds)
+    .is("deleted_at", null)
+    .order("order_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(40);
+  if (actor.role === "SALES") q = q.eq("sales_id", actor.staffId);
+  else if (actor.role === "LEADER") q = q.in("sales_id", [actor.staffId, ...teamIds]);
+  const { data, error } = await q;
+  if (error) throw new SalesError(error.message, "order_list");
+  const seen = new Set<string>();
+  const latest: { id: string; customer_id: string; total: number; order_date: string }[] = [];
+  for (const row of data || []) {
+    const cid = String(row.customer_id || "");
+    if (!cid || seen.has(cid)) continue;
+    seen.add(cid);
+    latest.push({
+      id: String(row.id),
+      customer_id: cid,
+      total: Number(row.total || 0),
+      order_date: String(row.order_date),
+    });
+  }
+  return latest;
+}
+
 export async function updateOrder(
   db: SalesDb,
   actor: Actor,

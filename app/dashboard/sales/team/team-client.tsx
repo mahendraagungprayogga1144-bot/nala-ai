@@ -19,6 +19,7 @@ type Product = {
   id: string;
   name: string;
   price: number | null;
+  cost: number | null;
   stock: number | null;
   unit: string | null;
 };
@@ -38,7 +39,7 @@ export default function TeamClient({
   const [form, setForm] = useState({ nama: "", role: "SALES" });
   const [brand, setBrand] = useState(actor.businessName);
   const [tagline, setTagline] = useState(actor.tagline || "");
-  const [productForm, setProductForm] = useState({ name: "", price: "", stock: "" });
+  const [productForm, setProductForm] = useState({ name: "", price: "199000", cost: "", stock: "" });
   const [msg, setMsg] = useState("");
   const founder = actor.role === "FOUNDER";
   const bot = salesBotHandle(botUsername);
@@ -77,7 +78,7 @@ export default function TeamClient({
     router.refresh();
   };
 
-  const saveProduct = async (payload: { id?: string; name: string; price: number; stock: number }) => {
+  const saveProduct = async (payload: { id?: string; name: string; price: number; cost?: number | null; stock: number }) => {
     const res = await fetch("/api/sales/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -85,7 +86,7 @@ export default function TeamClient({
     });
     const json = await res.json();
     flash(json.error || (payload.id ? "Produk diupdate." : `Produk ${json.product?.name || ""} ditambah.`));
-    if (!json.error && !payload.id) setProductForm({ name: "", price: "", stock: "" });
+    if (!json.error && !payload.id) setProductForm({ name: "", price: "199000", cost: "", stock: "" });
     router.refresh();
   };
 
@@ -94,6 +95,7 @@ export default function TeamClient({
     await saveProduct({
       name: productForm.name,
       price: Number(productForm.price),
+      cost: productForm.cost === "" ? null : Number(productForm.cost),
       stock: Number(productForm.stock || 0),
     });
   };
@@ -224,10 +226,10 @@ export default function TeamClient({
           <div>
             <p className="text-sm font-medium">Produk parfum</p>
             <p className="text-xs text-[#8B8AA0]">
-              Hanya produk ini yang muncul di Telegram. Es batu / stok Gercep lain tidak ikut.
+              Harga retail (contoh Rp199.000) tampil di nota. HPP dipakai rekap profit. Telegram: ketik harga bayar atau diskon 50rb.
             </p>
           </div>
-          <form onSubmit={addProduct} className="grid gap-3 sm:grid-cols-3">
+          <form onSubmit={addProduct} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <input
               className={MODULE_INPUT}
               placeholder="Nama produk"
@@ -239,10 +241,18 @@ export default function TeamClient({
               className={MODULE_INPUT}
               type="number"
               min="0"
-              placeholder="Harga jual"
+              placeholder="Harga retail"
               value={productForm.price}
               onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
               required
+            />
+            <input
+              className={MODULE_INPUT}
+              type="number"
+              min="0"
+              placeholder="HPP / modal"
+              value={productForm.cost}
+              onChange={(e) => setProductForm({ ...productForm, cost: e.target.value })}
             />
             <input
               className={MODULE_INPUT}
@@ -252,7 +262,7 @@ export default function TeamClient({
               value={productForm.stock}
               onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
             />
-            <button className={MODULE_BTN + " sm:col-span-3"}>Tambah produk</button>
+            <button className={MODULE_BTN + " sm:col-span-2 lg:col-span-4"}>Tambah produk</button>
           </form>
           <button type="button" onClick={seed} className="text-xs text-[#2DD4BF]">
             Isi cepat Afternoon / The Distance (jika belum ada)
@@ -275,7 +285,7 @@ export default function TeamClient({
           <ul className="mt-2 space-y-1 text-sm text-[#8B8AA0]">
             {products.map((p) => (
               <li key={p.id}>
-                {p.name} · {fmtRp(p.price || 0)} · stok {p.stock ?? 0}
+                {p.name} · retail {fmtRp(p.price || 0)} · HPP {p.cost != null ? fmtRp(p.cost) : "—"} · stok {p.stock ?? 0}
               </li>
             ))}
           </ul>
@@ -350,22 +360,30 @@ function ProductRow({
   onSave,
 }: {
   product: Product;
-  onSave: (payload: { id?: string; name: string; price: number; stock: number }) => Promise<void>;
+  onSave: (payload: { id?: string; name: string; price: number; cost?: number | null; stock: number }) => Promise<void>;
 }) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.price ?? ""));
+  const [cost, setCost] = useState(product.cost == null ? "" : String(product.cost));
   const [stock, setStock] = useState(String(product.stock ?? 0));
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ id: product.id, name, price: Number(price), stock: Number(stock || 0) });
+        onSave({
+          id: product.id,
+          name,
+          price: Number(price),
+          cost: cost === "" ? null : Number(cost),
+          stock: Number(stock || 0),
+        });
       }}
-      className="grid gap-2 sm:grid-cols-[1fr_110px_80px_auto]"
+      className="grid gap-2 sm:grid-cols-[1fr_110px_110px_80px_auto]"
     >
       <input className={MODULE_INPUT} value={name} onChange={(e) => setName(e.target.value)} required />
-      <input className={MODULE_INPUT} type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} required />
-      <input className={MODULE_INPUT} type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} />
+      <input className={MODULE_INPUT} type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} required aria-label="Harga retail" />
+      <input className={MODULE_INPUT} type="number" min="0" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="HPP" aria-label="HPP" />
+      <input className={MODULE_INPUT} type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} aria-label="Stok" />
       <button className={MODULE_BTN + " text-xs"}>Simpan</button>
     </form>
   );

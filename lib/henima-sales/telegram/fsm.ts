@@ -5,7 +5,7 @@ import { displayPhone } from "../phone";
 import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
-import { formatConfirm, HELP_TEXT, UNLINKED_MSG, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
+import { formatConfirm, HELP_TEXT, UNLINKED_MSG, applyCatalogPricing, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
 import {
   buildPackLines,
   defaultPackProducts,
@@ -128,19 +128,19 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       if (productId === "ALL") {
         const pack = defaultPackProducts(world.products);
         if (pack.length < 2) return { session, effects: [reply("Paket butuh 2 produk di katalog.")] };
-        return finishProductPick(session, actor, pack, true);
+        return finishProductPick(session, actor, pack, true, world.products);
       }
       const product = world.products.find((p) => p.id === productId);
       if (!product) return { session, effects: [reply("Produk tidak valid.")] };
-      return finishProductPick(session, actor, [product], false);
+      return finishProductPick(session, actor, [product], false, world.products);
     }
     if (data.startsWith("pm:")) {
       const method = data.slice(3) as Draft["paymentMethod"];
-      const ready = {
+      const ready = applyCatalogPricing({
         ...session.draft,
         paymentMethod: method,
         paymentStatus: session.draft.paymentStatus || "PAID",
-      };
+      }, world.products);
       if (ready.nlChat) {
         return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
       }
@@ -212,12 +212,22 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       }
       case "followup_phone":
         return { session: go(session, session.state, { ...session.draft, phone: text }), effects: [reply("Memeriksa customer…")] };
-      case "input_new_name":
+      case "input_new_name": {
         if (!text) return { session, effects: [reply("Nama customer wajib.")] };
+        const asSale = parseSalesChat(text, world.products);
+        const extracted = asSale.customerName || (!asSale.looksLikeSale ? text : null);
+        if (!extracted) {
+          return { session, effects: [reply("Nama customer? Contoh: Nala (jangan tempel chat penjualan).")] };
+        }
+        const named = {
+          ...session.draft,
+          customerName: extracted,
+          paymentMethod: session.draft.paymentMethod || asSale.paymentMethod || undefined,
+          phone: session.draft.phone || asSale.phone || undefined,
+        };
         if (session.draft.nlChat) {
-          const named = { ...session.draft, customerName: text };
           if ((named.lines?.length || named.productId) && named.quantity && named.unitPrice != null) {
-            return saleReady(session, actor, named);
+            return saleReady(session, actor, named, world.products);
           }
           return {
             session: go(session, "input_product", named),
@@ -225,9 +235,10 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           };
         }
         return {
-          session: go(session, "input_new_city", { ...session.draft, customerName: text }),
+          session: go(session, "input_new_city", named),
           effects: [reply("Kota customer? (ketik - untuk skip)")],
         };
+      }
       case "input_new_city":
         return {
           session: go(session, "input_new_notes", { ...session.draft, city: text === "-" ? "" : text }),
@@ -247,10 +258,10 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           if (pack.length < 2) {
             return { session, effects: [reply("Ketik nama 2 produk, contoh: afternoon dan the distance")] };
           }
-          return finishProductPick(session, actor, pack, true);
+          return finishProductPick(session, actor, pack, true, world.products);
         }
         if (matched.length === 1) {
-          return finishProductPick(session, actor, matched, false);
+          return finishProductPick(session, actor, matched, false, world.products);
         }
         return {
           session,
@@ -267,7 +278,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           const total = session.draft.orderTotal ?? session.draft.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
           if (total != null && pack.length >= 2) {
             const lined = applyLinesToDraft(draft, buildPackLines(pack, quantity, total));
-            return saleReady(session, actor, lined);
+            return saleReady(session, actor, lined, world.products);
           }
           return {
             session: go(session, "input_price", draft),
@@ -298,21 +309,21 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           if (pack.length >= 2) {
             const qty = session.draft.packQty || session.draft.lines?.[0]?.quantity || 1;
             const draft = applyLinesToDraft(session.draft, buildPackLines(pack, qty, unitPrice));
-            return saleReady(session, actor, draft);
+            return saleReady(session, actor, draft, world.products);
           }
         }
-        return saleReady(session, actor, { ...session.draft, unitPrice });
+        return saleReady(session, actor, { ...session.draft, unitPrice }, world.products);
       }
       case "input_pay_method": {
         const method = parsePaymentMethod(text);
         if (!method) {
           return { session, effects: [reply("Ketik tf, qris, cash, atau pilih tombol.", kb(paymentKeyboard()))] };
         }
-        const ready = {
+        const ready = applyCatalogPricing({
           ...session.draft,
           paymentMethod: method,
           paymentStatus: session.draft.paymentStatus || "PAID",
-        };
+        }, world.products);
         if (ready.nlChat) {
           return { session: go(session, "input_confirm", ready), effects: [{ type: "confirm_sale" }] };
         }
@@ -361,7 +372,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877... tf\nlaku 2 paket new member harga 250k atas nama Dimas no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · pdf bulan ini · nota regan · riwayat · target · /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877... tf\nlaku 1 harga 199rb diskon 50rb atas nama Sinta no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · pdf bulan ini · nota regan · riwayat · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -425,6 +436,8 @@ function applyNaturalSale(
     unitPrice,
     productId,
     productName,
+    discount: parsed.discount || undefined,
+    discountPercent: parsed.discountPercent || undefined,
     paymentMethod: parsed.paymentMethod || undefined,
     paymentStatus: "PAID",
     nlChat: true,
@@ -446,6 +459,8 @@ function applyNaturalSale(
     }
   }
 
+  draft = applyCatalogPricing(draft, products);
+
   if (!draft.phone) {
     return {
       session: go(session, "input_phone", draft),
@@ -463,6 +478,7 @@ function finishProductPick(
   actor: Actor,
   picked: ProductRow[],
   asPack: boolean,
+  products: ProductRow[],
 ): { session: Session; effects: BotEffect[] } {
   if (asPack && picked.length >= 2) {
     const packQty = session.draft.packQty || session.draft.lines?.[0]?.quantity || undefined;
@@ -482,7 +498,7 @@ function finishProductPick(
     draft = { ...draft, packQty, quantity: packQty * picked.length };
     if (total != null) {
       draft = applyLinesToDraft(draft, buildPackLines(picked, packQty, total));
-      return saleReady(session, actor, draft);
+      return saleReady(session, actor, draft, products);
     }
     return {
       session: go(session, "input_price", draft),
@@ -502,7 +518,7 @@ function finishProductPick(
     orderTotal: undefined,
   };
   if (draft.quantity && draft.unitPrice != null) {
-    return saleReady(session, actor, draft);
+    return saleReady(session, actor, draft, products);
   }
   if (draft.quantity) {
     return {
@@ -533,9 +549,9 @@ function payPrompt(): BotEffect {
   return reply("Metode pembayaran?\nKetik tf / qris / cash atau pilih tombol.", kb(paymentKeyboard()));
 }
 
-function saleReady(session: Session, actor: Actor, draft: Draft): { session: Session; effects: BotEffect[] } {
+function saleReady(session: Session, actor: Actor, draft: Draft, products: ProductRow[]): { session: Session; effects: BotEffect[] } {
   const ready: Draft = {
-    ...draft,
+    ...applyCatalogPricing(draft, products),
     paymentStatus: draft.paymentStatus || "PAID",
   };
   if (!ready.paymentMethod) {

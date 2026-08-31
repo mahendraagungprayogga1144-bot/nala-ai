@@ -19,7 +19,7 @@ import type { Actor } from "../types";
 import { paymentLabel } from "../types";
 import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import type { Session } from "./session";
-import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft } from "./session";
+import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, parseOpsIntent } from "./nl-sale";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
@@ -346,6 +346,7 @@ async function continueAfterPhone(
     }
 
     session.draft.paymentStatus = session.draft.paymentStatus || "PAID";
+    session.draft = applyCatalogPricing(session.draft, products);
     if (session.draft.nlChat) {
       await runConfirm(db, actor, chatId, session);
       session.state = "idle";
@@ -390,7 +391,8 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
     productName: lines.map((line) => `${line.productName} × ${line.quantity}`).join(" + "),
     quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
     unitPrice: lines[0].unitPrice,
-    discount: 0,
+    discount: d.discount || 0,
+    discountPercent: d.discountPercent || null,
     paymentMethod: d.paymentMethod || "OTHER",
     paymentStatus: d.paymentStatus || "PAID",
     notes: d.notes || (lines.length > 1 ? "paket" : null),

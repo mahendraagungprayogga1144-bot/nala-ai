@@ -3,9 +3,11 @@ import type { Actor } from "./types";
 import { paymentLabel } from "./types";
 import type { SalesDb } from "./db";
 import { getOrder, type SalesOrder } from "./order-service";
+import { listProducts } from "./staff-service";
 import { displayPhone } from "./phone";
 import { fmtDateLongId, fmtRp } from "./money";
 import { embedBrandFonts } from "./pdf-fonts";
+import { priceAgainstRetail, type ProductRow } from "./types";
 
 export type NotaLine = {
   name: string;
@@ -66,12 +68,35 @@ export function notaFromOrder(opts: {
   customerPhone?: string | null;
   staffName?: string | null;
   staffRole?: string | null;
+  catalog?: ProductRow[];
 }): NotaPayload {
-  const lines: NotaLine[] = (opts.order.order_items || []).map((item) => ({
+  const rawLines = (opts.order.order_items || []).map((item) => ({
     name: item.product_name_snapshot || "Produk",
     qty: Number(item.qty || 0),
     unitPrice: Number(item.harga_jual || 0),
+    productId: item.product_id ? String(item.product_id) : "",
   }));
+  let lines: NotaLine[] = rawLines.map(({ name, qty, unitPrice }) => ({ name, qty, unitPrice }));
+  let discount = Number(opts.order.diskon || 0);
+  if (discount <= 0 && opts.catalog?.length && rawLines.some((l) => l.productId)) {
+    try {
+      const priced = priceAgainstRetail(
+        rawLines.map((l) => ({
+          productId: l.productId,
+          productName: l.name,
+          quantity: l.qty,
+          unitPrice: l.unitPrice,
+        })),
+        opts.catalog,
+      );
+      if (priced.discount > 0) {
+        discount = priced.discount;
+        lines = priced.lines.map((l) => ({ name: l.productName, qty: l.quantity, unitPrice: l.unitPrice }));
+      }
+    } catch {
+      /* keep stored figures */
+    }
+  }
   const staff = (opts.staffName || "").trim() || "Henima";
   return {
     notaNumber: formatNotaNumber(opts.order.id, opts.order.order_date),
@@ -85,7 +110,7 @@ export function notaFromOrder(opts: {
     paymentStatus: statusLabel(opts.order.payment_status),
     notes: opts.order.catatan,
     lines: lines.length ? lines : [{ name: "Produk", qty: 0, unitPrice: 0 }],
-    discount: Number(opts.order.diskon || 0),
+    discount,
     total: Number(opts.order.total || 0),
   };
 }
@@ -327,7 +352,7 @@ export async function buildSalesNotaPdf(payload: NotaPayload): Promise<Uint8Arra
 
 export async function buildOrderNota(db: SalesDb, actor: Actor, orderId: string) {
   const order = await getOrder(db, actor, orderId);
-  const [customerRes, staffRes] = await Promise.all([
+  const [customerRes, staffRes, catalog] = await Promise.all([
     order.customer_id
       ? db
           .from("module_crm_customers")
@@ -338,6 +363,7 @@ export async function buildOrderNota(db: SalesDb, actor: Actor, orderId: string)
     order.sales_id && order.sales_id !== actor.staffId
       ? db.from("module_sales_staff").select("nama, role").eq("id", order.sales_id).maybeSingle()
       : Promise.resolve({ data: null as { nama?: string; role?: string } | null }),
+    listProducts(db, actor.businessId).catch(() => [] as ProductRow[]),
   ]);
   const customer = customerRes.data;
   const staff = staffRes.data;
@@ -349,6 +375,7 @@ export async function buildOrderNota(db: SalesDb, actor: Actor, orderId: string)
     customerPhone: customer?.whatsapp_phone || customer?.telepon || null,
     staffName: staff?.nama || actor.nama,
     staffRole: staff?.role || actor.role,
+    catalog,
   });
   const bytes = await buildSalesNotaPdf(payload);
   const filename = `nota-${payload.notaNumber}.pdf`;

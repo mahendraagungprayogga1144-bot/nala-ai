@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       quantity: Number(body.quantity || 0),
       unitPrice: Number(body.unitPrice || 0),
       discount: Number(body.discount || 0),
+      discountPercent: body.discountPercent != null ? Number(body.discountPercent) : null,
       paymentMethod: body.paymentMethod as PaymentMethod,
       paymentStatus: (body.paymentStatus || "PAID") as PaymentStatus,
       notes: body.notes || null,

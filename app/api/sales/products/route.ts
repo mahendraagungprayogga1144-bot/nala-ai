@@ -12,6 +12,7 @@ export async function POST(request: Request) {
       id: body.id || null,
       name: String(body.name || ""),
       price: Number(body.price),
+      cost: body.cost === "" || body.cost == null ? null : Number(body.cost),
       stock: body.stock == null || body.stock === "" ? 0 : Number(body.stock),
       unit: body.unit || "pcs",
     });

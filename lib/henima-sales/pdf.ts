@@ -1,6 +1,5 @@
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { pdfSafe } from "./nota";
-import { paymentLabel } from "./types";
 import { fmtDateId } from "./money";
 import { servedByLabel, type SalesReport } from "./report-service";
 import { embedBrandFonts } from "./pdf-fonts";
@@ -33,6 +32,23 @@ function T(
 ) {
   const t = pdfSafe(String(text || "")).slice(0, 80);
   if (!t) return;
+  page.drawText(t, { x, y, size, font, color });
+}
+
+function clip(
+  page: PDFPage,
+  text: string,
+  x: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  maxW: number,
+  color = INK,
+) {
+  let t = pdfSafe(String(text || "")).slice(0, 80);
+  if (!t) return;
+  while (t.length > 1 && font.widthOfTextAtSize(t, size) > maxW) t = t.slice(0, -1);
+  if (t !== pdfSafe(String(text || "")).slice(0, 80) && t.length > 2) t = `${t.slice(0, -1)}.`;
   page.drawText(t, { x, y, size, font, color });
 }
 
@@ -83,10 +99,10 @@ export async function buildSalesReportPdf(opts: {
     ["QTY", `${r.totalQty} pcs`],
     ["OMZET", rp(r.totalRevenue)],
     ["CASH", rp(r.cashTotal || 0)],
-    ["CASHLESS", rp(r.cashlessTotal || 0)],
+    ["TRANSFER", rp(r.transferTotal || 0)],
+    ["QRIS", rp(r.qrisTotal || 0)],
     ["HPP", rp(r.hppTotal || 0)],
     ["PROFIT", rp(r.profitTotal || 0)],
-    ["AOV", rp(r.aov)],
   ];
   const boxW = (RIGHT - LEFT - 18) / 8;
   kpis.forEach((kpi, i) => {
@@ -150,13 +166,13 @@ export async function buildSalesReportPdf(opts: {
 
   need(80);
   T(page, "NAMA", LEFT, y, 7.5, sansBold, MUTED);
-  T(page, "TANGGAL", LEFT + 88, y, 7.5, sansBold, MUTED);
-  T(page, "KETERANGAN", LEFT + 148, y, 7.5, sansBold, MUTED);
-  T(page, "QTY", LEFT + 330, y, 7.5, sansBold, MUTED);
+  T(page, "TANGGAL", LEFT + 92, y, 7.5, sansBold, MUTED);
+  T(page, "KETERANGAN", LEFT + 152, y, 7.5, sansBold, MUTED);
+  T(page, "QTY", LEFT + 318, y, 7.5, sansBold, MUTED);
   rightText(page, "CASH", LEFT + 430, y, 7.5, sansBold, MUTED);
-  rightText(page, "CASHLESS", LEFT + 510, y, 7.5, sansBold, MUTED);
-  T(page, "METODE", LEFT + 520, y, 7.5, sansBold, MUTED);
-  rightText(page, "HPP", LEFT + 660, y, 7.5, sansBold, MUTED);
+  rightText(page, "TF", LEFT + 510, y, 7.5, sansBold, MUTED);
+  rightText(page, "QRIS", LEFT + 590, y, 7.5, sansBold, MUTED);
+  rightText(page, "HPP", LEFT + 680, y, 7.5, sansBold, MUTED);
   rightText(page, "PROFIT", RIGHT, y, 7.5, sansBold, MUTED);
   y -= 5;
   page.drawRectangle({ x: LEFT, y, width: RIGHT - LEFT, height: 0.6, color: INK });
@@ -169,14 +185,14 @@ export async function buildSalesReportPdf(opts: {
   }
   for (const line of rows) {
     need(22);
-    T(page, line.customerName, LEFT, y, 8, sans);
-    T(page, fmtDateId(line.date).replace(/[^\x20-\x7e]/g, "/"), LEFT + 88, y, 8, sans);
-    T(page, line.note, LEFT + 148, y, 8, sans);
-    T(page, String(line.qty), LEFT + 334, y, 8, sans);
+    clip(page, line.customerName, LEFT, y, 8, sans, 88);
+    T(page, fmtDateId(line.date).replace(/[^\x20-\x7e]/g, "/"), LEFT + 92, y, 8, sans);
+    clip(page, line.note, LEFT + 152, y, 8, sans, 160);
+    T(page, String(line.qty), LEFT + 322, y, 8, sans);
     rightText(page, line.cash ? rp(line.cash) : "-", LEFT + 430, y, 8, sans);
-    rightText(page, line.cashless ? rp(line.cashless) : "-", LEFT + 510, y, 8, sans);
-    T(page, paymentLabel(line.method), LEFT + 520, y, 8, sans);
-    rightText(page, rp(line.hpp), LEFT + 660, y, 8, sans);
+    rightText(page, line.transfer ? rp(line.transfer) : "-", LEFT + 510, y, 8, sans);
+    rightText(page, line.qris ? rp(line.qris) : "-", LEFT + 590, y, 8, sans);
+    rightText(page, rp(line.hpp), LEFT + 680, y, 8, sans);
     rightText(page, rp(line.profit), RIGHT, y, 8, sansBold);
     y -= 11;
     page.drawRectangle({ x: LEFT, y: y + 7, width: RIGHT - LEFT, height: 0.3, color: LINE });
@@ -188,10 +204,11 @@ export async function buildSalesReportPdf(opts: {
   page.drawRectangle({ x: LEFT, y: y + 4, width: RIGHT - LEFT, height: 0.7, color: INK });
   y -= 8;
   T(page, "TOTAL", LEFT, y, 9, sansBold);
-  T(page, String(r.totalQty), LEFT + 334, y, 9, sansBold);
+  T(page, String(r.totalQty), LEFT + 322, y, 9, sansBold);
   rightText(page, rp(r.cashTotal || 0), LEFT + 430, y, 9, sansBold);
-  rightText(page, rp(r.cashlessTotal || 0), LEFT + 510, y, 9, sansBold);
-  rightText(page, rp(r.hppTotal || 0), LEFT + 660, y, 9, sansBold);
+  rightText(page, rp(r.transferTotal || 0), LEFT + 510, y, 9, sansBold);
+  rightText(page, rp(r.qrisTotal || 0), LEFT + 590, y, 9, sansBold);
+  rightText(page, rp(r.hppTotal || 0), LEFT + 680, y, 9, sansBold);
   rightText(page, rp(r.profitTotal || 0), RIGHT, y, 9, sansBold);
   y -= 22;
 
@@ -226,6 +243,8 @@ export function reportToCsv(report: SalesReport) {
     `pcs,${report.totalQty}`,
     `omzet,${report.totalRevenue}`,
     `cash,${report.cashTotal || 0}`,
+    `transfer,${report.transferTotal || 0}`,
+    `qris,${report.qrisTotal || 0}`,
     `cashless,${report.cashlessTotal || 0}`,
     `hpp,${report.hppTotal || 0}`,
     `profit,${report.profitTotal || 0}`,
@@ -233,10 +252,10 @@ export function reportToCsv(report: SalesReport) {
     `repeat,${report.repeatCustomers}`,
     `komisi,${report.totalCommission}`,
     "",
-    "nama,tanggal,keterangan,qty,cash,cashless,metode,hpp,profit,sales",
+    "nama,tanggal,keterangan,qty,cash,transfer,qris,metode,hpp,profit,sales",
     ...(report.lines || []).map(
       (l) =>
-        `${l.customerName},${l.date},${l.note},${l.qty},${l.cash},${l.cashless},${l.method},${l.hpp},${l.profit},${l.salesName}`,
+        `${l.customerName},${l.date},${l.note},${l.qty},${l.cash},${l.transfer},${l.qris},${l.method},${l.hpp},${l.profit},${l.salesName}`,
     ),
     "",
     "ranking,nama,pcs,omzet,trx",

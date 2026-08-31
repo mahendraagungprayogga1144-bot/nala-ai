@@ -3,7 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch } from "../phone";
-import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel } from "../types";
+import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
 import { reduceBot } from "../telegram/fsm";
@@ -195,7 +195,9 @@ test("input_phone sale chat is not treated as a phone number", () => {
   );
   assert.equal(out.session.draft.nlChat, true);
   assert.equal(out.session.draft.quantity, 1);
-  assert.equal(out.session.draft.unitPrice, 150000);
+  assert.equal(out.session.draft.unitPrice, 199000);
+  assert.equal(out.session.draft.discount, 49000);
+  assert.equal(out.session.draft.orderTotal, 150000);
   assert.equal(out.session.draft.phone, "6287779853453");
 });
 
@@ -220,9 +222,11 @@ test("idle chat sale fills draft instead of help", () => {
   );
   assert.equal(out.session.state, "input_phone");
   assert.equal(out.session.draft.quantity, 1);
-  assert.equal(out.session.draft.unitPrice, 150000);
+  assert.equal(out.session.draft.unitPrice, 199000);
+  assert.equal(out.session.draft.discount, 49000);
+  assert.equal(out.session.draft.orderTotal, 150000);
   assert.equal(out.session.draft.customerName?.toLowerCase(), "regan");
-  assert.equal(out.session.draft.productName, "Afternoon");
+  assert.equal(out.session.draft.productName, "Afternoon × 1");
   assert.equal(out.session.draft.nlChat, true);
 });
 
@@ -369,8 +373,8 @@ test("2 paket new member fills both products and splits 250k", () => {
   const out = reduceBot({ state: "idle", draft: newDraft() }, { kind: "text", text: msg }, { actor: sales, products: perfume });
   assert.equal(out.session.draft.lines?.length, 2);
   assert.equal(out.session.draft.packQty, 2);
-  const total = (out.session.draft.lines || []).reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-  assert.equal(total, 250000);
+  assert.equal(out.session.draft.orderTotal, 250000);
+  assert.equal(out.session.draft.discount, 350000);
   assert.equal(out.session.draft.lines?.[0].quantity, 2);
   assert.equal(out.session.draft.lines?.[1].quantity, 2);
   const names = (out.session.draft.lines || []).map((l) => l.productName.toLowerCase()).sort();
@@ -429,11 +433,21 @@ test("parsePaymentMethod reads tf qris cash lainnya", () => {
   assert.equal(parsePaymentMethod("tunai"), "CASH");
   assert.equal(parsePaymentMethod("lainnya"), "OTHER");
   assert.equal(paymentLabel("TRANSFER"), "Transfer");
+  assert.equal(paymentLabel("tunai"), "Cash");
+  assert.equal(normalizePaymentMethod("tf"), "TRANSFER");
+  assert.equal(paymentSplit("tunai", 150000).method, "CASH");
+  assert.equal(paymentSplit("tunai", 150000).cash, 150000);
+  assert.equal(paymentSplit("tf", 130000).transfer, 130000);
+  assert.equal(paymentSplit("QRIS", 200000).qris, 200000);
+  assert.equal(paymentSplit("CASH", 150000, "chat lama tf").cash, 150000);
   const withPay = parseSalesChat(
     "hari ini laku 1 harga 150rb atas nama regan no telfone 087779853453 tf",
     perfume,
   );
   assert.equal(withPay.paymentMethod, "TRANSFER");
+  const namedTf = parseSalesChat("Laku 1 harga 130rb nama Nala tf", perfume);
+  assert.equal(namedTf.customerName, "Nala");
+  assert.equal(namedTf.paymentMethod, "TRANSFER");
 });
 
 test("split 250k across 2x2 lines", () => {
@@ -442,6 +456,70 @@ test("split 250k across 2x2 lines", () => {
   const lines = buildPackLines(perfume, 2, 250000);
   assert.equal(lines.length, 2);
   assert.equal(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 250000);
+});
+
+test("retail 199k vs bayar 150k stores discount on nota", () => {
+  const catalog = [{ id: "1", name: "Afternoon", price: 199000, cost: 80000, stock: 10, unit: "pcs" }];
+  const priced = priceAgainstRetail(
+    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: 150000 }],
+    catalog,
+  );
+  assert.equal(priced.discount, 49000);
+  assert.equal(priced.lines[0].unitPrice, 199000);
+  assert.equal(priced.total, 150000);
+  const pct = priceAgainstRetail(
+    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: 199000 }],
+    catalog,
+    { discountPercent: 20 },
+  );
+  assert.equal(pct.discount, 39800);
+  assert.equal(pct.total, 159200);
+});
+
+test("parse diskon 50rb and 20% without stealing harga", () => {
+  const catalog = [{ id: "1", name: "Afternoon", price: 199000, cost: 80000, stock: 10, unit: "pcs" }];
+  const rp = parseSalesChat("laku 1 harga 199rb diskon 50rb atas nama Sinta no 081234567890 qris", catalog);
+  assert.equal(rp.unitPrice, 199000);
+  assert.equal(rp.discount, 50000);
+  assert.equal(rp.discountPercent, null);
+  assert.equal(rp.paymentMethod, "QRIS");
+  const pct = parseSalesChat("laku 1 harga 199rb diskon 20% atas nama Sinta no 081234567890 cash", catalog);
+  assert.equal(pct.unitPrice, 199000);
+  assert.equal(pct.discountPercent, 20);
+  const cheap = parseSalesChat("laku 1 harga 150rb atas nama Regan no 081234567890 tf", catalog);
+  assert.equal(cheap.discount, null);
+  const auto = priceAgainstRetail(
+    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: cheap.unitPrice || 0 }],
+    catalog,
+  );
+  assert.equal(auto.discount, 49000);
+});
+
+test("nota infers DISKON from catalog retail when order.diskon is 0", () => {
+  const payload = notaFromOrder({
+    order: {
+      id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      business_id: "b1",
+      customer_id: "c1",
+      sales_id: "f1",
+      total: 150000,
+      diskon: 0,
+      metode_bayar: "CASH",
+      payment_status: "PAID",
+      catatan: null,
+      order_date: "2026-08-31",
+      created_at: "2026-08-31T00:00:00Z",
+      deleted_at: null,
+      source: "henima_sales",
+      order_items: [{ id: "i1", product_id: "1", qty: 1, harga_jual: 150000, product_name_snapshot: "Afternoon" }],
+    },
+    brandName: "Henima Scent",
+    customerName: "Regan",
+    catalog: [{ id: "1", name: "Afternoon", price: 199000, cost: 80000, stock: 10, unit: "pcs" }],
+  });
+  assert.equal(payload.discount, 49000);
+  assert.equal(payload.lines[0].unitPrice, 199000);
+  assert.equal(payload.total, 150000);
 });
 
 if (failed) {
@@ -509,6 +587,8 @@ buildSalesNotaPdf(embedPayload)
             note: "The Distance",
             qty: 1,
             cash: 150000,
+            transfer: 0,
+            qris: 0,
             cashless: 0,
             method: "CASH",
             hpp: 75000,
@@ -521,6 +601,8 @@ buildSalesNotaPdf(embedPayload)
             note: "paket",
             qty: 2,
             cash: 0,
+            transfer: 250000,
+            qris: 0,
             cashless: 250000,
             method: "TRANSFER",
             hpp: 125000,
@@ -528,6 +610,8 @@ buildSalesNotaPdf(embedPayload)
           },
         ],
         cashTotal: 150000,
+        transferTotal: 250000,
+        qrisTotal: 0,
         cashlessTotal: 250000,
         hppTotal: 200000,
         profitTotal: 200000,

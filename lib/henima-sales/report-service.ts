@@ -1,5 +1,5 @@
-import type { Actor } from "./types";
-import { SALES_ORDER_SOURCE, SalesError } from "./types";
+import type { Actor, PaymentMethod } from "./types";
+import { SALES_ORDER_SOURCE, SalesError, paymentSplit } from "./types";
 import type { SalesDb } from "./db";
 import { loadTeamIds } from "./authz";
 import { periodRange } from "./dates";
@@ -36,6 +36,33 @@ export function servedByLabel(rows: { nama: string }[]) {
   return `Dilayani oleh ${names.join(", ")}`;
 }
 
+function displayCustomerName(raw: string) {
+  const t = (raw || "").replace(/\s+/g, " ").trim();
+  if (!t) return "—";
+  if (/^(laku|terjual|jual|closing)\b/i.test(t) || t.length > 40) {
+    const named = t.match(/\bnama\s+([A-Za-z][A-Za-z'.-]{1,40}(?:\s+[A-Za-z][A-Za-z'.-]{1,20}){0,2})/i);
+    if (named) {
+      const n = named[1].replace(/\b(tf|trf|qris|cash|tunai|transfer)\b/gi, "").trim();
+      if (n.length >= 2) return n;
+    }
+    return t.slice(0, 22).trim();
+  }
+  return t;
+}
+
+function recapNote(catatan: string | null, products: string) {
+  const note = (catatan || "").replace(/\s+/g, " ").trim();
+  if (!note) return products;
+  if (/^(laku|terjual|jual)\b/i.test(note) || note.length > 48) return products || note.slice(0, 32);
+  return note;
+}
+
+function hppOf(o: OrderAgg) {
+  const header = Number(o.hpp || 0);
+  if (header > 0) return header;
+  return (o.order_items || []).reduce((s, i) => s + Number(i.hpp || 0) * Number(i.qty || 0), 0);
+}
+
 type OrderAgg = {
   id: string;
   sales_id: string | null;
@@ -47,7 +74,7 @@ type OrderAgg = {
   payment_status: string | null;
   order_date: string;
   catatan: string | null;
-  order_items: { product_id: string | null; qty: number; product_name_snapshot: string | null; harga_jual: number }[];
+  order_items: { product_id: string | null; qty: number; product_name_snapshot: string | null; harga_jual: number; hpp?: number | null }[];
 };
 
 export type RecapLine = {
@@ -57,8 +84,10 @@ export type RecapLine = {
   note: string;
   qty: number;
   cash: number;
+  transfer: number;
+  qris: number;
   cashless: number;
-  method: string;
+  method: PaymentMethod | string;
   hpp: number;
   profit: number;
 };
@@ -81,7 +110,7 @@ export async function buildSalesReport(
 
   let q = db
     .from("orders")
-    .select("id, sales_id, customer_id, total, laba, hpp, metode_bayar, payment_status, order_date, catatan, order_items(product_id, qty, product_name_snapshot, harga_jual)")
+    .select("id, sales_id, customer_id, total, laba, hpp, metode_bayar, payment_status, order_date, catatan, order_items(product_id, qty, product_name_snapshot, harga_jual, hpp)")
     .eq("business_id", actor.businessId)
     .eq("source", SALES_ORDER_SOURCE)
     .is("deleted_at", null)
@@ -118,17 +147,72 @@ export async function buildSalesReport(
     }
   }
 
-  const byPay: Record<string, number> = { CASH: 0, TRANSFER: 0, QRIS: 0, OTHER: 0 };
-  for (const o of paid) {
-    const m = (o.metode_bayar || "OTHER").toUpperCase();
-    byPay[m] = (byPay[m] || 0) + Number(o.total || 0);
-  }
-
   const staffIds = [...new Set(paid.map((o) => o.sales_id).filter(Boolean))] as string[];
-  const { data: staffRows } = staffIds.length
-    ? await db.from("module_sales_staff").select("id, nama, role").in("id", staffIds)
-    : { data: [] as { id: string; nama: string; role: string }[] };
+  const custIds = [...new Set(paid.map((o) => o.customer_id).filter(Boolean))] as string[];
+  const [{ data: staffRows }, { data: custRows }] = await Promise.all([
+    staffIds.length
+      ? db.from("module_sales_staff").select("id, nama, role").in("id", staffIds)
+      : Promise.resolve({ data: [] as { id: string; nama: string; role: string }[] }),
+    custIds.length
+      ? db.from("module_crm_customers").select("id, nama").in("id", custIds)
+      : Promise.resolve({ data: [] as { id: string; nama: string }[] }),
+  ]);
   const staffMap = Object.fromEntries((staffRows || []).map((s) => [s.id, s]));
+  const custMap = Object.fromEntries((custRows || []).map((c) => [c.id, c.nama]));
+
+  const byPay: Record<PaymentMethod, number> = { CASH: 0, TRANSFER: 0, QRIS: 0, OTHER: 0 };
+  const byDay: Record<string, number> = {};
+  const byDayOmzet: Record<string, { qty: number; cash: number; cashless: number; omzet: number }> = {};
+  let cashTotal = 0;
+  let transferTotal = 0;
+  let qrisTotal = 0;
+  let cashlessTotal = 0;
+  let hppTotal = 0;
+  let profitTotal = 0;
+
+  const lines: RecapLine[] = [...paid]
+    .sort((a, b) => a.order_date.localeCompare(b.order_date) || a.id.localeCompare(b.id))
+    .map((o) => {
+      const total = Number(o.total || 0);
+      const customerName = displayCustomerName((o.customer_id && custMap[o.customer_id]) || "");
+      const split = paymentSplit(
+        o.metode_bayar,
+        total,
+        `${o.catatan || ""} ${customerName} ${(o.customer_id && custMap[o.customer_id]) || ""}`,
+      );
+      const hpp = hppOf(o);
+      const profit = o.laba != null ? Number(o.laba) : total - hpp;
+      const qty = qtyOf(o);
+      const products = (o.order_items || []).map((i) => i.product_name_snapshot || "Produk").join(" + ");
+      byPay[split.method] += total;
+      cashTotal += split.cash;
+      transferTotal += split.transfer;
+      qrisTotal += split.qris;
+      cashlessTotal += split.cashless;
+      hppTotal += hpp;
+      profitTotal += profit;
+      byDay[o.order_date] = (byDay[o.order_date] || 0) + qty;
+      const day = byDayOmzet[o.order_date] || { qty: 0, cash: 0, cashless: 0, omzet: 0 };
+      day.qty += qty;
+      day.cash += split.cash;
+      day.cashless += split.cashless;
+      day.omzet += total;
+      byDayOmzet[o.order_date] = day;
+      return {
+        date: o.order_date,
+        customerName,
+        salesName: (o.sales_id && staffMap[o.sales_id]?.nama) || "—",
+        note: recapNote(o.catatan, products),
+        qty,
+        cash: split.cash,
+        transfer: split.transfer,
+        qris: split.qris,
+        cashless: split.cashless,
+        method: split.method,
+        hpp,
+        profit,
+      };
+    });
 
   const bySales: Record<string, RankRow> = {};
   for (const o of paid) {
@@ -149,62 +233,6 @@ export async function buildSalesReport(
   }
   const rankBy = opts.rankBy || "quantity";
   const { ranking, servedBy } = splitSalesRanking(Object.values(bySales), rankBy);
-
-  const byDay: Record<string, number> = {};
-  const byDayOmzet: Record<string, { qty: number; cash: number; cashless: number; omzet: number }> = {};
-  let cashTotal = 0;
-  let cashlessTotal = 0;
-  let hppTotal = 0;
-  let profitTotal = 0;
-  for (const o of paid) {
-    const qty = qtyOf(o);
-    const total = Number(o.total || 0);
-    const method = (o.metode_bayar || "OTHER").toUpperCase();
-    const cash = method === "CASH" ? total : 0;
-    const cashless = method === "CASH" ? 0 : total;
-    const hpp = Number(o.hpp || 0);
-    const profit = Number(o.laba != null ? o.laba : total - hpp);
-    cashTotal += cash;
-    cashlessTotal += cashless;
-    hppTotal += hpp;
-    profitTotal += profit;
-    byDay[o.order_date] = (byDay[o.order_date] || 0) + qty;
-    const day = byDayOmzet[o.order_date] || { qty: 0, cash: 0, cashless: 0, omzet: 0 };
-    day.qty += qty;
-    day.cash += cash;
-    day.cashless += cashless;
-    day.omzet += total;
-    byDayOmzet[o.order_date] = day;
-  }
-
-  const custIds = [...new Set(paid.map((o) => o.customer_id).filter(Boolean))] as string[];
-  const { data: custRows } = custIds.length
-    ? await db.from("module_crm_customers").select("id, nama").in("id", custIds)
-    : { data: [] as { id: string; nama: string }[] };
-  const custMap = Object.fromEntries((custRows || []).map((c) => [c.id, c.nama]));
-
-  const lines: RecapLine[] = [...paid]
-    .sort((a, b) => a.order_date.localeCompare(b.order_date) || a.id.localeCompare(b.id))
-    .map((o) => {
-      const method = (o.metode_bayar || "OTHER").toUpperCase();
-      const total = Number(o.total || 0);
-      const hpp = Number(o.hpp || 0);
-      const products = (o.order_items || [])
-        .map((i) => i.product_name_snapshot || "Produk")
-        .join(" + ");
-      return {
-        date: o.order_date,
-        customerName: (o.customer_id && custMap[o.customer_id]) || "—",
-        salesName: (o.sales_id && staffMap[o.sales_id]?.nama) || "—",
-        note: o.catatan || products,
-        qty: qtyOf(o),
-        cash: method === "CASH" ? total : 0,
-        cashless: method === "CASH" ? 0 : total,
-        method,
-        hpp,
-        profit: Number(o.laba != null ? o.laba : total - hpp),
-      };
-    });
 
   const customerIds = [...new Set(paid.map((o) => o.customer_id).filter(Boolean))] as string[];
   let newCustomers = 0;
@@ -258,6 +286,8 @@ export async function buildSalesReport(
     byDayOmzet,
     lines,
     cashTotal,
+    transferTotal,
+    qrisTotal,
     cashlessTotal,
     hppTotal,
     profitTotal,

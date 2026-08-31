@@ -1,5 +1,5 @@
 import { isValidPhoneId, normalizePhoneId } from "../phone";
-import { DEFAULT_HENIMA_PRODUCTS, type PaymentMethod, type ProductRow, type SaleLine } from "../types";
+import { DEFAULT_HENIMA_PRODUCTS, type PaymentMethod, type ProductRow, type SaleLine, normalizePaymentMethod } from "../types";
 
 export type ParsedSaleChat = {
   looksLikeSale: boolean;
@@ -7,6 +7,8 @@ export type ParsedSaleChat = {
   customerName: string | null;
   quantity: number | null;
   unitPrice: number | null;
+  discount: number | null;
+  discountPercent: number | null;
   productId: string | null;
   productName: string | null;
   paymentMethod: PaymentMethod | null;
@@ -96,6 +98,8 @@ export function parseSalesChat(text: string, products: ProductRow[]): ParsedSale
     customerName: null,
     quantity: null,
     unitPrice: null,
+    discount: null,
+    discountPercent: null,
     productId: null,
     productName: null,
     paymentMethod: null,
@@ -105,7 +109,8 @@ export function parseSalesChat(text: string, products: ProductRow[]): ParsedSale
   if (!raw) return empty;
 
   const phone = extractPhone(raw);
-  const unitPrice = extractPrice(lower);
+  const disc = extractDiscount(lower);
+  const unitPrice = extractPrice(stripDiscountClause(lower));
   const quantity = extractQty(lower);
   const customerName = extractName(raw);
   const matchedProducts = matchAllProducts(lower, products);
@@ -123,6 +128,8 @@ export function parseSalesChat(text: string, products: ProductRow[]): ParsedSale
     customerName,
     quantity,
     unitPrice,
+    discount: disc.amount,
+    discountPercent: disc.percent,
     productId: product?.id || null,
     productName: product?.name || null,
     paymentMethod,
@@ -204,6 +211,26 @@ function extractPhone(text: string): string | null {
   return null;
 }
 
+function stripDiscountClause(lower: string) {
+  return lower.replace(/\b(?:diskon|disc|potongan)\s*(?:rp|:)?\s*[\d.,]+\s*(%|persen|rb|ribu|k)?/g, " ");
+}
+
+function extractDiscount(lower: string): { amount: number | null; percent: number | null } {
+  const m = lower.match(/\b(?:diskon|disc|potongan)\s*(?:rp|:)?\s*([\d.,]+)\s*(%|persen|rb|ribu|k)?/);
+  if (!m) return { amount: null, percent: null };
+  const suffix = (m[2] || "").toLowerCase();
+  if (suffix === "%" || suffix === "persen") {
+    const n = Number(String(m[1]).replace(",", "."));
+    if (!(n > 0) || n > 100) return { amount: null, percent: null };
+    return { amount: null, percent: n };
+  }
+  const amount = parseIdrAmountToken(m[1], suffix || null);
+  if (amount && amount < 1000 && !suffix) {
+    return { amount: null, percent: amount <= 100 ? amount : null };
+  }
+  return { amount, percent: null };
+}
+
 function extractPrice(lower: string): number | null {
   const labeled = lower.match(/harga\s*(?:jual)?\s*(?:rp|:)?\s*([\d.,]+)\s*(rb|ribu|k|jt|juta)?/);
   if (labeled) return parseIdrAmountToken(labeled[1], labeled[2]);
@@ -234,20 +261,20 @@ function extractQty(lower: string): number | null {
 }
 
 function extractName(text: string): string | null {
-  const m = text.match(
-    /(?:atas\s+nama|a\/n|an)\s+([A-Za-z][A-Za-z .'-]{0,40}?)(?=\s+(?:no\.?|telp|telfon|telepon|hp|wa|harga|laku|jual)|$)/i,
-  );
-  if (m) return cleanName(m[1]);
-  const named = text.match(
-    /\bnama\s+([A-Za-z][A-Za-z .'-]{0,40}?)(?=\s+(?:no\.?|telp|telfon|telepon|hp|wa|harga|laku)|$)/i,
-  );
-  if (named) return cleanName(named[1]);
-  return null;
+  const m = text.match(/(?:atas\s+nama|a\/n|\bnama)\s+([A-Za-z][A-Za-z'.-]{1,40}(?:\s+[A-Za-z][A-Za-z'.-]{1,20}){0,3})/i);
+  if (!m) return null;
+  const stop = /^(no|telp|telfon|telfone|telepon|hp|wa|whatsapp|harga|laku|jual|tf|trf|qris|qr|cash|tunai|kontan|transfer|transef|lainnya)$/i;
+  const parts = m[1].split(/\s+/).filter((p) => !stop.test(p));
+  return cleanName(parts.join(" "));
 }
 
 function cleanName(s: string) {
-  const n = s.replace(/\s+/g, " ").trim();
+  const n = s
+    .replace(/\b(tf|trf|qris|qr|cash|tunai|kontan|transfer|transef|lainnya)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (n.length < 2) return null;
+  if (/^(laku|terjual|jual|closing|order|omzet)\b/i.test(n)) return null;
   return n;
 }
 
@@ -257,11 +284,5 @@ function extractPay(lower: string): PaymentMethod | null {
 
 /** tf / transfer / qris / cash / tunai / lainnya */
 export function parsePaymentMethod(text: string): PaymentMethod | null {
-  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  if (/\b(qris|qr)\b/.test(t)) return "QRIS";
-  if (/\b(transfer|transef|tranfer|trf|tf|bank)\b/.test(t)) return "TRANSFER";
-  if (/\b(cash|tunai|kontan)\b/.test(t)) return "CASH";
-  if (/^(lainnya|other|lain)$/.test(t) || /\blainnya\b/.test(t)) return "OTHER";
-  return null;
+  return normalizePaymentMethod(text);
 }

@@ -1,5 +1,5 @@
-import type { Actor, PaymentMethod, PaymentStatus, SaleLine } from "../types";
-import { paymentLabel } from "../types";
+import type { Actor, PaymentMethod, PaymentStatus, ProductRow, SaleLine } from "../types";
+import { paymentLabel, priceAgainstRetail } from "../types";
 import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
 
 export { UNLINKED_MSG };
@@ -42,6 +42,8 @@ export type Draft = {
   packProductIds?: string[];
   packQty?: number;
   orderTotal?: number;
+  discount?: number;
+  discountPercent?: number;
   paymentMethod?: PaymentMethod;
   paymentStatus?: PaymentStatus;
   idempotencyKey?: string;
@@ -106,6 +108,7 @@ export const HELP_TEXT = `Perintah Henima Sales:
 
 Sales cukup pakai Telegram. Chat biasa juga bisa:
 laku 1 harga 150rb atas nama Regan no 0877... tf
+laku 1 harga 199rb diskon 50rb atas nama Sinta no 08... qris
 laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
 Metode bayar: tf / qris / cash / lainnya
@@ -137,6 +140,26 @@ export function applyLinesToDraft(draft: Draft, lines: SaleLine[]): Draft {
   };
 }
 
+/** Retail line + diskon so nota SUBTOTAL − DISKON = yang dibayar. */
+export function applyCatalogPricing(draft: Draft, products: ProductRow[]): Draft {
+  const lines = draftSaleLines(draft);
+  if (!lines.length || !products.length) return draft;
+  try {
+    const priced = priceAgainstRetail(lines, products, {
+      discount: draft.discount,
+      discountPercent: draft.discountPercent,
+    });
+    if (priced.discount <= 0) return { ...draft, orderTotal: priced.total };
+    return {
+      ...applyLinesToDraft({ ...draft, discount: priced.discount }, priced.lines),
+      discount: priced.discount,
+      orderTotal: priced.total,
+    };
+  } catch {
+    return draft;
+  }
+}
+
 export function draftSaleLines(d: Draft): SaleLine[] {
   if (d.lines?.length) return d.lines;
   if (d.productId && d.quantity && d.unitPrice != null) {
@@ -157,14 +180,17 @@ export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {
   const productBlock = lines.length
     ? lines.map((line) => `${line.productName} × ${line.quantity}`).join("\n")
     : d.productName || "—";
-  const total =
-    d.orderTotal ??
-    lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitPrice), 0) ??
-    Math.round((d.quantity || 0) * (d.unitPrice || 0));
+  const goods = lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitPrice), 0);
+  const discountAmt =
+    d.discount ||
+    (d.discountPercent ? Math.round(goods * (d.discountPercent / 100)) : 0) ||
+    0;
+  const total = d.orderTotal ?? Math.max(0, goods - discountAmt) ?? Math.round((d.quantity || 0) * (d.unitPrice || 0));
   const qtyLabel =
     lines.length > 1
       ? lines.map((line) => `${line.quantity} ${line.productName}`).join(" + ")
       : `${d.quantity || 0} pcs`;
+  const harga = lines.length > 1 ? goods : d.unitPrice || goods || 0;
   return [
     "================================",
     "TRANSAKSI HENIMA",
@@ -179,8 +205,9 @@ export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {
     "",
     `Quantity:\n${qtyLabel}`,
     "",
-    `Harga:\nRp${Math.round(lines.length > 1 ? total : d.unitPrice || 0).toLocaleString("id-ID")}`,
+    `Harga:\nRp${Math.round(harga).toLocaleString("id-ID")}`,
     "",
+    ...(discountAmt > 0 ? [`Diskon:\nRp${Math.round(discountAmt).toLocaleString("id-ID")}`, ""] : []),
     `Total:\nRp${Math.round(total).toLocaleString("id-ID")}`,
     "",
     `Pembayaran:\n${d.paymentMethod ? paymentLabel(d.paymentMethod) : "—"} (${d.paymentStatus || "PAID"})`,

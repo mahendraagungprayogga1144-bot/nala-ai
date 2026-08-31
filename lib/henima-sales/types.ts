@@ -9,8 +9,30 @@ export type CustomerStatus = (typeof CUSTOMER_STATUSES)[number];
 export const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "OTHER"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/** Map kasir/chat variants (tunai, tf, qris, …) onto CASH | TRANSFER | QRIS | OTHER. */
+export function normalizePaymentMethod(raw?: string | null): PaymentMethod | null {
+  const t = (raw || "")
+    .toLowerCase()
+    .replace(/[_/,-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+  if (t === "qris" || t === "qr" || /\bqris\b/.test(t) || /\bqr\b/.test(t)) return "QRIS";
+  if (
+    t === "tf" ||
+    t === "trf" ||
+    t === "transfer" ||
+    /\b(transfer|transef|tranfer|trf|tf)\b/.test(t)
+  ) {
+    return "TRANSFER";
+  }
+  if (t === "cash" || t === "tunai" || t === "kontan" || /\b(cash|tunai|kontan)\b/.test(t)) return "CASH";
+  if (t === "other" || t === "lainnya" || t === "lain" || /\blainnya\b/.test(t)) return "OTHER";
+  return null;
+}
+
 export function paymentLabel(method?: string | null) {
-  switch ((method || "").toUpperCase()) {
+  switch (normalizePaymentMethod(method) || (method || "").toUpperCase()) {
     case "TRANSFER":
       return "Transfer";
     case "QRIS":
@@ -22,6 +44,19 @@ export function paymentLabel(method?: string | null) {
     default:
       return method || "—";
   }
+}
+
+export function paymentSplit(methodRaw: string | null | undefined, total: number, hint?: string | null) {
+  const amount = Math.round(Number(total) || 0);
+  const method = normalizePaymentMethod(methodRaw) || normalizePaymentMethod(hint) || "OTHER";
+  return {
+    method,
+    cash: method === "CASH" ? amount : 0,
+    transfer: method === "TRANSFER" ? amount : 0,
+    qris: method === "QRIS" ? amount : 0,
+    other: method === "OTHER" ? amount : 0,
+    cashless: method === "CASH" ? 0 : amount,
+  };
 }
 
 export const PAYMENT_STATUSES = ["PAID", "PENDING", "CANCELLED"] as const;
@@ -66,6 +101,8 @@ export const DEFAULT_HENIMA_PRODUCTS = [
   { name: "Afternoon", unit: "pcs" },
   { name: "The Distance", unit: "pcs" },
 ] as const;
+
+export const DEFAULT_RETAIL_PRICE = 199000;
 
 export function isSalesCatalogProduct(p: { name?: string | null; category?: string | null }) {
   const cat = (p.category || "").trim().toLowerCase();
@@ -171,6 +208,7 @@ export type ConfirmSaleInput = {
   quantity: number;
   unitPrice: number;
   discount: number;
+  discountPercent?: number | null;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   notes?: string | null;
@@ -206,6 +244,38 @@ export function calculateLinesTotal(lines: SaleLine[], discount: number) {
   const disc = Math.round(discount);
   if (disc > gross) throw new SalesError("Diskon melebihi total.", "discount_invalid");
   return gross - disc;
+}
+
+export function priceAgainstRetail(
+  lines: SaleLine[],
+  catalog: ProductRow[],
+  opts?: { discount?: number | null; discountPercent?: number | null },
+): { lines: SaleLine[]; discount: number; total: number; retailTotal: number } {
+  if (!lines.length) throw new SalesError("Produk belum dipilih.", "quantity_invalid");
+  const retailLines = lines.map((line) => {
+    const product = catalog.find((p) => p.id === line.productId);
+    const retail = product?.price != null && product.price > 0 ? Number(product.price) : line.unitPrice;
+    return { ...line, unitPrice: retail };
+  });
+  const retailTotal = calculateLinesTotal(retailLines, 0);
+  const paidTotal = calculateLinesTotal(lines, 0);
+  let discount = 0;
+  if (opts?.discount != null && opts.discount > 0) {
+    discount = Math.round(opts.discount);
+  } else if (opts?.discountPercent != null && opts.discountPercent > 0) {
+    discount = Math.round(retailTotal * (opts.discountPercent / 100));
+  } else if (retailTotal > paidTotal) {
+    discount = retailTotal - paidTotal;
+  }
+  if (discount > retailTotal) throw new SalesError("Diskon melebihi total.", "discount_invalid");
+  const useRetail = discount > 0;
+  const gross = useRetail ? retailTotal : paidTotal;
+  return {
+    lines: useRetail ? retailLines : lines,
+    discount,
+    total: gross - discount,
+    retailTotal,
+  };
 }
 
 export function calculateCommissionAmount(total: number, fixedAmount: number, percentage: number) {

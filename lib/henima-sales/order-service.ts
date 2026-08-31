@@ -1,6 +1,6 @@
 import { todayWib } from "@/lib/date";
 import type { Actor, ConfirmSaleInput, PaymentMethod, PaymentStatus, SaleLine } from "./types";
-import { ForbiddenError, NotFoundError, SalesError, SALES_ORDER_SOURCE, calculateOrderTotal, calculateLinesTotal } from "./types";
+import { ForbiddenError, NotFoundError, SalesError, SALES_ORDER_SOURCE, calculateOrderTotal, calculateLinesTotal, normalizePaymentMethod, priceAgainstRetail } from "./types";
 import type { SalesDb } from "./db";
 import { rpcMessage } from "./db";
 import { writeAudit } from "./audit";
@@ -52,8 +52,8 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
             unitPrice: input.unitPrice,
           },
         ];
-  if (lines.length > 1) calculateLinesTotal(lines, input.discount);
-  else calculateOrderTotal(input.quantity, input.unitPrice, input.discount);
+  if (lines.length > 1) calculateLinesTotal(lines, 0);
+  else calculateOrderTotal(input.quantity, input.unitPrice, 0);
 
   await getCustomer(db, actor, input.customerId);
   const products = await listProducts(db, actor.businessId);
@@ -62,24 +62,37 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
     if (!product) throw new SalesError(`Produk tidak valid: ${line.productName}.`, "product_invalid");
   }
 
-  if (lines.length > 1) {
-    return confirmSaleItems(db, actor, input, lines);
+  const priced = priceAgainstRetail(lines, products, {
+    discount: input.discount,
+    discountPercent: input.discountPercent,
+  });
+  const pricedInput = {
+    ...input,
+    unitPrice: priced.lines[0].unitPrice,
+    quantity: priced.lines.reduce((sum, line) => sum + line.quantity, 0),
+    discount: priced.discount,
+    productName: priced.lines.map((line) => `${line.productName} × ${line.quantity}`).join(" + "),
+    lines: priced.lines.length > 1 ? priced.lines : undefined,
+  };
+
+  if (priced.lines.length > 1) {
+    return confirmSaleItems(db, actor, pricedInput, priced.lines);
   }
 
-  const product = products.find((p) => p.id === input.productId)!;
+  const product = products.find((p) => p.id === pricedInput.productId)!;
   const { data, error } = await db.rpc("henima_confirm_sale", {
     p_business_id: actor.businessId,
     p_owner_user_id: actor.ownerUserId,
     p_sales_staff_id: actor.staffId,
-    p_idempotency_key: input.idempotencyKey,
-    p_customer_id: input.customerId,
-    p_product_id: input.productId,
-    p_product_name: input.productName || product.name,
-    p_quantity: input.quantity,
-    p_unit_price: input.unitPrice,
-    p_discount: input.discount || 0,
-    p_payment_method: input.paymentMethod,
-    p_payment_status: input.paymentStatus,
+    p_idempotency_key: pricedInput.idempotencyKey,
+    p_customer_id: pricedInput.customerId,
+    p_product_id: pricedInput.productId,
+    p_product_name: pricedInput.productName || product.name,
+    p_quantity: priced.lines[0].quantity,
+    p_unit_price: priced.lines[0].unitPrice,
+    p_discount: priced.discount,
+    p_payment_method: normalizePaymentMethod(pricedInput.paymentMethod) || "OTHER",
+    p_payment_status: pricedInput.paymentStatus,
     p_notes: input.notes || null,
     p_order_date: input.orderDate || todayWib(),
   });
@@ -89,7 +102,7 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
     throw new SalesError(rpcMessage(error), "confirm_failed", 500);
   }
 
-  return finishConfirm(db, actor, input, data, input.productName, input.quantity);
+  return finishConfirm(db, actor, pricedInput, data, pricedInput.productName, priced.lines[0].quantity);
 }
 
 async function confirmSaleItems(db: SalesDb, actor: Actor, input: ConfirmSaleInput, lines: SaleLine[]) {
@@ -106,7 +119,7 @@ async function confirmSaleItems(db: SalesDb, actor: Actor, input: ConfirmSaleInp
       unit_price: line.unitPrice,
     })),
     p_discount: input.discount || 0,
-    p_payment_method: input.paymentMethod,
+    p_payment_method: normalizePaymentMethod(input.paymentMethod) || "OTHER",
     p_payment_status: input.paymentStatus,
     p_notes: input.notes || lines.map((l) => `${l.productName} x${l.quantity}`).join(" + "),
     p_order_date: input.orderDate || todayWib(),
@@ -309,6 +322,48 @@ export async function updateOrder(
   // We update line + totals, then adjust stock delta.
   const item = current.order_items?.[0];
   if (!item) throw new SalesError("Item transaksi tidak ditemukan.", "no_item");
+
+  if (patch.discount != null && patch.unitPrice == null && patch.quantity == null && patch.productId == null) {
+    const products = await listProducts(db, actor.businessId);
+    const saleLines: SaleLine[] = (current.order_items || []).map((row) => ({
+      productId: row.product_id || "",
+      productName: row.product_name_snapshot || "Produk",
+      quantity: Number(row.qty),
+      unitPrice: Number(row.harga_jual),
+    }));
+    const priced = priceAgainstRetail(saleLines, products, { discount: patch.discount });
+    for (let i = 0; i < (current.order_items || []).length; i++) {
+      const row = current.order_items![i];
+      const line = priced.lines[i];
+      if (!line) continue;
+      const { error: lineErr } = await db
+        .from("order_items")
+        .update({ qty: line.quantity, harga_jual: line.unitPrice })
+        .eq("id", row.id);
+      if (lineErr) throw new SalesError(lineErr.message, "order_update");
+    }
+    const { error } = await db
+      .from("orders")
+      .update({
+        total: priced.total,
+        diskon: priced.discount,
+        metode_bayar: patch.paymentMethod ?? current.metode_bayar,
+        payment_status: patch.paymentStatus ?? current.payment_status,
+        catatan: patch.notes !== undefined ? patch.notes : current.catatan,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new SalesError(error.message, "order_update");
+    await writeAudit(db, actor, {
+      businessId: actor.businessId,
+      action: "UPDATE_ORDER",
+      entityType: "order",
+      entityId: id,
+      oldValue: { total: current.total, diskon: current.diskon },
+      newValue: { total: priced.total, diskon: priced.discount },
+    });
+    return getOrder(db, actor, id);
+  }
 
   const qty = patch.quantity ?? Number(item.qty);
   const price = patch.unitPrice ?? Number(item.harga_jual);

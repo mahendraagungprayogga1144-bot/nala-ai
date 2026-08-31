@@ -3,7 +3,7 @@ import type { Actor, SalesRole, StaffRow } from "./types";
 import { ForbiddenError, SalesError } from "./types";
 import type { SalesDb } from "./db";
 import { writeAudit } from "./audit";
-import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct } from "./types";
+import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct, DEFAULT_RETAIL_PRICE } from "./types";
 
 export function newInviteCode() {
   return randomBytes(4).toString("hex").toUpperCase();
@@ -90,6 +90,7 @@ export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
     unit: p.unit,
     stock: 0,
     min_stock: 0,
+    price: DEFAULT_RETAIL_PRICE,
     category: SALES_PRODUCT_CATEGORY,
   }));
   if (toInsert.length) {
@@ -111,12 +112,14 @@ export async function ensureDefaultProducts(db: SalesDb, actor: Actor) {
 export async function upsertSalesProduct(
   db: SalesDb,
   actor: Actor,
-  input: { id?: string | null; name: string; price: number; stock?: number; unit?: string | null },
+  input: { id?: string | null; name: string; price: number; cost?: number | null; stock?: number; unit?: string | null },
 ) {
   if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang dapat mengatur produk modul ini.");
   const name = input.name.trim();
   if (name.length < 1) throw new SalesError("Nama produk wajib.", "product_name");
   if (!Number.isFinite(input.price) || input.price < 0) throw new SalesError("Harga tidak valid.", "product_price");
+  const cost = input.cost == null ? null : Number(input.cost);
+  if (cost != null && (!(cost >= 0) || !Number.isFinite(cost))) throw new SalesError("HPP tidak valid.", "product_cost");
   const stock = Number.isFinite(input.stock) ? Number(input.stock) : 0;
   const unit = (input.unit || "pcs").trim() || "pcs";
 
@@ -126,6 +129,7 @@ export async function upsertSalesProduct(
       .update({
         name,
         price: input.price,
+        cost,
         stock,
         unit,
         category: SALES_PRODUCT_CATEGORY,
@@ -153,6 +157,7 @@ export async function upsertSalesProduct(
       business_id: actor.businessId,
       name,
       price: input.price,
+      cost,
       stock,
       min_stock: 0,
       unit,

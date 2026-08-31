@@ -29,6 +29,7 @@ Ini akun sales *${brand}*. Ikuti 3 langkah ini:
 
 Habis CONNECTED, catat penjualan dengan chat biasa, contoh:
 laku 1 harga 150rb atas nama Regan no 087712345678 tf
+laku 1 harga 199rb diskon 50rb atas nama Sinta no 08xxxxxxxxxx qris
 
 Paket 2 produk (Afternoon + The Distance):
 laku 2 paket new member harga 250k atas nama Dimas no 08xxxxxxxxxx qris
@@ -60,6 +61,9 @@ export function salesHowToText() {
 
 CATAT PENJUALAN — ketik seperti chat biasa:
 laku 1 harga 150rb atas nama NamaCustomer no 08xxxxxxxxxx tf
+
+Harga retail katalog (biasanya Rp199.000). Kalau customer bayar lebih murah, nota otomatis tampil SUBTOTAL − DISKON.
+Bisa juga tulis diskon: laku 1 harga 199rb diskon 50rb atas nama Sinta no 08xxxxxxxxxx qris
 
 Paket 2 produk (Afternoon + The Distance) cukup satu chat:
 laku 2 paket new member harga 250k atas nama NamaCustomer no 08xxxxxxxxxx qris

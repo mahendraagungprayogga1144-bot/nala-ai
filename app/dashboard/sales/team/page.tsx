@@ -28,6 +28,7 @@ export default function TeamPage() {
             id: p.id,
             name: p.name,
             price: p.price,
+            cost: p.cost,
             stock: p.stock,
             unit: p.unit,
           }))}

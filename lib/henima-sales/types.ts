@@ -102,7 +102,30 @@ export const DEFAULT_HENIMA_PRODUCTS = [
   { name: "The Distance", unit: "pcs" },
 ] as const;
 
-export const DEFAULT_RETAIL_PRICE = 199000;
+export const DEFAULT_RETAIL_PRICE = 199999;
+export const LEGACY_RETAIL_PRICES = new Set([150000, 199000]);
+
+export function needsRetailSync(name: string, price: number | null | undefined) {
+  const n = (name || "").trim().toLowerCase();
+  if (!DEFAULT_HENIMA_PRODUCTS.some((d) => d.name.toLowerCase() === n)) return false;
+  if (price == null || !(price > 0)) return true;
+  return LEGACY_RETAIL_PRICES.has(Math.round(price));
+}
+
+/** Persen diskon dari potongan vs subtotal retail (35% untuk 130.000 dari 199.999). */
+export function discountPercentOf(retailTotal: number, discount: number) {
+  if (!(retailTotal > 0) || !(discount > 0)) return 0;
+  const raw = (discount / retailTotal) * 100;
+  const nearest = Math.round(raw);
+  if (Math.abs(raw - nearest) < 0.05) return nearest;
+  return Math.round(raw * 10) / 10;
+}
+
+export function formatDiscountPercent(percent: number) {
+  if (!(percent > 0)) return "";
+  if (Number.isInteger(percent)) return `${percent}%`;
+  return `${String(percent).replace(".", ",")}%`;
+}
 
 export function isSalesCatalogProduct(p: { name?: string | null; category?: string | null }) {
   const cat = (p.category || "").trim().toLowerCase();
@@ -250,7 +273,7 @@ export function priceAgainstRetail(
   lines: SaleLine[],
   catalog: ProductRow[],
   opts?: { discount?: number | null; discountPercent?: number | null },
-): { lines: SaleLine[]; discount: number; total: number; retailTotal: number } {
+): { lines: SaleLine[]; discount: number; discountPercent: number; total: number; retailTotal: number } {
   if (!lines.length) throw new SalesError("Produk belum dipilih.", "quantity_invalid");
   const retailLines = lines.map((line) => {
     const product = catalog.find((p) => p.id === line.productId);
@@ -260,12 +283,16 @@ export function priceAgainstRetail(
   const retailTotal = calculateLinesTotal(retailLines, 0);
   const paidTotal = calculateLinesTotal(lines, 0);
   let discount = 0;
+  let discountPercent = 0;
   if (opts?.discount != null && opts.discount > 0) {
     discount = Math.round(opts.discount);
+    discountPercent = discountPercentOf(retailTotal, discount);
   } else if (opts?.discountPercent != null && opts.discountPercent > 0) {
-    discount = Math.round(retailTotal * (opts.discountPercent / 100));
+    discountPercent = opts.discountPercent;
+    discount = Math.round(retailTotal * (discountPercent / 100));
   } else if (retailTotal > paidTotal) {
     discount = retailTotal - paidTotal;
+    discountPercent = discountPercentOf(retailTotal, discount);
   }
   if (discount > retailTotal) throw new SalesError("Diskon melebihi total.", "discount_invalid");
   const useRetail = discount > 0;
@@ -273,6 +300,7 @@ export function priceAgainstRetail(
   return {
     lines: useRetail ? retailLines : lines,
     discount,
+    discountPercent,
     total: gross - discount,
     retailTotal,
   };

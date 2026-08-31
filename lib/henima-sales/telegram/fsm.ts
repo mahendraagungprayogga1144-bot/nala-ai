@@ -372,7 +372,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877... tf\nlaku 1 harga 199rb diskon 50rb atas nama Sinta no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · pdf bulan ini · nota regan · riwayat · target · /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 130rb atas nama Regan no 0877... tf\n(retail 199.999, bayar lebih murah = diskon % + potongan otomatis)\nlaku 1 harga 199.999 diskon 20% atas nama Sinta no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · pdf bulan ini · nota regan · riwayat · target · /help";
 
 function applyNaturalChat(
   session: Session,

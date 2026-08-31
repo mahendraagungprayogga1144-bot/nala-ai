@@ -4,7 +4,7 @@ import { useState } from "react";
 import ConfirmDelete from "../confirm-delete";
 import NotaDownload from "../nota-download";
 import { MODULE_CARD, MODULE_INPUT, MODULE_BTN } from "../../components/module-form-styles";
-import { fmtDateLongId, fmtRp } from "@/lib/henima-sales/money";
+import { fmtDateLongId, fmtRp, fmtDiscount } from "@/lib/henima-sales/money";
 import { paymentLabel } from "@/lib/henima-sales/types";
 
 type Order = {
@@ -15,7 +15,7 @@ type Order = {
   metode_bayar: string | null;
   payment_status: string | null;
   sales_id: string | null;
-  order_items?: { product_name_snapshot: string | null; qty: number }[];
+  order_items?: { product_name_snapshot: string | null; qty: number; harga_jual?: number | null }[];
 };
 
 export default function OrdersClient({ rows }: { rows: Order[] }) {
@@ -26,6 +26,11 @@ export default function OrdersClient({ rows }: { rows: Order[] }) {
         const items = (o.order_items || [])
           .map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`)
           .join(" + ") || "—";
+        const goods = (o.order_items || []).reduce(
+          (s, i) => s + Math.round(Number(i.qty || 0) * Number(i.harga_jual || 0)),
+          0,
+        );
+        const discLabel = Number(o.diskon || 0) > 0 ? fmtDiscount(Number(o.diskon), goods || Number(o.total) + Number(o.diskon || 0)) : "";
         return (
           <div key={o.id} className={MODULE_CARD + " flex flex-wrap items-center justify-between gap-3"}>
             <div>
@@ -34,7 +39,7 @@ export default function OrdersClient({ rows }: { rows: Order[] }) {
               </p>
               <p className="text-[11px] text-[#8B8AA0]">
                 {paymentLabel(o.metode_bayar)} · {o.payment_status} · {fmtRp(o.total)}
-                {Number(o.diskon || 0) > 0 ? ` · diskon ${fmtRp(o.diskon)}` : ""}
+                {discLabel ? ` · diskon ${discLabel}` : ""}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

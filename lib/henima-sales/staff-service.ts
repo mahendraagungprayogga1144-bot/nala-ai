@@ -3,7 +3,7 @@ import type { Actor, SalesRole, StaffRow } from "./types";
 import { ForbiddenError, SalesError } from "./types";
 import type { SalesDb } from "./db";
 import { writeAudit } from "./audit";
-import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct, DEFAULT_RETAIL_PRICE } from "./types";
+import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct, DEFAULT_RETAIL_PRICE, needsRetailSync } from "./types";
 
 export function newInviteCode() {
   return randomBytes(4).toString("hex").toUpperCase();
@@ -229,7 +229,28 @@ export async function listProducts(db: SalesDb, businessId: string) {
     .eq("business_id", businessId)
     .order("name");
   if (error) throw new SalesError(error.message, "product_list");
-  const value = mapProductRows((data || []) as Parameters<typeof mapProductRows>[0]);
+  const mapped = mapProductRows((data || []) as Parameters<typeof mapProductRows>[0]);
+  const value = await syncHenimaRetailPrices(db, businessId, mapped);
   productCache.set(businessId, { at: Date.now(), value });
   return value;
+}
+
+/** Afternoon / The Distance yang masih 150rb atau 199rb ikut naik ke retail 199.999. */
+async function syncHenimaRetailPrices(
+  db: SalesDb,
+  businessId: string,
+  products: ReturnType<typeof mapProductRows>,
+) {
+  const stale = products.filter((p) => needsRetailSync(p.name, p.price));
+  if (!stale.length) return products;
+  const ids = stale.map((p) => p.id);
+  const { error } = await db
+    .from("products")
+    .update({ price: DEFAULT_RETAIL_PRICE })
+    .eq("business_id", businessId)
+    .in("id", ids);
+  if (error) {
+    /* Telegram/nota tetap pakai 199.999 di memori meski tulis DB gagal */
+  }
+  return products.map((p) => (ids.includes(p.id) ? { ...p, price: DEFAULT_RETAIL_PRICE } : p));
 }

@@ -1,6 +1,7 @@
 import type { Actor, PaymentMethod, PaymentStatus, ProductRow, SaleLine } from "../types";
 import { paymentLabel, priceAgainstRetail } from "../types";
 import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
+import { fmtDiscount } from "../money";
 
 export { UNLINKED_MSG };
 
@@ -107,8 +108,8 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /help — bantuan
 
 Sales cukup pakai Telegram. Chat biasa juga bisa:
-laku 1 harga 150rb atas nama Regan no 0877... tf
-laku 1 harga 199rb diskon 50rb atas nama Sinta no 08... qris
+laku 1 harga 130rb atas nama Regan no 0877... tf
+laku 1 harga 199.999 diskon 20% atas nama Sinta no 08... qris
 laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
 Metode bayar: tf / qris / cash / lainnya
@@ -149,10 +150,11 @@ export function applyCatalogPricing(draft: Draft, products: ProductRow[]): Draft
       discount: draft.discount,
       discountPercent: draft.discountPercent,
     });
-    if (priced.discount <= 0) return { ...draft, orderTotal: priced.total };
+    if (priced.discount <= 0) return { ...draft, orderTotal: priced.total, discountPercent: 0 };
     return {
-      ...applyLinesToDraft({ ...draft, discount: priced.discount }, priced.lines),
+      ...applyLinesToDraft({ ...draft, discount: priced.discount, discountPercent: priced.discountPercent }, priced.lines),
       discount: priced.discount,
+      discountPercent: priced.discountPercent,
       orderTotal: priced.total,
     };
   } catch {
@@ -207,7 +209,7 @@ export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {
     "",
     `Harga:\nRp${Math.round(harga).toLocaleString("id-ID")}`,
     "",
-    ...(discountAmt > 0 ? [`Diskon:\nRp${Math.round(discountAmt).toLocaleString("id-ID")}`, ""] : []),
+    ...(discountAmt > 0 ? [`Diskon:\n${fmtDiscount(discountAmt, goods) || `Rp${Math.round(discountAmt).toLocaleString("id-ID")}`}`, ""] : []),
     `Total:\nRp${Math.round(total).toLocaleString("id-ID")}`,
     "",
     `Pembayaran:\n${d.paymentMethod ? paymentLabel(d.paymentMethod) : "—"} (${d.paymentStatus || "PAID"})`,

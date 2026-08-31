@@ -3,7 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch } from "../phone";
-import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail } from "../types";
+import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
 import { reduceBot } from "../telegram/fsm";
@@ -458,22 +458,40 @@ test("split 250k across 2x2 lines", () => {
   assert.equal(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 250000);
 });
 
-test("retail 199k vs bayar 150k stores discount on nota", () => {
-  const catalog = [{ id: "1", name: "Afternoon", price: 199000, cost: 80000, stock: 10, unit: "pcs" }];
+test("retail 199.999 vs bayar 130.000 stores percent and potongan", () => {
+  const catalog = [{ id: "1", name: "Afternoon", price: DEFAULT_RETAIL_PRICE, cost: 64500, stock: 10, unit: "pcs" }];
   const priced = priceAgainstRetail(
-    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: 150000 }],
+    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: 130000 }],
     catalog,
   );
-  assert.equal(priced.discount, 49000);
-  assert.equal(priced.lines[0].unitPrice, 199000);
-  assert.equal(priced.total, 150000);
+  assert.equal(priced.discount, 69999);
+  assert.equal(priced.discountPercent, 35);
+  assert.equal(priced.lines[0].unitPrice, 199999);
+  assert.equal(priced.total, 130000);
+  assert.equal(discountPercentOf(199999, 69999), 35);
   const pct = priceAgainstRetail(
-    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: 199000 }],
+    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: 199999 }],
     catalog,
     { discountPercent: 20 },
   );
-  assert.equal(pct.discount, 39800);
-  assert.equal(pct.total, 159200);
+  assert.equal(pct.discount, 40000);
+  assert.equal(pct.discountPercent, 20);
+  assert.equal(pct.total, 159999);
+});
+
+test("parse harga 130.000 auto-diskon without explicit diskon clause", () => {
+  const catalog = [{ id: "1", name: "Afternoon", price: DEFAULT_RETAIL_PRICE, cost: 64500, stock: 10, unit: "pcs" }];
+  const dotted = parseSalesChat("laku 1 harga 130.000 atas nama Regan no 081234567890 tf", catalog);
+  assert.equal(dotted.unitPrice, 130000);
+  assert.equal(dotted.discount, null);
+  const auto = priceAgainstRetail(
+    [{ productId: "1", productName: "Afternoon", quantity: 1, unitPrice: dotted.unitPrice || 0 }],
+    catalog,
+  );
+  assert.equal(auto.discount, 69999);
+  assert.equal(auto.discountPercent, 35);
+  assert.equal(needsRetailSync("Afternoon", 150000), true);
+  assert.equal(needsRetailSync("Afternoon", 199999), false);
 });
 
 test("parse diskon 50rb and 20% without stealing harga", () => {
@@ -495,14 +513,14 @@ test("parse diskon 50rb and 20% without stealing harga", () => {
   assert.equal(auto.discount, 49000);
 });
 
-test("nota infers DISKON from catalog retail when order.diskon is 0", () => {
+test("nota infers DISKON percent and potongan from catalog retail", () => {
   const payload = notaFromOrder({
     order: {
       id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       business_id: "b1",
       customer_id: "c1",
       sales_id: "f1",
-      total: 150000,
+      total: 130000,
       diskon: 0,
       metode_bayar: "CASH",
       payment_status: "PAID",
@@ -511,15 +529,16 @@ test("nota infers DISKON from catalog retail when order.diskon is 0", () => {
       created_at: "2026-08-31T00:00:00Z",
       deleted_at: null,
       source: "henima_sales",
-      order_items: [{ id: "i1", product_id: "1", qty: 1, harga_jual: 150000, product_name_snapshot: "Afternoon" }],
+      order_items: [{ id: "i1", product_id: "1", qty: 1, harga_jual: 130000, product_name_snapshot: "Afternoon" }],
     },
     brandName: "Henima Scent",
     customerName: "Regan",
-    catalog: [{ id: "1", name: "Afternoon", price: 199000, cost: 80000, stock: 10, unit: "pcs" }],
+    catalog: [{ id: "1", name: "Afternoon", price: DEFAULT_RETAIL_PRICE, cost: 64500, stock: 10, unit: "pcs" }],
   });
-  assert.equal(payload.discount, 49000);
-  assert.equal(payload.lines[0].unitPrice, 199000);
-  assert.equal(payload.total, 150000);
+  assert.equal(payload.discount, 69999);
+  assert.equal(payload.discountPercent, 35);
+  assert.equal(payload.lines[0].unitPrice, 199999);
+  assert.equal(payload.total, 130000);
 });
 
 if (failed) {

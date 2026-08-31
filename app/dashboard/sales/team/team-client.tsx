@@ -39,7 +39,7 @@ export default function TeamClient({
   const [form, setForm] = useState({ nama: "", role: "SALES" });
   const [brand, setBrand] = useState(actor.businessName);
   const [tagline, setTagline] = useState(actor.tagline || "");
-  const [productForm, setProductForm] = useState({ name: "", price: "199000", cost: "", stock: "" });
+  const [productForm, setProductForm] = useState({ name: "", price: "199999", cost: "", stock: "" });
   const [msg, setMsg] = useState("");
   const founder = actor.role === "FOUNDER";
   const bot = salesBotHandle(botUsername);
@@ -86,7 +86,7 @@ export default function TeamClient({
     });
     const json = await res.json();
     flash(json.error || (payload.id ? "Produk diupdate." : `Produk ${json.product?.name || ""} ditambah.`));
-    if (!json.error && !payload.id) setProductForm({ name: "", price: "199000", cost: "", stock: "" });
+    if (!json.error && !payload.id) setProductForm({ name: "", price: "199999", cost: "", stock: "" });
     router.refresh();
   };
 
@@ -226,7 +226,7 @@ export default function TeamClient({
           <div>
             <p className="text-sm font-medium">Produk parfum</p>
             <p className="text-xs text-[#8B8AA0]">
-              Harga retail (contoh Rp199.000) tampil di nota. HPP dipakai rekap profit. Telegram: ketik harga bayar atau diskon 50rb.
+              Harga retail Rp199.999 tampil di nota. Ketik 130.000 di Telegram = diskon 35% + potongan Rp69.999, tersimpan di data. HPP untuk rekap profit.
             </p>
           </div>
           <form onSubmit={addProduct} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

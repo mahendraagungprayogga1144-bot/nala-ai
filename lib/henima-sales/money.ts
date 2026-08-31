@@ -1,5 +1,15 @@
+import { discountPercentOf, formatDiscountPercent } from "./types";
+
 export function fmtRp(n: number | null | undefined) {
   return "Rp" + Math.round(Number(n) || 0).toLocaleString("id-ID");
+}
+
+/** "35% · Rp69.999" untuk nota, Telegram, dan dashboard. */
+export function fmtDiscount(discount: number, retailTotal: number) {
+  const amt = Math.round(Number(discount) || 0);
+  if (!(amt > 0)) return "";
+  const pct = formatDiscountPercent(discountPercentOf(retailTotal, amt));
+  return pct ? `${pct} · ${fmtRp(amt)}` : fmtRp(amt);
 }
 
 export function fmtDateId(ymd: string | null | undefined) {

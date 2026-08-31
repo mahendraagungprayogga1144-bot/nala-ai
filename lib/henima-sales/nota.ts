@@ -7,7 +7,7 @@ import { listProducts } from "./staff-service";
 import { displayPhone } from "./phone";
 import { fmtDateLongId, fmtRp } from "./money";
 import { embedBrandFonts } from "./pdf-fonts";
-import { priceAgainstRetail, type ProductRow } from "./types";
+import { discountPercentOf, formatDiscountPercent, priceAgainstRetail, type ProductRow } from "./types";
 
 export type NotaLine = {
   name: string;
@@ -28,6 +28,7 @@ export type NotaPayload = {
   notes: string | null;
   lines: NotaLine[];
   discount: number;
+  discountPercent: number;
   total: number;
 };
 
@@ -111,6 +112,10 @@ export function notaFromOrder(opts: {
     notes: opts.order.catatan,
     lines: lines.length ? lines : [{ name: "Produk", qty: 0, unitPrice: 0 }],
     discount,
+    discountPercent: discountPercentOf(
+      lines.reduce((s, l) => s + Math.round(l.qty * l.unitPrice), 0),
+      discount,
+    ),
     total: Number(opts.order.total || 0),
   };
 }
@@ -310,7 +315,8 @@ export async function buildSalesNotaPdf(payload: NotaPayload): Promise<Uint8Arra
     drawRight(page, "SUBTOTAL", 300, y, 9, sans, MUTED);
     drawRight(page, fmtRp(goods), right, y, 9, sans);
     y -= 14;
-    drawRight(page, "DISKON", 300, y, 9, sans, MUTED);
+    const pct = formatDiscountPercent(payload.discountPercent);
+    drawRight(page, pct ? `DISKON ${pct}` : "DISKON", 300, y, 9, sans, MUTED);
     drawRight(page, `-${fmtRp(payload.discount)}`, right, y, 9, sans);
     y -= 10;
   }

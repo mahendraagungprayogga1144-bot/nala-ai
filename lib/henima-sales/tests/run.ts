@@ -14,6 +14,7 @@ import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
+import { buildSalesReportPdf } from "../pdf";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -239,7 +240,16 @@ test("targetku per sales is a target intent", () => {
 test("rekapan hari ini is a rekap intent", () => {
   assert.deepEqual(parseOpsIntent("rekapan hari ini"), { type: "rekap", period: "today" });
   assert.deepEqual(parseOpsIntent("rekap minggu ini"), { type: "rekap", period: "this_week" });
-  assert.deepEqual(parseOpsIntent("rekap bulan ini"), { type: "rekap", period: "this_month" });
+  assert.deepEqual(parseOpsIntent("rekap bulan ini"), { type: "pdf", period: "this_month" });
+  assert.deepEqual(parseOpsIntent("pdf bulan ini"), { type: "pdf", period: "this_month" });
+  assert.deepEqual(parseOpsIntent("pdf bulanan"), { type: "pdf", period: "this_month" });
+  const pdfMonth = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "rekapan bulan ini" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(pdfMonth.effects[0].type, "send_pdf");
+  if (pdfMonth.effects[0].type === "send_pdf") assert.equal(pdfMonth.effects[0].kind, "this_month");
   const out = reduceBot(
     { state: "idle", draft: newDraft() },
     { kind: "text", text: "rekapan hari ini" },
@@ -460,12 +470,72 @@ const embedPayload = notaFromOrder({
 });
 
 buildSalesNotaPdf(embedPayload)
-  .then((bytes) => {
+  .then(async (bytes) => {
     assert.ok(bytes.byteLength > 20000, `pdf too small to contain fonts: ${bytes.byteLength}`);
     console.log("ok  nota pdf embeds custom fonts");
+    const recapBytes = await buildSalesReportPdf({
+      businessName: "Henima Scent",
+      generatedAt: "31/08/2026 09:00",
+      report: {
+        range: { from: "2026-08-01", to: "2026-08-31", label: "Agustus 2026" },
+        totalOrders: 2,
+        pendingOrders: 0,
+        cancelledOrders: 0,
+        totalQty: 3,
+        totalRevenue: 400000,
+        aov: 200000,
+        byProduct: [{ name: "Afternoon", qty: 2, omzet: 250000 }],
+        byPay: { CASH: 150000, TRANSFER: 250000, QRIS: 0, OTHER: 0 },
+        ranking: [{ salesId: "s1", nama: "Andi", role: "SALES", qty: 2, revenue: 250000, count: 1 }],
+        servedBy: [{ salesId: "f1", nama: "ima", role: "FOUNDER", qty: 1, revenue: 150000, count: 1 }],
+        byDay: { "2026-08-01": 1, "2026-08-02": 2 },
+        byDayOmzet: {
+          "2026-08-01": { qty: 1, cash: 150000, cashless: 0, omzet: 150000 },
+          "2026-08-02": { qty: 2, cash: 0, cashless: 250000, omzet: 250000 },
+        },
+        lines: [
+          {
+            date: "2026-08-01",
+            customerName: "adit",
+            salesName: "ima",
+            note: "The Distance",
+            qty: 1,
+            cash: 150000,
+            cashless: 0,
+            method: "CASH",
+            hpp: 75000,
+            profit: 75000,
+          },
+          {
+            date: "2026-08-02",
+            customerName: "Dimas",
+            salesName: "Andi",
+            note: "paket",
+            qty: 2,
+            cash: 0,
+            cashless: 250000,
+            method: "TRANSFER",
+            hpp: 125000,
+            profit: 125000,
+          },
+        ],
+        cashTotal: 150000,
+        cashlessTotal: 250000,
+        hppTotal: 200000,
+        profitTotal: 200000,
+        newCustomers: 2,
+        repeatCustomers: 0,
+        followSummary: {},
+        testimonialCount: 0,
+        totalCommission: 0,
+        commissionByRole: { SALES: 0, LEADER: 0 },
+      },
+    });
+    assert.ok(recapBytes.byteLength > 15000, `rekap pdf too small: ${recapBytes.byteLength}`);
+    console.log("ok  monthly recap pdf builds");
     console.log("\nall henima sales tests passed");
   })
   .catch((err) => {
-    console.error("FAIL nota pdf embeds custom fonts", err instanceof Error ? err.message : err);
+    console.error("FAIL pdf build", err instanceof Error ? err.message : err);
     process.exit(1);
   });

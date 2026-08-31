@@ -70,6 +70,7 @@ Metode bayar: tf (transfer), qris, cash, atau lainnya. Kalau belum disebut, bot 
 CEK HASIL:
 rekapan hari ini
 rekap minggu ini
+pdf bulan ini
 riwayat
 nota (invoice customer, contoh: nota regan)
 target / targetku (ada indikator tercapai)

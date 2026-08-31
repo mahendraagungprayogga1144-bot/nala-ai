@@ -25,7 +25,7 @@ export type OpsIntent =
 
 function periodFromText(t: string): "today" | "this_week" | "this_month" {
   if (/\b(minggu|mingguan|weekly|week)\b/.test(t)) return "this_week";
-  if (/\b(bulan|bulanan|monthly|month)\b/.test(t)) return "this_month";
+  if (/\b(bulan|bulanan|bln|monthly|month)\b/.test(t)) return "this_month";
   return "today";
 }
 
@@ -37,8 +37,14 @@ export function parseOpsIntent(text: string): OpsIntent {
     const query = extractNotaQuery(t);
     return query ? { type: "nota", query } : { type: "nota" };
   }
-  if (/\b(pdf|laporan pdf)\b/.test(t)) return { type: "pdf", period: periodFromText(t) };
-  if (/\b(rekap|rekapan|ringkasan)\b/.test(t)) return { type: "rekap", period: periodFromText(t) };
+  if (/\b(pdf|laporan)\b/.test(t) || /\brekap(an)?\s+pdf\b/.test(t)) {
+    return { type: "pdf", period: periodFromText(t) };
+  }
+  if (/\b(rekap|rekapan|ringkasan)\b/.test(t)) {
+    const period = periodFromText(t);
+    if (period === "this_month") return { type: "pdf", period };
+    return { type: "rekap", period };
+  }
   if (/\b(riwayat|histori|history)\b/.test(t)) return { type: "riwayat" };
   if (/(target|pencapaian|tercapai)/.test(t)) return { type: "target" };
   return { type: "none" };

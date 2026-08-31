@@ -1,15 +1,73 @@
-import { PDFDocument, RGB, rgb, StandardFonts } from "pdf-lib";
-import { fmtDateLongId, fmtRp } from "./money";
+import { readFileSync } from "fs";
+import { join } from "path";
+import fontkit from "@pdf-lib/fontkit";
+import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { pdfSafe } from "./nota";
+import { paymentLabel } from "./types";
+import { fmtDateId } from "./money";
 import { servedByLabel, type SalesReport } from "./report-service";
 
-function colorTeal(): RGB {
-  return rgb(0.18, 0.72, 0.66);
+const INK = rgb(0.08, 0.08, 0.08);
+const MUTED = rgb(0.42, 0.42, 0.42);
+const LINE = rgb(0.78, 0.78, 0.8);
+const TEAL = rgb(0.12, 0.52, 0.48);
+const CASH_C = rgb(0.18, 0.45, 0.38);
+const TF_C = rgb(0.2, 0.35, 0.55);
+const PAGE_W = 842;
+const PAGE_H = 595;
+const LEFT = 28;
+const RIGHT = PAGE_W - 28;
+
+function rp(n: number) {
+  const abs = Math.abs(Math.round(Number(n) || 0));
+  const s = String(abs).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${n < 0 ? "-" : ""}Rp${s}`;
 }
-function colorInk(): RGB {
-  return rgb(0.12, 0.12, 0.18);
+
+function fontPath(file: string) {
+  return join(process.cwd(), "lib/henima-sales/fonts", file);
 }
-function colorMuted(): RGB {
-  return rgb(0.4, 0.4, 0.45);
+
+async function embedFonts(doc: PDFDocument) {
+  doc.registerFontkit(fontkit);
+  try {
+    const sans = await doc.embedFont(readFileSync(fontPath("SourceSans3-Regular.ttf")));
+    const sansBold = await doc.embedFont(readFileSync(fontPath("SourceSans3-Semibold.ttf")));
+    const serif = await doc.embedFont(readFileSync(fontPath("PlayfairDisplay-Bold.ttf")));
+    return { sans, sansBold, serif };
+  } catch {
+    const sans = await doc.embedFont(StandardFonts.Helvetica);
+    const sansBold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const serif = await doc.embedFont(StandardFonts.TimesRomanBold);
+    return { sans, sansBold, serif };
+  }
+}
+
+function T(
+  page: PDFPage,
+  text: string,
+  x: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  color = INK,
+) {
+  const t = pdfSafe(String(text || "")).slice(0, 80);
+  if (!t) return;
+  page.drawText(t, { x, y, size, font, color });
+}
+
+function rightText(
+  page: PDFPage,
+  text: string,
+  rightX: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  color = INK,
+) {
+  const t = pdfSafe(String(text || "")).slice(0, 40);
+  page.drawText(t, { x: rightX - font.widthOfTextAtSize(t, size), y, size, font, color });
 }
 
 export async function buildSalesReportPdf(opts: {
@@ -18,139 +76,167 @@ export async function buildSalesReportPdf(opts: {
   report: SalesReport;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  let page = doc.addPage([595, 842]);
-  let y = 800;
+  const { sans, sansBold, serif } = await embedFonts(doc);
+  const r = opts.report;
+  let page = doc.addPage([PAGE_W, PAGE_H]);
+  let y = PAGE_H - 36;
 
-  const draw = (text: string, x: number, yy: number, size = 10, bold = false, c = colorInk()) => {
-    page.drawText(text, { x, y: yy, size, font: bold ? fontBold : font, color: c });
+  const newPage = () => {
+    page = doc.addPage([PAGE_W, PAGE_H]);
+    y = PAGE_H - 36;
+  };
+  const need = (h: number) => {
+    if (y < h) newPage();
   };
 
-  const ensure = (need: number) => {
-    if (y < need) {
-      page = doc.addPage([595, 842]);
-      y = 800;
-    }
-  };
-
-  page.drawRectangle({ x: 40, y: 810, width: 515, height: 4, color: colorTeal() });
-  draw("HENIMA SCENT", 40, y, 16, true, colorTeal());
-  draw(opts.businessName, 40, y - 18, 11, false, colorMuted());
-  y -= 48;
-  draw("LAPORAN PENJUALAN", 40, y, 14, true);
+  T(page, "HENIMA", LEFT, y, 18, serif);
+  T(page, "REKAP RETAIL CASH / CASHLESS", LEFT + 92, y + 2, 11, sansBold, MUTED);
+  rightText(page, pdfSafe(opts.businessName), RIGHT, y + 4, 10, sans, MUTED);
   y -= 16;
-  draw(`Periode: ${opts.report.range.label}`, 40, y, 10);
-  draw(`Dibuat: ${opts.generatedAt} WIB`, 300, y, 10, false, colorMuted());
-  y -= 28;
+  T(page, `Periode ${pdfSafe(r.range.label)}`, LEFT, y, 10, sansBold);
+  T(page, `${r.range.from}  -  ${r.range.to}   |   Dibuat ${pdfSafe(opts.generatedAt)} WIB`, LEFT + 200, y, 9, sans, MUTED);
+  y -= 10;
+  page.drawRectangle({ x: LEFT, y, width: RIGHT - LEFT, height: 0.6, color: INK });
+  y -= 18;
 
   const kpis: [string, string][] = [
-    ["Total transaksi", String(opts.report.totalOrders)],
-    ["Total pcs", String(opts.report.totalQty)],
-    ["Omzet", fmtRp(opts.report.totalRevenue)],
-    ["AOV", fmtRp(opts.report.aov)],
-    ["Customer baru", String(opts.report.newCustomers)],
-    ["Repeat customer", String(opts.report.repeatCustomers)],
-    ["Komisi", fmtRp(opts.report.totalCommission)],
-    ["Testimoni", String(opts.report.testimonialCount)],
+    ["TRANSAKSI", String(r.totalOrders)],
+    ["QTY", `${r.totalQty} pcs`],
+    ["OMZET", rp(r.totalRevenue)],
+    ["CASH", rp(r.cashTotal || 0)],
+    ["CASHLESS", rp(r.cashlessTotal || 0)],
+    ["HPP", rp(r.hppTotal || 0)],
+    ["PROFIT", rp(r.profitTotal || 0)],
+    ["AOV", rp(r.aov)],
   ];
-  for (let i = 0; i < kpis.length; i++) {
-    const col = i % 4;
-    const row = Math.floor(i / 4);
-    const x = 40 + col * 130;
-    const yy = y - row * 48;
-    page.drawRectangle({ x, y: yy - 28, width: 120, height: 40, borderColor: rgb(0.85, 0.85, 0.88), borderWidth: 0.6 });
-    draw(kpis[i][0], x + 8, yy - 4, 8, false, colorMuted());
-    draw(kpis[i][1], x + 8, yy - 20, 11, true);
-  }
-  y -= 110;
+  const boxW = (RIGHT - LEFT - 18) / 8;
+  kpis.forEach((kpi, i) => {
+    const x = LEFT + i * (boxW + 2.5);
+    page.drawRectangle({ x, y: y - 32, width: boxW, height: 38, borderColor: LINE, borderWidth: 0.5 });
+    T(page, kpi[0], x + 6, y - 6, 6.5, sansBold, MUTED);
+    T(page, kpi[1], x + 6, y - 22, 9, sansBold);
+  });
+  y -= 52;
 
-  ensure(120);
-  draw("PENJUALAN PER PRODUK", 40, y, 11, true);
-  y -= 16;
-  for (const p of opts.report.byProduct) {
-    ensure(20);
-    draw(`${p.name}`, 40, y, 10);
-    draw(`${p.qty} pcs`, 280, y, 10);
-    draw(fmtRp(p.omzet), 400, y, 10, true);
-    y -= 14;
+  const days = Object.entries(r.byDayOmzet || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  need(110);
+  T(page, "GRAFIK OMZET HARIAN  (hijau = cash, biru = cashless)", LEFT, y, 9, sansBold);
+  y -= 8;
+  if (!days.length) {
+    T(page, "Belum ada penjualan pada periode ini.", LEFT, y, 9, sans, MUTED);
+    y -= 16;
+  } else {
+    const max = Math.max(...days.map((d) => d[1].omzet), 1);
+    const chartH = 72;
+    const chartW = RIGHT - LEFT;
+    const gap = 2;
+    const barW = Math.max(4, Math.min(18, (chartW - gap * days.length) / days.length));
+    page.drawRectangle({ x: LEFT, y: y - chartH, width: chartW, height: chartH, borderColor: LINE, borderWidth: 0.4 });
+    days.forEach((d, i) => {
+      const x = LEFT + i * (barW + gap);
+      const cashH = (d[1].cash / max) * (chartH - 4);
+      const tfH = (d[1].cashless / max) * (chartH - 4);
+      page.drawRectangle({ x, y: y - chartH + 2, width: barW, height: Math.max(1, cashH), color: CASH_C });
+      page.drawRectangle({
+        x,
+        y: y - chartH + 2 + Math.max(1, cashH),
+        width: barW,
+        height: Math.max(0, tfH),
+        color: TF_C,
+      });
+    });
+    y -= chartH + 14;
+    T(page, `${days[0][0]}  →  ${days[days.length - 1][0]}`, LEFT, y, 8, sans, MUTED);
+    y -= 16;
   }
-  y -= 10;
 
-  ensure(80);
-  draw("PEMBAYARAN (PAID)", 40, y, 11, true);
-  y -= 16;
-  for (const [k, v] of Object.entries(opts.report.byPay)) {
-    draw(`${k}: ${fmtRp(v)}`, 40, y, 10);
-    y -= 14;
+  need(48);
+  T(page, "PEMBAYARAN", LEFT, y, 9, sansBold);
+  y -= 12;
+  const payRows: [string, number, typeof CASH_C][] = [
+    ["CASH", r.byPay.CASH || 0, CASH_C],
+    ["TRANSFER / TF", r.byPay.TRANSFER || 0, TF_C],
+    ["QRIS", r.byPay.QRIS || 0, TEAL],
+    ["LAINNYA", r.byPay.OTHER || 0, MUTED],
+  ];
+  const payMax = Math.max(...payRows.map((p) => p[1]), 1);
+  for (const [label, amount, color] of payRows) {
+    T(page, label, LEFT, y, 8, sans);
+    page.drawRectangle({ x: LEFT + 90, y: y - 1, width: 220, height: 8, color: rgb(0.93, 0.93, 0.94) });
+    page.drawRectangle({ x: LEFT + 90, y: y - 1, width: Math.max(2, (amount / payMax) * 220), height: 8, color });
+    T(page, rp(amount), LEFT + 320, y, 8, sansBold);
+    y -= 12;
   }
   y -= 8;
 
-  ensure(160);
-  draw("RANKING SALES", 40, y, 11, true);
-  y -= 16;
-  if (!opts.report.ranking.length) {
-    draw(opts.report.servedBy.length ? servedByPdf(opts.report.servedBy) : "Belum ada penjualan sales.", 40, y, 10, false, colorMuted());
-    y -= 14;
-  } else {
-    opts.report.ranking.forEach((s, i) => {
-      ensure(16);
-      draw(`${i + 1}. ${s.nama}  —  ${s.qty} pcs  ·  ${fmtRp(s.revenue)}  ·  ${s.count} trx`, 40, y, 10);
-      y -= 14;
-    });
-  }
-  if (opts.report.servedBy.length && opts.report.ranking.length) {
-    y -= 4;
-    draw(servedByPdf(opts.report.servedBy), 40, y, 10, false, colorMuted());
-    y -= 14;
-  }
+  need(80);
+  T(page, "NAMA", LEFT, y, 7.5, sansBold, MUTED);
+  T(page, "TANGGAL", LEFT + 88, y, 7.5, sansBold, MUTED);
+  T(page, "KETERANGAN", LEFT + 148, y, 7.5, sansBold, MUTED);
+  T(page, "QTY", LEFT + 330, y, 7.5, sansBold, MUTED);
+  rightText(page, "CASH", LEFT + 430, y, 7.5, sansBold, MUTED);
+  rightText(page, "CASHLESS", LEFT + 510, y, 7.5, sansBold, MUTED);
+  T(page, "METODE", LEFT + 520, y, 7.5, sansBold, MUTED);
+  rightText(page, "HPP", LEFT + 660, y, 7.5, sansBold, MUTED);
+  rightText(page, "PROFIT", RIGHT, y, 7.5, sansBold, MUTED);
+  y -= 5;
+  page.drawRectangle({ x: LEFT, y, width: RIGHT - LEFT, height: 0.6, color: INK });
   y -= 12;
 
-  const days = Object.entries(opts.report.byDay).sort((a, b) => a[0].localeCompare(b[0]));
-  if (days.length) {
-    ensure(140);
-    draw("GRAFIK PCS PER HARI", 40, y, 11, true);
-    y -= 8;
-    const max = Math.max(...days.map((d) => d[1]), 1);
-    const barW = Math.min(24, 480 / days.length);
-    days.forEach((d, i) => {
-      const h = Math.max(2, (d[1] / max) * 70);
-      page.drawRectangle({
-        x: 40 + i * (barW + 4),
-        y: y - 80,
-        width: barW,
-        height: h,
-        color: colorTeal(),
-      });
-    });
-    y -= 100;
-    draw(`${fmtDateLongId(days[0][0])}  →  ${fmtDateLongId(days[days.length - 1][0])}`, 40, y, 8, false, colorMuted());
-    y -= 20;
+  const rows = r.lines || [];
+  if (!rows.length) {
+    T(page, "Belum ada baris transaksi.", LEFT, y, 9, sans, MUTED);
+    y -= 14;
+  }
+  for (const line of rows) {
+    need(22);
+    T(page, line.customerName, LEFT, y, 8, sans);
+    T(page, fmtDateId(line.date).replace(/[^\x20-\x7e]/g, "/"), LEFT + 88, y, 8, sans);
+    T(page, line.note, LEFT + 148, y, 8, sans);
+    T(page, String(line.qty), LEFT + 334, y, 8, sans);
+    rightText(page, line.cash ? rp(line.cash) : "-", LEFT + 430, y, 8, sans);
+    rightText(page, line.cashless ? rp(line.cashless) : "-", LEFT + 510, y, 8, sans);
+    T(page, paymentLabel(line.method), LEFT + 520, y, 8, sans);
+    rightText(page, rp(line.hpp), LEFT + 660, y, 8, sans);
+    rightText(page, rp(line.profit), RIGHT, y, 8, sansBold);
+    y -= 11;
+    page.drawRectangle({ x: LEFT, y: y + 7, width: RIGHT - LEFT, height: 0.3, color: LINE });
+    y -= 2;
   }
 
-  ensure(80);
-  draw("FOLLOW-UP", 40, y, 11, true);
-  y -= 16;
-  const follows = Object.entries(opts.report.followSummary);
-  if (!follows.length) draw("Tidak ada follow-up pada periode ini.", 40, y, 10, false, colorMuted());
-  else {
-    for (const [st, n] of follows) {
-      draw(`${st}: ${n}`, 40, y, 10);
-      y -= 14;
-    }
-  }
-  y -= 16;
-  draw("Komisi sales: " + fmtRp(opts.report.commissionByRole.SALES), 40, y, 10);
+  y -= 8;
+  need(40);
+  page.drawRectangle({ x: LEFT, y: y + 4, width: RIGHT - LEFT, height: 0.7, color: INK });
+  y -= 8;
+  T(page, "TOTAL", LEFT, y, 9, sansBold);
+  T(page, String(r.totalQty), LEFT + 334, y, 9, sansBold);
+  rightText(page, rp(r.cashTotal || 0), LEFT + 430, y, 9, sansBold);
+  rightText(page, rp(r.cashlessTotal || 0), LEFT + 510, y, 9, sansBold);
+  rightText(page, rp(r.hppTotal || 0), LEFT + 660, y, 9, sansBold);
+  rightText(page, rp(r.profitTotal || 0), RIGHT, y, 9, sansBold);
+  y -= 22;
+
+  need(70);
+  T(page, "PRODUK", LEFT, y, 9, sansBold);
+  T(page, "RANKING SALES", LEFT + 320, y, 9, sansBold);
   y -= 14;
-  draw("Komisi leader: " + fmtRp(opts.report.commissionByRole.LEADER), 40, y, 10);
-  y -= 28;
-  draw("Henima Scent  ·  Laporan dibuat oleh Gercep", 40, 36, 8, false, colorMuted());
+  const prod = r.byProduct.slice(0, 8);
+  const rank = r.ranking.slice(0, 8);
+  const n = Math.max(prod.length, rank.length, 1);
+  for (let i = 0; i < n; i++) {
+    need(16);
+    if (prod[i]) T(page, `${prod[i].name}   ${prod[i].qty} pcs   ${rp(prod[i].omzet)}`, LEFT, y, 8, sans);
+    if (rank[i]) T(page, `${i + 1}. ${rank[i].nama}   ${rank[i].qty} pcs   ${rp(rank[i].revenue)}`, LEFT + 320, y, 8, sans);
+    y -= 12;
+  }
+  if (r.servedBy.length) {
+    y -= 4;
+    T(page, servedByLabel(r.servedBy), LEFT, y, 8, sans, MUTED);
+    y -= 12;
+  }
 
+  T(page, "Henima Collection  |  Rekap internal, bukan nota customer.", LEFT, 18, 7.5, sans, MUTED);
   return doc.save();
-}
-
-function servedByPdf(rows: { nama: string }[]) {
-  return servedByLabel(rows) || "";
 }
 
 export function reportToCsv(report: SalesReport) {
@@ -160,15 +246,22 @@ export function reportToCsv(report: SalesReport) {
     `transaksi,${report.totalOrders}`,
     `pcs,${report.totalQty}`,
     `omzet,${report.totalRevenue}`,
+    `cash,${report.cashTotal || 0}`,
+    `cashless,${report.cashlessTotal || 0}`,
+    `hpp,${report.hppTotal || 0}`,
+    `profit,${report.profitTotal || 0}`,
     `customer_baru,${report.newCustomers}`,
     `repeat,${report.repeatCustomers}`,
     `komisi,${report.totalCommission}`,
     "",
+    "nama,tanggal,keterangan,qty,cash,cashless,metode,hpp,profit,sales",
+    ...(report.lines || []).map(
+      (l) =>
+        `${l.customerName},${l.date},${l.note},${l.qty},${l.cash},${l.cashless},${l.method},${l.hpp},${l.profit},${l.salesName}`,
+    ),
+    "",
     "ranking,nama,pcs,omzet,trx",
     ...report.ranking.map((s, i) => `${i + 1},${s.nama},${s.qty},${s.revenue},${s.count}`),
-    "",
-    "dilayani_oleh,nama,pcs,omzet,trx",
-    ...report.servedBy.map((s) => `${s.nama},${s.nama},${s.qty},${s.revenue},${s.count}`),
     "",
     "produk,pcs,omzet",
     ...report.byProduct.map((p) => `${p.name},${p.qty},${p.omzet}`),

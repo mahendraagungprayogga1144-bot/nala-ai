@@ -79,7 +79,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           effects: [
             reply("Pilih periode rekap:", kb([
               [{ text: "HARI INI", data: "rk:today" }, { text: "MINGGU INI", data: "rk:this_week" }],
-              [{ text: "BULAN INI", data: "rk:this_month" }, { text: "CUSTOM", data: "rk:custom" }],
+              [{ text: "BULAN INI (PDF)", data: "pdf:this_month" }, { text: "BULAN LALU (PDF)", data: "pdf:last_month" }],
             ])),
           ],
         };
@@ -96,7 +96,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           effects: [
             reply("Pilih laporan PDF:", kb([
               [{ text: "HARIAN", data: "pdf:today" }, { text: "MINGGUAN", data: "pdf:this_week" }],
-              [{ text: "BULANAN", data: "pdf:this_month" }, { text: "CUSTOM", data: "pdf:custom" }],
+              [{ text: "BULAN INI", data: "pdf:this_month" }, { text: "BULAN LALU", data: "pdf:last_month" }],
             ])),
           ],
         };
@@ -331,6 +331,20 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           session: go(session, "followup_notes", { ...session.draft, followupDate: text }),
           effects: [reply("Catatan follow-up?")],
         };
+      case "pdf_pick":
+      case "rekap_pick": {
+        const ops = parseOpsIntent(`${session.state === "pdf_pick" ? "pdf " : "rekap "}${text}`);
+        if (ops.type === "pdf") {
+          return { session: go(session, "idle"), effects: [{ type: "send_pdf", kind: ops.period }] };
+        }
+        if (ops.type === "rekap") {
+          return { session: go(session, "idle"), effects: [{ type: "send_report", kind: ops.period }] };
+        }
+        return {
+          session,
+          effects: [reply("Ketik harian, mingguan, atau bulan ini.")],
+        };
+      }
       case "customer_query":
         return { session: go(session, "idle", { ...session.draft, phone: text }), effects: [reply("Mencari customer…")] };
       case "idle":
@@ -347,7 +361,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877... tf\nlaku 2 paket new member harga 250k atas nama Dimas no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · nota regan · riwayat · target · /help";
+  "Kirim chat penjualan, contoh:\nlaku 1 harga 150rb atas nama Regan no 0877... tf\nlaku 2 paket new member harga 250k atas nama Dimas no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · pdf bulan ini · nota regan · riwayat · target · /help";
 
 function applyNaturalChat(
   session: Session,

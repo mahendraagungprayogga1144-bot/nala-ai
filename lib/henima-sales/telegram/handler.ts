@@ -587,7 +587,12 @@ async function sendPdf(db: SalesDb, actor: Actor, chatId: number, kind: ReportKi
       generatedAt: todayWib(),
       report,
     });
-    await sendDocument(chatId, `henima-laporan-${report.range.from}-${report.range.to}.pdf`, bytes, "Laporan penjualan Henima");
+    await sendDocument(
+      chatId,
+      `henima-rekap-${report.range.from}-${report.range.to}.pdf`,
+      bytes,
+      `Rekap ${report.range.label}: ${report.totalQty} pcs · ${fmtRp(report.totalRevenue)}`,
+    );
   } catch (err) {
     salesLogError("pdf", err, { staffId: actor.staffId });
     await sendMessage(chatId, "PDF gagal dibuat. Silakan coba lagi.");

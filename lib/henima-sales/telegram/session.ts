@@ -110,6 +110,7 @@ laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
 Metode bayar: tf / qris / cash / lainnya
 rekapan hari ini
+pdf bulan ini
 riwayat
 nota regan
 target / targetku

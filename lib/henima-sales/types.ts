@@ -84,6 +84,9 @@ export const AUDIT_ACTIONS = [
   "CREATE_FOLLOWUP",
   "UPDATE_FOLLOWUP",
   "CREATE_TESTIMONIAL",
+  "CREATE_STUDIO_ASSET",
+  "DELETE_STUDIO_ASSET",
+  "APPLY_STUDIO_ASSET",
   "UPDATE_TARGET",
   "UPDATE_SETTINGS",
   "UPDATE_COMMISSION",
@@ -94,6 +97,8 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export const TESTIMONIAL_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 export const TESTIMONIAL_MAX_BYTES = 5 * 1024 * 1024;
+export const STUDIO_MIME = TESTIMONIAL_MIME;
+export const STUDIO_MAX_BYTES = 8 * 1024 * 1024;
 
 export const SALES_PRODUCT_CATEGORY = "Henima Sales";
 

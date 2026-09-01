@@ -54,6 +54,15 @@ export async function GET() {
     ok: Boolean(process.env.NEXT_PUBLIC_APP_URL),
     detail: process.env.NEXT_PUBLIC_APP_URL || "not set (fallback to settings/app origin)",
   });
+  checks.push({
+    name: "Henima Studio API",
+    ok: Boolean(process.env.PHOTOROOM_API_KEY || process.env.REMOVEBG_API_KEY),
+    detail: process.env.PHOTOROOM_API_KEY
+      ? "PHOTOROOM_API_KEY set"
+      : process.env.REMOVEBG_API_KEY
+        ? "REMOVEBG_API_KEY set (cutout + solid only)"
+        : "missing PHOTOROOM_API_KEY (or REMOVEBG_API_KEY)",
+  });
 
   let recentErrors: unknown[] = [];
   let stalePayments: {
@@ -95,7 +104,7 @@ export async function GET() {
     }));
   }
 
-  const allOk = checks.every((c) => c.ok || c.name === "Maintenance mode");
+  const allOk = checks.every((c) => c.ok || c.name === "Maintenance mode" || c.name === "Henima Studio API");
 
   return NextResponse.json({
     ok: allOk,

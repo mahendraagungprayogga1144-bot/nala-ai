@@ -6,6 +6,7 @@ const LINKS = [
   { href: "/dashboard/sales", label: "Dashboard KPI" },
   { href: "/dashboard/sales/customers", label: "Customers" },
   { href: "/dashboard/sales/orders", label: "Orders" },
+  { href: "/dashboard/sales/studio", label: "Studio" },
   { href: "/dashboard/sales/testimonials", label: "Testimonials" },
   { href: "/dashboard/sales/follow-ups", label: "Follow Ups" },
   { href: "/dashboard/sales/targets", label: "Targets" },

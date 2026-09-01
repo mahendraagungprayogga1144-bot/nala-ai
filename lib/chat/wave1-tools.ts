@@ -167,6 +167,25 @@ export const WAVE1_TOOLS: Anthropic.Messages.Tool[] = [
       required: ["nama_resep", "qty"],
     },
   },
+  {
+    name: "ganti_latar_studio",
+    description:
+      "Studio Henima: ganti latar foto produk parfum yang SUDAH diupload di Henima Sales → Studio. Preset: afternoon_gold, distance_night, marble, velvet, linen, solid_white, solid_cream, custom. Kalau custom, isi prompt. Jangan pakai tool ini kalau belum ada foto di Studio.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        produk: { type: "string", description: "Afternoon, The Distance, atau latest" },
+        preset: {
+          type: "string",
+          description: "afternoon_gold | distance_night | marble | velvet | linen | solid_white | solid_cream | custom",
+        },
+        prompt: { type: "string", description: "Wajib kalau preset custom. Contoh: botol di atas batu pantai sunset" },
+        frame: { type: "string", enum: ["square", "portrait", "story"] },
+        apply_to_catalog: { type: "boolean", description: "Tempel hasil ke foto katalog produk (founder)" },
+      },
+      required: ["preset"],
+    },
+  },
 ];
 
 export async function runWave1Tool(name: string, input: Record<string, unknown>, ctx: ChatSession): Promise<string> {
@@ -193,6 +212,8 @@ export async function runWave1Tool(name: string, input: Record<string, unknown>,
       return catatPakan(ctx, input);
     case "jalankan_produksi":
       return jalankanProduksi(ctx, input);
+    case "ganti_latar_studio":
+      return gantiLatarStudio(ctx, input);
     default:
       return `Tool ${name} belum dikenal.`;
   }
@@ -722,4 +743,9 @@ async function produceFromRecipe(
   });
 
   return `Produksi ${recipe.name} selesai: ${qty} ${recipe.yield_unit || "pcs"}. HPP/unit ~${fmtRp(hpp)}. Bahan terpotong, produk jadi masuk inventory.`;
+}
+
+async function gantiLatarStudio(ctx: ChatSession, input: Record<string, unknown>) {
+  const { runGantiLatarStudio } = await import("@/lib/henima-sales/studio-tool");
+  return runGantiLatarStudio(ctx, input);
 }

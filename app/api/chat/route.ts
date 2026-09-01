@@ -105,6 +105,7 @@ KAMU PUNYA TOOLS — pakai sampai pekerjaan selesai, jangan bilang "nggak bisa" 
 - buat_order_bengkel / update_status_bengkel → bengkel
 - tambah_pelanggan_crm → CRM
 - jalankan_produksi → produksi dari resep
+- ganti_latar_studio → Studio Henima, ganti latar foto produk (upload dulu di Henima Sales → Studio)
 
 ATURAN KLARIFIKASI (WAJIB — jangan asal eksekusi):
 1. Kalau user bilang input/tambah hewan/ternak/bebek/ayam/ekor/bibit/"1000 pcs bebek" / batch — DAN belum jelas mau ke mana:

@@ -153,7 +153,8 @@ async function callGeminiImage(
     const inline = part.inlineData || part.inline_data;
     const data = inline?.data;
     if (data) {
-      const mime = inline?.mimeType || inline?.mime_type || "image/png";
+      const blob = inline as { mimeType?: string; mime_type?: string };
+      const mime = blob.mimeType || blob.mime_type || "image/png";
       return {
         bytes: Uint8Array.from(Buffer.from(data, "base64")),
         mime,

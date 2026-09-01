@@ -63,6 +63,13 @@ export async function GET() {
         ? "REMOVEBG_API_KEY set (cutout + solid only)"
         : "missing PHOTOROOM_API_KEY (or REMOVEBG_API_KEY)",
   });
+  checks.push({
+    name: "Henima Studio Gemini",
+    ok: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY),
+    detail: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY
+      ? "GEMINI_API_KEY set (tukar botol @img1/@img2)"
+      : "missing GEMINI_API_KEY for bottle swap",
+  });
 
   let recentErrors: unknown[] = [];
   let stalePayments: {
@@ -104,7 +111,13 @@ export async function GET() {
     }));
   }
 
-  const allOk = checks.every((c) => c.ok || c.name === "Maintenance mode" || c.name === "Henima Studio API");
+  const allOk = checks.every(
+    (c) =>
+      c.ok ||
+      c.name === "Maintenance mode" ||
+      c.name === "Henima Studio API" ||
+      c.name === "Henima Studio Gemini",
+  );
 
   return NextResponse.json({
     ok: allOk,

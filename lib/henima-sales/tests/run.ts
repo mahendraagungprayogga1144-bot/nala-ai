@@ -16,7 +16,7 @@ import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 import { buildSalesReportPdf } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
-import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize } from "../studio-presets";
+import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize, buildSwapPrompt } from "../studio-presets";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -200,6 +200,15 @@ test("studio preset aliases and prompts", () => {
   assert.match(buildBackgroundPrompt("marble") || "", /Carrara marble/);
   assert.match(buildBackgroundPrompt("custom", "pantai sunset") || "", /pantai sunset/);
   assert.throws(() => buildBackgroundPrompt("custom", "  "));
+});
+
+test("studio swap prompt keeps scene and names the bottle", () => {
+  const p = buildSwapPrompt("Afternoon", "");
+  assert.match(p, /Image 1/);
+  assert.match(p, /Afternoon/);
+  assert.match(p, /replace ONLY the perfume bottle/i);
+  const custom = buildSwapPrompt("The Distance", "a".repeat(90));
+  assert.equal(custom.length, 90);
 });
 
 test("input_phone sale chat is not treated as a phone number", () => {

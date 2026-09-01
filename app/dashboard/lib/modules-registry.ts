@@ -54,6 +54,7 @@ const BIZ_MODULES: DashboardModule[] = [
 export const GERCEP_MODULES: DashboardModule[] = [
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },
   { id: "sales", name: "Henima Sales", desc: "Dashboard, KPI, CRM, Telegram, Studio foto produk, laporan khusus modul sales Henima.", href: "/dashboard/sales", icon: Target, category: "utama", status: "live" },
+  { id: "henima-studio", name: "Studio Henima", desc: "Editor foto produk — ganti latar botol Afternoon / The Distance.", href: "/dashboard/sales/studio", icon: Camera, category: "utama", status: "beta" },
   { id: "analitik", name: "Dashboard Analitik", desc: "KPI omzet, laba, beban, arus kas — satu layar.", href: "/dashboard/analitik", icon: BarChart3, category: "utama", status: "live" },
   { id: "trading-ai", name: "Otak MetaTrader", desc: "Trading AI Brain XAUUSD — M5 bias, M1 entry, bridge MT5.", href: "/dashboard/trading-ai", icon: Crosshair, category: "utama", status: "beta" },
   { id: "chat", name: "Gercep Chat", desc: "Pusat kendali semua modul lewat chat.", href: "/dashboard/chat", icon: MessageCircle, category: "utama", status: "live" },

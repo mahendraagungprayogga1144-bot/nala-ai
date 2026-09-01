@@ -1,17 +1,31 @@
 import { SalesError } from "./types";
 import {
+  geminiAspectRatio,
   getStudioPreset,
   studioOutputSize,
   type StudioFrameId,
   type StudioPresetId,
 } from "./studio-presets";
 
-export type StudioProviderId = "photoroom" | "removebg";
+export type StudioProviderId = "photoroom" | "removebg" | "gemini";
 
-export function studioProvider(): StudioProviderId | null {
+export function studioProvider(): Exclude<StudioProviderId, "gemini"> | null {
   if (process.env.PHOTOROOM_API_KEY?.trim()) return "photoroom";
   if (process.env.REMOVEBG_API_KEY?.trim()) return "removebg";
   return null;
+}
+
+export function geminiApiKey() {
+  return (
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    ""
+  );
+}
+
+export function geminiConfigured() {
+  return Boolean(geminiApiKey());
 }
 
 export function studioConfigured() {
@@ -33,6 +47,123 @@ export type StudioEditResult = {
   ext: string;
   provider: StudioProviderId;
 };
+
+export async function swapBottleInScene(input: {
+  sceneBytes: Uint8Array;
+  sceneMime: string;
+  bottleBytes: Uint8Array;
+  bottleMime: string;
+  prompt: string;
+  frame: StudioFrameId;
+}): Promise<StudioEditResult> {
+  const key = geminiApiKey();
+  if (!key) {
+    throw new SalesError(
+      "Mode tukar botol butuh GEMINI_API_KEY (Google AI Studio / Nano Banana). Pasang di Vercel.",
+      "studio_unconfigured",
+      503,
+    );
+  }
+  const models = [
+    process.env.GEMINI_IMAGE_MODEL?.trim(),
+    "gemini-3-pro-image-preview",
+    "gemini-2.5-flash-image",
+    "gemini-2.5-flash-image-preview",
+  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
+
+  let lastErr = "Gemini gagal generate.";
+  for (const model of models) {
+    try {
+      return await callGeminiImage(key, model, input);
+    } catch (err) {
+      lastErr = err instanceof SalesError ? err.message : err instanceof Error ? err.message : lastErr;
+      if (err instanceof SalesError && (err.httpStatus === 401 || err.httpStatus === 402 || err.httpStatus === 429)) {
+        throw err;
+      }
+    }
+  }
+  throw new SalesError(lastErr, "studio_provider", 502);
+}
+
+function toB64(bytes: Uint8Array) {
+  return Buffer.from(bytes).toString("base64");
+}
+
+async function callGeminiImage(
+  key: string,
+  model: string,
+  input: {
+    sceneBytes: Uint8Array;
+    sceneMime: string;
+    bottleBytes: Uint8Array;
+    bottleMime: string;
+    prompt: string;
+    frame: StudioFrameId;
+  },
+): Promise<StudioEditResult> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": key,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: input.prompt },
+            { inline_data: { mime_type: input.sceneMime || "image/jpeg", data: toB64(input.sceneBytes) } },
+            { inline_data: { mime_type: input.bottleMime || "image/jpeg", data: toB64(input.bottleBytes) } },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"],
+        imageConfig: { aspectRatio: geminiAspectRatio(input.frame) },
+      },
+    }),
+    signal: AbortSignal.timeout(80_000),
+  });
+  const raw = await res.text();
+  let json: {
+    error?: { message?: string; status?: string; code?: number };
+    candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }[] } }[];
+  };
+  try {
+    json = JSON.parse(raw) as typeof json;
+  } catch {
+    throw new SalesError(`Gemini merespons tidak valid (${res.status}).`, "studio_provider", mapHttp(res.status));
+  }
+  if (!res.ok) {
+    const msg = json.error?.message || `Gemini gagal (${res.status}).`;
+    const status = json.error?.code || res.status;
+    if (status === 404 || /not found|not supported/i.test(msg)) {
+      throw new SalesError(msg, "studio_model", 404);
+    }
+    if (status === 401 || status === 403) {
+      throw new SalesError("GEMINI_API_KEY tidak valid.", "studio_provider", 401);
+    }
+    if (status === 429) throw new SalesError(msg || "Kuota Gemini habis / rate limit.", "studio_provider", 429);
+    throw new SalesError(msg, "studio_provider", mapHttp(res.status));
+  }
+  const parts = json.candidates?.[0]?.content?.parts || [];
+  for (const part of parts) {
+    const inline = part.inlineData || part.inline_data;
+    const data = inline?.data;
+    if (data) {
+      const mime = inline?.mimeType || inline?.mime_type || "image/png";
+      return {
+        bytes: Uint8Array.from(Buffer.from(data, "base64")),
+        mime,
+        ext: mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png",
+        provider: "gemini",
+      };
+    }
+  }
+  throw new SalesError("Gemini tidak mengembalikan gambar. Coba foto yang lebih jelas atau prompt lebih singkat.", "studio_provider", 502);
+}
 
 export async function editStudioPhoto(input: StudioEditRequest): Promise<StudioEditResult> {
   const provider = studioProvider();

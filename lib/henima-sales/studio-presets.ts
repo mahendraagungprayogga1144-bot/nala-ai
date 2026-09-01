@@ -170,3 +170,21 @@ export function buildBackgroundPrompt(presetId: StudioPresetId, custom?: string 
 export function studioPresetPublic() {
   return STUDIO_PRESETS.map(({ id, label, hint, swatch, kind }) => ({ id, label, hint, swatch, kind }));
 }
+
+export const DEFAULT_SWAP_PROMPT =
+  "Image 1 (@img1) is the original scene. Image 2 (@img2) is the exact Henima perfume bottle that must replace the perfume bottle in image 1. Replace ONLY the perfume bottle in image 1 with the Henima bottle from image 2. Keep the entire scene from image 1 unchanged, including the person, arm, hand, table, wall, wooden panel, camera angle, composition, framing and overall lighting. Use the Henima bottle from image 2 as the exact product reference. Preserve its exact bottle shape, label, cap, color, typography and proportions. Do not add text overlays, watermarks, extra bottles, or change the model's pose.";
+
+export function geminiAspectRatio(frame: StudioFrameId) {
+  if (frame === "portrait") return "4:5";
+  if (frame === "story") return "9:16";
+  return "1:1";
+}
+
+export function buildSwapPrompt(productName?: string | null, custom?: string | null) {
+  const extra = (custom || "").trim();
+  if (extra.length > 80) return extra;
+  const product = (productName || "").trim() || "Henima";
+  const base = DEFAULT_SWAP_PROMPT.replaceAll("Henima", product);
+  if (extra) return `${base} Additional direction: ${extra}`;
+  return base;
+}

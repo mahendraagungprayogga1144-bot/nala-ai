@@ -44,7 +44,7 @@ Lihat `/admin/health`:
 - Vercel env `NEXT_PUBLIC_APP_URL` = `https://www.gercepos.id`
 - Supabase **Backups** on (Dashboard → Project Settings → Database)
 - Service role key hanya di Vercel env / password manager — jangan di chat
-- Henima Studio: `PHOTOROOM_API_KEY` (latar AI, disarankan) atau `REMOVEBG_API_KEY` (cutout + warna solid). Daftar key di [Photoroom API](https://app.photoroom.com/api) atau [remove.bg](https://www.remove.bg/dashboard#api-key). Setelah itu jalankan migration `supabase/migrations/20260901_henima_studio.sql`.
+- Henima Studio: `PHOTOROOM_API_KEY` (ganti latar) dan `GEMINI_API_KEY` (tukar botol @img1 scene + @img2 botol, seperti Nano Banana). Key Gemini: [Google AI Studio](https://aistudio.google.com/apikey). Setelah itu jalankan migration `supabase/migrations/20260901_henima_studio.sql`.
 
 ## Invoice user
 

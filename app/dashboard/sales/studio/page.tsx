@@ -5,8 +5,8 @@ import SalesNav from "../sales-nav";
 import { loadSalesContext } from "@/lib/henima-sales/page-context";
 import { listStudioAssets } from "@/lib/henima-sales/studio-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
-import { STUDIO_PRESETS, STUDIO_FRAMES } from "@/lib/henima-sales/studio-presets";
-import { studioConfigured, studioProvider } from "@/lib/henima-sales/studio-provider";
+import { STUDIO_PRESETS, STUDIO_FRAMES, DEFAULT_SWAP_PROMPT } from "@/lib/henima-sales/studio-presets";
+import { geminiConfigured, studioConfigured, studioProvider } from "@/lib/henima-sales/studio-provider";
 import StudioClient from "./studio-client";
 
 export default function StudioPage() {
@@ -26,14 +26,15 @@ export default function StudioPage() {
         <ModuleHeader
           icon={Camera}
           title="Studio"
-          subtitle={`${actor.businessName} — editor foto produk, ganti latar botol`}
+          subtitle={`${actor.businessName} — tukar botol ke foto referensi, atau ganti latar`}
           status="beta"
-          chatHint="Bilang di chat: ganti latar Afternoon jadi marble"
+          chatHint="Upload @img1 scene + @img2 botol, lalu tukar botol"
         />
         <SalesNav />
         <StudioClient
           role={actor.role}
           configured={studioConfigured()}
+          swapConfigured={geminiConfigured()}
           provider={studioProvider()}
           tableReady={tableReady}
           products={products.map((p) => ({ id: p.id, name: p.name }))}
@@ -45,6 +46,7 @@ export default function StudioPage() {
             kind,
           }))}
           frames={STUDIO_FRAMES.map(({ id, label }) => ({ id, label }))}
+          defaultSwapPrompt={DEFAULT_SWAP_PROMPT}
           assets={assets.map((a) => ({
             id: a.id,
             product_id: a.product_id,

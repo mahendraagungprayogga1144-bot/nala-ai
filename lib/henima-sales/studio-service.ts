@@ -6,11 +6,12 @@ import { wibParts } from "./dates";
 import { salesLogError } from "./log";
 import {
   buildBackgroundPrompt,
+  buildSwapPrompt,
   resolveStudioFrame,
   resolveStudioPreset,
   studioPresetPublic,
 } from "./studio-presets";
-import { editStudioPhoto, studioConfigured, studioProvider } from "./studio-provider";
+import { editStudioPhoto, geminiConfigured, studioConfigured, studioProvider, swapBottleInScene } from "./studio-provider";
 
 const BUCKET = "henima-studio";
 const SIGNED_TTL = 3600;
@@ -122,7 +123,9 @@ export async function listStudioAssets(
   );
   return {
     configured: studioConfigured(),
+    swapConfigured: geminiConfigured(),
     provider: studioProvider(),
+    swapProvider: geminiConfigured() ? "gemini" : null,
     presets: studioPresetPublic(),
     assets,
     total: count || 0,
@@ -144,8 +147,15 @@ export async function createStudioEdit(
     frameRaw?: string | null;
     productId?: string | null;
     productName?: string | null;
+    mode?: string | null;
+    sceneBytes?: Uint8Array;
+    sceneMime?: string;
+    sceneFilename?: string;
   },
 ) {
+  if (input.mode === "swap") {
+    return createStudioSwap(db, actor, input);
+  }
   const presetId = resolveStudioPreset(input.presetRaw);
   if (!presetId) throw new SalesError("Pilih latar dulu (Afternoon Gold, Marble, dll).", "studio_preset");
   const frame = resolveStudioFrame(input.frameRaw);
@@ -232,6 +242,112 @@ export async function createStudioEdit(
     entityType: "studio",
     entityId: data.id,
     newValue: { preset: presetId, frame, product_id: productId, provider: edited.provider },
+  });
+  return {
+    asset: {
+      ...(data as StudioAssetRow),
+      originalUrl: await signedStudioUrl(db, originalPath),
+      resultUrl: await signedStudioUrl(db, resultPath),
+    },
+  };
+}
+
+async function createStudioSwap(
+  db: SalesDb,
+  actor: Actor,
+  input: {
+    bytes?: Uint8Array;
+    mime?: string;
+    filename?: string;
+    sourceId?: string | null;
+    prompt?: string | null;
+    frameRaw?: string | null;
+    productId?: string | null;
+    productName?: string | null;
+    sceneBytes?: Uint8Array;
+    sceneMime?: string;
+    sceneFilename?: string;
+  },
+) {
+  if (!input.bytes || !input.mime) throw new SalesError("Upload @img2 botol Henima dulu.", "file_required");
+  assertImage({ bytes: input.bytes, mime: input.mime });
+
+  let sceneBytes: Uint8Array;
+  let sceneMime: string;
+  let sceneFilename: string;
+  let existingOriginalPath: string | null = null;
+
+  if (input.sceneBytes && input.sceneMime) {
+    assertImage({ bytes: input.sceneBytes, mime: input.sceneMime });
+    sceneBytes = input.sceneBytes;
+    sceneMime = input.sceneMime;
+    sceneFilename = input.sceneFilename || `scene.${extOf("", input.sceneMime)}`;
+  } else if (input.sourceId) {
+    const { data, error } = await db
+      .from("module_sales_studio_assets")
+      .select("*")
+      .eq("id", input.sourceId)
+      .eq("business_id", actor.businessId)
+      .maybeSingle();
+    if (error || !data) throw new NotFoundError("Foto referensi tidak ditemukan.");
+    const src = data as StudioAssetRow;
+    const { data: file, error: dlErr } = await db.storage.from(BUCKET).download(src.original_path);
+    if (dlErr || !file) throw new SalesError("Gagal membaca foto referensi.", "studio_source", 502);
+    sceneBytes = new Uint8Array(await file.arrayBuffer());
+    sceneMime = file.type || "image/jpeg";
+    sceneFilename = src.original_path.split("/").pop() || "scene.jpg";
+    existingOriginalPath = src.original_path;
+  } else {
+    throw new SalesError("Upload @img1 foto referensi (yang sudah jadi) dulu.", "scene_required");
+  }
+
+  const frame = resolveStudioFrame(input.frameRaw);
+  const productName = (input.productName || "").trim() || null;
+  const prompt = buildSwapPrompt(productName, input.prompt);
+  const edited = await swapBottleInScene({
+    sceneBytes,
+    sceneMime,
+    bottleBytes: input.bytes,
+    bottleMime: input.mime,
+    prompt,
+    frame,
+  });
+
+  const originalPath =
+    existingOriginalPath ||
+    studioPath({ businessId: actor.businessId, kind: "original", ext: extOf(sceneFilename, sceneMime) });
+  if (!existingOriginalPath) {
+    await uploadBytes(db, originalPath, sceneBytes, sceneMime);
+  }
+  const resultPath = studioPath({ businessId: actor.businessId, kind: "result", ext: edited.ext });
+  await uploadBytes(db, resultPath, edited.bytes, edited.mime);
+
+  const { data, error } = await db
+    .from("module_sales_studio_assets")
+    .insert({
+      business_id: actor.businessId,
+      sales_id: actor.staffId,
+      product_id: input.productId || null,
+      product_name: productName,
+      preset: "swap_ref",
+      frame,
+      prompt,
+      original_path: originalPath,
+      result_path: resultPath,
+      provider: edited.provider,
+    })
+    .select("*")
+    .single();
+  if (error || !data) {
+    salesLogError("studio_insert", error, { staffId: actor.staffId });
+    throw new SalesError(error?.message || "Gagal simpan hasil studio.", "studio_create");
+  }
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "CREATE_STUDIO_ASSET",
+    entityType: "studio",
+    entityId: data.id,
+    newValue: { preset: "swap_ref", frame, product_id: input.productId || null, provider: edited.provider },
   });
   return {
     asset: {

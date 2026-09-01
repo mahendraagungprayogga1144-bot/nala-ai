@@ -8,7 +8,7 @@ import {
 } from "@/lib/henima-sales/studio-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
 
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 export async function GET(request: Request) {
   return withSalesActor(async ({ actor, db }) => {
@@ -39,6 +39,18 @@ export async function POST(request: Request) {
         mime = file.type || "image/jpeg";
         filename = file.name || "foto.jpg";
       }
+      const scene = form.get("scene");
+      let sceneBytes: Uint8Array | undefined;
+      let sceneMime: string | undefined;
+      let sceneFilename: string | undefined;
+      if (scene instanceof File && scene.size > 0) {
+        if (scene.size > STUDIO_MAX_BYTES) {
+          throw new SalesError("Ukuran foto referensi terlalu besar (maks 8MB).", "file_size");
+        }
+        sceneBytes = new Uint8Array(await scene.arrayBuffer());
+        sceneMime = scene.type || "image/jpeg";
+        sceneFilename = scene.name || "scene.jpg";
+      }
       return createStudioEdit(db, actor, {
         bytes,
         mime,
@@ -49,6 +61,10 @@ export async function POST(request: Request) {
         frameRaw: String(form.get("frame") || "square"),
         productId: String(form.get("product_id") || "") || null,
         productName: String(form.get("product_name") || "") || null,
+        mode: String(form.get("mode") || "background"),
+        sceneBytes,
+        sceneMime,
+        sceneFilename,
       });
     }
 

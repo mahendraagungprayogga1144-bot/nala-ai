@@ -26,7 +26,7 @@ export async function runGantiLatarStudio(ctx: ChatCtx, input: Record<string, un
     const produk = typeof input.produk === "string" ? input.produk.trim() : "";
     const source = await latestStudioOriginal(db, actor, produk || "latest");
     if (!source) {
-      return "Belum ada foto botol. Upload dulu di Henima Sales → Studio, baru minta ganti latar di chat.";
+      return "Belum ada foto botol. Upload dulu di modul Studio Henima, baru minta ganti latar di chat.";
     }
     const prompt = typeof input.prompt === "string" ? input.prompt : null;
     const frame = typeof input.frame === "string" ? input.frame : source.frame;
@@ -57,7 +57,7 @@ export async function runGantiLatarStudio(ctx: ChatCtx, input: Record<string, un
         }
       }
     }
-    const link = asset.resultUrl ? ` Lihat: ${asset.resultUrl}` : " Buka Henima Sales → Studio untuk unduh.";
+    const link = asset.resultUrl ? ` Lihat: ${asset.resultUrl}` : " Buka modul Studio Henima untuk unduh.";
     return `Latar ${preset.replaceAll("_", " ")} siap untuk ${asset.product_name || "foto studio"} via ${studioProvider()}.${extra}${link}`;
   } catch (err) {
     if (err instanceof ForbiddenError || err instanceof SalesError) return err.message;

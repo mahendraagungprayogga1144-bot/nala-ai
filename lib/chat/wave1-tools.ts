@@ -170,7 +170,7 @@ export const WAVE1_TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: "ganti_latar_studio",
     description:
-      "Studio Henima: ganti latar foto produk parfum yang SUDAH diupload di Henima Sales → Studio. Preset: afternoon_gold, distance_night, marble, velvet, linen, solid_white, solid_cream, custom. Kalau custom, isi prompt. Jangan pakai tool ini kalau belum ada foto di Studio.",
+      "Studio Henima: tukar botol atau ganti latar foto parfum. Foto diupload di modul Studio Henima. Preset latar: afternoon_gold, distance_night, marble, velvet, linen, solid_white, solid_cream, custom. Kalau custom, isi prompt.",
     input_schema: {
       type: "object" as const,
       properties: {

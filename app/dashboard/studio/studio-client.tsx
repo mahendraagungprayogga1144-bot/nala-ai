@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
-import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../../components/module-form-styles";
+import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../components/module-form-styles";
 import { STUDIO_GEMINI_MODELS } from "@/lib/henima-sales/studio-presets";
 
 type Product = { id: string; name: string };

@@ -151,6 +151,7 @@ export async function createStudioEdit(
     sceneBytes?: Uint8Array;
     sceneMime?: string;
     sceneFilename?: string;
+    geminiModel?: string | null;
   },
 ) {
   if (input.mode === "swap") {
@@ -267,6 +268,7 @@ async function createStudioSwap(
     sceneBytes?: Uint8Array;
     sceneMime?: string;
     sceneFilename?: string;
+    geminiModel?: string | null;
   },
 ) {
   if (!input.bytes || !input.mime) throw new SalesError("Upload @img2 botol Henima dulu.", "file_required");
@@ -311,6 +313,7 @@ async function createStudioSwap(
     bottleMime: input.mime,
     prompt,
     frame,
+    modelRaw: input.geminiModel,
   });
 
   const originalPath =

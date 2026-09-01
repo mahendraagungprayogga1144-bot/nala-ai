@@ -2,6 +2,7 @@ import { SalesError } from "./types";
 import {
   geminiAspectRatio,
   getStudioPreset,
+  resolveGeminiModel,
   studioOutputSize,
   type StudioFrameId,
   type StudioPresetId,
@@ -55,6 +56,7 @@ export async function swapBottleInScene(input: {
   bottleMime: string;
   prompt: string;
   frame: StudioFrameId;
+  modelRaw?: string | null;
 }): Promise<StudioEditResult> {
   const key = geminiApiKey();
   if (!key) {
@@ -64,25 +66,19 @@ export async function swapBottleInScene(input: {
       503,
     );
   }
-  const models = [
-    process.env.GEMINI_IMAGE_MODEL?.trim(),
-    "gemini-3-pro-image-preview",
-    "gemini-2.5-flash-image",
-    "gemini-2.5-flash-image-preview",
-  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
-
-  let lastErr = "Gemini gagal generate.";
-  for (const model of models) {
-    try {
-      return await callGeminiImage(key, model, input);
-    } catch (err) {
-      lastErr = err instanceof SalesError ? err.message : err instanceof Error ? err.message : lastErr;
-      if (err instanceof SalesError && (err.httpStatus === 401 || err.httpStatus === 402 || err.httpStatus === 429)) {
-        throw err;
-      }
+  const picked = resolveGeminiModel(input.modelRaw);
+  try {
+    return await callGeminiImage(key, picked.model, input);
+  } catch (err) {
+    if (err instanceof SalesError && err.code === "studio_model") {
+      throw new SalesError(
+        `${picked.label} belum aktif di key ini. Coba pilih Nano Banana, atau enable model Pro di Google AI Studio.`,
+        "studio_model",
+        404,
+      );
     }
+    throw err;
   }
-  throw new SalesError(lastErr, "studio_provider", 502);
 }
 
 function toB64(bytes: Uint8Array) {

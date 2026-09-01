@@ -16,7 +16,7 @@ import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 import { buildSalesReportPdf } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
-import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize, buildSwapPrompt } from "../studio-presets";
+import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize, buildSwapPrompt, resolveGeminiModel } from "../studio-presets";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -209,6 +209,12 @@ test("studio swap prompt keeps scene and names the bottle", () => {
   assert.match(p, /replace ONLY the perfume bottle/i);
   const custom = buildSwapPrompt("The Distance", "a".repeat(90));
   assert.equal(custom.length, 90);
+});
+
+test("studio gemini model picker", () => {
+  assert.equal(resolveGeminiModel("pro").id, "pro");
+  assert.equal(resolveGeminiModel("flash").model, "gemini-2.5-flash-image");
+  assert.equal(resolveGeminiModel("pro").model, "gemini-3-pro-image-preview");
 });
 
 test("input_phone sale chat is not treated as a phone number", () => {

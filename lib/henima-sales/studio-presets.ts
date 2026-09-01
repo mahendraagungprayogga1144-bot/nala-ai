@@ -188,3 +188,25 @@ export function buildSwapPrompt(productName?: string | null, custom?: string | n
   if (extra) return `${base} Additional direction: ${extra}`;
   return base;
 }
+
+export const STUDIO_GEMINI_MODELS = [
+  {
+    id: "pro",
+    label: "Nano Banana Pro",
+    hint: "Kualitas max, mirip Artlist",
+    model: "gemini-3-pro-image-preview",
+  },
+  {
+    id: "flash",
+    label: "Nano Banana",
+    hint: "Lebih cepat & murah",
+    model: "gemini-2.5-flash-image",
+  },
+] as const;
+export type StudioGeminiModelId = (typeof STUDIO_GEMINI_MODELS)[number]["id"];
+
+export function resolveGeminiModel(raw?: string | null) {
+  const t = (raw || "pro").trim().toLowerCase();
+  if (t === "flash" || t === "nano banana" || t === "nano_banana") return STUDIO_GEMINI_MODELS[1];
+  return STUDIO_GEMINI_MODELS[0];
+}

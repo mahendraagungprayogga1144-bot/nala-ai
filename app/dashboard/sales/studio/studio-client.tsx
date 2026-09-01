@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { MODULE_BTN, MODULE_CARD, MODULE_INPUT } from "../../components/module-form-styles";
+import { STUDIO_GEMINI_MODELS } from "@/lib/henima-sales/studio-presets";
 
 type Product = { id: string; name: string };
 type Preset = { id: string; label: string; hint: string; swatch: string; kind: string };
@@ -54,6 +55,7 @@ export default function StudioClient({
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [preset, setPreset] = useState(presets[0]?.id || "afternoon_gold");
   const [frame, setFrame] = useState("square");
+  const [geminiModel, setGeminiModel] = useState<(typeof STUDIO_GEMINI_MODELS)[number]["id"]>("pro");
   const [productId, setProductId] = useState(products[0]?.id || "");
   const [prompt, setPrompt] = useState(defaultSwapPrompt);
   const [busy, setBusy] = useState(false);
@@ -66,11 +68,14 @@ export default function StudioClient({
   const sceneNeedsPhotoroom = selectedPreset?.kind === "scene" || selectedPreset?.kind === "custom";
 
   const providerLabel = useMemo(() => {
-    if (mode === "swap") return swapConfigured ? "Gemini Nano Banana" : "Belum ada GEMINI_API_KEY";
+    if (mode === "swap") {
+      if (!swapConfigured) return "Belum ada GEMINI_API_KEY";
+      return STUDIO_GEMINI_MODELS.find((m) => m.id === geminiModel)?.label || "Nano Banana Pro";
+    }
     if (provider === "photoroom") return "Photoroom AI";
     if (provider === "removebg") return "remove.bg";
     return "Belum ada API key";
-  }, [mode, swapConfigured, provider]);
+  }, [mode, swapConfigured, provider, geminiModel]);
 
   const onPickBottle = (next: File | null) => {
     setFile(next);
@@ -123,6 +128,7 @@ export default function StudioClient({
       if (sourceId) form.append("source_id", sourceId);
       form.append("preset", preset);
       form.append("frame", frame);
+      form.append("gemini_model", geminiModel);
       form.append("prompt", prompt);
       if (productId) form.append("product_id", productId);
       if (productName) form.append("product_name", productName);
@@ -366,6 +372,30 @@ export default function StudioClient({
                 remove.bg hanya cutout + warna. Latar AI butuh PHOTOROOM_API_KEY.
               </p>
             )}
+          </section>
+        )}
+
+        {mode === "swap" && (
+          <section className={MODULE_CARD}>
+            <p className="mb-2 text-[10px] uppercase tracking-wide text-[#8B8AA0]">Model</p>
+            <div className="space-y-1.5">
+              {STUDIO_GEMINI_MODELS.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setGeminiModel(m.id)}
+                  className={
+                    "w-full rounded-xl border px-3 py-2 text-left " +
+                    (geminiModel === m.id
+                      ? "border-[#2DD4BF]/50 bg-[#2DD4BF]/10"
+                      : "border-white/10 hover:border-white/20")
+                  }
+                >
+                  <span className="block text-[12px] font-medium text-[#F0EFF8]">{m.label}</span>
+                  <span className="block text-[10px] text-[#8B8AA0]">{m.hint}</span>
+                </button>
+              ))}
+            </div>
           </section>
         )}
 

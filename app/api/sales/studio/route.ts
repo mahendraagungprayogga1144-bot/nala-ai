@@ -65,6 +65,7 @@ export async function POST(request: Request) {
         sceneBytes,
         sceneMime,
         sceneFilename,
+        geminiModel: String(form.get("gemini_model") || "pro"),
       });
     }
 

@@ -1,7 +1,8 @@
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { pdfSafe } from "./nota";
 import { fmtDateId } from "./money";
-import { servedByLabel, type SalesReport } from "./report-service";
+import { formatMonthTitle } from "./dates";
+import { servedByLabel, type RecapLine, type SalesReport } from "./report-service";
 import { embedBrandFonts } from "./pdf-fonts";
 
 const INK = rgb(0.08, 0.08, 0.08);
@@ -65,6 +66,62 @@ function rightText(
   page.drawText(t, { x: rightX - font.widthOfTextAtSize(t, size), y, size, font, color });
 }
 
+export type RecapMonthGroup = {
+  key: string;
+  label: string;
+  lines: RecapLine[];
+  qty: number;
+  cash: number;
+  transfer: number;
+  qris: number;
+  hpp: number;
+  profit: number;
+};
+
+export function groupRecapByMonth(lines: RecapLine[]): RecapMonthGroup[] {
+  const map = new Map<string, RecapLine[]>();
+  for (const line of lines) {
+    const key = (line.date || "").slice(0, 7) || "0000-00";
+    const list = map.get(key) || [];
+    list.push(line);
+    map.set(key, list);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, monthLines]) => ({
+      key,
+      label: formatMonthTitle(`${key}-01`),
+      lines: monthLines,
+      qty: monthLines.reduce((s, l) => s + (l.qty || 0), 0),
+      cash: monthLines.reduce((s, l) => s + (l.cash || 0), 0),
+      transfer: monthLines.reduce((s, l) => s + (l.transfer || 0), 0),
+      qris: monthLines.reduce((s, l) => s + (l.qris || 0), 0),
+      hpp: monthLines.reduce((s, l) => s + (l.hpp || 0), 0),
+      profit: monthLines.reduce((s, l) => s + (l.profit || 0), 0),
+    }));
+}
+
+function chartSeries(report: SalesReport) {
+  const days = Object.entries(report.byDayOmzet || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  const months = new Set(days.map((d) => d[0].slice(0, 7)));
+  if (months.size <= 1) {
+    return { title: "GRAFIK OMZET HARIAN  (hijau = cash, biru = cashless)", points: days };
+  }
+  const byMonth: Record<string, { qty: number; cash: number; cashless: number; omzet: number }> = {};
+  for (const [day, v] of days) {
+    const key = day.slice(0, 7);
+    const cur = byMonth[key] || { qty: 0, cash: 0, cashless: 0, omzet: 0 };
+    byMonth[key] = {
+      qty: cur.qty + v.qty,
+      cash: cur.cash + v.cash,
+      cashless: cur.cashless + v.cashless,
+      omzet: cur.omzet + v.omzet,
+    };
+  }
+  const points = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+  return { title: "GRAFIK OMZET BULANAN  (hijau = cash, biru = cashless)", points };
+}
+
 export async function buildSalesReportPdf(opts: {
   businessName: string;
   generatedAt: string;
@@ -113,9 +170,9 @@ export async function buildSalesReportPdf(opts: {
   });
   y -= 52;
 
-  const days = Object.entries(r.byDayOmzet || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  const { title: chartTitle, points: days } = chartSeries(r);
   need(110);
-  T(page, "GRAFIK OMZET HARIAN  (hijau = cash, biru = cashless)", LEFT, y, 9, sansBold);
+  T(page, chartTitle, LEFT, y, 9, sansBold);
   y -= 8;
   if (!days.length) {
     T(page, "Belum ada penjualan pada periode ini.", LEFT, y, 9, sans, MUTED);
@@ -141,7 +198,8 @@ export async function buildSalesReportPdf(opts: {
       });
     });
     y -= chartH + 14;
-    T(page, `${days[0][0]}  →  ${days[days.length - 1][0]}`, LEFT, y, 8, sans, MUTED);
+    const axis = (key: string) => (key.length > 7 ? key : formatMonthTitle(`${key}-01`));
+    T(page, `${axis(days[0][0])}  →  ${axis(days[days.length - 1][0])}`, LEFT, y, 8, sans, MUTED);
     y -= 16;
   }
 
@@ -179,24 +237,46 @@ export async function buildSalesReportPdf(opts: {
   y -= 12;
 
   const rows = r.lines || [];
+  const monthGroups = groupRecapByMonth(rows);
+  const splitMonths = monthGroups.length > 1;
   if (!rows.length) {
     T(page, "Belum ada baris transaksi.", LEFT, y, 9, sans, MUTED);
     y -= 14;
   }
-  for (const line of rows) {
-    need(22);
-    clip(page, line.customerName, LEFT, y, 8, sans, 88);
-    T(page, fmtDateId(line.date).replace(/[^\x20-\x7e]/g, "/"), LEFT + 92, y, 8, sans);
-    clip(page, line.note, LEFT + 152, y, 8, sans, 160);
-    T(page, String(line.qty), LEFT + 322, y, 8, sans);
-    rightText(page, line.cash ? rp(line.cash) : "-", LEFT + 430, y, 8, sans);
-    rightText(page, line.transfer ? rp(line.transfer) : "-", LEFT + 510, y, 8, sans);
-    rightText(page, line.qris ? rp(line.qris) : "-", LEFT + 590, y, 8, sans);
-    rightText(page, rp(line.hpp), LEFT + 680, y, 8, sans);
-    rightText(page, rp(line.profit), RIGHT, y, 8, sansBold);
-    y -= 11;
-    page.drawRectangle({ x: LEFT, y: y + 7, width: RIGHT - LEFT, height: 0.3, color: LINE });
-    y -= 2;
+  const WHITE = rgb(1, 1, 1);
+  for (const group of monthGroups) {
+    if (splitMonths) {
+      need(36);
+      page.drawRectangle({ x: LEFT, y: y - 4, width: RIGHT - LEFT, height: 16, color: TEAL });
+      T(page, group.label.toUpperCase(), LEFT + 8, y, 9, sansBold, WHITE);
+      y -= 22;
+    }
+    for (const line of group.lines) {
+      need(22);
+      clip(page, line.customerName, LEFT, y, 8, sans, 88);
+      T(page, fmtDateId(line.date).replace(/[^\x20-\x7e]/g, "/"), LEFT + 92, y, 8, sans);
+      clip(page, line.note, LEFT + 152, y, 8, sans, 160);
+      T(page, String(line.qty), LEFT + 322, y, 8, sans);
+      rightText(page, line.cash ? rp(line.cash) : "-", LEFT + 430, y, 8, sans);
+      rightText(page, line.transfer ? rp(line.transfer) : "-", LEFT + 510, y, 8, sans);
+      rightText(page, line.qris ? rp(line.qris) : "-", LEFT + 590, y, 8, sans);
+      rightText(page, rp(line.hpp), LEFT + 680, y, 8, sans);
+      rightText(page, rp(line.profit), RIGHT, y, 8, sansBold);
+      y -= 11;
+      page.drawRectangle({ x: LEFT, y: y + 7, width: RIGHT - LEFT, height: 0.3, color: LINE });
+      y -= 2;
+    }
+    if (splitMonths) {
+      need(20);
+      T(page, `TOTAL ${group.label.toUpperCase()}`, LEFT, y, 8, sansBold, TEAL);
+      T(page, String(group.qty), LEFT + 322, y, 8, sansBold, TEAL);
+      rightText(page, rp(group.cash), LEFT + 430, y, 8, sansBold, TEAL);
+      rightText(page, rp(group.transfer), LEFT + 510, y, 8, sansBold, TEAL);
+      rightText(page, rp(group.qris), LEFT + 590, y, 8, sansBold, TEAL);
+      rightText(page, rp(group.hpp), LEFT + 680, y, 8, sansBold, TEAL);
+      rightText(page, rp(group.profit), RIGHT, y, 8, sansBold, TEAL);
+      y -= 16;
+    }
   }
 
   y -= 8;

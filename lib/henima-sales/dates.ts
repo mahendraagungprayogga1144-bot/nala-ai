@@ -131,6 +131,12 @@ function fmtShort(ymd: string) {
   return `${Number(d)} ${months[Number(m) - 1]} ${y}`;
 }
 
+export function formatMonthTitle(ymd: string) {
+  const [y, m] = (ymd || "").slice(0, 10).split("-").map(Number);
+  if (!y || !m) return ymd || "";
+  return monthLabel(y, m);
+}
+
 function monthLabel(y: number, m: number) {
   const months = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",

@@ -14,7 +14,7 @@ import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
-import { buildSalesReportPdf } from "../pdf";
+import { buildSalesReportPdf, groupRecapByMonth } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
 import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize, buildSwapPrompt, resolveGeminiModel } from "../studio-presets";
 import { geminiApiError } from "../studio-provider";
@@ -448,6 +448,31 @@ test("riwayat card shows customer name", () => {
     ]),
     "Afternoon × 1 + The Distance × 1",
   );
+});
+
+test("yearly recap groups transactions by month", () => {
+  const line = (date: string, qty: number, cash: number): Parameters<typeof groupRecapByMonth>[0][number] => ({
+    date,
+    customerName: "adit",
+    salesName: "ima",
+    note: "The Distance",
+    qty,
+    cash,
+    transfer: 0,
+    qris: 0,
+    cashless: 0,
+    method: "CASH",
+    hpp: 50000,
+    profit: cash - 50000,
+  });
+  const groups = groupRecapByMonth([line("2026-09-01", 1, 130000), line("2026-08-31", 2, 260000), line("2026-08-29", 1, 130000)]);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].label, "Agustus 2026");
+  assert.equal(groups[0].lines.length, 2);
+  assert.equal(groups[0].qty, 3);
+  assert.equal(groups[1].label, "September 2026");
+  assert.equal(groups[1].qty, 1);
+  assert.equal(groupRecapByMonth([line("2026-08-01", 1, 100000)]).length, 1);
 });
 
 test("founder closings are served-by not top sales", () => {

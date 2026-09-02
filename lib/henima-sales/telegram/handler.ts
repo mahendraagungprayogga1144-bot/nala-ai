@@ -4,7 +4,7 @@ import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { listProducts, listStaff } from "../staff-service";
-import { createCustomer, findCustomerByPhone, listCustomers } from "../customer-service";
+import { createCustomer, findCustomerByPhone, getCustomer, listCustomers } from "../customer-service";
 import { confirmSale, listOrders, getOrder, softDeleteOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
 import { createFollowUp } from "../followup-service";
 import { saveTestimonial } from "../testimonial-service";
@@ -19,7 +19,7 @@ import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
 import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import type { Session } from "./session";
-import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
+import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, parseOpsIntent } from "./nl-sale";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
@@ -180,10 +180,10 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         await sendMessage(chatId, res.already_deleted ? "Transaksi sudah dihapus." : "Transaksi dihapus. Tidak dihitung di omzet, target, dan komisi.");
         next = { state: "idle", draft: newDraft() };
       } else if (effect.type === "send_report" && actor) {
-        await sendRekap(db, actor, chatId, effect.kind as ReportKind);
+        await sendRekap(db, actor, chatId, effect.kind as ReportKind, effect.from, effect.to);
       } else if (effect.type === "send_pdf" && actor) {
         void sendChatAction(chatId, "upload_document");
-        await sendPdf(db, actor, chatId, effect.kind as ReportKind);
+        await sendPdf(db, actor, chatId, effect.kind as ReportKind, effect.from, effect.to);
       } else if (effect.type === "send_nota" && actor) {
         void sendChatAction(chatId, "upload_document");
         await sendNota(db, actor, chatId, effect.orderId, effect.query);
@@ -239,11 +239,13 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     await sendTarget(db, actor, chatId);
   } else if (actor && incoming.kind === "callback" && incoming.data.startsWith("od:")) {
     const order = await getOrder(db, actor, incoming.data.slice(3));
+    const customerName = await orderCustomerName(db, actor, order);
     await sendMessage(
       chatId,
       [
         `${fmtDateLongId(order.order_date)}`,
-        `${orderItemsLabel(order.order_items)} — ${fmtRp(order.total)}`,
+        customerName,
+        `${formatOrderItemsLabel(order.order_items)} — ${fmtRp(order.total)}`,
         `Bayar: ${paymentLabel(order.metode_bayar)} / ${order.payment_status}`,
       ].join("\n"),
       [
@@ -441,11 +443,6 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
   );
 }
 
-function orderItemsLabel(items?: { product_name_snapshot: string | null; qty: number }[]) {
-  if (!items?.length) return "Produk";
-  return items.map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`).join(" + ");
-}
-
 function progressBar(pct: number) {
   const filled = Math.min(10, Math.max(0, Math.round(pct / 10)));
   return `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
@@ -513,10 +510,16 @@ async function sendRiwayat(db: SalesDb, actor: Actor, chatId: number) {
     await sendMessage(chatId, "Belum ada transaksi.");
     return;
   }
+  const names = await customerNamesByOrder(db, rows);
   for (const o of rows) {
     await sendMessage(
       chatId,
-      `${fmtDateLongId(o.order_date)}\n${orderItemsLabel(o.order_items)} — ${fmtRp(o.total)}`,
+      formatRiwayatCard({
+        dateLabel: fmtDateLongId(o.order_date),
+        customerName: names.get(o.id) || customerNameFromNote(o.catatan),
+        itemsLabel: formatOrderItemsLabel(o.order_items),
+        total: Number(o.total || 0),
+      }),
       [
         [
           { text: "DETAIL", data: `od:${o.id}` },
@@ -528,8 +531,43 @@ async function sendRiwayat(db: SalesDb, actor: Actor, chatId: number) {
   }
 }
 
-async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind) {
-  const report = await buildSalesReport(db, actor, { kind });
+async function customerNamesByOrder(db: SalesDb, rows: { id: string; customer_id: string | null; catatan?: string | null }[]) {
+  const ids = [...new Set(rows.map((o) => o.customer_id).filter(Boolean))] as string[];
+  const map = new Map<string, string>();
+  if (ids.length) {
+    const { data } = await db.from("module_crm_customers").select("id, nama").in("id", ids);
+    const byId = Object.fromEntries((data || []).map((c) => [c.id, String(c.nama || "").trim()]));
+    for (const o of rows) {
+      const named = (o.customer_id && byId[o.customer_id]) || customerNameFromNote(o.catatan);
+      if (named) map.set(o.id, named);
+    }
+  } else {
+    for (const o of rows) {
+      const named = customerNameFromNote(o.catatan);
+      if (named) map.set(o.id, named);
+    }
+  }
+  return map;
+}
+
+async function orderCustomerName(
+  db: SalesDb,
+  actor: Actor,
+  order: { customer_id: string | null; catatan?: string | null },
+) {
+  if (order.customer_id) {
+    try {
+      const customer = await getCustomer(db, actor, order.customer_id);
+      if (customer.nama?.trim()) return customer.nama.trim();
+    } catch {
+      /* fall through to note */
+    }
+  }
+  return customerNameFromNote(order.catatan) || "Tanpa nama";
+}
+
+async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind, from?: string, to?: string) {
+  const report = await buildSalesReport(db, actor, { kind, from, to });
   const products = report.byProduct.map((p) => `${p.name}:\n${p.qty} pcs`).join("\n\n");
   const top = report.ranking
     .slice(0, 5)
@@ -632,9 +670,9 @@ async function sendNota(db: SalesDb, actor: Actor, chatId: number, orderId?: str
   }
 }
 
-async function sendPdf(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind) {
+async function sendPdf(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind, from?: string, to?: string) {
   try {
-    const report = await buildSalesReport(db, actor, { kind });
+    const report = await buildSalesReport(db, actor, { kind, from, to });
     const bytes = await buildSalesReportPdf({
       businessName: actor.businessName,
       generatedAt: todayWib(),

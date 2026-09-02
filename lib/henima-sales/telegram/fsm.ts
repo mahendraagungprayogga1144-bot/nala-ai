@@ -362,14 +362,14 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       case "rekap_pick": {
         const ops = parseOpsIntent(`${session.state === "pdf_pick" ? "pdf " : "rekap "}${text}`);
         if (ops.type === "pdf") {
-          return { session: go(session, "idle"), effects: [{ type: "send_pdf", kind: ops.period }] };
+          return { session: go(session, "idle"), effects: [{ type: "send_pdf", kind: ops.period, from: ops.from, to: ops.to }] };
         }
         if (ops.type === "rekap") {
-          return { session: go(session, "idle"), effects: [{ type: "send_report", kind: ops.period }] };
+          return { session: go(session, "idle"), effects: [{ type: "send_report", kind: ops.period, from: ops.from, to: ops.to }] };
         }
         return {
           session,
-          effects: [reply("Ketik harian, mingguan, atau bulan ini.")],
+          effects: [reply("Ketik harian, mingguan, bulan ini, bulan lalu, atau nama bulan (contoh: agustus).")],
         };
       }
       case "customer_query":
@@ -388,7 +388,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan — bahasa bebas, contoh:\nlaku afternoon 3 the distance 2 harga 149rb atas nama Sinta no 08... qris\nsold 3 afternoon 2 the distance price 149k for Vitha phone 08... cash\n(harga/price = per botol, otomatis × jumlah)\nPaket: 2 pack new member total 250k ...\nBayar: tf / qris / cash / transfer / bank\nAtau: recap today · pdf this month · nota / invoice · history · target · /help";
+  "Kirim chat penjualan — bahasa bebas, contoh:\nlaku afternoon 3 the distance 2 harga 149rb atas nama Sinta no 08... qris\nsold 3 afternoon 2 the distance price 149k for Vitha phone 08... cash\n(harga/price = per botol, otomatis × jumlah)\nPaket: 2 pack new member total 250k ...\nBayar: tf / qris / cash / transfer / bank\nAtau: recap today · pdf agustus · pdf bulan lalu · nota / invoice · history · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -402,10 +402,10 @@ function applyNaturalChat(
     return { session: idle, effects: [reply(HELP_TEXT)] };
   }
   if (ops.type === "rekap") {
-    return { session: idle, effects: [{ type: "send_report", kind: ops.period }] };
+    return { session: idle, effects: [{ type: "send_report", kind: ops.period, from: ops.from, to: ops.to }] };
   }
   if (ops.type === "pdf") {
-    return { session: idle, effects: [{ type: "send_pdf", kind: ops.period }] };
+    return { session: idle, effects: [{ type: "send_pdf", kind: ops.period, from: ops.from, to: ops.to }] };
   }
   if (ops.type === "nota") {
     return { session: idle, effects: [{ type: "send_nota", query: ops.query }] };

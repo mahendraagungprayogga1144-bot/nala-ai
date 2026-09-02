@@ -438,6 +438,15 @@ export default function StudioClient({
             Mode tukar botol butuh <code>GEMINI_API_KEY</code> di Vercel. Ambil di Google AI Studio, Save, Redeploy.
           </p>
         )}
+        {mode === "swap" && swapConfigured && (
+          <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-[#8B8AA0]">
+            Tukar botol pakai Gemini berbayar. Key free tier kuotanya 0 untuk generate gambar — enable billing dulu di{" "}
+            <a className="text-[#2DD4BF] underline" href="https://aistudio.google.com/usage?tab=billing" target="_blank" rel="noreferrer">
+              Google AI Studio
+            </a>
+            , bukan OpenAI.
+          </p>
+        )}
         {mode === "background" && !configured && (
           <p className="rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2 text-xs text-[#F59E0B]">
             Tambah <code>PHOTOROOM_API_KEY</code> di env server (Vercel). Bisa juga <code>REMOVEBG_API_KEY</code> untuk cutout + warna solid.

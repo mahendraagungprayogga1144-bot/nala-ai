@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
-import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
+import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow } from "../dates";
 import { reduceBot } from "../telegram/fsm";
-import { connectedStatusText, newDraft } from "../telegram/session";
+import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
@@ -17,6 +17,7 @@ import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../
 import { buildSalesReportPdf } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
 import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize, buildSwapPrompt, resolveGeminiModel } from "../studio-presets";
+import { geminiApiError } from "../studio-provider";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -103,6 +104,10 @@ test("period ranges are Jakarta calendar windows", () => {
   const custom = periodRange("custom", { from: "2026-08-01", to: "2026-08-31" });
   assert.equal(custom.from, "2026-08-01");
   assert.equal(custom.to, "2026-08-31");
+  assert.equal(custom.label, "Agustus 2026");
+  const august = namedMonthWindow(8, 2026);
+  assert.equal(august.from, "2026-08-01");
+  assert.equal(august.to, "2026-08-31");
 });
 
 test("sales brand ignores short tenant names like g", () => {
@@ -217,6 +222,16 @@ test("studio gemini model picker", () => {
   assert.equal(resolveGeminiModel("pro").model, "gemini-3-pro-image-preview");
 });
 
+test("studio gemini free-tier image quota is not a retryable rate limit", () => {
+  const err = geminiApiError(
+    "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.5-flash-preview-image",
+    429,
+  );
+  assert.equal(err.code, "studio_quota");
+  assert.match(err.message, /free tier/i);
+  assert.match(err.message, /billing/i);
+});
+
 test("input_phone sale chat is not treated as a phone number", () => {
   const products = [{ id: "1", name: "Afternoon", price: 199000, cost: 0, stock: 10, unit: "pcs" }];
   const out = reduceBot(
@@ -293,6 +308,83 @@ test("rekapan hari ini is a rekap intent", () => {
   );
   assert.equal(out.effects[0].type, "send_report");
   if (out.effects[0].type === "send_report") assert.equal(out.effects[0].kind, "today");
+});
+
+test("pdf named month and last month", () => {
+  const august = namedMonthWindow(8);
+  assert.deepEqual(parseOpsIntent("pdf agustus"), {
+    type: "pdf",
+    period: "custom",
+    from: august.from,
+    to: august.to,
+  });
+  assert.deepEqual(parseOpsIntent("pdf bulan agustus"), {
+    type: "pdf",
+    period: "custom",
+    from: august.from,
+    to: august.to,
+  });
+  assert.deepEqual(parseOpsIntent("pdf august 2025"), {
+    type: "pdf",
+    period: "custom",
+    from: "2025-08-01",
+    to: "2025-08-31",
+  });
+  assert.deepEqual(parseOpsIntent("rekapan agustus"), {
+    type: "pdf",
+    period: "custom",
+    from: august.from,
+    to: august.to,
+  });
+  assert.deepEqual(parseOpsIntent("pdf bulan lalu"), { type: "pdf", period: "last_month" });
+  assert.deepEqual(parseOpsIntent("pdf last month"), { type: "pdf", period: "last_month" });
+  assert.deepEqual(parseOpsIntent("pdf kemarin"), { type: "pdf", period: "yesterday" });
+  assert.deepEqual(parseOpsIntent("rekap kemarin"), { type: "rekap", period: "yesterday" });
+  assert.deepEqual(parseOpsIntent("pdf minggu lalu"), { type: "pdf", period: "last_week" });
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "pdf agustus" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_pdf");
+  if (out.effects[0].type === "send_pdf") {
+    assert.equal(out.effects[0].kind, "custom");
+    assert.equal(out.effects[0].from, august.from);
+    assert.equal(out.effects[0].to, august.to);
+  }
+});
+
+test("riwayat card shows customer name", () => {
+  assert.equal(
+    formatRiwayatCard({
+      dateLabel: "31 Agustus 2026",
+      customerName: "Ibu Vitha Pasma",
+      itemsLabel: "The Distance × 1",
+      total: 130000,
+    }),
+    "31 Agustus 2026\nIbu Vitha Pasma\nThe Distance × 1 — Rp130.000",
+  );
+  assert.match(
+    formatRiwayatCard({
+      dateLabel: "31 Agustus 2026",
+      customerName: "  ",
+      itemsLabel: "Afternoon × 1",
+      total: 100000,
+    }),
+    /Tanpa nama/,
+  );
+  assert.equal(customerNameFromNote("laku 1 harga 130rb atas nama Ibu Vitha Pasma no 081234567890"), "Ibu Vitha Pasma");
+  assert.equal(
+    formatOrderItemsLabel([{ product_name_snapshot: "THE DISTANCE × 1 × 1", qty: 1 }]),
+    "THE DISTANCE × 1",
+  );
+  assert.equal(
+    formatOrderItemsLabel([
+      { product_name_snapshot: "Afternoon", qty: 1 },
+      { product_name_snapshot: "The Distance", qty: 1 },
+    ]),
+    "Afternoon × 1 + The Distance × 1",
+  );
 });
 
 test("founder closings are served-by not top sales", () => {

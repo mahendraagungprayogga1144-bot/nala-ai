@@ -1,7 +1,7 @@
 import type { Actor, PaymentMethod, PaymentStatus, ProductRow, SaleLine } from "../types";
 import { paymentLabel, priceAgainstRetail } from "../types";
 import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
-import { fmtDiscount } from "../money";
+import { fmtDiscount, fmtRp } from "../money";
 
 export { UNLINKED_MSG };
 
@@ -76,7 +76,7 @@ export type BotEffect =
   | { type: "delete_order"; orderId: string }
   | { type: "save_photo" }
   | { type: "send_report"; kind: string; from?: string; to?: string }
-  | { type: "send_pdf"; kind: string }
+  | { type: "send_pdf"; kind: string; from?: string; to?: string }
   | { type: "send_nota"; orderId?: string; query?: string }
   | { type: "send_riwayat" }
   | { type: "send_target" }
@@ -115,7 +115,8 @@ laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
 Bayar: tf / qris / cash / transfer / bank
 rekapan hari ini / recap today
-pdf bulan ini
+pdf bulan ini / pdf agustus / pdf bulan lalu
+pdf juli 2025
 riwayat / history
 nota regan / invoice
 target / targetku
@@ -176,6 +177,39 @@ export function draftSaleLines(d: Draft): SaleLine[] {
     ];
   }
   return [];
+}
+
+export function formatOrderItemsLabel(items?: { product_name_snapshot: string | null; qty: number }[]) {
+  if (!items?.length) return "Produk";
+  const qtyByName = new Map<string, number>();
+  for (const i of items) {
+    const raw = (i.product_name_snapshot || "Produk").replace(/\s+/g, " ").trim();
+    const name = raw.replace(/(?:\s*×\s*\d+)+\s*$/g, "").trim() || raw;
+    qtyByName.set(name, (qtyByName.get(name) || 0) + (Number(i.qty) || 1));
+  }
+  return [...qtyByName.entries()].map(([name, qty]) => `${name} × ${qty}`).join(" + ");
+}
+
+export function customerNameFromNote(catatan?: string | null) {
+  const t = (catatan || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const m = t.match(
+    /(?:atas\s+nama|a\/n|\bnama|\bname|\bfor|\bpara)\s+([\p{L}][\p{L}'.-]{1,40}(?:\s+[\p{L}][\p{L}'.-]{1,20}){0,3})/iu,
+  );
+  if (!m?.[1]) return "";
+  const stop = /^(no|telp|hp|wa|phone|harga|price|tf|qris|cash|tunai)$/i;
+  const parts = m[1].split(/\s+/).filter((p) => !stop.test(p));
+  return parts.join(" ").trim();
+}
+
+export function formatRiwayatCard(opts: {
+  dateLabel: string;
+  customerName?: string | null;
+  itemsLabel: string;
+  total: number;
+}) {
+  const name = (opts.customerName || "").trim() || "Tanpa nama";
+  return `${opts.dateLabel}\n${name}\n${opts.itemsLabel} — ${fmtRp(opts.total)}`;
 }
 
 export function formatConfirm(d: Draft, actor: Actor, dateLabel: string) {

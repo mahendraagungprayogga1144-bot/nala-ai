@@ -1,3 +1,4 @@
+import { namedMonthWindow } from "../dates";
 import { isValidPhoneId, normalizePhoneId } from "../phone";
 import { DEFAULT_HENIMA_PRODUCTS, type PaymentMethod, type ProductRow, type SaleLine, normalizePaymentMethod } from "../types";
 
@@ -16,19 +17,63 @@ export type ParsedSaleChat = {
   isPack: boolean;
 };
 
+export type ReportPeriod = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "custom";
+
 export type OpsIntent =
-  | { type: "rekap"; period: "today" | "this_week" | "this_month" }
-  | { type: "pdf"; period: "today" | "this_week" | "this_month" }
+  | { type: "rekap"; period: ReportPeriod; from?: string; to?: string }
+  | { type: "pdf"; period: ReportPeriod; from?: string; to?: string }
   | { type: "nota"; query?: string }
   | { type: "riwayat" }
   | { type: "target" }
   | { type: "help" }
   | { type: "none" };
 
-function periodFromText(t: string): "today" | "this_week" | "this_month" {
-  if (/\b(minggu|mingguan|weekly|week|semaine|semana)\b/.test(t)) return "this_week";
-  if (/\b(bulan|bulanan|bln|monthly|month|mois|mes)\b/.test(t)) return "this_month";
-  return "today";
+const MONTH_ALIASES: { month: number; names: string[] }[] = [
+  { month: 1, names: ["januari", "january", "jan"] },
+  { month: 2, names: ["februari", "february", "feb"] },
+  { month: 3, names: ["maret", "march", "mar"] },
+  { month: 4, names: ["april", "apr"] },
+  { month: 5, names: ["mei", "may"] },
+  { month: 6, names: ["juni", "june", "jun"] },
+  { month: 7, names: ["juli", "july", "jul"] },
+  { month: 8, names: ["agustus", "august", "agu", "ags", "aug"] },
+  { month: 9, names: ["september", "sept", "sep"] },
+  { month: 10, names: ["oktober", "october", "okt", "oct"] },
+  { month: 11, names: ["november", "nov"] },
+  { month: 12, names: ["desember", "december", "des", "dec"] },
+];
+
+export function parseNamedMonth(text: string): { month: number; year?: number } | null {
+  const t = text.toLowerCase();
+  const yearM = t.match(/\b(20\d{2})\b/);
+  const year = yearM ? Number(yearM[1]) : undefined;
+  const aliases = MONTH_ALIASES.flatMap((row) => row.names.map((n) => ({ month: row.month, n }))).sort(
+    (a, b) => b.n.length - a.n.length,
+  );
+  for (const { month, n } of aliases) {
+    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${escaped}\\b`, "i").test(t)) return { month, year };
+  }
+  const numbered = t.match(/\b(?:bulan|bln|month)\s+(\d{1,2})\b/);
+  if (numbered) {
+    const month = Number(numbered[1]);
+    if (month >= 1 && month <= 12) return { month, year };
+  }
+  return null;
+}
+
+export function periodFromText(t: string): { period: ReportPeriod; from?: string; to?: string } {
+  const named = parseNamedMonth(t);
+  if (named) {
+    const win = namedMonthWindow(named.month, named.year);
+    return { period: "custom", from: win.from, to: win.to };
+  }
+  if (/\b(kemarin|yesterday|ayer|hier)\b/.test(t)) return { period: "yesterday" };
+  if (/\b((minggu|pekan|week)\s+(lalu|kemarin|last|pasado)|last\s+week)\b/.test(t)) return { period: "last_week" };
+  if (/\b((bulan|month|bln)\s+(lalu|kemarin|last|pasado)|last\s+month)\b/.test(t)) return { period: "last_month" };
+  if (/\b(minggu|mingguan|weekly|week|semaine|semana)\b/.test(t)) return { period: "this_week" };
+  if (/\b(bulan|bulanan|bln|monthly|month|mois|mes)\b/.test(t)) return { period: "this_month" };
+  return { period: "today" };
 }
 
 export function parseOpsIntent(text: string): OpsIntent {
@@ -40,12 +85,14 @@ export function parseOpsIntent(text: string): OpsIntent {
     return query ? { type: "nota", query } : { type: "nota" };
   }
   if (/\b(pdf|laporan|report)\b/.test(t) || /\brekap(an)?\s+pdf\b/.test(t)) {
-    return { type: "pdf", period: periodFromText(t) };
+    return { type: "pdf", ...periodFromText(t) };
   }
   if (/\b(rekap|rekapan|ringkasan|summary|recap)\b/.test(t)) {
-    const period = periodFromText(t);
-    if (period === "this_month") return { type: "pdf", period };
-    return { type: "rekap", period };
+    const parsed = periodFromText(t);
+    if (parsed.period === "this_month" || parsed.period === "last_month" || parsed.period === "custom") {
+      return { type: "pdf", ...parsed };
+    }
+    return { type: "rekap", ...parsed };
   }
   if (/\b(riwayat|histori|history|historial)\b/.test(t)) return { type: "riwayat" };
   if (/(target|pencapaian|tercapai|goal)/.test(t)) return { type: "target" };

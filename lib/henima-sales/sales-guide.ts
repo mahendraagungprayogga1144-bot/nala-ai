@@ -77,6 +77,8 @@ CEK HASIL:
 rekapan hari ini
 rekap minggu ini
 pdf bulan ini
+pdf agustus
+pdf bulan lalu
 riwayat
 nota (invoice customer, contoh: nota regan)
 target / targetku (ada indikator tercapai)

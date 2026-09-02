@@ -69,7 +69,34 @@ export function periodRange(
   }
   const from = custom?.from || today;
   const to = custom?.to || today;
-  return { from, to, label: `${fmtShort(from)}–${fmtShort(to)}` };
+  const full = fullMonthLabel(from, to);
+  return { from, to, label: full || `${fmtShort(from)}–${fmtShort(to)}` };
+}
+
+/** First–last day of a calendar month in Asia/Jakarta. month is 1–12. */
+export function calendarMonthRange(year: number, month: number): { from: string; to: string; label: string } {
+  const mm = String(month).padStart(2, "0");
+  const from = `${year}-${mm}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const to = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to, label: monthLabel(year, month) };
+}
+
+/** Named month without year → this year, or last year if that month is still in the future. */
+export function namedMonthWindow(month: number, year?: number) {
+  const { year: cy, month: cm } = wibParts();
+  const y =
+    year && year >= 2000 && year <= 2100 ? year : month > Number(cm) ? Number(cy) - 1 : Number(cy);
+  return calendarMonthRange(y, month);
+}
+
+function fullMonthLabel(from: string, to: string) {
+  const fm = from.match(/^(\d{4})-(\d{2})-01$/);
+  const tm = to.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!fm || !tm || fm[1] !== tm[1] || fm[2] !== tm[2]) return null;
+  const lastDay = new Date(Number(fm[1]), Number(fm[2]), 0).getDate();
+  if (Number(tm[3]) !== lastDay) return null;
+  return monthLabel(Number(fm[1]), Number(fm[2]));
 }
 
 export function targetWindow(period: TargetPeriod, ymd = todayWib()) {

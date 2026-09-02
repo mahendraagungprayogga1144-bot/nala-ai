@@ -135,14 +135,7 @@ async function callGeminiImage(
   if (!res.ok) {
     const msg = json.error?.message || `Gemini gagal (${res.status}).`;
     const status = json.error?.code || res.status;
-    if (status === 404 || /not found|not supported/i.test(msg)) {
-      throw new SalesError(msg, "studio_model", 404);
-    }
-    if (status === 401 || status === 403) {
-      throw new SalesError("GEMINI_API_KEY tidak valid.", "studio_provider", 401);
-    }
-    if (status === 429) throw new SalesError(msg || "Kuota Gemini habis / rate limit.", "studio_provider", 429);
-    throw new SalesError(msg, "studio_provider", mapHttp(res.status));
+    throw geminiApiError(msg, status);
   }
   const parts = json.candidates?.[0]?.content?.parts || [];
   for (const part of parts) {
@@ -242,6 +235,30 @@ async function editWithRemoveBg(input: StudioEditRequest): Promise<StudioEditRes
     throw new SalesError(removeBgError(bytes, res.status), "studio_provider", mapHttp(res.status));
   }
   return { bytes, mime: "image/png", ext: "png", provider: "removebg" };
+}
+
+export function geminiApiError(msg: string, status: number): SalesError {
+  if (status === 404 || /not found|not supported/i.test(msg)) {
+    return new SalesError(msg, "studio_model", 404);
+  }
+  if (status === 401 || status === 403) {
+    return new SalesError("GEMINI_API_KEY tidak valid.", "studio_provider", 401);
+  }
+  if (status === 429 || /quota|resource.?exhausted|rate limit/i.test(msg)) {
+    if (/free_tier|limit:\s*0/i.test(msg)) {
+      return new SalesError(
+        "Key Gemini masih free tier — kuota generate gambar = 0, jadi retry 20 detik tidak akan jalan. Enable billing di Google AI Studio (bukan OpenAI), buat API key baru dari project yang sudah berbayar, update GEMINI_API_KEY di Vercel, lalu Redeploy. Sementara itu mode Ganti latar (Photoroom) tetap bisa dipakai.",
+        "studio_quota",
+        429,
+      );
+    }
+    return new SalesError(
+      "Kuota Gemini habis atau kena rate limit. Cek https://ai.dev/rate-limit, tunggu sebentar, lalu generate lagi.",
+      "studio_quota",
+      429,
+    );
+  }
+  return new SalesError(msg, "studio_provider", mapHttp(status));
 }
 
 function mapHttp(status: number) {

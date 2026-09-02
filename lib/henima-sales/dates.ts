@@ -69,8 +69,9 @@ export function periodRange(
   }
   const from = custom?.from || today;
   const to = custom?.to || today;
-  const full = fullMonthLabel(from, to);
-  return { from, to, label: full || `${fmtShort(from)}–${fmtShort(to)}` };
+  const yearLabel = fullYearLabel(from, to);
+  const monthName = fullMonthLabel(from, to);
+  return { from, to, label: yearLabel || monthName || `${fmtShort(from)}–${fmtShort(to)}` };
 }
 
 /** First–last day of a calendar month in Asia/Jakarta. month is 1–12. */
@@ -88,6 +89,24 @@ export function namedMonthWindow(month: number, year?: number) {
   const y =
     year && year >= 2000 && year <= 2100 ? year : month > Number(cm) ? Number(cy) - 1 : Number(cy);
   return calendarMonthRange(y, month);
+}
+
+/** Full calendar year Jan 1–Dec 31. */
+export function calendarYearRange(year: number): { from: string; to: string; label: string } {
+  return { from: `${year}-01-01`, to: `${year}-12-31`, label: `Tahun ${year}` };
+}
+
+export function namedYearWindow(year?: number) {
+  const { year: cy } = wibParts();
+  const y = year && year >= 2000 && year <= 2100 ? year : Number(cy);
+  return calendarYearRange(y);
+}
+
+function fullYearLabel(from: string, to: string) {
+  const fy = from.match(/^(\d{4})-01-01$/);
+  const ty = to.match(/^(\d{4})-12-31$/);
+  if (!fy || !ty || fy[1] !== ty[1]) return null;
+  return `Tahun ${fy[1]}`;
 }
 
 function fullMonthLabel(from: string, to: string) {

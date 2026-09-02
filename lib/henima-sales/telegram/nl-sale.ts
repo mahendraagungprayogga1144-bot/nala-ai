@@ -1,4 +1,4 @@
-import { namedMonthWindow } from "../dates";
+import { namedMonthWindow, namedYearWindow, wibParts } from "../dates";
 import { isValidPhoneId, normalizePhoneId } from "../phone";
 import { DEFAULT_HENIMA_PRODUCTS, type PaymentMethod, type ProductRow, type SaleLine, normalizePaymentMethod } from "../types";
 
@@ -62,10 +62,26 @@ export function parseNamedMonth(text: string): { month: number; year?: number } 
   return null;
 }
 
+export function parseNamedYear(text: string): number | null {
+  const t = text.toLowerCase();
+  const yNow = Number(wibParts().year);
+  if (/\b((tahun|year)\s+(lalu|kemarin|last|pasado)|last\s+year)\b/.test(t)) return yNow - 1;
+  const explicit = t.match(/\b(20\d{2})\b/);
+  if (explicit && !parseNamedMonth(t)) return Number(explicit[1]);
+  if (/\b(setahun|tahunan|tahun\s+ini|this\s+year|yearly|annual|sepanjang\s+tahun)\b/.test(t)) return yNow;
+  if (/\b(tahun|year)\b/.test(t) && !/\b(bulan|minggu|hari|month|week|day)\b/.test(t)) return yNow;
+  return null;
+}
+
 export function periodFromText(t: string): { period: ReportPeriod; from?: string; to?: string } {
   const named = parseNamedMonth(t);
   if (named) {
     const win = namedMonthWindow(named.month, named.year);
+    return { period: "custom", from: win.from, to: win.to };
+  }
+  const year = parseNamedYear(t);
+  if (year != null) {
+    const win = namedYearWindow(year);
     return { period: "custom", from: win.from, to: win.to };
   }
   if (/\b(kemarin|yesterday|ayer|hier)\b/.test(t)) return { period: "yesterday" };

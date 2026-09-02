@@ -116,7 +116,7 @@ afternoon dan the distance
 Bayar: tf / qris / cash / transfer / bank
 rekapan hari ini / recap today
 pdf bulan ini / pdf agustus / pdf bulan lalu
-pdf juli 2025
+pdf setahun / pdf 2025 / pdf tahun lalu
 riwayat / history
 nota regan / invoice
 target / targetku

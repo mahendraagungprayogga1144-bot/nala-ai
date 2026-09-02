@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
-import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow } from "../dates";
+import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow, namedYearWindow } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import type { Actor } from "../types";
@@ -108,6 +108,11 @@ test("period ranges are Jakarta calendar windows", () => {
   const august = namedMonthWindow(8, 2026);
   assert.equal(august.from, "2026-08-01");
   assert.equal(august.to, "2026-08-31");
+  const year = namedYearWindow(2025);
+  assert.equal(year.from, "2025-01-01");
+  assert.equal(year.to, "2025-12-31");
+  assert.equal(year.label, "Tahun 2025");
+  assert.equal(periodRange("custom", { from: "2025-01-01", to: "2025-12-31" }).label, "Tahun 2025");
 });
 
 test("sales brand ignores short tenant names like g", () => {
@@ -351,6 +356,64 @@ test("pdf named month and last month", () => {
     assert.equal(out.effects[0].kind, "custom");
     assert.equal(out.effects[0].from, august.from);
     assert.equal(out.effects[0].to, august.to);
+  }
+});
+
+test("pdf setahun and named year", () => {
+  const thisYear = namedYearWindow();
+  assert.deepEqual(parseOpsIntent("pdf setahun"), {
+    type: "pdf",
+    period: "custom",
+    from: thisYear.from,
+    to: thisYear.to,
+  });
+  assert.deepEqual(parseOpsIntent("pdf tahun ini"), {
+    type: "pdf",
+    period: "custom",
+    from: thisYear.from,
+    to: thisYear.to,
+  });
+  assert.deepEqual(parseOpsIntent("pdf 2025"), {
+    type: "pdf",
+    period: "custom",
+    from: "2025-01-01",
+    to: "2025-12-31",
+  });
+  assert.deepEqual(parseOpsIntent("pdf tahun 2025"), {
+    type: "pdf",
+    period: "custom",
+    from: "2025-01-01",
+    to: "2025-12-31",
+  });
+  const lastYear = namedYearWindow(Number(thisYear.from.slice(0, 4)) - 1);
+  assert.deepEqual(parseOpsIntent("pdf tahun lalu"), {
+    type: "pdf",
+    period: "custom",
+    from: lastYear.from,
+    to: lastYear.to,
+  });
+  assert.deepEqual(parseOpsIntent("rekapan setahun"), {
+    type: "pdf",
+    period: "custom",
+    from: thisYear.from,
+    to: thisYear.to,
+  });
+  assert.deepEqual(parseOpsIntent("pdf august 2025"), {
+    type: "pdf",
+    period: "custom",
+    from: "2025-08-01",
+    to: "2025-08-31",
+  });
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "pdf setahun" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_pdf");
+  if (out.effects[0].type === "send_pdf") {
+    assert.equal(out.effects[0].kind, "custom");
+    assert.equal(out.effects[0].from, thisYear.from);
+    assert.equal(out.effects[0].to, thisYear.to);
   }
 });
 

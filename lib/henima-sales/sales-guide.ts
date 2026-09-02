@@ -79,6 +79,8 @@ rekap minggu ini
 pdf bulan ini
 pdf agustus
 pdf bulan lalu
+pdf setahun
+pdf 2025
 riwayat
 nota (invoice customer, contoh: nota regan)
 target / targetku (ada indikator tercapai)

@@ -5,8 +5,10 @@ import { displayPhone, isSkippedPhone, isUsablePhone } from "../phone";
 import {
   buildPackLines,
   buildQtyLines,
+  buildUnitPriceLines,
   defaultPackProducts,
   extractProductQuantities,
+  hargaIsOrderTotal,
   looksLikePack,
   matchAllProducts,
   parseOpsIntent,
@@ -386,7 +388,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan, contoh:\nlaku 1 harga 130rb atas nama Regan no 0877... tf\n(retail 199.999, bayar lebih murah = diskon % + potongan otomatis)\nlaku 1 harga 199.999 diskon 20% atas nama Sinta no 08... qris\nMetode bayar: tf / qris / cash / lainnya\nAtau: rekapan hari ini · pdf bulan ini · nota regan · riwayat · target · /help";
+  "Kirim chat penjualan — bahasa bebas, contoh:\nlaku afternoon 3 the distance 2 harga 149rb atas nama Sinta no 08... qris\nsold 3 afternoon 2 the distance price 149k for Vitha phone 08... cash\n(harga/price = per botol, otomatis × jumlah)\nPaket: 2 pack new member total 250k ...\nBayar: tf / qris / cash / transfer / bank\nAtau: recap today · pdf this month · nota / invoice · history · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -461,22 +463,27 @@ function applyNaturalSale(
     const pack = resolvePackProducts(parsed.matchedProducts, products);
     if (pack.length >= 2) {
       const qtyMap = extractProductQuantities(text.toLowerCase(), pack);
-      const mixed = pack.every((p) => qtyMap.has(p.id)) && new Set(pack.map((p) => qtyMap.get(p.id))).size >= 1;
+      const mixed = pack.every((p) => qtyMap.has(p.id));
       const packQty = quantity || 1;
-      const catalogTotal = mixed
-        ? pack.reduce((sum, p) => sum + (p.price || 0) * (qtyMap.get(p.id) || 1), 0)
-        : pack.reduce((sum, p) => sum + (p.price || 0) * packQty, 0);
-      const total = parsed.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
+      const asPackTotal = hargaIsOrderTotal(text);
       draft.packProductIds = pack.map((p) => p.id);
       draft.packQty = mixed ? undefined : packQty;
       draft.productName = pack.map((p) => p.name).join(" + ");
-      if (total != null) {
-        draft = applyLinesToDraft(
-          draft,
-          mixed ? buildQtyLines(pack, qtyMap, total) : buildPackLines(pack, packQty, total),
-        );
-      } else if (!mixed) {
-        draft.quantity = packQty * pack.length;
+      if (mixed && parsed.unitPrice != null && !asPackTotal) {
+        draft = applyLinesToDraft(draft, buildUnitPriceLines(pack, qtyMap, parsed.unitPrice));
+      } else {
+        const catalogTotal = mixed
+          ? pack.reduce((sum, p) => sum + (p.price || 0) * (qtyMap.get(p.id) || 1), 0)
+          : pack.reduce((sum, p) => sum + (p.price || 0) * packQty, 0);
+        const total = parsed.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
+        if (total != null) {
+          draft = applyLinesToDraft(
+            draft,
+            mixed ? buildQtyLines(pack, qtyMap, total) : buildPackLines(pack, packQty, total),
+          );
+        } else if (!mixed) {
+          draft.quantity = packQty * pack.length;
+        }
       }
     }
   }

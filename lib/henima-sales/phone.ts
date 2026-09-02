@@ -26,8 +26,15 @@ export function displayPhone(raw: string | null | undefined): string {
 }
 
 export function isSkippedPhone(text: string | null | undefined) {
-  const t = (text || "").trim().toLowerCase();
-  return /^(ga ada|gak ada|nggak ada|gk ada|tidak ada|tdk ada|skip|-|nohp|no hp|tanpa nomor|belum ada|sembunyi|disembunyikan)$/.test(t);
+  const t = (text || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!t) return false;
+  if (/^(ga ada|gak ada|nggak ada|gk ada|tidak ada|tdk ada|skip|-|nohp|no hp|tanpa nomor|belum ada|sembunyi|disembunyikan|none|n\/a|na|hidden|private|no number|no phone)$/.test(t)) {
+    return true;
+  }
+  if (/\d{8,}/.test(t)) return false;
+  if (/(sembuny|sembuy|hidden|private|confidential)/.test(t)) return true;
+  if (/\b(nomer|nomor|no hp|no wa|whatsapp|phone|number).{0,24}(ga ada|gak ada|nggak|tidak ada|tdk ada|none|hidden|no)\b/.test(t)) return true;
+  return false;
 }
 
 export function isUsablePhone(text: string | null | undefined) {

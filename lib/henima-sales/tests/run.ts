@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
@@ -575,6 +575,8 @@ test("nota infers DISKON percent and potongan from catalog retail", () => {
 test("ga ada skips phone instead of saving it", () => {
   assert.equal(isSkippedPhone("Ga ada"), true);
   assert.equal(isSkippedPhone("tidak ada"), true);
+  assert.equal(isSkippedPhone("nomer di sembuyikan"), true);
+  assert.equal(isSkippedPhone("nomor disembunyikan"), true);
   const products = [
     { id: "1", name: "Afternoon", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
     { id: "2", name: "The Distance", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
@@ -595,7 +597,7 @@ test("ga ada skips phone instead of saving it", () => {
   assert.equal(skipped.session.draft.customerName?.toLowerCase().includes("vitha"), true);
 });
 
-test("afternoon 3 the distance 2 splits 149rb across 5 bottles", () => {
+test("afternoon 3 the distance 2 harga 149rb is unit price times 5 bottles", () => {
   const products = [
     { id: "1", name: "Afternoon", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
     { id: "2", name: "The Distance", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
@@ -603,10 +605,12 @@ test("afternoon 3 the distance 2 splits 149rb across 5 bottles", () => {
   const qty = extractProductQuantities("laku afternoon 3 the distance 2 harga 149rb", products);
   assert.equal(qty.get("1"), 3);
   assert.equal(qty.get("2"), 2);
-  const lines = buildQtyLines(products, qty, 149000);
+  const lines = buildUnitPriceLines(products, qty, 149000);
   assert.equal(lines[0].quantity, 3);
   assert.equal(lines[1].quantity, 2);
-  assert.equal(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 149000);
+  assert.equal(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 745000);
+  const split = buildQtyLines(products, qty, 149000);
+  assert.equal(split.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 149000);
   const out = reduceBot(
     { state: "idle", draft: newDraft() },
     { kind: "text", text: "Laku afternoon 3 the distance 2 harga 149rb atas nama Ibu Vitha Pasma no 081234567890" },
@@ -616,7 +620,52 @@ test("afternoon 3 the distance 2 splits 149rb across 5 bottles", () => {
   const distance = out.session.draft.lines?.find((l) => /distance/i.test(l.productName));
   assert.equal(afternoon?.quantity, 3);
   assert.equal(distance?.quantity, 2);
-  assert.equal(out.session.draft.orderTotal, 149000);
+  assert.equal(out.session.draft.orderTotal, 745000);
+  assert.equal(out.session.draft.discount, 199999 * 5 - 745000);
+});
+
+test("english sale chat parses products qty price name phone pay", () => {
+  const products = [
+    { id: "1", name: "Afternoon", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+    { id: "2", name: "The Distance", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+  ];
+  const parsed = parseSalesChat(
+    "sold 3 afternoon 2 the distance price 149k for Vitha Pasma phone 081234567890 cash",
+    products,
+  );
+  assert.equal(parsed.looksLikeSale, true);
+  assert.equal(parsed.unitPrice, 149000);
+  assert.equal(parsed.customerName, "Vitha Pasma");
+  assert.equal(parsed.phone, "6281234567890");
+  assert.equal(parsed.paymentMethod, "CASH");
+  assert.ok(parsed.matchedProducts.some((p) => /afternoon/i.test(p.name)));
+  assert.ok(parsed.matchedProducts.some((p) => /distance/i.test(p.name)));
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "sold 3 afternoon 2 distance price 149k for Vitha Pasma phone 081234567890 cash" },
+    { actor: sales, products },
+  );
+  const afternoon = out.session.draft.lines?.find((l) => /afternoon/i.test(l.productName));
+  const distance = out.session.draft.lines?.find((l) => /distance/i.test(l.productName));
+  assert.equal(afternoon?.quantity, 3);
+  assert.equal(distance?.quantity, 2);
+  assert.equal(out.session.draft.orderTotal, 745000);
+  assert.equal(out.session.draft.paymentMethod, "CASH");
+  assert.equal(parseOpsIntent("recap today").type, "rekap");
+  assert.equal(parseOpsIntent("history").type, "riwayat");
+  assert.equal(isSkippedPhone("no number"), true);
+  assert.equal(isSkippedPhone("hidden"), true);
+  assert.equal(parsePaymentMethod("bank"), "TRANSFER");
+  const qtyEn = extractProductQuantities("sold 3 afternoon 2 the distance price 149k", products);
+  assert.equal(qtyEn.get("1"), 3);
+  assert.equal(qtyEn.get("2"), 2);
+  const noVerb = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "afternoon 3 the distance 2 149rb para Vitha phone 081234567890 cash" },
+    { actor: sales, products },
+  );
+  assert.equal(noVerb.session.draft.orderTotal, 745000);
+  assert.equal(noVerb.session.draft.customerName, "Vitha");
 });
 
 if (failed) {

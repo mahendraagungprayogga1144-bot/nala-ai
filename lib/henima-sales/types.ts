@@ -22,12 +22,12 @@ export function normalizePaymentMethod(raw?: string | null): PaymentMethod | nul
     t === "tf" ||
     t === "trf" ||
     t === "transfer" ||
-    /\b(transfer|transef|tranfer|trf|tf)\b/.test(t)
+    /\b(transfer|transef|tranfer|trf|tf|bank|wire)\b/.test(t)
   ) {
     return "TRANSFER";
   }
-  if (t === "cash" || t === "tunai" || t === "kontan" || /\b(cash|tunai|kontan)\b/.test(t)) return "CASH";
-  if (t === "other" || t === "lainnya" || t === "lain" || /\blainnya\b/.test(t)) return "OTHER";
+  if (t === "cash" || t === "tunai" || t === "kontan" || /\b(cash|tunai|kontan|efectivo|contado)\b/.test(t)) return "CASH";
+  if (t === "other" || t === "lainnya" || t === "lain" || /\b(lainnya|other)\b/.test(t)) return "OTHER";
   return null;
 }
 

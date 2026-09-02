@@ -108,16 +108,16 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /nota — nota / invoice customer (contoh: nota regan)
 /help — bantuan
 
-Sales cukup pakai Telegram. Chat biasa juga bisa:
+Sales cukup pakai Telegram. Bahasa bebas, contoh:
 laku 1 harga 130rb atas nama Regan no 0877... tf
-laku 1 harga 199.999 diskon 20% atas nama Sinta no 08... qris
+sold 3 afternoon 2 the distance price 149k for Vitha phone 08... cash
 laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
-Metode bayar: tf / qris / cash / lainnya
-rekapan hari ini
+Bayar: tf / qris / cash / transfer / bank
+rekapan hari ini / recap today
 pdf bulan ini
-riwayat
-nota regan
+riwayat / history
+nota regan / invoice
 target / targetku
 
 Belum CONNECTED? Minta kode ke founder, lalu /start KODE`;

@@ -2,7 +2,7 @@
  * Henima sales unit tests. Run: npx tsx lib/henima-sales/tests/run.ts
  */
 import assert from "node:assert/strict";
-import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch } from "../phone";
+import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
 import { staffScopeIds, canAccessStaff } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd } from "../dates";
@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft } from "../telegram/session";
 import type { Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel } from "../report-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
@@ -570,6 +570,53 @@ test("nota infers DISKON percent and potongan from catalog retail", () => {
   assert.equal(payload.discountPercent, 35);
   assert.equal(payload.lines[0].unitPrice, 199999);
   assert.equal(payload.total, 130000);
+});
+
+test("ga ada skips phone instead of saving it", () => {
+  assert.equal(isSkippedPhone("Ga ada"), true);
+  assert.equal(isSkippedPhone("tidak ada"), true);
+  const products = [
+    { id: "1", name: "Afternoon", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+    { id: "2", name: "The Distance", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+  ];
+  const asked = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "Laku afternoon 3 the distance 2 harga 149rb atas nama Ibu Vitha Pasma" },
+    { actor: sales, products },
+  );
+  assert.equal(asked.session.state, "input_phone");
+  assert.equal(asked.session.draft.phone, undefined);
+  if (asked.effects[0].type === "reply") {
+    assert.match(asked.effects[0].reply.text, /ga ada/i);
+  }
+  const skipped = reduceBot(asked.session, { kind: "text", text: "Ga ada" }, { actor: sales, products });
+  assert.equal(skipped.session.draft.skipPhone, true);
+  assert.equal(skipped.session.draft.phone, undefined);
+  assert.equal(skipped.session.draft.customerName?.toLowerCase().includes("vitha"), true);
+});
+
+test("afternoon 3 the distance 2 splits 149rb across 5 bottles", () => {
+  const products = [
+    { id: "1", name: "Afternoon", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+    { id: "2", name: "The Distance", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+  ];
+  const qty = extractProductQuantities("laku afternoon 3 the distance 2 harga 149rb", products);
+  assert.equal(qty.get("1"), 3);
+  assert.equal(qty.get("2"), 2);
+  const lines = buildQtyLines(products, qty, 149000);
+  assert.equal(lines[0].quantity, 3);
+  assert.equal(lines[1].quantity, 2);
+  assert.equal(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0), 149000);
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "Laku afternoon 3 the distance 2 harga 149rb atas nama Ibu Vitha Pasma no 081234567890" },
+    { actor: sales, products },
+  );
+  const afternoon = out.session.draft.lines?.find((l) => /afternoon/i.test(l.productName));
+  const distance = out.session.draft.lines?.find((l) => /distance/i.test(l.productName));
+  assert.equal(afternoon?.quantity, 3);
+  assert.equal(distance?.quantity, 2);
+  assert.equal(out.session.draft.orderTotal, 149000);
 });
 
 if (failed) {

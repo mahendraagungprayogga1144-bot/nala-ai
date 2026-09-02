@@ -30,6 +30,7 @@ export type BotState =
 
 export type Draft = {
   phone?: string;
+  skipPhone?: boolean;
   customerId?: string;
   customerName?: string;
   city?: string;

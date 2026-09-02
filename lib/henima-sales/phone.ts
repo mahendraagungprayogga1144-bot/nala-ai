@@ -25,6 +25,15 @@ export function displayPhone(raw: string | null | undefined): string {
   return n;
 }
 
+export function isSkippedPhone(text: string | null | undefined) {
+  const t = (text || "").trim().toLowerCase();
+  return /^(ga ada|gak ada|nggak ada|gk ada|tidak ada|tdk ada|skip|-|nohp|no hp|tanpa nomor|belum ada|sembunyi|disembunyikan)$/.test(t);
+}
+
+export function isUsablePhone(text: string | null | undefined) {
+  return isValidPhoneId(normalizePhoneId(text));
+}
+
 export function phonesMatch(a: string | null | undefined, b: string | null | undefined) {
   const na = normalizePhoneId(a);
   const nb = normalizePhoneId(b);

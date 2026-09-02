@@ -46,12 +46,15 @@ export async function createCustomer(
 ) {
   const nama = input.nama.trim();
   if (!nama) throw new SalesError("Nama customer wajib.", "name_required");
-  const norm = normalizePhoneId(input.phone);
-  if (!isValidPhoneId(norm)) throw new SalesError("Nomor WhatsApp tidak valid.", "phone_invalid");
+  const rawPhone = (input.phone || "").trim();
+  const norm = rawPhone ? normalizePhoneId(rawPhone) : "";
+  if (norm && !isValidPhoneId(norm)) throw new SalesError("Nomor WhatsApp tidak valid.", "phone_invalid");
 
-  const existing = await findCustomerByPhone(db, actor, input.phone);
-  if (existing) {
-    return { customer: existing, duplicate: true as const };
+  if (norm) {
+    const existing = await findCustomerByPhone(db, actor, rawPhone);
+    if (existing) {
+      return { customer: existing, duplicate: true as const };
+    }
   }
 
   const assigned = input.assignedSalesId || actor.staffId;
@@ -64,11 +67,11 @@ export async function createCustomer(
       user_id: actor.ownerUserId,
       business_id: actor.businessId,
       nama,
-      telepon: input.phone.trim(),
-      whatsapp_phone: input.phone.trim(),
+      telepon: norm ? rawPhone : null,
+      whatsapp_phone: norm ? rawPhone : null,
       kota: input.kota?.trim() || null,
       catatan: input.catatan?.trim() || null,
-      phone_normalized: norm,
+      phone_normalized: norm || null,
       assigned_sales_id: assigned,
       status: "NEW" satisfies CustomerStatus,
     })
@@ -77,7 +80,7 @@ export async function createCustomer(
 
   if (error) {
     if (error.code === "23505") {
-      const again = await findCustomerByPhone(db, actor, input.phone);
+      const again = await findCustomerByPhone(db, actor, rawPhone);
       if (again) return { customer: again, duplicate: true as const };
     }
     throw new SalesError(error.message, "customer_create");

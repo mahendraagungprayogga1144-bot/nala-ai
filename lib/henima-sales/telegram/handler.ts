@@ -14,9 +14,9 @@ import { buildSalesReportPdf } from "../pdf";
 import { buildOrderNota } from "../nota";
 import { fmtDateLongId, fmtRp } from "../money";
 import { writeAudit } from "../audit";
-import { displayPhone } from "../phone";
+import { displayPhone, isUsablePhone } from "../phone";
 import type { Actor } from "../types";
-import { paymentLabel } from "../types";
+import { paymentLabel, SalesError } from "../types";
 import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import type { Session } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
@@ -104,7 +104,7 @@ function needsProductCatalog(incoming: Parameters<typeof reduceBot>[1], session:
     return true;
   }
   if (incoming.kind === "callback") {
-    return /^(p:|prod:|pack:|item:)/.test(incoming.data);
+    return /^(p:|pm:|prod:|pack:|item:)/.test(incoming.data);
   }
   if (incoming.kind === "command") {
     return incoming.cmd === "/input";
@@ -194,16 +194,21 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       }
     } catch (err) {
       salesLogError("telegram_effect", err, { type: effect.type, telegramUserId });
-      const msg = err instanceof Error && err.message.includes("PDF")
-        ? "PDF gagal dibuat. Silakan coba lagi."
-        : "Terjadi masalah. Silakan coba lagi.";
+      const msg =
+        err instanceof SalesError
+          ? err.message
+          : err instanceof Error && err.message.includes("PDF")
+            ? "PDF gagal dibuat. Silakan coba lagi."
+            : "Terjadi masalah. Silakan coba lagi.";
       await sendMessage(chatId, msg);
     }
   }
 
   // Side-effect states that FSM only flags
-  if (actor && next.state === "input_phone" && next.draft.phone && incoming.kind === "text") {
-    await continueAfterPhone(db, actor, chatId, next, products);
+  if (actor && next.state === "input_phone" && incoming.kind === "text" && (next.draft.phone || next.draft.skipPhone || next.draft.customerName)) {
+    if (next.draft.phone || next.draft.skipPhone || session.state === "input_phone") {
+      await continueAfterPhone(db, actor, chatId, next, products);
+    }
   } else if (actor && next.state === "followup_phone" && next.draft.phone && incoming.kind === "text") {
     const found = await findCustomerByPhone(db, actor, next.draft.phone);
     if (!found) {
@@ -268,7 +273,7 @@ async function continueAfterPhone(
   products: Awaited<ReturnType<typeof listProducts>>,
 ) {
   try {
-    const found = await findCustomerByPhone(db, actor, session.draft.phone || "");
+    const found = session.draft.phone ? await findCustomerByPhone(db, actor, session.draft.phone) : null;
     if (found) {
       session.draft.customerId = found.id;
       session.draft.customerName = found.nama;
@@ -366,10 +371,10 @@ async function continueAfterPhone(
 
 async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Session) {
   const d = session.draft;
-  if (!d.customerId && d.customerName && d.phone) {
+  if (!d.customerId && d.customerName) {
     const created = await createCustomer(db, actor, {
       nama: d.customerName,
-      phone: d.phone,
+      phone: d.phone && isUsablePhone(d.phone) ? d.phone : "",
       kota: d.city,
       catatan: d.notes,
     });

@@ -1,14 +1,12 @@
 import { randomUUID } from "crypto";
 import { todayWib } from "../../../lib/date";
 import { fmtDateLongId, fmtRp } from "../money";
-import { displayPhone } from "../phone";
-import { calculateOrderTotal } from "../types";
-import type { Actor, ProductRow } from "../types";
-import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
-import { formatConfirm, HELP_TEXT, UNLINKED_MSG, applyCatalogPricing, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
+import { displayPhone, isSkippedPhone, isUsablePhone } from "../phone";
 import {
   buildPackLines,
+  buildQtyLines,
   defaultPackProducts,
+  extractProductQuantities,
   looksLikePack,
   matchAllProducts,
   parseOpsIntent,
@@ -16,6 +14,10 @@ import {
   parseSalesChat,
   resolvePackProducts,
 } from "./nl-sale";
+import { calculateOrderTotal } from "../types";
+import type { Actor, ProductRow } from "../types";
+import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
+import { formatConfirm, HELP_TEXT, UNLINKED_MSG, applyCatalogPricing, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
 
 export type World = {
   actor: Actor | null;
@@ -208,7 +210,19 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       case "input_phone": {
         const asSale = parseSalesChat(text, world.products);
         if (asSale.looksLikeSale) return applyNaturalSale(session, actor, text, world.products);
-        return { session: go(session, "input_phone", { ...session.draft, phone: text }), effects: [reply("Memeriksa customer…")] };
+        if (isSkippedPhone(text)) {
+          return {
+            session: go(session, "input_phone", { ...session.draft, phone: undefined, skipPhone: true }),
+            effects: [reply("Memeriksa customer…")],
+          };
+        }
+        if (!isUsablePhone(text)) {
+          return {
+            session,
+            effects: [reply("Nomor WhatsApp tidak valid. Ketik 08… atau 'ga ada' kalau nomor disembunyikan.")],
+          };
+        }
+        return { session: go(session, "input_phone", { ...session.draft, phone: text, skipPhone: false }), effects: [reply("Memeriksa customer…")] };
       }
       case "followup_phone":
         return { session: go(session, session.state, { ...session.draft, phone: text }), effects: [reply("Memeriksa customer…")] };
@@ -446,15 +460,23 @@ function applyNaturalSale(
   if (parsed.isPack || parsed.matchedProducts.length > 1) {
     const pack = resolvePackProducts(parsed.matchedProducts, products);
     if (pack.length >= 2) {
+      const qtyMap = extractProductQuantities(text.toLowerCase(), pack);
+      const mixed = pack.every((p) => qtyMap.has(p.id)) && new Set(pack.map((p) => qtyMap.get(p.id))).size >= 1;
       const packQty = quantity || 1;
-      const catalogTotal = pack.reduce((sum, p) => sum + (p.price || 0) * packQty, 0);
+      const catalogTotal = mixed
+        ? pack.reduce((sum, p) => sum + (p.price || 0) * (qtyMap.get(p.id) || 1), 0)
+        : pack.reduce((sum, p) => sum + (p.price || 0) * packQty, 0);
       const total = parsed.unitPrice ?? (catalogTotal > 0 ? catalogTotal : undefined);
       draft.packProductIds = pack.map((p) => p.id);
-      draft.packQty = packQty;
-      draft.quantity = packQty * pack.length;
+      draft.packQty = mixed ? undefined : packQty;
       draft.productName = pack.map((p) => p.name).join(" + ");
       if (total != null) {
-        draft = applyLinesToDraft(draft, buildPackLines(pack, packQty, total));
+        draft = applyLinesToDraft(
+          draft,
+          mixed ? buildQtyLines(pack, qtyMap, total) : buildPackLines(pack, packQty, total),
+        );
+      } else if (!mixed) {
+        draft.quantity = packQty * pack.length;
       }
     }
   }
@@ -464,7 +486,7 @@ function applyNaturalSale(
   if (!draft.phone) {
     return {
       session: go(session, "input_phone", draft),
-      effects: [reply("Nomor WhatsApp customer?")],
+      effects: [reply("Nomor WhatsApp customer?\nKetik 08… atau 'ga ada' kalau nomor disembunyikan.")],
     };
   }
   return {

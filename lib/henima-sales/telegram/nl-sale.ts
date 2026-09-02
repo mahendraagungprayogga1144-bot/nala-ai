@@ -191,6 +191,33 @@ export function buildPackLines(matched: ProductRow[], packQty: number, total: nu
   }));
 }
 
+/** "afternoon 3 the distance 2" → qty per SKU. */
+export function extractProductQuantities(lower: string, products: ProductRow[]): Map<string, number> {
+  const map = new Map<string, number>();
+  const sorted = [...products].sort((a, b) => (b.name || "").length - (a.name || "").length);
+  for (const p of sorted) {
+    const name = (p.name || "").trim().toLowerCase();
+    if (name.length < 2) continue;
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const after = lower.match(new RegExp(`\\b${escaped}\\s+(\\d+)\\b`));
+    const before = lower.match(new RegExp(`\\b(\\d+)\\s+${escaped}\\b`));
+    const n = Number(after?.[1] || before?.[1] || 0);
+    if (n > 0) map.set(p.id, n);
+  }
+  return map;
+}
+
+export function buildQtyLines(matched: ProductRow[], qtyByProduct: Map<string, number>, total: number): SaleLine[] {
+  const quantities = matched.map((p) => qtyByProduct.get(p.id) || 1);
+  const unitPrices = splitTotalAcrossLines(total, quantities);
+  return matched.map((p, i) => ({
+    productId: p.id,
+    productName: p.name,
+    quantity: quantities[i],
+    unitPrice: unitPrices[i],
+  }));
+}
+
 export function resolvePackProducts(matched: ProductRow[], catalog: ProductRow[]): ProductRow[] {
   if (matched.length >= 2) return matched;
   return defaultPackProducts(catalog);

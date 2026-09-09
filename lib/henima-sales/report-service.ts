@@ -2,11 +2,11 @@ import type { Actor, PaymentMethod } from "./types";
 import { SALES_ORDER_SOURCE, SalesError, paymentSplit } from "./types";
 import type { SalesDb } from "./db";
 import { assertCanAccessStaff, loadTeamIds } from "./authz";
-import { periodRange } from "./dates";
+import { periodRange, type PeriodKind } from "./dates";
 import { listCommissionLedger } from "./commission-service";
 import { backfillMissingSaleHpp, loadCatalogCosts, orderHppTotal } from "./hpp";
 
-export type ReportKind = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "custom";
+export type { PeriodKind as ReportKind } from "./dates";
 export type RankMetric = "quantity" | "revenue" | "count";
 
 export type RankRow = {
@@ -107,7 +107,7 @@ export async function buildSalesReport(
   db: SalesDb,
   actor: Actor,
   opts: {
-    kind: ReportKind;
+    kind: PeriodKind;
     from?: string;
     to?: string;
     salesId?: string;

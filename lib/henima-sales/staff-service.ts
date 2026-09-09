@@ -5,6 +5,16 @@ import type { SalesDb } from "./db";
 import { writeAudit } from "./audit";
 import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct, DEFAULT_RETAIL_PRICE, needsRetailSync } from "./types";
 import { backfillMissingSaleHpp } from "./hpp";
+import { invalidateTelegramActorCache } from "./authz";
+
+/** Saat sales berhenti: status mati, Telegram dan kode undangan diputus. Riwayat tetap. */
+export function staffOffboardingFields() {
+  return {
+    status: "disabled" as const,
+    telegram_user_id: null,
+    invite_code: null,
+  };
+}
 
 export function newInviteCode() {
   return randomBytes(4).toString("hex").toUpperCase();
@@ -191,14 +201,40 @@ export async function upsertSalesProduct(
 export async function setStaffStatus(db: SalesDb, actor: Actor, staffId: string, status: "active" | "disabled") {
   if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang dapat mengubah status tim.");
   if (staffId === actor.staffId) throw new SalesError("Tidak dapat menonaktifkan akun sendiri.", "self_disable");
+  const { data: current } = await db
+    .from("module_sales_staff")
+    .select("id, role, telegram_user_id, status")
+    .eq("id", staffId)
+    .eq("business_id", actor.businessId)
+    .maybeSingle();
+  if (!current) throw new SalesError("Anggota tim tidak ditemukan.", "staff_status");
+  if (current.role === "FOUNDER") throw new ForbiddenError("Akun founder tidak dapat dinonaktifkan.");
+
+  const patch =
+    status === "disabled"
+      ? { ...staffOffboardingFields(), updated_at: new Date().toISOString() }
+      : { status: "active" as const, updated_at: new Date().toISOString() };
+
   const { data, error } = await db
     .from("module_sales_staff")
-    .update({ status, updated_at: new Date().toISOString() })
+    .update(patch)
     .eq("id", staffId)
     .eq("business_id", actor.businessId)
     .select("*")
     .single();
   if (error || !data) throw new SalesError(error?.message || "Gagal ubah status.", "staff_status");
+
+  if (status === "disabled" && current.telegram_user_id != null) {
+    invalidateTelegramActorCache(Number(current.telegram_user_id));
+  }
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: status === "disabled" ? "STAFF_DISABLE" : "STAFF_ENABLE",
+    entityType: "staff",
+    entityId: staffId,
+    oldValue: { status: current.status, telegram_user_id: current.telegram_user_id },
+    newValue: { status: data.status, telegram_user_id: data.telegram_user_id },
+  });
   return data as StaffRow;
 }
 

@@ -16,6 +16,11 @@ type Report = {
   ranking: { salesId: string; nama: string; qty: number; revenue: number; count: number }[];
   servedBy?: { salesId: string; nama: string; qty: number; revenue: number; count: number }[];
   byPay: Record<string, number>;
+  cashTotal?: number;
+  transferTotal?: number;
+  qrisTotal?: number;
+  hppTotal?: number;
+  profitTotal?: number;
 };
 
 export default function ReportsClient({ initial }: { initial: Report }) {
@@ -64,6 +69,8 @@ export default function ReportsClient({ initial }: { initial: Report }) {
           <option value="last_week">Last week</option>
           <option value="this_month">This month</option>
           <option value="last_month">Last month</option>
+          <option value="this_year">This year</option>
+          <option value="all">Semua</option>
           <option value="custom">Custom</option>
         </select>
         <select className={MODULE_INPUT + " max-w-[160px]"} value={rankBy} onChange={(e) => setRankBy(e.target.value)}>
@@ -97,6 +104,10 @@ export default function ReportsClient({ initial }: { initial: Report }) {
           ["New Customers", String(data.newCustomers)],
           ["Repeat Customers", String(data.repeatCustomers)],
           ["Total Commission", fmtRp(data.totalCommission)],
+          ["HPP", fmtRp(data.hppTotal || 0)],
+          ["Profit", fmtRp(data.profitTotal || 0)],
+          ["Cash", fmtRp(data.cashTotal || 0)],
+          ["QRIS", fmtRp(data.qrisTotal || 0)],
         ].map(([l, v]) => (
           <div key={l} className={MODULE_CARD}>
             <p className="text-[10px] uppercase text-[#8B8AA0]">{l}</p>

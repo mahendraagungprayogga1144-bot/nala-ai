@@ -31,8 +31,19 @@ export function startOfWeekMonday(ymd: string) {
   return dt.toISOString().slice(0, 10);
 }
 
+export type PeriodKind =
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "last_week"
+  | "this_month"
+  | "last_month"
+  | "this_year"
+  | "all"
+  | "custom";
+
 export function periodRange(
-  kind: "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "custom",
+  kind: PeriodKind,
   custom?: { from?: string; to?: string },
 ): { from: string; to: string; label: string } {
   const today = todayWib();
@@ -58,6 +69,12 @@ export function periodRange(
   if (kind === "this_month") {
     const from = `${year}-${month}-01`;
     return { from, to: today, label: monthLabel(y, mo) };
+  }
+  if (kind === "this_year") {
+    return { from: `${year}-01-01`, to: today, label: `Tahun ${y}` };
+  }
+  if (kind === "all") {
+    return { from: "2020-01-01", to: today, label: "Semua periode" };
   }
   if (kind === "last_month") {
     const lm = mo === 1 ? 12 : mo - 1;

@@ -14,6 +14,7 @@ import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope } from "../report-service";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
+import { staffOffboardingFields } from "../staff-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 import { buildSalesReportPdf, groupRecapByMonth } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
@@ -139,6 +140,13 @@ test("RBAC scope founder/leader/sales", () => {
   );
 });
 
+test("offboarding clears telegram and invite", () => {
+  const patch = staffOffboardingFields();
+  assert.equal(patch.status, "disabled");
+  assert.equal(patch.telegram_user_id, null);
+  assert.equal(patch.invite_code, null);
+});
+
 test("missing stored hpp falls back to catalog cost", () => {
   const catalog = [
     { id: "1", name: "Afternoon", cost: 64500 },
@@ -177,6 +185,12 @@ test("period ranges are Jakarta calendar windows", () => {
   assert.equal(year.to, "2025-12-31");
   assert.equal(year.label, "Tahun 2025");
   assert.equal(periodRange("custom", { from: "2025-01-01", to: "2025-12-31" }).label, "Tahun 2025");
+  const yearToDate = periodRange("this_year");
+  assert.match(yearToDate.from, /^\d{4}-01-01$/);
+  assert.equal(yearToDate.label.startsWith("Tahun "), true);
+  const all = periodRange("all");
+  assert.equal(all.from, "2020-01-01");
+  assert.equal(all.label, "Semua periode");
 });
 
 test("sales brand ignores short tenant names like g", () => {

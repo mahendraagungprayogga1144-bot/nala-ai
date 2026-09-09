@@ -130,15 +130,26 @@ export default function TeamClient({
     router.refresh();
   };
 
-  const toggleStaff = async (staffId: string, status: string) => {
+  const toggleStaff = async (staffId: string, status: string, nama: string) => {
     const next = status === "disabled" ? "active" : "disabled";
+    if (next === "disabled") {
+      const ok = window.confirm(
+        `Putuskan akses ${nama}?\n\nTelegram dan kode undangan akan diputus sekarang. Riwayat penjualan tetap tersimpan. Jika kembali bekerja, buat kode undangan baru.`,
+      );
+      if (!ok) return;
+    }
     const res = await fetch("/api/sales/staff", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "set_status", staffId, status: next }),
     });
     const json = await res.json();
-    flash(json.error || (next === "disabled" ? "Sales dinonaktifkan." : "Sales diaktifkan."));
+    flash(
+      json.error ||
+        (next === "disabled"
+          ? "Akses Telegram diputus. Riwayat penjualan tetap tersimpan."
+          : "Akun diaktifkan. Buat kode undangan baru agar sales dapat /start lagi."),
+    );
     router.refresh();
   };
 
@@ -298,7 +309,7 @@ export default function TeamClient({
           {actor.nama} · {actor.role} · {actor.businessName}
         </p>
         <p className="mt-2 text-xs text-[#8B8AA0]">
-          Sales mengaktifkan akun lewat <code>/start KODE</code> pada Telegram pribadi mereka. Jangan bagikan perangkat atau akun manajemen.
+          Sales mengaktifkan akun lewat <code>/start KODE</code> pada Telegram pribadi mereka. Jika sales berhenti, pilih Putuskan akses — Telegram dan kodenya terputus, riwayat tetap ada.
         </p>
         {founder && (
           <div className="mt-3">
@@ -344,9 +355,9 @@ export default function TeamClient({
                   Buat kode undangan
                 </button>
                 )}
-                {founder && s.id !== actor.staffId && (
-                  <button type="button" onClick={() => toggleStaff(s.id, s.status)} className="text-xs text-[#F59E0B]">
-                    {s.status === "disabled" ? "Aktifkan" : "Nonaktifkan"}
+                {founder && s.id !== actor.staffId && s.role !== "FOUNDER" && (
+                  <button type="button" onClick={() => toggleStaff(s.id, s.status, s.nama)} className="text-xs text-[#F59E0B]">
+                    {s.status === "disabled" ? "Aktifkan kembali" : "Putuskan akses"}
                   </button>
                 )}
               </div>

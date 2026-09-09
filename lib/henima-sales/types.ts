@@ -92,6 +92,8 @@ export const AUDIT_ACTIONS = [
   "UPDATE_COMMISSION",
   "LOGIN",
   "TELEGRAM_LINK",
+  "STAFF_DISABLE",
+  "STAFF_ENABLE",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

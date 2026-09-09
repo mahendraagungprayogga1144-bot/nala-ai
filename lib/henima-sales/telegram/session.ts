@@ -110,10 +110,12 @@ export const HELP_TEXT = `Perintah Henima Sales:
 
 Sales cukup pakai Telegram. Bahasa bebas, contoh:
 laku 1 harga 130rb atas nama Regan no 0877... tf
+beli 3 jenis distance harga 120rb atas nama Nicco no 08... tf
 sold 3 afternoon 2 the distance price 149k for Vitha phone 08... cash
 laku 2 paket new member harga 250k atas nama Dimas no 08... qris
 afternoon dan the distance
 Bayar: tf / qris / cash / transfer / bank
+berapa yang terjual semuanya
 rekapan hari ini / recap today
 pdf bulan ini / pdf agustus / pdf bulan lalu
 pdf setahun / pdf 2025 / pdf tahun lalu

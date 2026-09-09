@@ -87,6 +87,10 @@ export function periodFromText(t: string): { period: ReportPeriod; from?: string
   if (/\b(kemarin|yesterday|ayer|hier)\b/.test(t)) return { period: "yesterday" };
   if (/\b((minggu|pekan|week)\s+(lalu|kemarin|last|pasado)|last\s+week)\b/.test(t)) return { period: "last_week" };
   if (/\b((bulan|month|bln)\s+(lalu|kemarin|last|pasado)|last\s+month)\b/.test(t)) return { period: "last_month" };
+  if (/\b(semua(nya)?|keseluruhan|sepanjang)\b/.test(t) && !/\b(hari|minggu|bulan|today|week|month)\b/.test(t)) {
+    const win = namedYearWindow();
+    return { period: "custom", from: win.from, to: win.to };
+  }
   if (/\b(minggu|mingguan|weekly|week|semaine|semana)\b/.test(t)) return { period: "this_week" };
   if (/\b(bulan|bulanan|bln|monthly|month|mois|mes)\b/.test(t)) return { period: "this_month" };
   return { period: "today" };
@@ -112,7 +116,23 @@ export function parseOpsIntent(text: string): OpsIntent {
   }
   if (/\b(riwayat|histori|history|historial)\b/.test(t)) return { type: "riwayat" };
   if (/(target|pencapaian|tercapai|goal)/.test(t)) return { type: "target" };
+  if (looksLikeAskReport(t)) {
+    const parsed = periodFromText(t);
+    if (/\b(pdf|laporan|report)\b/.test(t)) return { type: "pdf", ...parsed };
+    return { type: "rekap", ...parsed };
+  }
   return { type: "none" };
+}
+
+/** "berapa yang terjual semuanya" → rekap, bukan chat penjualan. */
+export function looksLikeAskReport(text: string) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (/\b(target|pencapaian|tercapai|goal)\b/.test(t)) return false;
+  if (/\b(berapa|how many|how much)\b/.test(t)) return true;
+  if (/\b(total|semua(nya)?|keseluruhan)\s+(yang\s+)?(terjual|dijual|laku|sold|omzet|penjualan)\b/.test(t)) return true;
+  if (/\b(yang\s+terjual|terjual)\s+(semua(nya)?|total|berapa)\b/.test(t)) return true;
+  return false;
 }
 
 /** "nota untuk regan" / "nota dimas" → "regan" / "dimas". Bare "nota" → undefined. */
@@ -131,7 +151,9 @@ export function extractNotaQuery(text: string): string | undefined {
 }
 
 const SALE_HINT =
-  /\b(laku|terjual|jual|closing|order|omzet|sold|sell|sale|bought|purchase|vendi|vendido|vendu|pcs|botol|bottles?|paket|pack|harga|price|precio|prix|preco|preis|atas nama|a\/n|no\.?\s*(telp|telfon|telfone|telepon|hp|wa|phone))\b/i;
+  /\b(laku|terjual|jual|beli|ambil|closing|order|omzet|sold|sell|sale|bought|purchase|vendi|vendido|vendu|pcs|botol|bottles?|jenis|paket|pack|harga|price|precio|prix|preco|preis|atas nama|a\/n|no\.?\s*(telp|telfon|telfone|telepon|hp|wa|phone))\b/i;
+
+const QTY_FILL = "(?:jenis|biji|botol|pcs|buah|unit|pieces?|bottles?|x|×|aja|doang)";
 
 export function parseIdrAmountToken(num: string, suffix?: string | null): number | null {
   const s = (suffix || "").toLowerCase();
@@ -174,16 +196,20 @@ export function parseSalesChat(text: string, products: ProductRow[]): ParsedSale
   const phone = extractPhone(raw);
   const disc = extractDiscount(lower);
   const unitPrice = extractPrice(stripDiscountClause(lower));
-  const quantity = extractQty(lower);
   const customerName = extractName(raw);
   const matchedProducts = matchAllProducts(lower, products);
+  const qtyMap = extractProductQuantities(lower, products);
+  const qtyFromMap =
+    matchedProducts.length === 1 ? qtyMap.get(matchedProducts[0].id) || null : [...qtyMap.values()].reduce((a, b) => a + b, 0) || null;
+  const quantity = extractQty(lower) || qtyFromMap || null;
   const product = matchedProducts[0] || null;
   const paymentMethod = extractPay(lower);
   const isPack = looksLikePack(lower) || matchedProducts.length > 1;
 
   const looksLikeSale = Boolean(
-    (matchedProducts.length > 0 && (phone || unitPrice || quantity || customerName)) ||
-      (SALE_HINT.test(lower) && (phone || unitPrice || quantity || customerName)),
+    !looksLikeAskReport(lower) &&
+      ((matchedProducts.length > 0 && (phone || unitPrice || quantity || customerName || qtyMap.size > 0)) ||
+        (SALE_HINT.test(lower) && (phone || unitPrice || quantity || customerName))),
   );
 
   return {
@@ -305,8 +331,8 @@ export function extractProductQuantities(lower: string, products: ProductRow[]):
     let after: number | null = null;
     let before: number | null = null;
     for (const escaped of productNamePatterns(p, products)) {
-      const a = lower.match(new RegExp(`\\b${escaped}\\s+(\\d+)\\b`));
-      const b = lower.match(new RegExp(`\\b(\\d+)\\s+${escaped}\\b`));
+      const a = lower.match(new RegExp(`\\b${escaped}(?:\\s+${QTY_FILL})?\\s+(\\d+)\\b`));
+      const b = lower.match(new RegExp(`\\b(\\d+)(?:\\s+${QTY_FILL})?\\s+${escaped}\\b`));
       if (after == null && a?.[1]) {
         const n = Number(a[1]);
         if (n > 0) after = n;
@@ -408,13 +434,13 @@ function extractQty(lower: string): number | null {
     return n > 0 ? n : null;
   }
   const labeled = lower.match(
-    /(?:laku|terjual|jual|qty|jumlah|closing|sold|sell|bought|quantity|vendi|vendido|vendu)\D{0,24}?(\d+)/,
+    /(?:laku|terjual|jual|beli|ambil|qty|jumlah|closing|sold|sell|bought|quantity|vendi|vendido|vendu)\D{0,24}?(\d+)/,
   );
   if (labeled) {
     const n = Number(labeled[1]);
     return n > 0 ? n : null;
   }
-  const unit = lower.match(/(\d+)\s*(?:pcs|botol|buah|bottles?|units?)\b/);
+  const unit = lower.match(new RegExp(`(\\d+)\\s*(?:${QTY_FILL})\\b`));
   if (unit) {
     const n = Number(unit[1]);
     return n > 0 ? n : null;

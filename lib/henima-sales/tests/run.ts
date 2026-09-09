@@ -315,6 +315,51 @@ test("rekapan hari ini is a rekap intent", () => {
   if (out.effects[0].type === "send_report") assert.equal(out.effects[0].kind, "today");
 });
 
+test("ask how many sold is a recap not a sale hint", () => {
+  const year = namedYearWindow();
+  assert.deepEqual(parseOpsIntent("berapa yang terjual semuanya"), {
+    type: "rekap",
+    period: "custom",
+    from: year.from,
+    to: year.to,
+  });
+  assert.deepEqual(parseOpsIntent("berapa terjual hari ini"), { type: "rekap", period: "today" });
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "Berapa yang terjual semuanya" },
+    { actor: sales, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_report");
+  if (out.effects[0].type === "send_report") {
+    assert.equal(out.effects[0].kind, "custom");
+    assert.equal(out.effects[0].from, year.from);
+    assert.equal(out.effects[0].to, year.to);
+  }
+});
+
+test("3 jenis distance is qty 3 of The Distance", () => {
+  const products = [
+    { id: "1", name: "Afternoon", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+    { id: "2", name: "The Distance", price: 199999, cost: 64500, stock: 10, unit: "pcs" },
+  ];
+  const qty = extractProductQuantities("beli 3 jenis distance", products);
+  assert.equal(qty.get("2"), 3);
+  assert.equal(qty.has("1"), false);
+  const parsed = parseSalesChat("3 jenis distance harga 120rb atas nama Nicco no 081234567890 tf", products);
+  assert.equal(parsed.looksLikeSale, true);
+  assert.equal(parsed.quantity, 3);
+  assert.ok(parsed.matchedProducts.some((p) => /distance/i.test(p.name)));
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "beli 3 jenis distance harga 120rb atas nama Nicco no 081234567890 tf" },
+    { actor: sales, products },
+  );
+  const distance = out.session.draft.lines?.find((l) => /distance/i.test(l.productName));
+  assert.equal(distance?.quantity ?? out.session.draft.quantity, 3);
+  assert.equal(out.session.draft.orderTotal, 360000);
+  assert.equal(out.session.draft.paymentMethod, "TRANSFER");
+});
+
 test("pdf named month and last month", () => {
   const august = namedMonthWindow(8);
   assert.deepEqual(parseOpsIntent("pdf agustus"), {

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:henima": "npx tsx lib/henima-sales/tests/run.ts"
+    "test:henima": "npx tsx lib/henima-sales/tests/run.ts",
+    "test:profit": "npx tsx lib/gercep-profit/tests/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

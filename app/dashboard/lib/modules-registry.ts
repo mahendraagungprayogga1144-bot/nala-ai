@@ -3,7 +3,7 @@ import {
   Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera,
   ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
-  Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target,
+  Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target, Gauge,
 } from "lucide-react";
 import { normalizeBizType } from "@/lib/auth/post-login";
 
@@ -61,6 +61,7 @@ export const GERCEP_MODULES: DashboardModule[] = [
 
   { id: "keuangan-pribadi", name: "Keuangan Pribadi", desc: "Catat pemasukan-pengeluaran, target tabungan.", href: "/dashboard/keuangan-pribadi", icon: Wallet, category: "keuangan", status: "live" },
   { id: "keuangan-bisnis", name: "Keuangan Bisnis", desc: "Modal, HPP, hutang-piutang, gaji karyawan.", href: "/dashboard/keuangan-bisnis", icon: Store, category: "keuangan", status: "live" },
+  { id: "profit-engine", name: "Profit Engine", desc: "Kalkulator profit, ROAS, BE ROAS, ROI, dan keputusan SCALE/OPTIMIZE/STOP.", href: "/dashboard/profit-engine", icon: Gauge, category: "keuangan", status: "live" },
   { id: "smart-profit", name: "Smart Profit Calculator", desc: "Profit bersih sampai break even point.", href: "/dashboard/smart-profit", icon: Calculator, category: "keuangan", status: "live" },
   { id: "pajak", name: "Pajak NPWP Center", desc: "Input NPWP & lapor omzet sendiri.", href: "/dashboard/pajak-npwp", icon: FileText, category: "keuangan", status: "beta" },
 

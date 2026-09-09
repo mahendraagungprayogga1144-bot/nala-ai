@@ -22,7 +22,7 @@ export function salesInviteShareText(opts: {
 
 Ini akun sales *${brand}*. Ikuti 3 langkah ini:
 
-1. Buka Telegram, cari @${bot}
+1. Buka Telegram *kamu sendiri* (jangan pinjam HP/akun founder), cari @${bot}
 2. Ketik persis (ada spasi):
 /start ${code}
 3. Tunggu bot bilang CONNECTED
@@ -56,7 +56,8 @@ Minta kode undangan ke founder, lalu ketik:
 
 Contoh: /start 43E33258
 
-Satu kode hanya untuk 1 orang.`;
+Satu kode hanya untuk 1 orang.
+Sales wajib /start di Telegram mereka sendiri — jangan pakai HP atau akun founder.`;
 
 export function salesHowToText() {
   return `Cara pakai (jangan bingung):

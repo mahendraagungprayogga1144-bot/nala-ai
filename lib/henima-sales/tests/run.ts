@@ -4,15 +4,16 @@
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
-import { staffScopeIds, canAccessStaff } from "../authz";
+import { staffScopeIds, canAccessStaff, assertTelegramInviteAllowed } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow, namedYearWindow } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
-import type { Actor } from "../types";
+import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
-import { splitSalesRanking, servedByLabel } from "../report-service";
+import { splitSalesRanking, servedByLabel, reportScope } from "../report-service";
+import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 import { buildSalesReportPdf, groupRecapByMonth } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
@@ -87,6 +88,10 @@ const leader: Actor = { ...founder, staffId: "l1", role: "LEADER", nama: "Budi",
 const sales: Actor = { ...founder, staffId: "s1", role: "SALES", nama: "Andi", leaderId: "l1", userId: "u3" };
 
 test("RBAC scope founder/leader/sales", () => {
+  assert.equal(reportScope(sales).scope, "self");
+  assert.match(reportScope(sales).label, /Andi/);
+  assert.equal(reportScope(leader).scope, "team");
+  assert.equal(reportScope(founder).scope, "company");
   assert.equal(staffScopeIds(founder, ["s1"]), null);
   const leaderScope = staffScopeIds(leader, ["s1", "s2"]);
   assert.ok(leaderScope);
@@ -95,6 +100,65 @@ test("RBAC scope founder/leader/sales", () => {
   assert.equal(canAccessStaff(sales, "s2", []), false);
   assert.equal(canAccessStaff(leader, "s1", ["s1"]), true);
   assert.equal(canAccessStaff(founder, "s9", []), true);
+  assert.throws(
+    () =>
+      assertTelegramInviteAllowed({
+        inviteRole: "SALES",
+        inviteStaffId: "s1",
+        incomingTelegramUserId: 99,
+        existingOnThisTelegram: { id: "f1", role: "FOUNDER" },
+      }),
+    (err: unknown) => err instanceof SalesError && err.code === "telegram_founder_locked",
+  );
+  assert.throws(
+    () =>
+      assertTelegramInviteAllowed({
+        inviteRole: "FOUNDER",
+        inviteStaffId: "f1",
+        inviteTelegramUserId: 1,
+        incomingTelegramUserId: 99,
+      }),
+    (err: unknown) => err instanceof SalesError && err.code === "telegram_founder_locked",
+  );
+  assert.throws(
+    () =>
+      assertTelegramInviteAllowed({
+        inviteRole: "SALES",
+        inviteStaffId: "s2",
+        incomingTelegramUserId: 42,
+        existingOnThisTelegram: { id: "s1", role: "SALES" },
+      }),
+    (err: unknown) => err instanceof SalesError && err.code === "telegram_taken",
+  );
+  assert.doesNotThrow(() =>
+    assertTelegramInviteAllowed({
+      inviteRole: "SALES",
+      inviteStaffId: "s1",
+      incomingTelegramUserId: 42,
+    }),
+  );
+});
+
+test("missing stored hpp falls back to catalog cost", () => {
+  const catalog = [
+    { id: "1", name: "Afternoon", cost: 64500 },
+    { id: "2", name: "The Distance", cost: 64500 },
+  ];
+  assert.equal(catalogUnitCost({ product_id: "2", product_name_snapshot: "THE DISTANCE" }, catalog), 64500);
+  assert.equal(catalogUnitCost({ product_name_snapshot: "THE DISTANCE x 1" }, catalog), 64500);
+  assert.equal(catalogUnitCost({ product_name_snapshot: "paket" }, catalog), 64500);
+  assert.equal(lineHpp({ qty: 2, hpp: 0, product_name_snapshot: "THE DISTANCE" }, catalog), 129000);
+  assert.equal(
+    orderHppTotal(
+      {
+        hpp: 0,
+        catatan: "laku 2 paket",
+        order_items: [{ qty: 2, hpp: 0, product_name_snapshot: "paket" }],
+      },
+      catalog,
+    ),
+    129000,
+  );
 });
 
 test("period ranges are Jakarta calendar windows", () => {
@@ -135,6 +199,7 @@ test("telegram /start includes founder tagline from settings", () => {
   const text = connectedStatusText(withTag);
   assert.match(text, /Parfum premium/);
   assert.match(text, /Bisnis: Henima/);
+  assert.match(text, /founder terkunci/i);
 });
 
 test("invite share text includes code and how to start", () => {
@@ -148,6 +213,7 @@ test("invite share text includes code and how to start", () => {
   assert.match(text, /@henimaofficial_bot/);
   assert.match(text, /Andi/);
   assert.match(UNLINKED_MSG, /\/start KODE/);
+  assert.match(UNLINKED_MSG, /Telegram mereka sendiri/);
 });
 
 test("telegram unlinked user cannot input", () => {
@@ -935,6 +1001,8 @@ buildSalesNotaPdf(embedPayload)
       generatedAt: "31/08/2026 09:00",
       report: {
         range: { from: "2026-08-01", to: "2026-08-31", label: "Agustus 2026" },
+        scope: "company",
+        scopeLabel: "Omzet perusahaan",
         totalOrders: 2,
         pendingOrders: 0,
         cancelledOrders: 0,

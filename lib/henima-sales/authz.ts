@@ -181,6 +181,34 @@ export async function resolveActorByTelegramId(db: SalesDb, telegramUserId: numb
   return actor;
 }
 
+export function assertTelegramInviteAllowed(opts: {
+  inviteRole: string;
+  inviteStaffId: string;
+  inviteTelegramUserId?: number | string | null;
+  incomingTelegramUserId: number;
+  existingOnThisTelegram?: { id: string; role: string } | null;
+}) {
+  const existing = opts.existingOnThisTelegram;
+  if (existing && existing.id !== opts.inviteStaffId) {
+    if (existing.role === "FOUNDER") {
+      throw new SalesError(
+        "Telegram ini akun founder dan terkunci. Sales harus /start kode mereka di Telegram sendiri — jangan pakai HP/akun founder.",
+        "telegram_founder_locked",
+      );
+    }
+    throw new SalesError("Telegram ini sudah terhubung ke akun lain.", "telegram_taken");
+  }
+  const bound = opts.inviteTelegramUserId != null && opts.inviteTelegramUserId !== ""
+    ? Number(opts.inviteTelegramUserId)
+    : null;
+  if (opts.inviteRole === "FOUNDER" && bound && bound !== opts.incomingTelegramUserId) {
+    throw new SalesError(
+      "Akun founder sudah terkunci di Telegram lain. Kode founder tidak bisa dipakai di sini. Undang sales lewat kode sales mereka sendiri.",
+      "telegram_founder_locked",
+    );
+  }
+}
+
 export async function linkTelegramByInvite(
   db: SalesDb,
   inviteCode: string,
@@ -198,20 +226,29 @@ export async function linkTelegramByInvite(
 
   const { data: taken } = await db
     .from("module_sales_staff")
-    .select("id")
+    .select("id, role")
     .eq("telegram_user_id", telegramUserId)
     .neq("id", staff.id)
     .maybeSingle();
-  if (taken) throw new SalesError("Telegram ini sudah terhubung ke akun lain.", "telegram_taken");
+  assertTelegramInviteAllowed({
+    inviteRole: staff.role,
+    inviteStaffId: staff.id,
+    inviteTelegramUserId: staff.telegram_user_id,
+    incomingTelegramUserId: telegramUserId,
+    existingOnThisTelegram: taken as { id: string; role: string } | null,
+  });
+
+  const patch: Record<string, unknown> = {
+    telegram_user_id: telegramUserId,
+    status: "active",
+    nama: staff.nama || telegramName,
+    updated_at: new Date().toISOString(),
+  };
+  if (staff.role === "FOUNDER") patch.invite_code = null;
 
   const { data: updated, error } = await db
     .from("module_sales_staff")
-    .update({
-      telegram_user_id: telegramUserId,
-      status: "active",
-      nama: staff.nama || telegramName,
-      updated_at: new Date().toISOString(),
-    })
+    .update(patch)
     .eq("id", staff.id)
     .select("*")
     .single();

@@ -91,6 +91,9 @@ export function connectedStatusText(actor: Actor, extraHelp?: string) {
     `Bisnis: ${actor.businessName}`,
   ];
   if (actor.tagline?.trim()) lines.push(actor.tagline.trim());
+  if (actor.role === "FOUNDER") {
+    lines.push("Akun founder terkunci. Jangan pinjamkan Telegram/HP ini ke sales.");
+  }
   lines.push("");
   lines.push(extraHelp || salesHowToText());
   return lines.join("\n");

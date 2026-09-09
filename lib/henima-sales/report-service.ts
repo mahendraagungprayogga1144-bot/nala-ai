@@ -1,9 +1,10 @@
 import type { Actor, PaymentMethod } from "./types";
 import { SALES_ORDER_SOURCE, SalesError, paymentSplit } from "./types";
 import type { SalesDb } from "./db";
-import { loadTeamIds } from "./authz";
+import { assertCanAccessStaff, loadTeamIds } from "./authz";
 import { periodRange } from "./dates";
 import { listCommissionLedger } from "./commission-service";
+import { backfillMissingSaleHpp, loadCatalogCosts, orderHppTotal } from "./hpp";
 
 export type ReportKind = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "custom";
 export type RankMetric = "quantity" | "revenue" | "count";
@@ -36,6 +37,15 @@ export function servedByLabel(rows: { nama: string }[]) {
   return `Dilayani oleh ${names.join(", ")}`;
 }
 
+export type ReportScope = "self" | "team" | "company";
+
+/** SALES = closing sendiri. LEADER = tim. FOUNDER = perusahaan. Device tidak mengubah scope. */
+export function reportScope(actor: Actor): { scope: ReportScope; label: string } {
+  if (actor.role === "SALES") return { scope: "self", label: `Omzet ${actor.nama}` };
+  if (actor.role === "LEADER") return { scope: "team", label: `Omzet tim ${actor.nama}` };
+  return { scope: "company", label: "Omzet perusahaan" };
+}
+
 function displayCustomerName(raw: string) {
   const t = (raw || "").replace(/\s+/g, " ").trim();
   if (!t) return "—";
@@ -57,10 +67,11 @@ function recapNote(catatan: string | null, products: string) {
   return note;
 }
 
-function hppOf(o: OrderAgg) {
-  const header = Number(o.hpp || 0);
-  if (header > 0) return header;
-  return (o.order_items || []).reduce((s, i) => s + Number(i.hpp || 0) * Number(i.qty || 0), 0);
+function hppOf(
+  o: OrderAgg,
+  catalog: { id: string; name: string; cost: number }[] = [],
+) {
+  return orderHppTotal(o, catalog);
 }
 
 type OrderAgg = {
@@ -107,6 +118,10 @@ export async function buildSalesReport(
 ) {
   const range = periodRange(opts.kind, { from: opts.from, to: opts.to });
   const teamIds = await loadTeamIds(db, actor);
+  if (opts.salesId) assertCanAccessStaff(actor, opts.salesId, teamIds);
+  const { scope, label: scopeLabel } = reportScope(actor);
+  await backfillMissingSaleHpp(db, actor.businessId);
+  const catalog = await loadCatalogCosts(db, actor.businessId);
 
   let q = db
     .from("orders")
@@ -180,8 +195,8 @@ export async function buildSalesReport(
         total,
         `${o.catatan || ""} ${customerName} ${(o.customer_id && custMap[o.customer_id]) || ""}`,
       );
-      const hpp = hppOf(o);
-      const profit = o.laba != null ? Number(o.laba) : total - hpp;
+      const hpp = hppOf(o, catalog);
+      const profit = total - hpp;
       const qty = qtyOf(o);
       const products = (o.order_items || []).map((i) => i.product_name_snapshot || "Produk").join(" + ");
       byPay[split.method] += total;
@@ -250,28 +265,36 @@ export async function buildSalesReport(
     }
   }
 
-  const { data: followRows } = await db
+  let followQ = db
     .from("module_sales_follow_ups")
     .select("status")
     .eq("business_id", actor.businessId)
     .gte("scheduled_at", range.from)
     .lte("scheduled_at", range.to);
+  if (actor.role === "SALES") followQ = followQ.eq("sales_id", actor.staffId);
+  else if (actor.role === "LEADER") followQ = followQ.in("sales_id", [actor.staffId, ...teamIds]);
+  const { data: followRows } = await followQ;
   const followSummary: Record<string, number> = {};
   for (const f of followRows || []) {
     followSummary[f.status] = (followSummary[f.status] || 0) + 1;
   }
 
-  const { count: testimonialCount } = await db
+  let testiQ = db
     .from("module_sales_testimonials")
     .select("id", { count: "exact", head: true })
     .eq("business_id", actor.businessId)
     .gte("created_at", range.from + "T00:00:00+07:00")
     .lte("created_at", range.to + "T23:59:59+07:00");
+  if (actor.role === "SALES") testiQ = testiQ.eq("sales_id", actor.staffId);
+  else if (actor.role === "LEADER") testiQ = testiQ.in("sales_id", [actor.staffId, ...teamIds]);
+  const { count: testimonialCount } = await testiQ;
 
   const commission = await listCommissionLedger(db, actor, { from: range.from, to: range.to, salesId: opts.salesId });
 
   return {
     range,
+    scope,
+    scopeLabel,
     totalOrders: paid.length,
     pendingOrders: orders.filter((o) => o.payment_status === "PENDING").length,
     cancelledOrders: orders.filter((o) => o.payment_status === "CANCELLED").length,

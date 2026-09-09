@@ -298,7 +298,7 @@ export default function TeamClient({
           {actor.nama} · {actor.role} · {actor.businessName}
         </p>
         <p className="mt-2 text-xs text-[#8B8AA0]">
-          Sales mengirim <code>/start KODE</code> di bot untuk menghubungkan akun. Token bot hanya di environment.
+          Sales mengirim <code>/start KODE</code> di Telegram <strong>mereka sendiri</strong>. Jangan pinjamkan HP/akun Telegram founder — omzet perusahaan hanya terlihat di situ.
         </p>
         {founder && (
           <div className="mt-3">
@@ -328,19 +328,22 @@ export default function TeamClient({
               <p className="font-medium">{s.nama}</p>
               <p className="text-[11px] text-[#8B8AA0]">
                 {s.role} · {s.status} · Telegram: {s.telegram_user_id ? "CONNECTED" : "belum"}
-                {s.invite_code ? ` · kode ${s.invite_code}` : ""}
+                {s.role !== "FOUNDER" && s.invite_code ? ` · kode ${s.invite_code}` : ""}
+                {s.role === "FOUNDER" ? " · Telegram founder terkunci" : ""}
               </p>
             </div>
             {actor.role !== "SALES" && (
               <div className="flex flex-wrap gap-3">
-                {s.invite_code && (
+                {s.role !== "FOUNDER" && s.invite_code && (
                   <button type="button" onClick={() => copyInvite(s.nama, s.invite_code!)} className="text-xs text-[#2DD4BF]">
                     Salin panduan + kode
                   </button>
                 )}
+                {s.role !== "FOUNDER" && (
                 <button type="button" onClick={() => rotate(s.id)} className="text-xs text-[#2DD4BF]">
                   Buat kode undangan
                 </button>
+                )}
                 {founder && s.id !== actor.staffId && (
                   <button type="button" onClick={() => toggleStaff(s.id, s.status)} className="text-xs text-[#F59E0B]">
                     {s.status === "disabled" ? "Aktifkan" : "Nonaktifkan"}

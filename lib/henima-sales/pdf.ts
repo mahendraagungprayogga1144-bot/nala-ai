@@ -145,6 +145,10 @@ export async function buildSalesReportPdf(opts: {
   T(page, "REKAP RETAIL CASH / CASHLESS", LEFT + 92, y + 2, 11, sansBold, MUTED);
   rightText(page, pdfSafe(opts.businessName), RIGHT, y + 4, 10, sans, MUTED);
   y -= 16;
+  if (r.scopeLabel) {
+    T(page, pdfSafe(r.scopeLabel), LEFT, y, 9, sansBold, TEAL);
+    y -= 12;
+  }
   T(page, `Periode ${pdfSafe(r.range.label)}`, LEFT, y, 10, sansBold);
   T(page, `${r.range.from}  -  ${r.range.to}   |   Dibuat ${pdfSafe(opts.generatedAt)} WIB`, LEFT + 200, y, 9, sans, MUTED);
   y -= 10;
@@ -294,10 +298,11 @@ export async function buildSalesReportPdf(opts: {
 
   need(70);
   T(page, "PRODUK", LEFT, y, 9, sansBold);
-  T(page, "RANKING SALES", LEFT + 320, y, 9, sansBold);
+  const showTeam = r.scope !== "self";
+  if (showTeam) T(page, "RANKING SALES", LEFT + 320, y, 9, sansBold);
   y -= 14;
   const prod = r.byProduct.slice(0, 8);
-  const rank = r.ranking.slice(0, 8);
+  const rank = showTeam ? r.ranking.slice(0, 8) : [];
   const n = Math.max(prod.length, rank.length, 1);
   for (let i = 0; i < n; i++) {
     need(16);
@@ -305,7 +310,7 @@ export async function buildSalesReportPdf(opts: {
     if (rank[i]) T(page, `${i + 1}. ${rank[i].nama}   ${rank[i].qty} pcs   ${rp(rank[i].revenue)}`, LEFT + 320, y, 8, sans);
     y -= 12;
   }
-  if (r.servedBy.length) {
+  if (showTeam && r.servedBy.length) {
     y -= 4;
     T(page, servedByLabel(r.servedBy), LEFT, y, 8, sans, MUTED);
     y -= 12;

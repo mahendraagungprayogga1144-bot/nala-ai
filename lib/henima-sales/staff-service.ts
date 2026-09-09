@@ -4,6 +4,7 @@ import { ForbiddenError, SalesError } from "./types";
 import type { SalesDb } from "./db";
 import { writeAudit } from "./audit";
 import { DEFAULT_HENIMA_PRODUCTS, SALES_PRODUCT_CATEGORY, isSalesCatalogProduct, DEFAULT_RETAIL_PRICE, needsRetailSync } from "./types";
+import { backfillMissingSaleHpp } from "./hpp";
 
 export function newInviteCode() {
   return randomBytes(4).toString("hex").toUpperCase();
@@ -63,6 +64,15 @@ export async function createStaff(
 
 export async function rotateInvite(db: SalesDb, actor: Actor, staffId: string) {
   if (actor.role === "SALES" && staffId !== actor.staffId) throw new ForbiddenError();
+  const { data: current } = await db
+    .from("module_sales_staff")
+    .select("id, role")
+    .eq("id", staffId)
+    .eq("business_id", actor.businessId)
+    .maybeSingle();
+  if (current?.role === "FOUNDER") {
+    throw new ForbiddenError("Akun founder tidak memakai kode undangan. Jangan bagikan Telegram founder ke sales.");
+  }
   const code = newInviteCode();
   const { data, error } = await db
     .from("module_sales_staff")
@@ -140,6 +150,7 @@ export async function upsertSalesProduct(
       .single();
     if (error || !data) throw new SalesError(error?.message || "Gagal update produk.", "product_update");
     invalidateProductCache(actor.businessId);
+    if (cost != null && cost > 0) await backfillMissingSaleHpp(db, actor.businessId);
     return {
       id: String(data.id),
       name: data.name as string,

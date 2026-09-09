@@ -7,6 +7,7 @@ import { writeAudit } from "./audit";
 import { assertCanAccessStaff, loadTeamIds } from "./authz";
 import { getCustomer } from "./customer-service";
 import { listProducts } from "./staff-service";
+import { catalogUnitCost } from "./hpp";
 import { salesLogError } from "./log";
 
 export type SalesOrder = {
@@ -382,6 +383,14 @@ export async function updateOrder(
     }
   }
 
+  const products = await listProducts(db, actor.businessId);
+  const unitHpp = catalogUnitCost(
+    { product_id: productId, product_name_snapshot: productName },
+    products
+      .filter((p) => p.cost != null && p.cost > 0)
+      .map((p) => ({ id: p.id, name: p.name, cost: Number(p.cost) })),
+    current.catatan,
+  );
   const { error: itemErr } = await db
     .from("order_items")
     .update({
@@ -389,7 +398,8 @@ export async function updateOrder(
       harga_jual: price,
       product_id: productId,
       product_name_snapshot: productName,
-      laba: (price - 0) * qty,
+      hpp: unitHpp,
+      laba: (price - unitHpp) * qty,
     })
     .eq("id", item.id);
   if (itemErr) throw new SalesError(itemErr.message, "order_update");
@@ -399,6 +409,8 @@ export async function updateOrder(
     .update({
       total,
       diskon: discount,
+      hpp: unitHpp * qty,
+      laba: total - unitHpp * qty,
       metode_bayar: patch.paymentMethod ?? current.metode_bayar,
       payment_status: patch.paymentStatus ?? current.payment_status,
       catatan: patch.notes !== undefined ? patch.notes : current.catatan,

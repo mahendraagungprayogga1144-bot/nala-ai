@@ -569,12 +569,15 @@ async function orderCustomerName(
 async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind, from?: string, to?: string) {
   const report = await buildSalesReport(db, actor, { kind, from, to });
   const products = report.byProduct.map((p) => `${p.name}:\n${p.qty} pcs`).join("\n\n");
-  const top = report.ranking
-    .slice(0, 5)
-    .map((s, i) => `${i + 1}. ${s.nama} — ${s.qty} pcs`)
-    .join("\n");
-  const served = servedByLabel(report.servedBy);
-  const rankBlock = report.ranking.length
+  const showTeam = report.scope !== "self";
+  const top = showTeam
+    ? report.ranking
+        .slice(0, 5)
+        .map((s, i) => `${i + 1}. ${s.nama} — ${s.qty} pcs`)
+        .join("\n")
+    : "";
+  const served = showTeam ? servedByLabel(report.servedBy) : "";
+  const rankBlock = showTeam && report.ranking.length
     ? ["", "TOP SALES", top, "================================"]
     : [];
   const servedBlock = served ? ["", served, "================================"] : [];
@@ -582,7 +585,8 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
     chatId,
     [
       "================================",
-      "REKAP PENJUALAN HENIMA",
+      report.scope === "self" ? "REKAP KAMU" : report.scope === "team" ? "REKAP TIM" : "REKAP PENJUALAN HENIMA",
+      report.scopeLabel,
       report.range.label,
       "",
       `Total transaksi:\n${report.totalOrders}`,
@@ -682,7 +686,7 @@ async function sendPdf(db: SalesDb, actor: Actor, chatId: number, kind: ReportKi
       chatId,
       `henima-rekap-${report.range.from}-${report.range.to}.pdf`,
       bytes,
-      `Rekap ${report.range.label}: ${report.totalQty} pcs · ${fmtRp(report.totalRevenue)}`,
+      `${report.scopeLabel} · ${report.range.label}: ${report.totalQty} pcs · ${fmtRp(report.totalRevenue)}`,
     );
   } catch (err) {
     salesLogError("pdf", err, { staffId: actor.staffId });

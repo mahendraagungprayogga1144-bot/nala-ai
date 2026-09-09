@@ -212,6 +212,8 @@ test("invite share text includes code and how to start", () => {
   assert.match(text, /\/start 43E33258/);
   assert.match(text, /@henimaofficial_bot/);
   assert.match(text, /Andi/);
+  assert.match(text, /PROSEDUR AKTIVASI/);
+  assert.match(text, /Yth\./);
   assert.match(UNLINKED_MSG, /\/start KODE/);
   assert.match(UNLINKED_MSG, /Telegram mereka sendiri/);
 });

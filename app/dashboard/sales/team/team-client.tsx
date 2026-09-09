@@ -298,7 +298,7 @@ export default function TeamClient({
           {actor.nama} · {actor.role} · {actor.businessName}
         </p>
         <p className="mt-2 text-xs text-[#8B8AA0]">
-          Sales mengirim <code>/start KODE</code> di Telegram <strong>mereka sendiri</strong>. Jangan pinjamkan HP/akun Telegram founder — omzet perusahaan hanya terlihat di situ.
+          Sales mengaktifkan akun lewat <code>/start KODE</code> pada Telegram pribadi mereka. Jangan bagikan perangkat atau akun manajemen.
         </p>
         {founder && (
           <div className="mt-3">

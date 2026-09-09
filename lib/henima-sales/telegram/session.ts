@@ -85,7 +85,7 @@ export type BotEffect =
 
 export function connectedStatusText(actor: Actor, extraHelp?: string) {
   const lines = [
-    "Telegram Account: CONNECTED",
+    "Status akun: CONNECTED",
     `Sales: ${actor.nama}`,
     `Role: ${actor.role}`,
     `Bisnis: ${actor.businessName}`,

@@ -18,63 +18,69 @@ export function salesInviteShareText(opts: {
   const code = opts.code.trim().toUpperCase();
   const nama = opts.staffName.trim() || "Sales";
   const brand = opts.brandName.trim() || "Henima Sales";
-  return `Halo ${nama},
+  return `Yth. ${nama},
 
-Ini akun sales *${brand}*. Ikuti 3 langkah ini:
+Selamat bergabung di tim penjualan ${brand}.
 
-1. Buka Telegram *kamu sendiri* (jangan pinjam HP/akun founder), cari @${bot}
-2. Ketik persis (ada spasi):
+Berikut prosedur resmi aktivasi akun sales Anda. Mohon diikuti secara berurutan.
+
+PROSEDUR AKTIVASI
+1. Buka Telegram pada akun pribadi Anda. Jangan menggunakan perangkat atau akun manajemen.
+2. Cari dan buka percakapan resmi: @${bot}
+3. Kirim perintah aktivasi berikut secara persis (termasuk spasi):
 /start ${code}
-3. Tunggu bot bilang CONNECTED
+4. Tunggu konfirmasi sistem: CONNECTED
 
-Habis CONNECTED, catat penjualan dengan chat biasa, contoh:
+Kode undangan ini bersifat rahasia, berlaku untuk satu orang, dan hanya dapat digunakan di Telegram Anda sendiri. Dilarang dibagikan kepada pihak lain.
+
+PENCATATAN PENJUALAN
+Setelah status CONNECTED, catat transaksi dengan format standar perusahaan:
+
 laku 1 harga 130rb atas nama Regan no 087712345678 tf
 
-Retail katalog Rp199.999. Ketik harga yang dibayar (130.000 / 130rb) — nota otomatis SUBTOTAL − DISKON % dan potongan.
-Bisa juga tulis persen: laku 1 harga 199.999 diskon 20% atas nama Sinta no 08xxxxxxxxxx qris
+Harga retail katalog Rp199.999. Tuliskan harga yang dibayar pelanggan. Sistem akan menghitung diskon dan potongan secara otomatis.
+Contoh persentase: laku 1 harga 199.999 diskon 20% atas nama Sinta no 08xxxxxxxxxx qris
 
-Paket 2 produk (Afternoon + The Distance):
+Paket Afternoon + The Distance:
 laku 2 paket new member harga 250k atas nama Dimas no 08xxxxxxxxxx qris
 
-Metode bayar: ketik tf / qris / cash / lainnya (bot juga tanya kalau belum disebutkan)
+Metode pembayaran: tf / qris / cash / lainnya. Apabila belum disebutkan, sistem akan menanyakan.
 
-Bisa juga ketik: afternoon dan the distance
-
-Cek hasil kapan saja:
+PEMANTAUAN
 rekapan hari ini
 riwayat
 nota regan
 target / targetku
 
-Jangan kirim kode ini ke orang lain. Kalau gagal, minta founder kode baru.`;
+Apabila aktivasi gagal, hubungi manajemen untuk penerbitan kode undangan baru. Terima kasih.`;
 }
 
-export const UNLINKED_MSG = `Telegram Anda belum terdaftar.
+export const UNLINKED_MSG = `Akun Telegram Anda belum terdaftar pada sistem penjualan.
 
-Minta kode undangan ke founder, lalu ketik:
+Silakan minta kode undangan resmi kepada manajemen, kemudian kirim:
 /start KODE
 
 Contoh: /start 43E33258
 
-Satu kode hanya untuk 1 orang.
-Sales wajib /start di Telegram mereka sendiri — jangan pakai HP atau akun founder.`;
+Satu kode hanya berlaku untuk satu orang.
+Sales wajib mengirim /start di Telegram mereka sendiri. Jangan menggunakan perangkat atau akun manajemen.`;
 
 export function salesHowToText() {
-  return `Cara pakai (jangan bingung):
+  return `PEDOMAN OPERASIONAL
 
-CATAT PENJUALAN — ketik seperti chat biasa:
+Pencatatan penjualan — ketik dalam satu pesan, format standar:
 laku 1 harga 130rb atas nama NamaCustomer no 08xxxxxxxxxx tf
 
-Harga retail katalog Rp199.999. Kalau customer bayar 130.000, nota otomatis DISKON 35% (Rp69.999).
-Bisa juga tulis persen: laku 1 harga 199.999 diskon 20% atas nama Sinta no 08xxxxxxxxxx qris
+Harga retail katalog Rp199.999. Apabila pelanggan membayar Rp130.000, sistem mencatat DISKON 35% (Rp69.999) secara otomatis.
+Contoh persentase: laku 1 harga 199.999 diskon 20% atas nama Sinta no 08xxxxxxxxxx qris
 
-Paket 2 produk (Afternoon + The Distance) cukup satu chat:
+Paket Afternoon + The Distance dalam satu transaksi:
 laku 2 paket new member harga 250k atas nama NamaCustomer no 08xxxxxxxxxx qris
-atau ketik: afternoon dan the distance
+atau: afternoon dan the distance
 
-Metode bayar: tf (transfer), qris, cash, atau lainnya. Kalau belum disebut, bot tanya dulu.
+Metode pembayaran: tf (transfer), qris, cash, atau lainnya. Jika belum disebutkan, sistem akan menanyakan.
 
-CEK HASIL:
+Laporan dan dokumen:
 rekapan hari ini
 rekap minggu ini
 pdf bulan ini
@@ -83,8 +89,8 @@ pdf bulan lalu
 pdf setahun
 pdf 2025
 riwayat
-nota (invoice customer, contoh: nota regan)
-target / targetku (ada indikator tercapai)
+nota (contoh: nota regan)
+target / targetku
 
-Masih bisa pakai /input /help kalau perlu.`;
+Perintah cadangan: /input /help`;
 }

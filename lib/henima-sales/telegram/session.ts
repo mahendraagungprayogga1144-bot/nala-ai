@@ -126,7 +126,7 @@ riwayat / history
 nota regan / invoice
 target / targetku
 
-Belum CONNECTED? Minta kode ke founder, lalu /start KODE`;
+Belum CONNECTED? Minta kode 8 karakter ke manajemen, lalu /start 43E33258`;
 
 export function newDraft(): Draft {
   return { paymentStatus: "PAID" };

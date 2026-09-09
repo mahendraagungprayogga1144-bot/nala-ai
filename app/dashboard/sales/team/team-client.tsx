@@ -339,18 +339,18 @@ export default function TeamClient({
               <p className="font-medium">{s.nama}</p>
               <p className="text-[11px] text-[#8B8AA0]">
                 {s.role} · {s.status} · Telegram: {s.telegram_user_id ? "CONNECTED" : "belum"}
-                {s.role !== "FOUNDER" && s.invite_code ? ` · kode ${s.invite_code}` : ""}
-                {s.role === "FOUNDER" ? " · Telegram founder terkunci" : ""}
+                {s.invite_code && (s.role !== "FOUNDER" || !s.telegram_user_id) ? ` · kode ${s.invite_code}` : ""}
+                {s.role === "FOUNDER" && s.telegram_user_id ? " · Telegram founder terkunci" : ""}
               </p>
             </div>
             {actor.role !== "SALES" && (
               <div className="flex flex-wrap gap-3">
-                {s.role !== "FOUNDER" && s.invite_code && (
+                {s.invite_code && (s.role !== "FOUNDER" || !s.telegram_user_id) && (
                   <button type="button" onClick={() => copyInvite(s.nama, s.invite_code!)} className="text-xs text-[#2DD4BF]">
                     Salin panduan + kode
                   </button>
                 )}
-                {s.role !== "FOUNDER" && (
+                {(s.role !== "FOUNDER" || !s.telegram_user_id) && (
                 <button type="button" onClick={() => rotate(s.id)} className="text-xs text-[#2DD4BF]">
                   Buat kode undangan
                 </button>

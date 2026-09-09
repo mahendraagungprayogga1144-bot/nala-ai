@@ -76,12 +76,12 @@ export async function rotateInvite(db: SalesDb, actor: Actor, staffId: string) {
   if (actor.role === "SALES" && staffId !== actor.staffId) throw new ForbiddenError();
   const { data: current } = await db
     .from("module_sales_staff")
-    .select("id, role")
+    .select("id, role, telegram_user_id")
     .eq("id", staffId)
     .eq("business_id", actor.businessId)
     .maybeSingle();
-  if (current?.role === "FOUNDER") {
-    throw new ForbiddenError("Akun founder tidak memakai kode undangan. Jangan bagikan Telegram founder ke sales.");
+  if (current?.role === "FOUNDER" && current.telegram_user_id) {
+    throw new ForbiddenError("Akun founder sudah terkunci di Telegram. Jangan bagikan Telegram founder ke sales.");
   }
   const code = newInviteCode();
   const { data, error } = await db

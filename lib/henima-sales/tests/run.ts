@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
-import { staffScopeIds, canAccessStaff, assertTelegramInviteAllowed } from "../authz";
+import { staffScopeIds, canAccessStaff, assertTelegramInviteAllowed, normalizeInviteCode, isPlaceholderInviteCode } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow, namedYearWindow } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
@@ -228,8 +228,12 @@ test("invite share text includes code and how to start", () => {
   assert.match(text, /Andi/);
   assert.match(text, /PROSEDUR AKTIVASI/);
   assert.match(text, /Yth\./);
-  assert.match(UNLINKED_MSG, /\/start KODE/);
+  assert.match(UNLINKED_MSG, /\/start 43E33258/);
+  assert.match(UNLINKED_MSG, /jangan ketik kata KODE/);
   assert.match(UNLINKED_MSG, /Telegram mereka sendiri/);
+  assert.equal(normalizeInviteCode(" 43e-33258 "), "43E33258");
+  assert.equal(isPlaceholderInviteCode("KODE"), true);
+  assert.equal(isPlaceholderInviteCode("43E33258"), false);
 });
 
 test("telegram unlinked user cannot input", () => {
@@ -237,7 +241,7 @@ test("telegram unlinked user cannot input", () => {
   assert.equal(out.effects[0].type, "reply");
   if (out.effects[0].type === "reply") {
     assert.match(out.effects[0].reply.text, /belum terdaftar/i);
-    assert.match(out.effects[0].reply.text, /\/start KODE/);
+    assert.match(out.effects[0].reply.text, /\/start 43E33258/);
   }
 });
 

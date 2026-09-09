@@ -170,7 +170,14 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
           next = { state: "idle", draft: newDraft() };
           await sendMessage(chatId, connectedStatusText(actor));
         } catch (err) {
-          await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak valid.");
+          if (actor) {
+            await sendMessage(
+              chatId,
+              `Akun ini sudah CONNECTED sebagai ${actor.nama} (${actor.role}).\n\nKode undangan hanya untuk sales baru di Telegram mereka sendiri.\nUntuk cek status Anda, ketik /start tanpa kode.`,
+            );
+          } else {
+            await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak ditemukan.");
+          }
         }
       } else if (effect.type === "confirm_sale" && actor) {
         await runConfirm(db, actor, chatId, next);

@@ -181,6 +181,14 @@ export async function resolveActorByTelegramId(db: SalesDb, telegramUserId: numb
   return actor;
 }
 
+export function normalizeInviteCode(raw: string) {
+  return (raw || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+export function isPlaceholderInviteCode(raw: string) {
+  return /^(KODE|CODE|UNDANGAN|XXXX+)$/.test(normalizeInviteCode(raw));
+}
+
 export function assertTelegramInviteAllowed(opts: {
   inviteRole: string;
   inviteStaffId: string;
@@ -215,14 +223,23 @@ export async function linkTelegramByInvite(
   telegramUserId: number,
   telegramName: string,
 ): Promise<Actor> {
-  const code = inviteCode.trim().toUpperCase();
+  const code = normalizeInviteCode(inviteCode);
+  if (!code || isPlaceholderInviteCode(code)) {
+    throw new NotFoundError(
+      "Jangan ketik kata KODE. Salin kode 8 karakter dari manajemen, lalu kirim persis:\n/start 43E33258",
+    );
+  }
   const { data: staff } = await db
     .from("module_sales_staff")
     .select("*")
-    .eq("invite_code", code)
+    .ilike("invite_code", code)
     .neq("status", "disabled")
     .maybeSingle();
-  if (!staff) throw new NotFoundError("Kode undangan tidak valid.");
+  if (!staff) {
+    throw new NotFoundError(
+      "Kode undangan tidak ditemukan. Pastikan disalin persis dari dashboard Tim (8 karakter). Contoh: /start 43E33258",
+    );
+  }
 
   const { data: taken } = await db
     .from("module_sales_staff")

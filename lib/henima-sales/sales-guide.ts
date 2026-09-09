@@ -57,10 +57,8 @@ Apabila aktivasi gagal, hubungi manajemen untuk penerbitan kode undangan baru. T
 
 export const UNLINKED_MSG = `Akun Telegram Anda belum terdaftar pada sistem penjualan.
 
-Silakan minta kode undangan resmi kepada manajemen, kemudian kirim:
-/start KODE
-
-Contoh: /start 43E33258
+Minta kode 8 karakter kepada manajemen, lalu kirim persis (ganti angkanya, jangan ketik kata KODE):
+/start 43E33258
 
 Satu kode hanya berlaku untuk satu orang.
 Sales wajib mengirim /start di Telegram mereka sendiri. Jangan menggunakan perangkat atau akun manajemen.`;

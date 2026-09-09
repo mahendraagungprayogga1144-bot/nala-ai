@@ -189,6 +189,51 @@ export function demoCampaigns(): DemoCampaign[] {
       impressions: 61000,
       invested_capital: 4_000_000,
     }),
+    campaign({
+      id: "cmp-04",
+      name: "Henima Afternoon — Prospecting",
+      quantity: 60,
+      ad_spend: 450000,
+      clicks: 5200,
+      impressions: 128000,
+      invested_capital: 7_000_000,
+    }),
+    campaign({
+      id: "cmp-05",
+      name: "Henima Afternoon — Retargeting",
+      quantity: 40,
+      ad_spend: 900000,
+      clicks: 2400,
+      impressions: 41000,
+      invested_capital: 5_200_000,
+    }),
+    campaign({
+      id: "cmp-06",
+      name: "Henima Afternoon — Video View",
+      quantity: 25,
+      ad_spend: 980000,
+      clicks: 1900,
+      impressions: 86000,
+      invested_capital: 3_400_000,
+    }),
+    campaign({
+      id: "cmp-07",
+      name: "Henima Afternoon — Catalog Ads",
+      quantity: 55,
+      ad_spend: 400000,
+      clicks: 3100,
+      impressions: 54000,
+      invested_capital: 6_100_000,
+    }),
+    campaign({
+      id: "cmp-08",
+      name: "Henima Afternoon — Spark Ads",
+      quantity: 35,
+      ad_spend: 700000,
+      clicks: 2100,
+      impressions: 47000,
+      invested_capital: 4_800_000,
+    }),
   ];
 }
 
@@ -286,14 +331,36 @@ export function demoTotals(campaigns: DemoCampaign[]): ProfitCalcResult {
 export function demoDaily(campaigns: DemoCampaign[]) {
   const days = ["03", "04", "05", "06", "07", "08", "09"];
   const totals = demoTotals(campaigns);
+  const qty = totals.quantity;
+  const spend = totals.advertising.ad_spend;
+  const qtyW = [0.1, 0.12, 0.11, 0.16, 0.18, 0.19, 0.14];
+  const spendW = [0.07, 0.1, 0.13, 0.12, 0.2, 0.24, 0.14];
   return days.map((d, i) => {
-    const weight = [0.11, 0.13, 0.12, 0.15, 0.16, 0.17, 0.16][i]!;
+    const q = Math.max(1, Math.round(qty * qtyW[i]!));
+    const ad = Math.round(spend * spendW[i]!);
+    const draft = henimaAfternoonInput({
+      quantity: q,
+      advertising: {
+        ad_spend: ad,
+        attributed_revenue: 0,
+        ad_orders: q,
+        clicks: q * 38,
+        impressions: q * 880,
+      },
+      invested_capital: Math.round(totals.invested_capital * qtyW[i]!),
+    });
+    const net = calculateProfit({
+      ...draft,
+      advertising: { ...draft.advertising, ad_spend: 0, attributed_revenue: 0 },
+    }).revenue.net_revenue;
+    draft.advertising.attributed_revenue = net;
+    const r = calculateProfit(draft);
     return {
       date: `Sep ${d}`,
-      revenue: Math.round(totals.revenue.net_revenue * weight),
-      ad_spend: Math.round(totals.advertising.ad_spend * weight),
-      net_profit: Math.round(totals.net_profit * weight),
-      contribution: Math.round(totals.contribution_profit * weight),
+      revenue: r.revenue.net_revenue,
+      ad_spend: r.advertising.ad_spend,
+      net_profit: r.net_profit,
+      contribution: r.contribution_profit,
     };
   });
 }

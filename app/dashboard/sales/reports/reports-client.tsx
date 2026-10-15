@@ -101,9 +101,9 @@ export default function ReportsClient({ initial }: { initial: Report }) {
         {[
           ["Total Orders", String(data.totalOrders)],
           ["Total Quantity", String(data.totalQty)],
-          ["Omzet penjualan", fmtRp(data.grossRevenue ?? data.totalRevenue)],
+          ["Omzet penjualan", fmtRp(data.totalRevenue)],
           ["Biaya operasional", fmtRp(data.opexTotal || 0)],
-          ["Omzet bersih", fmtRp(data.totalRevenue)],
+          ["Laba bersih", fmtRp(data.profitTotal || 0)],
           ["AOV", fmtRp(data.aov)],
           ["New Customers", String(data.newCustomers)],
           ["Repeat Customers", String(data.repeatCustomers)],

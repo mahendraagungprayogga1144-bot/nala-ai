@@ -644,9 +644,9 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
       "",
       products,
       "",
-      `Omzet penjualan:\n${fmtRp(report.grossRevenue ?? report.totalRevenue)}`,
+      `Omzet penjualan:\n${fmtRp(report.totalRevenue)}`,
       report.opexTotal
-        ? `\nBiaya operasional:\n${fmtRp(report.opexTotal)}\n\nOmzet bersih:\n${fmtRp(report.totalRevenue)}\n\nProfit:\n${fmtRp(report.profitTotal || 0)}\n================================`
+        ? `\nHPP:\n${fmtRp(report.hppTotal || 0)}\n\nLaba kotor:\n${fmtRp(report.grossProfit ?? (report.profitTotal || 0) + report.opexTotal)}\n\nBiaya operasional:\n${fmtRp(report.opexTotal)}\n\nLaba bersih:\n${fmtRp(report.profitTotal || 0)}\n================================`
         : `\nOmzet:\n${fmtRp(report.totalRevenue)}\n================================`,
       ...rankBlock,
       ...servedBlock,
@@ -737,7 +737,7 @@ async function sendPdf(db: SalesDb, actor: Actor, chatId: number, kind: ReportKi
       chatId,
       `henima-rekap-${report.range.from}-${report.range.to}.pdf`,
       bytes,
-      `${report.scopeLabel} · ${report.range.label}: ${report.totalQty} pcs · ${fmtRp(report.totalRevenue)}`,
+      `${report.scopeLabel} · ${report.range.label}: ${report.totalQty} pcs · omzet ${fmtRp(report.totalRevenue)} · laba ${fmtRp(report.profitTotal || 0)}`,
     );
   } catch (err) {
     salesLogError("pdf", err, { staffId: actor.staffId });

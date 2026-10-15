@@ -40,6 +40,15 @@ export function servedByLabel(rows: { nama: string }[]) {
 
 export type ReportScope = "self" | "team" | "company";
 
+/** Omzet penjualan tidak dipotong biaya. Biaya hanya memotong laba. */
+export function companyPnl(opts: { revenue: number; hpp: number; opex: number }) {
+  const omzet = Math.round(Number(opts.revenue) || 0);
+  const hpp = Math.round(Number(opts.hpp) || 0);
+  const opex = Math.round(Number(opts.opex) || 0);
+  const labaKotor = omzet - hpp;
+  return { omzet, hpp, opex, labaKotor, labaBersih: labaKotor - opex };
+}
+
 /** SALES = closing sendiri. LEADER = tim. FOUNDER = perusahaan. Device tidak mengubah scope. */
 export function reportScope(actor: Actor): { scope: ReportScope; label: string } {
   if (actor.role === "SALES") return { scope: "self", label: `Omzet ${actor.nama}` };
@@ -294,7 +303,7 @@ export async function buildSalesReport(
   const expenses = await listExpenses(db, actor, { from: range.from, to: range.to });
   const opexTotal = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
   const applyOpex = scope === "company" && !opts.salesId;
-  const netRevenue = applyOpex ? totalRevenue - opexTotal : totalRevenue;
+  const grossProfit = profitTotal;
   if (applyOpex) profitTotal -= opexTotal;
 
   return {
@@ -305,8 +314,9 @@ export async function buildSalesReport(
     pendingOrders: orders.filter((o) => o.payment_status === "PENDING").length,
     cancelledOrders: orders.filter((o) => o.payment_status === "CANCELLED").length,
     totalQty,
-    totalRevenue: netRevenue,
+    totalRevenue,
     grossRevenue: totalRevenue,
+    grossProfit,
     opexTotal: applyOpex ? opexTotal : 0,
     expenses: applyOpex ? expenses.map((e) => ({ date: e.expense_date, note: e.note || "Operasional", amount: e.amount })) : [],
     aov,

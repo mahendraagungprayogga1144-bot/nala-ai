@@ -13,6 +13,7 @@ type Report = {
   totalRevenue: number;
   aov: number;
   grossRevenue?: number;
+  grossProfit?: number;
   opexTotal?: number;
   expenses?: { date: string; note: string; amount: number }[];
   cashTotal?: number;
@@ -194,14 +195,14 @@ export default function DashboardClient({
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Omzet penjualan" value={fmtRp(data.grossRevenue ?? data.totalRevenue)} />
+        <Kpi label="Omzet penjualan" value={fmtRp(data.totalRevenue)} />
+        <Kpi label="HPP" value={fmtRp(data.hppTotal || 0)} />
+        <Kpi label="Laba kotor" value={fmtRp(data.grossProfit ?? data.profitTotal ?? 0)} />
         <Kpi label="Biaya operasional" value={fmtRp(data.opexTotal || 0)} />
-        <Kpi label="Omzet bersih" value={fmtRp(data.totalRevenue)} />
-        <Kpi label="Profit" value={fmtRp(data.profitTotal || 0)} />
+        <Kpi label="Laba bersih" value={fmtRp(data.profitTotal || 0)} />
         <Kpi label="Total pcs" value={String(data.totalQty)} />
         <Kpi label="Total transaksi" value={String(data.totalOrders)} />
         <Kpi label="AOV" value={fmtRp(data.aov)} />
-        <Kpi label="HPP" value={fmtRp(data.hppTotal || 0)} />
         <Kpi label="Cash" value={fmtRp(data.cashTotal || 0)} />
         <Kpi label="Transfer" value={fmtRp(data.transferTotal || 0)} />
         <Kpi label="QRIS" value={fmtRp(data.qrisTotal || 0)} />

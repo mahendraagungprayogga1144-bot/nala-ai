@@ -12,7 +12,7 @@ import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
-import { splitSalesRanking, servedByLabel, reportScope } from "../report-service";
+import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
 import { staffOffboardingFields } from "../staff-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
@@ -138,6 +138,13 @@ test("RBAC scope founder/leader/sales", () => {
       incomingTelegramUserId: 42,
     }),
   );
+});
+
+test("opex cuts profit not omzet", () => {
+  const pnl = companyPnl({ revenue: 400000, hpp: 100000, opex: 700000 });
+  assert.equal(pnl.omzet, 400000);
+  assert.equal(pnl.labaKotor, 300000);
+  assert.equal(pnl.labaBersih, -400000);
 });
 
 test("offboarding clears telegram and invite", () => {
@@ -1063,8 +1070,9 @@ buildSalesNotaPdf(embedPayload)
         pendingOrders: 0,
         cancelledOrders: 0,
         totalQty: 3,
-        totalRevenue: 300000,
+        totalRevenue: 400000,
         grossRevenue: 400000,
+        grossProfit: 200000,
         opexTotal: 100000,
         expenses: [{ date: "2026-08-01", note: "bensin", amount: 100000 }],
         aov: 200000,
@@ -1112,7 +1120,7 @@ buildSalesNotaPdf(embedPayload)
         qrisTotal: 0,
         cashlessTotal: 250000,
         hppTotal: 200000,
-        profitTotal: 200000,
+        profitTotal: 100000,
         newCustomers: 2,
         repeatCustomers: 0,
         followSummary: {},

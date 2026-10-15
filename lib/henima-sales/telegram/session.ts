@@ -80,6 +80,8 @@ export type BotEffect =
   | { type: "send_nota"; orderId?: string; query?: string }
   | { type: "send_riwayat" }
   | { type: "send_target" }
+  | { type: "save_expense"; amount: number; note: string; expenseDate?: string }
+  | { type: "send_expenses"; kind: string; from?: string; to?: string }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 
@@ -109,6 +111,7 @@ export const HELP_TEXT = `Perintah Henima Sales:
 /followup — buat reminder
 /pdf — laporan PDF
 /nota — nota / invoice customer (contoh: nota regan)
+/biaya — catat pengeluaran operasional
 /help — bantuan
 
 Sales cukup pakai Telegram. Bahasa bebas, contoh:
@@ -125,6 +128,8 @@ pdf setahun / pdf 2025 / pdf tahun lalu
 riwayat / history
 nota regan / invoice
 target / targetku
+pengeluaran 100rb buat bensin
+biaya hari ini
 
 Belum CONNECTED? Minta kode 8 karakter ke manajemen, lalu /start 43E33258`;
 

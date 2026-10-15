@@ -21,6 +21,8 @@ type Report = {
   qrisTotal?: number;
   hppTotal?: number;
   profitTotal?: number;
+  opexTotal?: number;
+  grossRevenue?: number;
 };
 
 export default function ReportsClient({ initial }: { initial: Report }) {
@@ -99,7 +101,9 @@ export default function ReportsClient({ initial }: { initial: Report }) {
         {[
           ["Total Orders", String(data.totalOrders)],
           ["Total Quantity", String(data.totalQty)],
-          ["Total Revenue", fmtRp(data.totalRevenue)],
+          ["Omzet penjualan", fmtRp(data.grossRevenue ?? data.totalRevenue)],
+          ["Biaya operasional", fmtRp(data.opexTotal || 0)],
+          ["Omzet bersih", fmtRp(data.totalRevenue)],
           ["AOV", fmtRp(data.aov)],
           ["New Customers", String(data.newCustomers)],
           ["Repeat Customers", String(data.repeatCustomers)],

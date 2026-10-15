@@ -78,6 +78,11 @@ atau: afternoon dan the distance
 
 Metode pembayaran: tf (transfer), qris, cash, atau lainnya. Jika belum disebutkan, sistem akan menanyakan.
 
+Biaya operasional — potong omzet bersih dan profit perusahaan:
+pengeluaran 100rb buat bensin
+kemarin biaya 50rb untuk packing
+biaya hari ini
+
 Laporan dan dokumen:
 rekapan hari ini
 rekap minggu ini

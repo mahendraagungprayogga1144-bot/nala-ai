@@ -159,11 +159,11 @@ export async function buildSalesReportPdf(opts: {
     ["TRANSAKSI", String(r.totalOrders)],
     ["QTY", `${r.totalQty} pcs`],
     ["OMZET", rp(r.totalRevenue)],
-    ["CASH", rp(r.cashTotal || 0)],
-    ["TRANSFER", rp(r.transferTotal || 0)],
-    ["QRIS", rp(r.qrisTotal || 0)],
+    ["BIAYA", rp(r.opexTotal || 0)],
     ["HPP", rp(r.hppTotal || 0)],
     ["PROFIT", rp(r.profitTotal || 0)],
+    ["CASH", rp(r.cashTotal || 0)],
+    ["QRIS", rp(r.qrisTotal || 0)],
   ];
   const boxW = (RIGHT - LEFT - 18) / 8;
   kpis.forEach((kpi, i) => {
@@ -296,6 +296,22 @@ export async function buildSalesReportPdf(opts: {
   rightText(page, rp(r.profitTotal || 0), RIGHT, y, 9, sansBold);
   y -= 22;
 
+  if ((r.expenses || []).length) {
+    need(28 + r.expenses.length * 12);
+    T(page, "BIAYA OPERASIONAL", LEFT, y, 9, sansBold);
+    y -= 14;
+    for (const e of r.expenses.slice(0, 20)) {
+      need(16);
+      T(page, fmtDateId(e.date), LEFT, y, 8, sans);
+      clip(page, e.note, LEFT + 80, y, 8, sans, 420);
+      rightText(page, rp(e.amount), RIGHT, y, 8, sansBold);
+      y -= 12;
+    }
+    T(page, "TOTAL BIAYA", LEFT, y, 8, sansBold, TEAL);
+    rightText(page, rp(r.opexTotal || 0), RIGHT, y, 8, sansBold, TEAL);
+    y -= 18;
+  }
+
   need(70);
   T(page, "PRODUK", LEFT, y, 9, sansBold);
   const showTeam = r.scope !== "self";
@@ -327,6 +343,8 @@ export function reportToCsv(report: SalesReport) {
     `transaksi,${report.totalOrders}`,
     `pcs,${report.totalQty}`,
     `omzet,${report.totalRevenue}`,
+    `omzet_penjualan,${report.grossRevenue ?? report.totalRevenue}`,
+    `biaya,${report.opexTotal || 0}`,
     `cash,${report.cashTotal || 0}`,
     `transfer,${report.transferTotal || 0}`,
     `qris,${report.qrisTotal || 0}`,

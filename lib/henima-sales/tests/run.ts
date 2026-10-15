@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope } from "../report-service";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
@@ -365,6 +365,31 @@ test("idle chat sale fills draft instead of help", () => {
   assert.equal(out.session.draft.customerName?.toLowerCase(), "regan");
   assert.equal(out.session.draft.productName, "Afternoon × 1");
   assert.equal(out.session.draft.nlChat, true);
+});
+
+test("expense chat records operational cost", () => {
+  const parsed = parseExpenseChat("pengeluaran 100rb buat bensin");
+  assert.equal(parsed.looksLike, true);
+  assert.equal(parsed.amount, 100000);
+  assert.match(parsed.note, /bensin/i);
+  assert.equal(parseExpenseChat("pengluaran 100rb untuk packing").amount, 100000);
+  assert.deepEqual(parseOpsIntent("pengeluaran 100rb buat ojek"), {
+    type: "expense",
+    amount: 100000,
+    note: "ojek",
+    yesterday: false,
+  });
+  assert.equal(parseOpsIntent("biaya hari ini").type, "expense_list");
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "hari ini pengeluaran 100rb buat bensin" },
+    { actor: founder, products: [] },
+  );
+  assert.equal(out.effects[0].type, "save_expense");
+  if (out.effects[0].type === "save_expense") {
+    assert.equal(out.effects[0].amount, 100000);
+    assert.match(out.effects[0].note, /bensin/i);
+  }
 });
 
 test("targetku per sales is a target intent", () => {
@@ -1027,7 +1052,10 @@ buildSalesNotaPdf(embedPayload)
         pendingOrders: 0,
         cancelledOrders: 0,
         totalQty: 3,
-        totalRevenue: 400000,
+        totalRevenue: 300000,
+        grossRevenue: 400000,
+        opexTotal: 100000,
+        expenses: [{ date: "2026-08-01", note: "bensin", amount: 100000 }],
         aov: 200000,
         byProduct: [{ name: "Afternoon", qty: 2, omzet: 250000 }],
         byPay: { CASH: 150000, TRANSFER: 250000, QRIS: 0, OTHER: 0 },

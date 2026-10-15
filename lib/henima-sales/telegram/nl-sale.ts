@@ -25,8 +25,13 @@ export type OpsIntent =
   | { type: "nota"; query?: string }
   | { type: "riwayat" }
   | { type: "target" }
+  | { type: "expense"; amount: number; note: string; yesterday?: boolean }
+  | { type: "expense_list"; period: ReportPeriod; from?: string; to?: string }
   | { type: "help" }
   | { type: "none" };
+
+const EXPENSE_HINT =
+  /\b(pengeluaran|pengluaran|pengeluran|pengeluaranan|opex|operasional|biaya(?:\s+ops|\s+operasional)?|expense|spent|keluar(?:an)?(?:\s+(?:duit|uang|biaya))?)\b/i;
 
 const MONTH_ALIASES: { month: number; names: string[] }[] = [
   { month: 1, names: ["januari", "january", "jan"] },
@@ -96,10 +101,54 @@ export function periodFromText(t: string): { period: ReportPeriod; from?: string
   return { period: "today" };
 }
 
+export function parseExpenseChat(text: string): { looksLike: boolean; amount: number | null; note: string; yesterday: boolean } {
+  const raw = (text || "").replace(/\s+/g, " ").trim();
+  const lower = raw.toLowerCase();
+  const looksLike = EXPENSE_HINT.test(lower) && !looksLikeAskReport(lower);
+  if (!looksLike) return { looksLike: false, amount: null, note: "", yesterday: false };
+  const labeled = lower.match(
+    /(?:pengeluaran|pengluaran|pengeluran|biaya(?:\s+operasional|\s+ops)?|opex|expense|spent|keluar(?:an)?(?:\s+(?:duit|uang|biaya))?)\s*(?:sebesar|nominal|rp|idr|:)?\s*([\d.,]+)\s*(rb|ribu|k|jt|juta)?/i,
+  );
+  const withSuffix = !labeled ? lower.match(/([\d.,]+)\s*(rb|ribu|k|jt|juta)\b/) : null;
+  const rp = !labeled && !withSuffix ? lower.match(/(?:rp|idr)\s*([\d.]+)/) : null;
+  const amount = labeled
+    ? parseIdrAmountToken(labeled[1], labeled[2])
+    : withSuffix
+      ? parseIdrAmountToken(withSuffix[1], withSuffix[2])
+      : rp
+        ? parseIdrAmountToken(rp[1], null)
+        : null;
+  let note = "";
+  const noteM = raw.match(/\b(?:buat|untuk|keperluan|ke|for|karena|bayar)\s+(.{2,80})$/i);
+  if (noteM) note = noteM[1].replace(/[.!?]+$/, "").trim();
+  if (!note) {
+    note = raw
+      .replace(EXPENSE_HINT, " ")
+      .replace(/\b(hari\s+ini|today|kemarin|yesterday|sebesar|nominal|rp|idr)\b/gi, " ")
+      .replace(/[\d.,]+\s*(rb|ribu|k|jt|juta)?/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  if (!note || note.length < 2) note = "Operasional";
+  return { looksLike: true, amount, note: note.slice(0, 120), yesterday: /\b(kemarin|yesterday)\b/.test(lower) };
+}
+
 export function parseOpsIntent(text: string): OpsIntent {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return { type: "none" };
   if (/^(help|bantuan|menu|perintah|aide|ayuda|\?)$/.test(t)) return { type: "help" };
+  const expense = parseExpenseChat(text);
+  if (expense.looksLike) {
+    if (expense.amount && expense.amount > 0) {
+      return {
+        type: "expense",
+        amount: expense.amount,
+        note: expense.note,
+        yesterday: expense.yesterday,
+      };
+    }
+    return { type: "expense_list", ...periodFromText(t) };
+  }
   if (/\b(nota|invoice|kwitansi|struk|receipt)\b/.test(t)) {
     const query = extractNotaQuery(t);
     return query ? { type: "nota", query } : { type: "nota" };

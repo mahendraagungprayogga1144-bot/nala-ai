@@ -5,6 +5,7 @@ import { assertCanAccessStaff, loadTeamIds } from "./authz";
 import { periodRange, type PeriodKind } from "./dates";
 import { listCommissionLedger } from "./commission-service";
 import { backfillMissingSaleHpp, loadCatalogCosts, orderHppTotal } from "./hpp";
+import { listExpenses } from "./expense-service";
 
 export type { PeriodKind as ReportKind } from "./dates";
 export type RankMetric = "quantity" | "revenue" | "count";
@@ -290,6 +291,11 @@ export async function buildSalesReport(
   const { count: testimonialCount } = await testiQ;
 
   const commission = await listCommissionLedger(db, actor, { from: range.from, to: range.to, salesId: opts.salesId });
+  const expenses = await listExpenses(db, actor, { from: range.from, to: range.to });
+  const opexTotal = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const applyOpex = scope === "company" && !opts.salesId;
+  const netRevenue = applyOpex ? totalRevenue - opexTotal : totalRevenue;
+  if (applyOpex) profitTotal -= opexTotal;
 
   return {
     range,
@@ -299,7 +305,10 @@ export async function buildSalesReport(
     pendingOrders: orders.filter((o) => o.payment_status === "PENDING").length,
     cancelledOrders: orders.filter((o) => o.payment_status === "CANCELLED").length,
     totalQty,
-    totalRevenue,
+    totalRevenue: netRevenue,
+    grossRevenue: totalRevenue,
+    opexTotal: applyOpex ? opexTotal : 0,
+    expenses: applyOpex ? expenses.map((e) => ({ date: e.expense_date, note: e.note || "Operasional", amount: e.amount })) : [],
     aov,
     byProduct: Object.values(byProduct).sort((a, b) => b.qty - a.qty),
     byPay,

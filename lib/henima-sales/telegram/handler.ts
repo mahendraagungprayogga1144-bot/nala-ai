@@ -3,6 +3,8 @@ import { todayWib } from "@/lib/date";
 import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
+import { createExpense, listExpenses } from "../expense-service";
+import { periodRange } from "../dates";
 import { listProducts, listStaff } from "../staff-service";
 import { createCustomer, findCustomerByPhone, getCustomer, listCustomers } from "../customer-service";
 import { confirmSale, listOrders, getOrder, softDeleteOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
@@ -178,6 +180,46 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
           } else {
             await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak ditemukan.");
           }
+        }
+      } else if (effect.type === "save_expense" && actor) {
+        const row = await createExpense(db, actor, {
+          amount: effect.amount,
+          note: effect.note,
+          expenseDate: effect.expenseDate,
+        });
+        next = { state: "idle", draft: newDraft() };
+        await sendMessage(
+          chatId,
+          [
+            "Biaya operasional tercatat.",
+            `${fmtDateLongId(row.expense_date)} · ${row.note}`,
+            fmtRp(row.amount),
+            "",
+            "Omzet bersih dan profit perusahaan otomatis berkurang sebesar ini.",
+          ].join("\n"),
+        );
+      } else if (effect.type === "send_expenses" && actor) {
+        const range = periodRange(effect.kind as ReportKind, { from: effect.from, to: effect.to });
+        const rows = await listExpenses(db, actor, { from: range.from, to: range.to });
+        const total = rows.reduce((s, r) => s + r.amount, 0);
+        if (!rows.length) {
+          await sendMessage(
+            chatId,
+            `Belum ada biaya operasional (${range.label}).\nContoh: pengeluaran 100rb buat bensin`,
+          );
+        } else {
+          await sendMessage(
+            chatId,
+            [
+              `BIAYA OPERASIONAL`,
+              range.label,
+              "",
+              ...rows.map((r) => `${fmtDateLongId(r.expense_date)} · ${r.note || "Operasional"} · ${fmtRp(r.amount)}`),
+              "",
+              `Total: ${fmtRp(total)}`,
+              "Angka ini memotong omzet bersih dan profit perusahaan.",
+            ].join("\n"),
+          );
         }
       } else if (effect.type === "confirm_sale" && actor) {
         await runConfirm(db, actor, chatId, next);
@@ -602,8 +644,10 @@ async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: Report
       "",
       products,
       "",
-      `Omzet:\n${fmtRp(report.totalRevenue)}`,
-      "================================",
+      `Omzet penjualan:\n${fmtRp(report.grossRevenue ?? report.totalRevenue)}`,
+      report.opexTotal
+        ? `\nBiaya operasional:\n${fmtRp(report.opexTotal)}\n\nOmzet bersih:\n${fmtRp(report.totalRevenue)}\n\nProfit:\n${fmtRp(report.profitTotal || 0)}\n================================`
+        : `\nOmzet:\n${fmtRp(report.totalRevenue)}\n================================`,
       ...rankBlock,
       ...servedBlock,
       `CUSTOMER BARU:\n${report.newCustomers}`,

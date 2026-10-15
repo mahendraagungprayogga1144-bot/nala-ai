@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { todayWib } from "../../../lib/date";
+import { addDaysYmd } from "../dates";
 import { fmtDateLongId, fmtRp } from "../money";
 import { displayPhone, isSkippedPhone, isUsablePhone } from "../phone";
 import {
@@ -85,6 +86,17 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
               [{ text: "HARI INI", data: "rk:today" }, { text: "MINGGU INI", data: "rk:this_week" }],
               [{ text: "BULAN INI (PDF)", data: "pdf:this_month" }, { text: "BULAN LALU (PDF)", data: "pdf:last_month" }],
             ])),
+          ],
+        };
+      case "/biaya":
+      case "/pengeluaran":
+      case "/opex":
+        return {
+          session: { state: "idle", draft: newDraft() },
+          effects: [
+            reply(
+              "Catat biaya operasional, contoh:\npengeluaran 100rb buat bensin\nkemarin biaya 50rb untuk packing\n\nLihat: biaya hari ini",
+            ),
           ],
         };
       case "/target":
@@ -388,7 +400,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan — bahasa bebas, contoh:\nlaku afternoon 3 the distance 2 harga 149rb atas nama Sinta no 08... qris\nbeli 3 jenis distance harga 120rb atas nama Nicco no 08... tf\n(harga/price = per botol, otomatis × jumlah)\nTanya omzet: berapa yang terjual semuanya · rekapan hari ini\nPaket: 2 pack new member total 250k ...\nBayar: tf / qris / cash / transfer / bank\nAtau: pdf agustus · pdf setahun · nota · history · target · /help";
+  "Kirim chat penjualan — bahasa bebas, contoh:\nlaku afternoon 3 the distance 2 harga 149rb atas nama Sinta no 08... qris\nbeli 3 jenis distance harga 120rb atas nama Nicco no 08... tf\n(harga/price = per botol, otomatis × jumlah)\nTanya omzet: berapa yang terjual semuanya · rekapan hari ini\nPaket: 2 pack new member total 250k ...\nBayar: tf / qris / cash / transfer / bank\nBiaya: pengeluaran 100rb buat bensin · biaya hari ini\nAtau: pdf agustus · pdf setahun · nota · history · target · /help";
 
 function applyNaturalChat(
   session: Session,
@@ -415,6 +427,16 @@ function applyNaturalChat(
   }
   if (ops.type === "target") {
     return { session: idle, effects: [{ type: "send_target" }] };
+  }
+  if (ops.type === "expense") {
+    const expenseDate = ops.yesterday ? addDaysYmd(todayWib(), -1) : todayWib();
+    return {
+      session: idle,
+      effects: [{ type: "save_expense", amount: ops.amount, note: ops.note, expenseDate }],
+    };
+  }
+  if (ops.type === "expense_list") {
+    return { session: idle, effects: [{ type: "send_expenses", kind: ops.period, from: ops.from, to: ops.to }] };
   }
   return applyNaturalSale(session, actor, text, products);
 }

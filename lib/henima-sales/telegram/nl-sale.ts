@@ -168,19 +168,30 @@ export function parseOpsIntent(text: string): OpsIntent {
   if (looksLikeAskReport(t)) {
     const parsed = periodFromText(t);
     if (/\b(pdf|laporan|report)\b/.test(t)) return { type: "pdf", ...parsed };
+    if (looksLikeCompanyFinance(t) && parsed.period === "today" && !/\b(hari\s+ini|today|kemarin|yesterday)\b/.test(t)) {
+      return { type: "pdf", period: "this_month" };
+    }
     return { type: "rekap", ...parsed };
   }
   return { type: "none" };
 }
 
-/** "berapa yang terjual semuanya" → rekap, bukan chat penjualan. */
+export function looksLikeCompanyFinance(text: string) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  return /\b(keuangan|cash\s*flow|cashflow|laporan\s+keuangan|kondisi\s+keuangan|omzet\s+perusahaan|keuangan\s+perusahaan|profit\s+perusahaan)\b/.test(t);
+}
+
+/** "berapa yang terjual semuanya" / "keuangan perusahaan" → rekap, bukan chat penjualan. */
 export function looksLikeAskReport(text: string) {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return false;
   if (/\b(target|pencapaian|tercapai|goal)\b/.test(t)) return false;
+  if (/\b(laku|atas nama|no\.?\s*(telp|hp|wa)|harga\s+[\d.,])\b/.test(t)) return false;
   if (/\b(berapa|how many|how much)\b/.test(t)) return true;
   if (/\b(total|semua(nya)?|keseluruhan)\s+(yang\s+)?(terjual|dijual|laku|sold|omzet|penjualan)\b/.test(t)) return true;
   if (/\b(yang\s+terjual|terjual)\s+(semua(nya)?|total|berapa)\b/.test(t)) return true;
+  if (looksLikeCompanyFinance(t)) return true;
+  if (/^(omzet|penjualan|profit|laba|keuangan)(\s+(hari\s+ini|kemarin|minggu\s+ini|bulan\s+ini|perusahaan))?$/.test(t)) return true;
   return false;
 }
 

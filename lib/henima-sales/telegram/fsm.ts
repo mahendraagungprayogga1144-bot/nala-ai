@@ -400,7 +400,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Kirim chat penjualan — bahasa bebas, contoh:\nlaku afternoon 3 the distance 2 harga 149rb atas nama Sinta no 08... qris\nbeli 3 jenis distance harga 120rb atas nama Nicco no 08... tf\n(harga/price = per botol, otomatis × jumlah)\nTanya omzet: berapa yang terjual semuanya · rekapan hari ini\nPaket: 2 pack new member total 250k ...\nBayar: tf / qris / cash / transfer / bank\nBiaya: pengeluaran 100rb buat bensin · biaya hari ini\nAtau: pdf agustus · pdf setahun · nota · history · target · /help";
+  "Boleh ketik santai, contoh:\nlaku 1 afternoon 130rb atas nama Sinta no 08… qris\npengeluaran 100rb buat bensin\nkeuangan perusahaan\nrekapan hari ini · pdf bulan ini · nota · /help";
 
 function applyNaturalChat(
   session: Session,

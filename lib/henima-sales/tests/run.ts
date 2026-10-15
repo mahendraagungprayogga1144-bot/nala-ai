@@ -426,6 +426,17 @@ test("rekapan hari ini is a rekap intent", () => {
   if (out.effects[0].type === "send_report") assert.equal(out.effects[0].kind, "today");
 });
 
+test("keuangan perusahaan is a company recap", () => {
+  assert.equal(parseOpsIntent("keuangan perusahaan").type, "pdf");
+  assert.equal(parseOpsIntent("omzet").type, "rekap");
+  const out = reduceBot(
+    { state: "idle", draft: newDraft() },
+    { kind: "text", text: "keuangan perusahaan" },
+    { actor: founder, products: [] },
+  );
+  assert.equal(out.effects[0].type, "send_pdf");
+});
+
 test("ask how many sold is a recap not a sale hint", () => {
   const year = namedYearWindow();
   assert.deepEqual(parseOpsIntent("berapa yang terjual semuanya"), {

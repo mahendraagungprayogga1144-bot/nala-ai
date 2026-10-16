@@ -5,7 +5,7 @@ import type { SalesDb } from "../db";
 import { formatCashPosition, CAPABLE_REPLY, fallbackDeskDecision, deskDecisionToEffects, greetingReply } from "./agent";
 import { deskToolsFor, runDeskTool } from "./desk-tools";
 import { mainMenuKeyboard } from "./menu";
-import { looksLikeChitchat } from "./nl-sale";
+import { looksLikeChitchat, needsCompanyData } from "./nl-sale";
 import type { BotEffect, Session } from "./session";
 import { newDraft } from "./session";
 
@@ -48,6 +48,7 @@ export async function runDeskLoop(opts: {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   const idle: Session = { state: "idle", draft: newDraft(), memory: opts.session.memory };
   const chitchat = looksLikeChitchat(opts.text);
+  const talk = chitchat || !needsCompanyData(opts.text);
   if (!key) {
     const fb = fallbackDeskDecision(opts.text, opts.report, opts.actor);
     return deskDecisionToEffects(fb, opts.session, opts.actor, opts.catalog, opts.range);
@@ -57,16 +58,15 @@ export async function runDeskLoop(opts: {
   const messages: ChatMsg[] = [
     {
       role: "system",
-      content: `Kamu asisten operasional Henima Sales, gaya Gercep OS: ngobrol dulu, eksekusi kalau diminta. Jangan markdown. Bahasa user.
-Kalau user hanya sapa (halo/hai/pagi) atau obrolan pendek: balas hangat 1-3 kalimat, tawarkan bantuan. JANGAN dump omzet/HPP/rekap. JANGAN panggil tool.
-Pakai TOOLS hanya jika user minta kerja (uang, tim, pdf, rekrut, catat, harga). Jangan mengarang angka.
-Setelah tool sukses, konfirmasi hasil nyata.
-${snapshotFacts(chitchat ? null : opts.report, opts.actor, opts.catalog, chitchat)}
+      content: `Kamu asisten pribadi founder Henima. Ngobrol natural dulu: ide, strategi, masalah, brainstorm, tulisan. Jangan markdown. Bahasa user.
+Jangan mengarahkan setiap chat ke omzet atau laporan. Panggil TOOLS hanya jika user minta data live, file, tugas, atau ubah perusahaan.
+Jangan mengarang angka. Jangan bilang pekerjaan eksternal selesai kalau tidak ada tool-nya. Shell dan SSH tidak tersedia.
+${snapshotFacts(talk ? null : opts.report, opts.actor, opts.catalog, talk)}
 ${opts.longMemory ? `Memori bisnis:\n${opts.longMemory}` : ""}
 ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.summary}` : ""}`,
     },
   ];
-  if (opts.history && !chitchat) messages.push({ role: "user", content: `Riwayat:\n${opts.history}` });
+  if (opts.history) messages.push({ role: "user", content: `Riwayat:\n${opts.history}` });
   messages.push({ role: "user", content: opts.text.slice(0, 800) });
 
   const extraEffects: BotEffect[] = [];
@@ -82,8 +82,8 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
         signal: controller.signal,
         body: JSON.stringify({
           model: "deepseek-chat",
-          temperature: chitchat ? 0.5 : 0.2,
-          max_tokens: chitchat ? 220 : 500,
+          temperature: talk ? 0.5 : 0.2,
+          max_tokens: talk ? 700 : 500,
           ...(chitchat ? {} : { tools, tool_choice: "auto" }),
           messages,
         }),
@@ -128,6 +128,7 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
   if (!finalText) {
     if (chitchat) finalText = greetingReply(opts.actor);
     else if (extraEffects.length) finalText = "Sudah dikerjakan.";
+    else if (talk) finalText = "Aku di sini. Cerita idenya, atau kasih tugas yang mau dikerjakan.";
     else finalText = formatCashPosition(opts.report);
   }
 

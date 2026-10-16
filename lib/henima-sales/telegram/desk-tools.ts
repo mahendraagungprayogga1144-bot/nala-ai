@@ -9,7 +9,7 @@ import { listOrders } from "../order-service";
 import { createStaff, listProducts, listStaff } from "../staff-service";
 import type { Actor, ProductRow } from "../types";
 import { formatCashPosition } from "./agent";
-import { createAgentTask, salesCsv, saveAgentNote } from "./agent-memory";
+import { createAgentTask, listAgentTasks, salesCsv, salesXlsxBase64, saveAgentNote, setAgentTaskStatus, taskAfterWork, type TaskStatus } from "./agent-memory";
 import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from "./founder-ops";
 import { formatSalesBriefing, formatTeamRoster } from "./menu";
 import type { BotEffect } from "./session";
@@ -86,9 +86,20 @@ export function deskToolsFor(actor: Actor): DeskTool[] {
     fn("lihat_riwayat", "Transaksi terbaru."),
     fn("lihat_target", "Target dan pencapaian."),
     fn("get_sales_transactions", "Daftar transaksi penjualan pada periode.", PERIOD_PROP),
-    fn("generate_spreadsheet", "Kirim CSV penjualan (omzet, HPP, laba kotor).", PERIOD_PROP),
+    fn("generate_spreadsheet", "Kirim Excel XLSX penjualan. format=csv hanya jika user minta csv.", { ...PERIOD_PROP, format: { type: "string", enum: ["xlsx", "csv"] } }),
+    fn("tulis_dokumen", "Kirim dokumen teks (txt atau md): proposal, SOP, briefing, surat, catatan.", {
+      judul: { type: "string" },
+      isi: { type: "string" },
+      format: { type: "string", enum: ["txt", "md"] },
+    }, ["judul", "isi"]),
     fn("save_business_note", "Simpan catatan bisnis jangka panjang.", { content: { type: "string" } }, ["content"]),
-    fn("create_task", "Buat tugas pending.", { title: { type: "string" }, detail: { type: "string" } }, ["title"]),
+    fn("create_task", "Buat tugas status pending.", { title: { type: "string" }, detail: { type: "string" } }, ["title"]),
+    fn("lihat_tugas", "Daftar tugas dengan status menunggu, dikerjakan, selesai, atau gagal."),
+    fn("ubah_tugas", "Ubah status tugas. Jangan completed kalau pekerjaan gagal.", {
+      id: { type: "string" },
+      status: { type: "string", enum: ["pending", "running", "completed", "failed"] },
+      hasil: { type: "string" },
+    }, ["id", "status"]),
     fn("get_sales_summary", "Alias ringkasan penjualan.", PERIOD_PROP),
     fn("calculate_profit", "Hitung omzet, HPP, laba kotor, biaya, laba bersih.", PERIOD_PROP),
   ];
@@ -123,24 +134,50 @@ export async function runDeskTool(rawName: string, rawArgs: unknown, ctx: DeskTo
     if (name === "generate_spreadsheet") {
       const range = rangeFromArgs(args);
       const report = await buildSalesReport(db, actor, { kind: "custom", from: range.from, to: range.to });
-      const csv = salesCsv(
-        report.lines.map((line) => ({
-          date: line.date,
-          customer: line.customerName,
-          qty: line.qty,
-          omzet: line.cash + line.cashless,
-          hpp: line.hpp,
-          laba: line.profit,
-        })),
-      );
+      const rows = report.lines.map((line) => ({
+        date: line.date,
+        customer: line.customerName,
+        qty: line.qty,
+        omzet: line.cash + line.cashless,
+        hpp: line.hpp,
+        laba: line.profit,
+      }));
+      const wantCsv = String(args.format || "xlsx").toLowerCase() === "csv";
+      const opened = await createAgentTask(db, actor, `Excel ${range.label}`, `${rows.length} baris`, "running");
+      try {
+        const file = wantCsv
+          ? { content: salesCsv(rows), filename: `henima-${range.from}-${range.to}.csv`, mime: "text/csv", encoding: "utf8" as const }
+          : {
+              content: salesXlsxBase64(rows),
+              filename: `henima-${range.from}-${range.to}.xlsx`,
+              mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              encoding: "base64" as const,
+            };
+        if (!file.content) throw new Error("file kosong");
+        if (opened.ok) await setAgentTaskStatus(db, actor, opened.id, taskAfterWork(true), `${file.filename} terkirim`);
+        return {
+          text: `${wantCsv ? "CSV" : "Excel"} ${range.label}: ${rows.length} baris. Omzet ${fmtRp(report.totalRevenue)}, laba kotor ${fmtRp(report.grossProfit ?? 0)}.`,
+          effects: [{ type: "send_file", filename: file.filename, content: file.content, mime: file.mime, encoding: file.encoding, caption: `Penjualan ${range.label}` }],
+        };
+      } catch (err) {
+        if (opened.ok) await setAgentTaskStatus(db, actor, opened.id, "failed", err instanceof Error ? err.message : "gagal buat file");
+        return { text: "File gagal dibuat. Tugas ditandai GAGAL." };
+      }
+    }
+    if (name === "tulis_dokumen") {
+      const judul = String(args.judul || "catatan").replace(/[^\w .-]+/g, "").trim().slice(0, 60) || "catatan";
+      const isi = String(args.isi || "").trim();
+      if (isi.length < 2) return { text: "Isi dokumen kosong." };
+      const ext = String(args.format || "md").toLowerCase() === "txt" ? "txt" : "md";
       return {
-        text: `CSV ${range.label}: ${report.lines.length} baris. Omzet ${fmtRp(report.totalRevenue)}, laba kotor ${fmtRp(report.grossProfit ?? 0)}.`,
+        text: `Dokumen ${judul}.${ext} siap dikirim.`,
         effects: [{
           type: "send_file",
-          filename: `henima-${range.from}-${range.to}.csv`,
-          content: csv,
-          mime: "text/csv",
-          caption: `Penjualan ${range.label}`,
+          filename: `${judul}.${ext}`,
+          content: isi,
+          mime: "text/plain",
+          encoding: "utf8",
+          caption: judul,
         }],
       };
     }
@@ -149,7 +186,17 @@ export async function runDeskTool(rawName: string, rawArgs: unknown, ctx: DeskTo
       return { text: saved.message };
     }
     if (name === "create_task") {
-      return { text: await createAgentTask(db, actor, String(args.title || ""), args.detail ? String(args.detail) : undefined) };
+      const made = await createAgentTask(db, actor, String(args.title || ""), args.detail ? String(args.detail) : undefined, "pending");
+      return { text: made.text };
+    }
+    if (name === "lihat_tugas") {
+      const listed = await listAgentTasks(db, actor);
+      return { text: listed.text };
+    }
+    if (name === "ubah_tugas") {
+      const status = String(args.status || "") as TaskStatus;
+      if (!["pending", "running", "completed", "failed"].includes(status)) return { text: "Status harus pending, running, completed, atau failed." };
+      return { text: await setAgentTaskStatus(db, actor, String(args.id || ""), status, args.hasil ? String(args.hasil) : undefined) };
     }
     if (name === "lihat_keuangan") {
       const range = rangeFromArgs(args);

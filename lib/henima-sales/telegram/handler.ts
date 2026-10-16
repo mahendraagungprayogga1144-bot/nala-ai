@@ -25,7 +25,7 @@ import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, pr
 import { shouldUseDeskAgent } from "./agent";
 import { runDeskLoop } from "./desk-loop";
 import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from "./founder-ops";
-import { clearAgentMemory, compactTurns, listAgentMemory, memoryContext, saveAgentNote } from "./agent-memory";
+import { clearAgentMemory, compactTurns, createAgentTask, listAgentMemory, listAgentTasks, memoryContext, saveAgentNote } from "./agent-memory";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
@@ -181,6 +181,13 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       reduced = { session, effects: [{ type: "reply", reply: { text, keyboard: mainMenuKeyboard(actor) } }] };
     } else if (/^(hapus memori|lupakan)$/.test(bare)) {
       reduced = { session, effects: [{ type: "reply", reply: { text: await clearAgentMemory(db, actor) } }] };
+    } else if (/^(lihat tugas|daftar tugas)$/.test(bare)) {
+      const listed = await listAgentTasks(db, actor);
+      reduced = { session, effects: [{ type: "reply", reply: { text: listed.text, keyboard: mainMenuKeyboard(actor) } }] };
+    } else if (/^buat tugas\s+/i.test(incoming.text.trim())) {
+      const title = incoming.text.trim().replace(/^buat tugas\s+/i, "");
+      const made = await createAgentTask(db, actor, title, undefined, "pending");
+      reduced = { session, effects: [{ type: "reply", reply: { text: made.text } }] };
     } else if (/^(ingat|catat)\s+/i.test(incoming.text.trim())) {
       const note = incoming.text.trim().replace(/^(ingat|catat)\s+/i, "");
       const saved = await saveAgentNote(db, actor, telegramUserId, note);
@@ -193,8 +200,8 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   }
   const bareText = incoming.kind === "text" ? incoming.text.trim() : "";
   const memoryHandled =
-    /^(lihat memori|memory|hapus memori|lupakan)$/i.test(bareText) ||
-    /^(ingat|catat)\s+/i.test(bareText) ||
+    /^(lihat memori|memory|hapus memori|lupakan|lihat tugas|daftar tugas)$/i.test(bareText) ||
+    /^(ingat|catat|buat tugas)\s+/i.test(bareText) ||
     (/^(ya|iya|setuju|ok)$/i.test(bareText) && Boolean(session.memory?.pending));
   let founderGate = false;
   if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle" && !memoryHandled) {
@@ -382,8 +389,11 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       } else if (effect.type === "send_briefing" && actor) {
         await sendBriefing(db, actor, chatId, effect.query, effect.kind, effect.from, effect.to);
       } else if (effect.type === "send_file" && actor) {
-        const bytes = new TextEncoder().encode(effect.content);
-        await sendDocument(chatId, effect.filename, bytes, effect.caption, effect.mime || "text/csv");
+        const bytes =
+          effect.encoding === "base64"
+            ? Uint8Array.from(Buffer.from(effect.content, "base64"))
+            : new TextEncoder().encode(effect.content);
+        await sendDocument(chatId, effect.filename, bytes, effect.caption, effect.mime || "text/plain");
       } else if (effect.type === "run_founder" && actor) {
         const text = await executeFounderCommand(db, actor, effect.cmd);
         await sendMessage(chatId, text, mainMenuKeyboard(actor));

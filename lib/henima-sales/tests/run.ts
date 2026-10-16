@@ -10,11 +10,11 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, periodFromText } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, needsCompanyData, periodFromText } from "../telegram/nl-sale";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent, greetingReply } from "../telegram/agent";
 import { parseFounderCommand } from "../telegram/founder-ops";
 import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
-import { compactTurns, redactSecrets, salesCsv } from "../telegram/agent-memory";
+import { compactTurns, formatTaskBoard, redactSecrets, salesCsv, salesXlsxBase64, taskAfterWork } from "../telegram/agent-memory";
 import { needsFounderApproval } from "../telegram/founder-ops";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
@@ -800,6 +800,13 @@ test("agent memory redacts secrets and compacts turns", () => {
   assert.equal(resolveDeskTool("calculate_profit"), "lihat_keuangan");
   assert.equal(needsFounderApproval(parseFounderCommand("harga afternoon 199999")), true);
   assert.equal(needsFounderApproval(parseFounderCommand("tagline Halo")), false);
+  assert.equal(taskAfterWork(true), "completed");
+  assert.equal(taskAfterWork(false), "failed");
+  assert.match(formatTaskBoard([{ id: "abcdef12-0000", title: "Kirim excel", status: "running", created_at: "2026-10-16T10:00:00Z" }]), /DIKERJAKAN/);
+  assert.equal(needsCompanyData("ide campaign parfum tahun depan"), false);
+  assert.equal(needsCompanyData("cek omzet bulan kemarin"), true);
+  const xlsx = salesXlsxBase64([{ date: "2026-10-01", customer: "Sinta", qty: 1, omzet: 130000, hpp: 64500, laba: 65500 }]);
+  assert.equal(Buffer.from(xlsx, "base64").subarray(0, 2).toString(), "PK");
 });
 
 test("desk tools match gercep style by role", () => {

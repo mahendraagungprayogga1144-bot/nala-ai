@@ -273,6 +273,12 @@ export function looksLikeMoneyLeft(text: string) {
   );
 }
 
+export function needsCompanyData(text: string) {
+  return /\b(omzet|laba|hpp|pdf|nota|rekap|rekapan|tim|rekrut|tugas|excel|xlsx|csv|harga|biaya|stok|transaksi|target|keuangan|penjualan|invoice)\b/i.test(
+    text || "",
+  );
+}
+
 export function looksLikeChitchat(text: string) {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim().replace(/[!?.,]+$/g, "");
   if (!t || t.length > 48) return false;

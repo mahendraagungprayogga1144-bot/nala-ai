@@ -97,7 +97,7 @@ export type BotEffect =
   | { type: "send_team" }
   | { type: "send_briefing"; query?: string; kind?: string; from?: string; to?: string }
   | { type: "run_founder"; cmd: FounderCommand }
-  | { type: "send_file"; filename: string; content: string; caption?: string; mime?: string }
+  | { type: "send_file"; filename: string; content: string; caption?: string; mime?: string; encoding?: "utf8" | "base64" }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 

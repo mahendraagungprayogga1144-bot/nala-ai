@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { salesDb } from "@/lib/henima-sales/db";
 import { salesLog, salesLogError } from "@/lib/henima-sales/log";
 import { normalizePhoneId } from "@/lib/henima-sales/phone";
@@ -31,17 +31,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const founder = normalizePhoneId(process.env.INFOBIP_WA_TO || "");
-  for (const row of body.results || []) {
+  const inbound = (body.results || []).flatMap((row) => {
     const from = normalizePhoneId(row.from || "");
     const text = row.message?.text?.trim();
-    if (!from || from !== founder || !text) continue;
-    salesLog("infobip_inbound", { messageId: row.messageId });
-    try {
-      const answer = await answerWhatsAppPull(salesDb(), text, row.messageId);
-      if (answer.trim()) await sendWhatsAppText(from, answer);
-    } catch (err) {
-      salesLogError("infobip_reply", err);
-    }
+    if (!from || from !== founder || !text) return [];
+    return [{ from, text, messageId: row.messageId }];
+  });
+  if (inbound.length) {
+    after(async () => {
+      for (const row of inbound) {
+        salesLog("infobip_inbound", { messageId: row.messageId });
+        try {
+          const answer = await answerWhatsAppPull(salesDb(), row.text, row.messageId);
+          if (answer.trim()) await sendWhatsAppText(row.from, answer);
+        } catch (err) {
+          salesLogError("infobip_reply", err);
+        }
+      }
+    });
   }
   return NextResponse.json({ ok: true });
 }

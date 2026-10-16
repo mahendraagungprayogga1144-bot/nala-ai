@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, needsCompanyData, periodFromText } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, looksLikeHowTo, needsCompanyData, periodFromText } from "../telegram/nl-sale";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent, greetingReply } from "../telegram/agent";
 import { parseFounderCommand } from "../telegram/founder-ops";
 import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
@@ -407,6 +407,8 @@ test("expense chat records operational cost", () => {
     yesterday: false,
   });
   assert.equal(parseOpsIntent("biaya hari ini").type, "expense_list");
+  assert.equal(looksLikeHowTo("Kalo aku mau masukan pengeluaran bulan kemarin bisa ga kamu inputnya"), true);
+  assert.equal(parseOpsIntent("Kalo aku mau masukan pengeluaran bulan kemarin bisa ga kamu inputnya").type, "none");
   const out = reduceBot(
     { state: "idle", draft: newDraft() },
     { kind: "text", text: "hari ini pengeluaran 100rb buat bensin" },

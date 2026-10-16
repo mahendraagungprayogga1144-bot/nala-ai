@@ -219,6 +219,9 @@ export function parseOpsIntent(text: string): OpsIntent {
     return { type: "briefing", ...periodFromText(t) };
   }
   const expense = parseExpenseChat(text);
+  if (expense.looksLike && looksLikeHowTo(t) && !(expense.amount && expense.amount > 0)) {
+    return { type: "none" };
+  }
   if (expense.looksLike) {
     if (expense.amount && expense.amount > 0) {
       return {
@@ -286,6 +289,12 @@ export function looksLikeChitchat(text: string) {
   return /^(halo+|hallo+|hai+|hi+|hey+|hei+|pagi|siang|sore|malam|yo+|yow|ping|p|test|tes|ok+|oke+|okay|sip+|siap|thanks|thank you|makasih|terima kasih|trimakasih|noted|hmm+|hehe+|bro+|bos+|gas+|lanjut)$/.test(
     t,
   );
+}
+
+/** Tanya cara atau kemampuan, bukan minta daftar/angka. */
+export function looksLikeHowTo(text: string) {
+  const t = (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return /\b(bisa|boleh|caranya|gimana|bagaimana|mau masukan|mau masukin|mau input|inputnya|bantu input|bisa ga|bisa gak|bisa nggak)\b/.test(t);
 }
 
 export function looksLikeQuestion(text: string) {

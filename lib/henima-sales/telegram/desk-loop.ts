@@ -5,7 +5,7 @@ import type { SalesDb } from "../db";
 import { formatCashPosition, CAPABLE_REPLY, fallbackDeskDecision, deskDecisionToEffects, greetingReply } from "./agent";
 import { deskToolsFor, runDeskTool } from "./desk-tools";
 import { mainMenuKeyboard } from "./menu";
-import { looksLikeChitchat, needsCompanyData } from "./nl-sale";
+import { looksLikeChitchat, looksLikeHowTo, needsCompanyData } from "./nl-sale";
 import type { BotEffect, Session } from "./session";
 import { newDraft } from "./session";
 
@@ -48,7 +48,8 @@ export async function runDeskLoop(opts: {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   const idle: Session = { state: "idle", draft: newDraft(), memory: opts.session.memory };
   const chitchat = looksLikeChitchat(opts.text);
-  const talk = chitchat || !needsCompanyData(opts.text);
+  const howTo = looksLikeHowTo(opts.text);
+  const talk = chitchat || howTo || !needsCompanyData(opts.text);
   if (!key) {
     const fb = fallbackDeskDecision(opts.text, opts.report, opts.actor);
     return deskDecisionToEffects(fb, opts.session, opts.actor, opts.catalog, opts.range);
@@ -60,6 +61,7 @@ export async function runDeskLoop(opts: {
       role: "system",
       content: `Kamu asisten pribadi founder Henima. Ngobrol natural dulu: ide, strategi, masalah, brainstorm, tulisan. Jangan markdown. Bahasa user.
 Jangan mengarahkan setiap chat ke omzet atau laporan. Panggil TOOLS hanya jika user minta data live, file, tugas, atau ubah perusahaan.
+Kalau user bertanya apakah suatu pekerjaan bisa dilakukan, jawab iya atau tidak, lalu minta detail yang kurang. Jangan balas daftar kosong.
 Jangan mengarang angka. Jangan bilang pekerjaan eksternal selesai kalau tidak ada tool-nya. Shell dan SSH tidak tersedia.
 ${snapshotFacts(talk ? null : opts.report, opts.actor, opts.catalog, talk)}
 ${opts.longMemory ? `Memori bisnis:\n${opts.longMemory}` : ""}
@@ -84,7 +86,7 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
           model: "deepseek-chat",
           temperature: talk ? 0.5 : 0.2,
           max_tokens: talk ? 700 : 500,
-          ...(chitchat ? {} : { tools, tool_choice: "auto" }),
+          ...(chitchat || howTo ? {} : { tools, tool_choice: "auto" }),
           messages,
         }),
       });

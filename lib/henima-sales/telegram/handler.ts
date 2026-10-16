@@ -4,7 +4,7 @@ import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { createExpense, listExpenses } from "../expense-service";
-import { addDaysYmd, periodRange, type PeriodKind } from "../dates";
+import { periodRange, type PeriodKind } from "../dates";
 import { createStaff, listProducts, listStaff } from "../staff-service";
 import { salesInviteShareText } from "../sales-guide";
 import { formatSalesBriefing, formatTeamRoster, isManager, mainMenuKeyboard, recruitPrompt } from "./menu";
@@ -21,9 +21,8 @@ import { writeAudit } from "../audit";
 import { displayPhone, isUsablePhone } from "../phone";
 import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
-import { reduceBot, applyNaturalChat, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
-import { interpretHenimaChat } from "./deepseek";
-import { askHenimaAgent, shouldAskAgent } from "./agent";
+import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
+import { askHenimaAgent, deskDecisionToEffects, shouldUseDeskAgent } from "./agent";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
@@ -175,7 +174,12 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       looksLikeFollowUp(raw, session.memory?.lastUser) && session.memory?.lastUser
         ? `${session.memory.lastUser}. ${raw}`
         : raw;
-    if (shouldAskAgent(combined, catalog, session.memory) || shouldAskAgent(raw, catalog, session.memory)) {
+    const unmatched = looksLikeGenericHint(reduced.effects);
+    if (
+      unmatched ||
+      shouldUseDeskAgent(combined, catalog, session.memory, unmatched) ||
+      shouldUseDeskAgent(raw, catalog, session.memory, unmatched)
+    ) {
       const parsed = periodFromText(combined);
       const explicitDay = /\b(hari\s+ini|today|kemarin|yesterday)\b/i.test(combined);
       const kind = (parsed.period === "today" && !explicitDay ? "this_month" : parsed.period) as PeriodKind;
@@ -185,52 +189,9 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         .slice(-6)
         .map((t) => `${t.role}: ${t.text}`)
         .join("\n");
-      const agent = await askHenimaAgent({ text: combined, actor, report, history });
-      if (agent?.reply) {
-        reduced = {
-          session: { state: "idle", draft: newDraft(), memory: session.memory },
-          effects: [
-            { type: "reply", reply: { text: agent.reply, keyboard: mainMenuKeyboard(actor) } },
-            ...(agent.pdf ? [{ type: "send_pdf" as const, kind: "custom", from: range.from, to: range.to }] : []),
-          ],
-        };
-      }
-    } else if (looksLikeGenericHint(reduced.effects)) {
-      const ai = await interpretHenimaChat(incoming.text, catalog);
-      if (ai && ai.kind !== "unknown") {
-        if (ai.kind === "sale") {
-          reduced = applyNaturalChat(session, actor, ai.text, catalog);
-        } else if (ai.kind === "expense") {
-          reduced = {
-            session: { state: "idle", draft: newDraft() },
-            effects: [
-              {
-                type: "save_expense",
-                amount: ai.amount,
-                note: ai.note,
-                expenseDate: ai.yesterday ? addDaysYmd(todayWib(), -1) : todayWib(),
-              },
-            ],
-          };
-        } else {
-          const idle = { state: "idle" as const, draft: newDraft() };
-          if (ai.kind === "pdf") reduced = { session: idle, effects: [{ type: "send_pdf", kind: ai.period }] };
-          else if (ai.kind === "rekap") reduced = { session: idle, effects: [{ type: "send_report", kind: ai.period }] };
-          else if (ai.kind === "nota") reduced = { session: idle, effects: [{ type: "send_nota", query: ai.query }] };
-          else if (ai.kind === "riwayat") reduced = { session: idle, effects: [{ type: "send_riwayat" }] };
-          else if (ai.kind === "target") reduced = { session: idle, effects: [{ type: "send_target" }] };
-          else if (ai.kind === "help") reduced = applyNaturalChat(session, actor, "help", catalog);
-          else if (ai.kind === "team") reduced = { session: idle, effects: [{ type: "send_team" }] };
-          else if (ai.kind === "briefing") {
-            reduced = { session: idle, effects: [{ type: "send_briefing", query: ai.query, kind: ai.period }] };
-          } else if (ai.kind === "recruit") {
-            reduced = ai.nama
-              ? { session: idle, effects: [{ type: "recruit_sales", nama: ai.nama }] }
-              : applyNaturalChat(session, actor, "rekrut sales", catalog);
-          } else if (ai.kind === "expense_list") {
-            reduced = { session: idle, effects: [{ type: "send_expenses", kind: ai.period }] };
-          }
-        }
+      const agent = await askHenimaAgent({ text: combined, actor, report, history, catalog });
+      if (agent) {
+        reduced = deskDecisionToEffects(agent, session, actor, catalog, range);
       }
     }
   }
@@ -431,7 +392,11 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   }
 
   if (incoming.kind === "text") {
-    next.memory = remember(session.memory, incoming.text, shouldAskAgent(incoming.text, products, session.memory) ? "finance" : session.memory?.topic);
+    next.memory = remember(
+      session.memory,
+      incoming.text,
+      shouldUseDeskAgent(incoming.text, products, session.memory, false) ? "desk" : session.memory?.topic,
+    );
   } else {
     next.memory = session.memory;
   }

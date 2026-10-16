@@ -11,7 +11,7 @@ import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, periodFromText } from "../telegram/nl-sale";
-import { parseAgentJson, shouldAskAgent } from "../telegram/agent";
+import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent } from "../telegram/agent";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -460,9 +460,13 @@ test("keuangan perusahaan is a company recap", () => {
   const win = periodFromText("selama 3 bulan");
   assert.equal(win.period, "custom");
   assert.equal(shouldAskAgent("terus aku mau lihat uang kita sisa berapa", []), true);
+  assert.equal(shouldUseDeskAgent("kirimin nota yang kemarin dong", [], null, true), true);
   assert.equal(looksLikeFollowUp("selama 3 bulan", "uang kita sisa berapa"), true);
   const spoken = parseAgentJson('{"reply":"Sisa operasional bulan ini Rp12.000.000","pdf":false}');
   assert.match(spoken?.reply || "", /Sisa operasional/);
+  assert.equal(spoken?.action, "answer");
+  const tool = parseAgentJson('{"action":"riwayat"}');
+  assert.equal(tool?.action, "riwayat");
   assert.equal(parseOpsIntent("omzet").type, "rekap");
   const out = reduceBot(
     { state: "idle", draft: newDraft() },

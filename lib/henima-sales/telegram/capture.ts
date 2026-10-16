@@ -2,7 +2,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 type Sink = { lines: string[] };
 
-const storage = new AsyncLocalStorage<Sink>();
+const holder = globalThis as typeof globalThis & { __henimaOutbound?: AsyncLocalStorage<Sink> };
+const storage = holder.__henimaOutbound ||= new AsyncLocalStorage<Sink>();
 
 export function isCapturingOutbound() {
   return Boolean(storage.getStore());
@@ -26,6 +27,10 @@ export function confirmHint(keyboard?: { text: string }[][]) {
 
 export async function captureOutbound(run: () => Promise<void>) {
   const sink: Sink = { lines: [] };
-  await storage.run(sink, run);
+  try {
+    await storage.run(sink, run);
+  } catch {
+    if (!sink.lines.length) sink.lines.push("Pesan sampai, tetapi balasannya gagal. Ketik ulang perintahnya.");
+  }
   return sink.lines;
 }

@@ -24,5 +24,6 @@ export async function answerWhatsAppPull(db: SalesDb, text: string, messageId = 
       },
     }),
   );
-  return lines.join("\n\n").slice(0, 3500);
+  const spoken = lines.join("\n\n").trim();
+  return (spoken || "Pesan sampai. Ketik ulang, misalnya cek lead kommo.").slice(0, 3500);
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { salesDb } from "@/lib/henima-sales/db";
 import { salesLog, salesLogError } from "@/lib/henima-sales/log";
+import { normalizePhoneId } from "@/lib/henima-sales/phone";
 import { infobipMonitorReady, sendWhatsAppText } from "@/lib/henima-sales/whatsapp/infobip";
 import { answerWhatsAppPull } from "@/lib/henima-sales/whatsapp/pull";
 
@@ -29,9 +30,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const founder = (process.env.INFOBIP_WA_TO || "").replace(/\D/g, "");
+  const founder = normalizePhoneId(process.env.INFOBIP_WA_TO || "");
   for (const row of body.results || []) {
-    const from = (row.from || "").replace(/\D/g, "");
+    const from = normalizePhoneId(row.from || "");
     const text = row.message?.text?.trim();
     if (!from || from !== founder || !text) continue;
     salesLog("infobip_inbound", { messageId: row.messageId });

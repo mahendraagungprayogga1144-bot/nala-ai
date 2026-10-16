@@ -5,12 +5,13 @@ import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
 import { staffScopeIds, canAccessStaff, assertTelegramInviteAllowed, normalizeInviteCode, isPlaceholderInviteCode } from "../authz";
-import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow, namedYearWindow } from "../dates";
+import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow, namedYearWindow, lastNMonthsRange } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, periodFromText } from "../telegram/nl-sale";
+import { parseAgentJson, shouldAskAgent } from "../telegram/agent";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -209,6 +210,9 @@ test("period ranges are Jakarta calendar windows", () => {
   const all = periodRange("all");
   assert.equal(all.from, "2020-01-01");
   assert.equal(all.label, "Semua periode");
+  const three = lastNMonthsRange(3, "2026-10-16");
+  assert.equal(three.from, "2026-08-01");
+  assert.equal(three.to, "2026-10-16");
 });
 
 test("sales brand ignores short tenant names like g", () => {
@@ -446,6 +450,19 @@ test("rekapan hari ini is a rekap intent", () => {
 
 test("keuangan perusahaan is a company recap", () => {
   assert.equal(parseOpsIntent("keuangan perusahaan").type, "pdf");
+  assert.equal(parseOpsIntent("uang kita sisa berapa").type, "briefing");
+  const three = parseOpsIntent("selama 3 bulan");
+  assert.equal(three.type, "briefing");
+  if (three.type === "briefing") {
+    assert.equal(three.period, "custom");
+    assert.ok(three.from);
+  }
+  const win = periodFromText("selama 3 bulan");
+  assert.equal(win.period, "custom");
+  assert.equal(shouldAskAgent("terus aku mau lihat uang kita sisa berapa", []), true);
+  assert.equal(looksLikeFollowUp("selama 3 bulan", "uang kita sisa berapa"), true);
+  const spoken = parseAgentJson('{"reply":"Sisa operasional bulan ini Rp12.000.000","pdf":false}');
+  assert.match(spoken?.reply || "", /Sisa operasional/);
   assert.equal(parseOpsIntent("omzet").type, "rekap");
   const out = reduceBot(
     { state: "idle", draft: newDraft() },

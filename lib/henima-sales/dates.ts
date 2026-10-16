@@ -119,6 +119,24 @@ export function namedYearWindow(year?: number) {
   return calendarYearRange(y);
 }
 
+/** Inclusive rolling months ending today. n=3 on 16 Oct → 1 Aug–16 Oct. */
+export function lastNMonthsRange(n: number, today = todayWib()): { from: string; to: string; label: string } {
+  const count = Math.min(24, Math.max(1, Math.round(n)));
+  const { year, month } = wibParts(new Date(`${today}T00:00:00+07:00`));
+  let y = Number(year);
+  let m = Number(month) - (count - 1);
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  return {
+    from,
+    to: today,
+    label: count === 1 ? monthLabel(Number(year), Number(month)) : `${count} bulan terakhir`,
+  };
+}
+
 function fullYearLabel(from: string, to: string) {
   const fy = from.match(/^(\d{4})-01-01$/);
   const ty = to.match(/^(\d{4})-12-31$/);

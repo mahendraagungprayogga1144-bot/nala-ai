@@ -4,7 +4,7 @@ import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { createExpense, listExpenses } from "../expense-service";
-import { addDaysYmd, periodRange } from "../dates";
+import { addDaysYmd, periodRange, type PeriodKind } from "../dates";
 import { createStaff, listProducts, listStaff } from "../staff-service";
 import { salesInviteShareText } from "../sales-guide";
 import { formatSalesBriefing, formatTeamRoster, isManager, mainMenuKeyboard, recruitPrompt } from "./menu";
@@ -23,9 +23,10 @@ import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
 import { reduceBot, applyNaturalChat, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import { interpretHenimaChat } from "./deepseek";
-import type { Session } from "./session";
+import { askHenimaAgent, shouldAskAgent } from "./agent";
+import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
-import { buildPackLines, parseOpsIntent } from "./nl-sale";
+import { buildPackLines, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -54,7 +55,13 @@ async function loadSession(db: SalesDb, telegramUserId: number): Promise<Session
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (!data) return { state: "idle", draft: newDraft() };
-  return { state: (data.state as Session["state"]) || "idle", draft: (data.payload as Session["draft"]) || newDraft() };
+  const payload = (data.payload || {}) as Session["draft"] & { _mem?: SessionMemory };
+  const { _mem, ...draft } = payload;
+  return {
+    state: (data.state as Session["state"]) || "idle",
+    draft: Object.keys(draft).length ? (draft as Session["draft"]) : newDraft(),
+    memory: _mem,
+  };
 }
 
 async function saveSession(db: SalesDb, telegramUserId: number, actor: Actor | null, session: Session) {
@@ -63,9 +70,14 @@ async function saveSession(db: SalesDb, telegramUserId: number, actor: Actor | n
     business_id: actor?.businessId || null,
     staff_id: actor?.staffId || null,
     state: session.state,
-    payload: session.draft,
+    payload: { ...session.draft, _mem: session.memory || null },
     updated_at: new Date().toISOString(),
   });
+}
+
+function remember(mem: SessionMemory | undefined, user: string, topic?: string): SessionMemory {
+  const turns = [...(mem?.turns || []), { role: "user" as const, text: user.slice(0, 240) }].slice(-8);
+  return { lastUser: user.slice(0, 240), topic: topic || mem?.topic, turns };
 }
 
 function parseCommand(text: string) {
@@ -156,43 +168,68 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     actor && needsProductCatalog(incoming, session) ? await listProducts(db, actor.businessId) : [];
 
   let reduced = reduceBot(session, incoming, { actor, products });
-  if (actor && incoming.kind === "text" && looksLikeGenericHint(reduced.effects)) {
+  if (actor && incoming.kind === "text" && session.state === "idle") {
     const catalog = products.length ? products : await listProducts(db, actor.businessId);
-    const ai = await interpretHenimaChat(incoming.text, catalog);
-    if (ai && ai.kind !== "unknown") {
-      if (ai.kind === "sale") {
-        reduced = applyNaturalChat(session, actor, ai.text, catalog);
-      } else if (ai.kind === "expense") {
+    const raw = incoming.text;
+    const combined =
+      looksLikeFollowUp(raw, session.memory?.lastUser) && session.memory?.lastUser
+        ? `${session.memory.lastUser}. ${raw}`
+        : raw;
+    if (shouldAskAgent(combined, catalog, session.memory) || shouldAskAgent(raw, catalog, session.memory)) {
+      const parsed = periodFromText(combined);
+      const explicitDay = /\b(hari\s+ini|today|kemarin|yesterday)\b/i.test(combined);
+      const kind = (parsed.period === "today" && !explicitDay ? "this_month" : parsed.period) as PeriodKind;
+      const range = periodRange(kind === "custom" ? "custom" : kind, { from: parsed.from, to: parsed.to });
+      const report = await buildSalesReport(db, actor, { kind: "custom", from: range.from, to: range.to });
+      const history = (session.memory?.turns || [])
+        .slice(-6)
+        .map((t) => `${t.role}: ${t.text}`)
+        .join("\n");
+      const agent = await askHenimaAgent({ text: combined, actor, report, history });
+      if (agent?.reply) {
         reduced = {
-          session: { state: "idle", draft: newDraft() },
+          session: { state: "idle", draft: newDraft(), memory: session.memory },
           effects: [
-            {
-              type: "save_expense",
-              amount: ai.amount,
-              note: ai.note,
-              expenseDate: ai.yesterday ? addDaysYmd(todayWib(), -1) : todayWib(),
-            },
+            { type: "reply", reply: { text: agent.reply, keyboard: mainMenuKeyboard(actor) } },
+            ...(agent.pdf ? [{ type: "send_pdf" as const, kind: "custom", from: range.from, to: range.to }] : []),
           ],
         };
-      } else {
-        const idle = { state: "idle" as const, draft: newDraft() };
-        if (ai.kind === "pdf") reduced = { session: idle, effects: [{ type: "send_pdf", kind: ai.period }] };
-        else if (ai.kind === "rekap") reduced = { session: idle, effects: [{ type: "send_report", kind: ai.period }] };
-        else if (ai.kind === "nota") reduced = { session: idle, effects: [{ type: "send_nota", query: ai.query }] };
-        else if (ai.kind === "riwayat") reduced = { session: idle, effects: [{ type: "send_riwayat" }] };
-        else if (ai.kind === "target") reduced = { session: idle, effects: [{ type: "send_target" }] };
-        else if (ai.kind === "help") reduced = applyNaturalChat(session, actor, "help", catalog);
-        else if (ai.kind === "team") reduced = { session: idle, effects: [{ type: "send_team" }] };
-        else if (ai.kind === "briefing") {
-          reduced = { session: idle, effects: [{ type: "send_briefing", query: ai.query, kind: ai.period }] };
-        }
-        else if (ai.kind === "recruit") {
-          reduced = ai.nama
-            ? { session: idle, effects: [{ type: "recruit_sales", nama: ai.nama }] }
-            : applyNaturalChat(session, actor, "rekrut sales", catalog);
-        }
-        else if (ai.kind === "expense_list") {
-          reduced = { session: idle, effects: [{ type: "send_expenses", kind: ai.period }] };
+      }
+    } else if (looksLikeGenericHint(reduced.effects)) {
+      const ai = await interpretHenimaChat(incoming.text, catalog);
+      if (ai && ai.kind !== "unknown") {
+        if (ai.kind === "sale") {
+          reduced = applyNaturalChat(session, actor, ai.text, catalog);
+        } else if (ai.kind === "expense") {
+          reduced = {
+            session: { state: "idle", draft: newDraft() },
+            effects: [
+              {
+                type: "save_expense",
+                amount: ai.amount,
+                note: ai.note,
+                expenseDate: ai.yesterday ? addDaysYmd(todayWib(), -1) : todayWib(),
+              },
+            ],
+          };
+        } else {
+          const idle = { state: "idle" as const, draft: newDraft() };
+          if (ai.kind === "pdf") reduced = { session: idle, effects: [{ type: "send_pdf", kind: ai.period }] };
+          else if (ai.kind === "rekap") reduced = { session: idle, effects: [{ type: "send_report", kind: ai.period }] };
+          else if (ai.kind === "nota") reduced = { session: idle, effects: [{ type: "send_nota", query: ai.query }] };
+          else if (ai.kind === "riwayat") reduced = { session: idle, effects: [{ type: "send_riwayat" }] };
+          else if (ai.kind === "target") reduced = { session: idle, effects: [{ type: "send_target" }] };
+          else if (ai.kind === "help") reduced = applyNaturalChat(session, actor, "help", catalog);
+          else if (ai.kind === "team") reduced = { session: idle, effects: [{ type: "send_team" }] };
+          else if (ai.kind === "briefing") {
+            reduced = { session: idle, effects: [{ type: "send_briefing", query: ai.query, kind: ai.period }] };
+          } else if (ai.kind === "recruit") {
+            reduced = ai.nama
+              ? { session: idle, effects: [{ type: "recruit_sales", nama: ai.nama }] }
+              : applyNaturalChat(session, actor, "rekrut sales", catalog);
+          } else if (ai.kind === "expense_list") {
+            reduced = { session: idle, effects: [{ type: "send_expenses", kind: ai.period }] };
+          }
         }
       }
     }
@@ -321,7 +358,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
           await sendMessage(chatId, formatTeamRoster(staff), mainMenuKeyboard(actor));
         }
       } else if (effect.type === "send_briefing" && actor) {
-        await sendBriefing(db, actor, chatId, effect.query, effect.kind);
+        await sendBriefing(db, actor, chatId, effect.query, effect.kind, effect.from, effect.to);
       }
     } catch (err) {
       salesLogError("telegram_effect", err, { type: effect.type, telegramUserId });
@@ -393,7 +430,12 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     }
   }
 
-  if (!sameSession(session, next)) {
+  if (incoming.kind === "text") {
+    next.memory = remember(session.memory, incoming.text, shouldAskAgent(incoming.text, products, session.memory) ? "finance" : session.memory?.topic);
+  } else {
+    next.memory = session.memory;
+  }
+  if (!sameSession(session, next) || incoming.kind === "text") {
     await saveSession(db, telegramUserId, actor, next);
   }
 }
@@ -697,8 +739,8 @@ async function orderCustomerName(
   return customerNameFromNote(order.catatan) || "Tanpa nama";
 }
 
-async function sendBriefing(db: SalesDb, actor: Actor, chatId: number, query?: string, kind?: string) {
-  const period = (kind || "this_month") as ReportKind;
+async function sendBriefing(db: SalesDb, actor: Actor, chatId: number, query?: string, kind?: string, from?: string, to?: string) {
+  const period = (from && to ? "custom" : kind || "this_month") as ReportKind;
   let salesId: string | undefined;
   let focusName: string | undefined;
   if (query?.trim()) {
@@ -712,7 +754,7 @@ async function sendBriefing(db: SalesDb, actor: Actor, chatId: number, query?: s
     salesId = hit.id;
     focusName = hit.nama;
   }
-  const report = await buildSalesReport(db, actor, { kind: period, salesId });
+  const report = await buildSalesReport(db, actor, { kind: period, from, to, salesId });
   await sendMessage(chatId, formatSalesBriefing(report, focusName), mainMenuKeyboard(actor));
 }
 

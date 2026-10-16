@@ -1,4 +1,4 @@
-import { namedMonthWindow, namedYearWindow, wibParts } from "../dates";
+import { lastNMonthsRange, namedMonthWindow, namedYearWindow, wibParts } from "../dates";
 import { isValidPhoneId, normalizePhoneId } from "../phone";
 import { DEFAULT_HENIMA_PRODUCTS, type PaymentMethod, type ProductRow, type SaleLine, normalizePaymentMethod } from "../types";
 import { parseRecruitName } from "./menu";
@@ -82,10 +82,50 @@ export function parseNamedYear(text: string): number | null {
   return null;
 }
 
+export function lastMonthsFromText(t: string): number | null {
+  const n = t.match(
+    /\b(?:selama|last|dalam)?\s*(\d{1,2})\s*(?:bulan|bln|months?)(?:\s+(?:terakhir|lalu|last))?\b/i,
+  );
+  if (n) {
+    const count = Number(n[1]);
+    if (count >= 1 && count <= 24) return count;
+  }
+  if (/\b(tiga|3)\s*bulan\b/.test(t)) return 3;
+  return null;
+}
+
+export function isPeriodOnly(text: string) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (
+    /^(selama\s+)?(\d{1,2}|tiga)\s*(bulan|bln|minggu|hari|months?|weeks?|days?)(\s+(terakhir|lalu|ini))?$/.test(t)
+  ) {
+    return true;
+  }
+  return /^(hari ini|kemarin|minggu ini|minggu lalu|bulan ini|bulan lalu|tahun ini|setahun|today|yesterday|this week|last week|this month|last month)$/.test(
+    t,
+  );
+}
+
+export function looksLikeFollowUp(text: string, lastUser?: string | null) {
+  if (!lastUser) return isPeriodOnly(text);
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (t.length > 90) return false;
+  return (
+    isPeriodOnly(t) ||
+    /^(terus|trs|lalu|terusnya|yang itu|itu|kalau|klo|lebih|detail|pdf|lengkap|yang)\b/.test(t)
+  );
+}
+
 export function periodFromText(t: string): { period: ReportPeriod; from?: string; to?: string } {
   const named = parseNamedMonth(t);
   if (named) {
     const win = namedMonthWindow(named.month, named.year);
+    return { period: "custom", from: win.from, to: win.to };
+  }
+  const months = lastMonthsFromText(t);
+  if (months) {
+    const win = lastNMonthsRange(months);
     return { period: "custom", from: win.from, to: win.to };
   }
   const year = parseNamedYear(t);
@@ -203,17 +243,45 @@ export function parseOpsIntent(text: string): OpsIntent {
   if (looksLikeAskReport(t)) {
     const parsed = periodFromText(t);
     if (/\b(pdf|laporan|report)\b/.test(t)) return { type: "pdf", ...parsed };
+    if (looksLikeMoneyLeft(t)) {
+      if (parsed.period === "today" && !/\b(hari\s+ini|today|kemarin|yesterday)\b/.test(t)) {
+        return { type: "briefing", period: "this_month" };
+      }
+      return { type: "briefing", ...parsed };
+    }
     if (looksLikeCompanyFinance(t) && parsed.period === "today" && !/\b(hari\s+ini|today|kemarin|yesterday)\b/.test(t)) {
       return { type: "pdf", period: "this_month" };
     }
     return { type: "rekap", ...parsed };
   }
+  if (isPeriodOnly(t)) {
+    return { type: "briefing", ...periodFromText(t) };
+  }
   return { type: "none" };
+}
+
+export function looksLikeMoneyLeft(text: string) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  return /\b(sisa|saldo|uang\s+kita|duit\s+kita|uang\s+perusahaan|remaining|left over|leftover|cash\s+on\s+hand|posisi\s+uang)\b/.test(
+    t,
+  );
+}
+
+export function looksLikeQuestion(text: string) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  return (
+    looksLikeMoneyLeft(t) ||
+    looksLikeCompanyFinance(t) ||
+    /\b(berapa|lihat|show|how much|how many|gimana|bagaimana|posisi)\b/.test(t)
+  );
 }
 
 export function looksLikeCompanyFinance(text: string) {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
-  return /\b(keuangan|cash\s*flow|cashflow|laporan\s+keuangan|kondisi\s+keuangan|omzet\s+perusahaan|keuangan\s+perusahaan|profit\s+perusahaan)\b/.test(t);
+  return /\b(keuangan|cash\s*flow|cashflow|laporan\s+keuangan|kondisi\s+keuangan|omzet\s+perusahaan|keuangan\s+perusahaan|profit\s+perusahaan|laba\s+(bersih|kotor|perusahaan))\b/.test(
+    t,
+  );
 }
 
 /** "berapa yang terjual semuanya" / "keuangan perusahaan" → rekap, bukan chat penjualan. */

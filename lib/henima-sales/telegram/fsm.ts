@@ -497,7 +497,7 @@ export function applyNaturalChat(
   if (ops.type === "briefing") {
     return {
       session: idle,
-      effects: [{ type: "send_briefing", query: ops.query, kind: ops.period }],
+      effects: [{ type: "send_briefing", query: ops.query, kind: ops.period, from: ops.from, to: ops.to }],
     };
   }
   if (ops.type === "rekap") {

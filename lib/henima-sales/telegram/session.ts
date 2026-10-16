@@ -58,9 +58,16 @@ export type Draft = {
   nlChat?: boolean;
 };
 
+export type SessionMemory = {
+  lastUser?: string;
+  topic?: string;
+  turns?: { role: "user" | "assistant"; text: string }[];
+};
+
 export type Session = {
   state: BotState;
   draft: Draft;
+  memory?: SessionMemory;
 };
 
 export type TgUser = { id: number; first_name?: string; username?: string };
@@ -85,7 +92,7 @@ export type BotEffect =
   | { type: "send_expenses"; kind: string; from?: string; to?: string }
   | { type: "recruit_sales"; nama: string }
   | { type: "send_team" }
-  | { type: "send_briefing"; query?: string; kind?: string }
+  | { type: "send_briefing"; query?: string; kind?: string; from?: string; to?: string }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 

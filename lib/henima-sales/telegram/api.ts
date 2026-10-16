@@ -51,12 +51,18 @@ export async function answerCallback(id: string) {
   }
 }
 
-export async function sendDocument(chatId: number, filename: string, bytes: Uint8Array, caption?: string) {
+export async function sendDocument(
+  chatId: number,
+  filename: string,
+  bytes: Uint8Array,
+  caption?: string,
+  mime = "application/pdf",
+) {
   const t = token();
   const form = new FormData();
   form.set("chat_id", String(chatId));
   if (caption) form.set("caption", caption.slice(0, 1000));
-  form.set("document", new Blob([Buffer.from(bytes)], { type: "application/pdf" }), filename);
+  form.set("document", new Blob([Buffer.from(bytes)], { type: mime }), filename);
   const res = await fetch(`${API}/bot${t}/sendDocument`, { method: "POST", body: form });
   const json = (await res.json()) as { ok: boolean; description?: string };
   if (!json.ok) throw new Error(json.description || "sendDocument failed");

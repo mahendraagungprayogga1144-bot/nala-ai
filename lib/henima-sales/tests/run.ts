@@ -13,7 +13,9 @@ import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service"
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, periodFromText } from "../telegram/nl-sale";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent, greetingReply } from "../telegram/agent";
 import { parseFounderCommand } from "../telegram/founder-ops";
-import { deskToolsFor } from "../telegram/desk-tools";
+import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
+import { compactTurns, redactSecrets, salesCsv } from "../telegram/agent-memory";
+import { needsFounderApproval } from "../telegram/founder-ops";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -782,6 +784,22 @@ test("/help lists commands", () => {
   const founderHelp = helpText(founder);
   assert.match(founderHelp, /rekrut sales/);
   assert.match(founderHelp, /data sales/);
+});
+
+test("agent memory redacts secrets and compacts turns", () => {
+  assert.match(redactSecrets("key sk-abcdefghijklmnopqrstuvwxyz123456"), /\[redacted\]/);
+  assert.equal(redactSecrets("key sk-abcdefghijklmnopqrstuvwxyz123456").includes("sk-abc"), false);
+  let mem = compactTurns(undefined, "halo");
+  for (let i = 0; i < 10; i++) mem = compactTurns(mem, `pesan ${i}`);
+  assert.ok((mem.turns || []).length <= 8);
+  assert.ok(mem.summary);
+  const csv = salesCsv([{ date: "2026-10-01", customer: "Sinta", qty: 1, omzet: 130000, hpp: 64500, laba: 65500 }]);
+  assert.match(csv, /omzet,hpp,laba_kotor/);
+  assert.match(csv, /Sinta/);
+  assert.equal(resolveDeskTool("get_sales_summary"), "lihat_keuangan");
+  assert.equal(resolveDeskTool("calculate_profit"), "lihat_keuangan");
+  assert.equal(needsFounderApproval(parseFounderCommand("harga afternoon 199999")), true);
+  assert.equal(needsFounderApproval(parseFounderCommand("tagline Halo")), false);
 });
 
 test("desk tools match gercep style by role", () => {

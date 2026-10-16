@@ -24,7 +24,8 @@ import { paymentLabel, SalesError } from "../types";
 import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import { shouldUseDeskAgent } from "./agent";
 import { runDeskLoop } from "./desk-loop";
-import { executeFounderCommand, parseFounderCommand } from "./founder-ops";
+import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from "./founder-ops";
+import { clearAgentMemory, compactTurns, listAgentMemory, memoryContext, saveAgentNote } from "./agent-memory";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
@@ -77,8 +78,7 @@ async function saveSession(db: SalesDb, telegramUserId: number, actor: Actor | n
 }
 
 function remember(mem: SessionMemory | undefined, user: string, topic?: string): SessionMemory {
-  const turns = [...(mem?.turns || []), { role: "user" as const, text: user.slice(0, 240) }].slice(-8);
-  return { lastUser: user.slice(0, 240), topic: topic || mem?.topic, turns };
+  return compactTurns(mem, user, topic);
 }
 
 function parseCommand(text: string) {
@@ -169,13 +169,56 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     actor && needsProductCatalog(incoming, session) ? await listProducts(db, actor.businessId) : [];
 
   let reduced = reduceBot(session, incoming, { actor, products });
-  if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle") {
-    const founderCmd = parseFounderCommand(incoming.text);
-    if (founderCmd.type !== "none") {
-      reduced = { session: { state: "idle", draft: newDraft(), memory: session.memory }, effects: [{ type: "run_founder", cmd: founderCmd }] };
+  if (actor && incoming.kind === "text" && session.state === "idle") {
+    const bare = incoming.text.trim().toLowerCase();
+    if (/^(lihat memori|memory)$/.test(bare)) {
+      const listed = await listAgentMemory(db, actor);
+      const text = listed.missing
+        ? "Memori jangka panjang belum aktif. Jalankan SQL agent di Supabase."
+        : listed.rows.length
+          ? listed.rows.map((r) => `• ${r.content}`).join("\n")
+          : "Belum ada catatan jangka panjang.";
+      reduced = { session, effects: [{ type: "reply", reply: { text, keyboard: mainMenuKeyboard(actor) } }] };
+    } else if (/^(hapus memori|lupakan)$/.test(bare)) {
+      reduced = { session, effects: [{ type: "reply", reply: { text: await clearAgentMemory(db, actor) } }] };
+    } else if (/^(ingat|catat)\s+/i.test(incoming.text.trim())) {
+      const note = incoming.text.trim().replace(/^(ingat|catat)\s+/i, "");
+      const saved = await saveAgentNote(db, actor, telegramUserId, note);
+      reduced = { session, effects: [{ type: "reply", reply: { text: saved.message } }] };
+    } else if (actor.role === "FOUNDER" && /^(ya|iya|setuju|ok)$/.test(bare) && session.memory?.pending) {
+      const cmd = parseFounderCommand(session.memory.pending.command);
+      session.memory = { ...session.memory, pending: undefined };
+      reduced = { session, effects: [{ type: "run_founder", cmd }] };
     }
   }
-  if (actor && incoming.kind === "text" && session.state === "idle" && reduced.effects[0]?.type !== "run_founder") {
+  const bareText = incoming.kind === "text" ? incoming.text.trim() : "";
+  const memoryHandled =
+    /^(lihat memori|memory|hapus memori|lupakan)$/i.test(bareText) ||
+    /^(ingat|catat)\s+/i.test(bareText) ||
+    (/^(ya|iya|setuju|ok)$/i.test(bareText) && Boolean(session.memory?.pending));
+  let founderGate = false;
+  if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle" && !memoryHandled) {
+    const founderCmd = parseFounderCommand(incoming.text);
+    if (founderCmd.type !== "none") {
+      founderGate = true;
+      if (needsFounderApproval(founderCmd)) {
+        session.memory = {
+          ...(session.memory || {}),
+          pending: { command: incoming.text.trim(), label: founderCmd.type },
+        };
+        reduced = {
+          session,
+          effects: [{
+            type: "reply",
+            reply: { text: "Ini mengubah data live. Balas YA untuk lanjut, atau ketik perintah lain untuk batal." },
+          }],
+        };
+      } else {
+        reduced = { session: { state: "idle", draft: newDraft(), memory: session.memory }, effects: [{ type: "run_founder", cmd: founderCmd }] };
+      }
+    }
+  }
+  if (actor && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !founderGate) {
     const catalog = products.length ? products : await listProducts(db, actor.businessId);
     const raw = incoming.text;
     const combined =
@@ -197,11 +240,14 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         .slice(-6)
         .map((t) => `${t.role}: ${t.text}`)
         .join("\n");
+      const longMemory = await memoryContext(db, actor);
       const looped = await runDeskLoop({
         db,
         actor,
         text: combined,
         history,
+        longMemory,
+        telegramUserId,
         catalog,
         report,
         range,
@@ -335,6 +381,9 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         }
       } else if (effect.type === "send_briefing" && actor) {
         await sendBriefing(db, actor, chatId, effect.query, effect.kind, effect.from, effect.to);
+      } else if (effect.type === "send_file" && actor) {
+        const bytes = new TextEncoder().encode(effect.content);
+        await sendDocument(chatId, effect.filename, bytes, effect.caption, effect.mime || "text/csv");
       } else if (effect.type === "run_founder" && actor) {
         const text = await executeFounderCommand(db, actor, effect.cmd);
         await sendMessage(chatId, text, mainMenuKeyboard(actor));

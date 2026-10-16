@@ -62,7 +62,9 @@ export type Draft = {
 export type SessionMemory = {
   lastUser?: string;
   topic?: string;
+  summary?: string;
   turns?: { role: "user" | "assistant"; text: string }[];
+  pending?: { command: string; label: string };
 };
 
 export type Session = {
@@ -95,6 +97,7 @@ export type BotEffect =
   | { type: "send_team" }
   | { type: "send_briefing"; query?: string; kind?: string; from?: string; to?: string }
   | { type: "run_founder"; cmd: FounderCommand }
+  | { type: "send_file"; filename: string; content: string; caption?: string; mime?: string }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 

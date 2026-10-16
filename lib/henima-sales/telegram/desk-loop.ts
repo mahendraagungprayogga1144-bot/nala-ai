@@ -38,6 +38,8 @@ export async function runDeskLoop(opts: {
   actor: Actor;
   text: string;
   history?: string;
+  longMemory?: string;
+  telegramUserId?: number | null;
   catalog: ProductRow[];
   report: SalesReport;
   range: { from: string; to: string };
@@ -59,7 +61,9 @@ export async function runDeskLoop(opts: {
 Kalau user hanya sapa (halo/hai/pagi) atau obrolan pendek: balas hangat 1-3 kalimat, tawarkan bantuan. JANGAN dump omzet/HPP/rekap. JANGAN panggil tool.
 Pakai TOOLS hanya jika user minta kerja (uang, tim, pdf, rekrut, catat, harga). Jangan mengarang angka.
 Setelah tool sukses, konfirmasi hasil nyata.
-${snapshotFacts(chitchat ? null : opts.report, opts.actor, opts.catalog, chitchat)}`,
+${snapshotFacts(chitchat ? null : opts.report, opts.actor, opts.catalog, chitchat)}
+${opts.longMemory ? `Memori bisnis:\n${opts.longMemory}` : ""}
+${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.summary}` : ""}`,
     },
   ];
   if (opts.history && !chitchat) messages.push({ role: "user", content: `Riwayat:\n${opts.history}` });
@@ -109,6 +113,7 @@ ${snapshotFacts(chitchat ? null : opts.report, opts.actor, opts.catalog, chitcha
           db: opts.db,
           actor: opts.actor,
           catalog: opts.catalog,
+          telegramUserId: opts.telegramUserId,
         });
         if (out.effects?.length) extraEffects.push(...out.effects);
         messages.push({ role: "tool", tool_call_id: call.id, content: out.text.slice(0, 2500) });

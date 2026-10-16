@@ -47,6 +47,10 @@ export function looksLikeOsProgram(text: string) {
   );
 }
 
+export function needsFounderApproval(cmd: FounderCommand) {
+  return cmd.type === "price" || cmd.type === "disable";
+}
+
 export function parseFounderCommand(text: string): FounderCommand {
   const raw = (text || "").replace(/\s+/g, " ").trim();
   if (!raw) return { type: "none" };

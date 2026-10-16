@@ -5,10 +5,12 @@ import { createExpense, listExpenses } from "../expense-service";
 import { fmtRp } from "../money";
 import { buildSalesReport } from "../report-service";
 import { salesInviteShareText } from "../sales-guide";
+import { listOrders } from "../order-service";
 import { createStaff, listProducts, listStaff } from "../staff-service";
 import type { Actor, ProductRow } from "../types";
 import { formatCashPosition } from "./agent";
-import { executeFounderCommand, parseFounderCommand } from "./founder-ops";
+import { createAgentTask, salesCsv, saveAgentNote } from "./agent-memory";
+import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from "./founder-ops";
 import { formatSalesBriefing, formatTeamRoster } from "./menu";
 import type { BotEffect } from "./session";
 
@@ -21,7 +23,23 @@ export type DeskToolCtx = {
   db: SalesDb;
   actor: Actor;
   catalog: ProductRow[];
+  telegramUserId?: number | null;
 };
+
+const TOOL_ALIAS: Record<string, string> = {
+  get_sales_summary: "lihat_keuangan",
+  calculate_profit: "lihat_keuangan",
+  analyze_sales_performance: "data_sales",
+  generate_business_report: "data_sales",
+  generate_pdf_report: "kirim_pdf",
+  get_inventory: "lihat_produk",
+  get_product_details: "lihat_produk",
+};
+
+export function resolveDeskTool(name: string) {
+  const key = (name || "").trim();
+  return TOOL_ALIAS[key] || key;
+}
 
 export type DeskToolResult = { text: string; effects?: BotEffect[] };
 
@@ -67,6 +85,12 @@ export function deskToolsFor(actor: Actor): DeskTool[] {
     fn("kirim_nota", "Kirim nota/invoice customer.", { nama: { type: "string" } }),
     fn("lihat_riwayat", "Transaksi terbaru."),
     fn("lihat_target", "Target dan pencapaian."),
+    fn("get_sales_transactions", "Daftar transaksi penjualan pada periode.", PERIOD_PROP),
+    fn("generate_spreadsheet", "Kirim CSV penjualan (omzet, HPP, laba kotor).", PERIOD_PROP),
+    fn("save_business_note", "Simpan catatan bisnis jangka panjang.", { content: { type: "string" } }, ["content"]),
+    fn("create_task", "Buat tugas pending.", { title: { type: "string" }, detail: { type: "string" } }, ["title"]),
+    fn("get_sales_summary", "Alias ringkasan penjualan.", PERIOD_PROP),
+    fn("calculate_profit", "Hitung omzet, HPP, laba kotor, biaya, laba bersih.", PERIOD_PROP),
   ];
   if (actor.role === "FOUNDER" || actor.role === "LEADER") {
     tools.push(fn("rekrut_sales", "Buat sales baru + kode undangan Telegram.", { nama: { type: "string" } }, ["nama"]));
@@ -81,10 +105,52 @@ export function deskToolsFor(actor: Actor): DeskTool[] {
   return tools;
 }
 
-export async function runDeskTool(name: string, rawArgs: unknown, ctx: DeskToolCtx): Promise<DeskToolResult> {
+export async function runDeskTool(rawName: string, rawArgs: unknown, ctx: DeskToolCtx): Promise<DeskToolResult> {
+  const name = resolveDeskTool(rawName);
   const args = (rawArgs && typeof rawArgs === "object" ? rawArgs : {}) as Record<string, unknown>;
   const { db, actor } = ctx;
   try {
+    if (name === "get_sales_transactions") {
+      const range = rangeFromArgs(args);
+      const { rows } = await listOrders(db, actor, { from: range.from, to: range.to, pageSize: 8 });
+      if (!rows.length) return { text: `Tidak ada transaksi ${range.label}.` };
+      return {
+        text: rows
+          .map((o) => `${o.order_date} · ${o.payment_status} · ${fmtRp(Number(o.total || 0))}`)
+          .join("\n"),
+      };
+    }
+    if (name === "generate_spreadsheet") {
+      const range = rangeFromArgs(args);
+      const report = await buildSalesReport(db, actor, { kind: "custom", from: range.from, to: range.to });
+      const csv = salesCsv(
+        report.lines.map((line) => ({
+          date: line.date,
+          customer: line.customerName,
+          qty: line.qty,
+          omzet: line.cash + line.cashless,
+          hpp: line.hpp,
+          laba: line.profit,
+        })),
+      );
+      return {
+        text: `CSV ${range.label}: ${report.lines.length} baris. Omzet ${fmtRp(report.totalRevenue)}, laba kotor ${fmtRp(report.grossProfit ?? 0)}.`,
+        effects: [{
+          type: "send_file",
+          filename: `henima-${range.from}-${range.to}.csv`,
+          content: csv,
+          mime: "text/csv",
+          caption: `Penjualan ${range.label}`,
+        }],
+      };
+    }
+    if (name === "save_business_note") {
+      const saved = await saveAgentNote(db, actor, ctx.telegramUserId ?? null, String(args.content || ""));
+      return { text: saved.message };
+    }
+    if (name === "create_task") {
+      return { text: await createAgentTask(db, actor, String(args.title || ""), args.detail ? String(args.detail) : undefined) };
+    }
     if (name === "lihat_keuangan") {
       const range = rangeFromArgs(args);
       const report = await buildSalesReport(db, actor, { kind: "custom", from: range.from, to: range.to });
@@ -165,6 +231,9 @@ export async function runDeskTool(name: string, rawArgs: unknown, ctx: DeskToolC
       if (actor.role !== "FOUNDER") return { text: "Hanya founder." };
       const cmd = parseFounderCommand(String(args.perintah || ""));
       if (cmd.type === "none") return { text: "Perintah tidak dikenali. Contoh: tagline … / target bulan 30 / status sistem." };
+      if (needsFounderApproval(cmd)) {
+        return { text: "Perubahan harga atau menonaktifkan sales butuh balasan YA di chat. Ketik perintahnya langsung, lalu YA." };
+      }
       return { text: await executeFounderCommand(db, actor, cmd) };
     }
     return { text: `Tool ${name} tidak ada.` };

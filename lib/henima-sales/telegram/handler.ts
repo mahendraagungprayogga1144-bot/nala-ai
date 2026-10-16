@@ -28,7 +28,7 @@ import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from
 import { clearAgentMemory, compactTurns, listAgentMemory, memoryContext, saveAgentNote } from "./agent-memory";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
-import { buildPackLines, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
+import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -776,6 +776,7 @@ async function sendBriefing(db: SalesDb, actor: Actor, chatId: number, query?: s
   const period = (from && to ? "custom" : kind || "this_month") as ReportKind;
   let salesId: string | undefined;
   let focusName: string | undefined;
+  if (query?.trim() && !extractStaffQuery(`omzet ${query}`)) query = undefined;
   if (query?.trim()) {
     const staff = await listStaff(db, actor);
     const q = query.trim().toLowerCase();

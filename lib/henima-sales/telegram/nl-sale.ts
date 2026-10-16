@@ -133,9 +133,9 @@ export function periodFromText(t: string): { period: ReportPeriod; from?: string
     const win = namedYearWindow(year);
     return { period: "custom", from: win.from, to: win.to };
   }
-  if (/\b(kemarin|yesterday|ayer|hier)\b/.test(t)) return { period: "yesterday" };
   if (/\b((minggu|pekan|week)\s+(lalu|kemarin|last|pasado)|last\s+week)\b/.test(t)) return { period: "last_week" };
   if (/\b((bulan|month|bln)\s+(lalu|kemarin|last|pasado)|last\s+month)\b/.test(t)) return { period: "last_month" };
+  if (/\b(kemarin|yesterday|ayer|hier)\b/.test(t)) return { period: "yesterday" };
   if (/\b(semua(nya)?|keseluruhan|sepanjang)\b/.test(t) && !/\b(hari|minggu|bulan|today|week|month)\b/.test(t)) {
     const win = namedYearWindow();
     return { period: "custom", from: win.from, to: win.to };
@@ -177,21 +177,24 @@ export function parseExpenseChat(text: string): { looksLike: boolean; amount: nu
   return { looksLike: true, amount, note: note.slice(0, 120), yesterday: /\b(kemarin|yesterday)\b/.test(lower) };
 }
 
+const PERIOD_WORDS = new Set([
+  "hari", "ini", "kemarin", "minggu", "pekan", "bulan", "bln", "tahun", "lalu",
+  "today", "yesterday", "week", "month", "year", "last", "this", "semua", "tim", "team", "perusahaan", "berapa",
+]);
+
 export function extractStaffQuery(text: string): string | undefined {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   const m = t.match(
     /\b(?:omzet|data|performa|closing)\s+(?:sales\s+)?([a-z][a-z .'-]{1,40})$/i,
   );
   if (!m) return undefined;
-  const q = m[1].replace(/\s+/g, " ").trim();
-  if (
-    /^(hari|kemarin|minggu|pekan|bulan|bln|tahun|tim|team|sales|berapa|perusahaan|ini|lalu|today|yesterday|week|month|year|all)$/i.test(
-      q,
-    )
-  ) {
-    return undefined;
-  }
-  return q.slice(0, 40);
+  const words = m[1]
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((w) => w && !PERIOD_WORDS.has(w));
+  if (!words.length) return undefined;
+  return words.join(" ").slice(0, 40);
 }
 
 export function parseOpsIntent(text: string): OpsIntent {
@@ -209,6 +212,9 @@ export function parseOpsIntent(text: string): OpsIntent {
   if (/(target|pencapaian|tercapai|goal)/.test(t)) return { type: "target" };
   const staffQ = extractStaffQuery(text);
   if (staffQ) return { type: "briefing", query: staffQ, ...periodFromText(t) };
+  if (/\bomzet\b/.test(t) && /\b(hari|bulan|minggu|pekan|kemarin|tahun|lalu|today|week|month|year)\b/.test(t)) {
+    return { type: "briefing", ...periodFromText(t) };
+  }
   if (/\b(data\s+sales|performa(?:\s+tim)?|peringkat|ranking|laporan\s+tim|omzet\s+tim)\b/.test(t)) {
     return { type: "briefing", ...periodFromText(t) };
   }

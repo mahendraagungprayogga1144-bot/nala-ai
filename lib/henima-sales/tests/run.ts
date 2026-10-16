@@ -844,6 +844,12 @@ test("recruit and team chat for managers", () => {
   const data = parseOpsIntent("omzet andi");
   assert.equal(data.type, "briefing");
   if (data.type === "briefing") assert.equal(data.query, "andi");
+  const last = parseOpsIntent("cek omzet bulan kemarin");
+  assert.equal(last.type, "briefing");
+  if (last.type === "briefing") {
+    assert.equal(last.query, undefined);
+    assert.equal(last.period, "last_month");
+  }
   const roster = formatTeamRoster([
     { id: "s1", business_id: "b1", user_id: null, telegram_user_id: 9, role: "SALES", leader_id: null, nama: "Andi", telepon: null, invite_code: null, status: "active" },
   ]);

@@ -1,3 +1,5 @@
+import { captureOutboundLine, confirmHint, isCapturingOutbound } from "./capture";
+
 const API = "https://api.telegram.org";
 
 function token() {
@@ -22,6 +24,7 @@ async function tg(method: string, body: Record<string, unknown>) {
 }
 
 export async function sendChatAction(chatId: number, action: "typing" | "upload_document" = "typing") {
+  if (isCapturingOutbound()) return;
   try {
     await tg("sendChatAction", { chat_id: chatId, action });
   } catch {
@@ -34,6 +37,7 @@ export async function sendMessage(
   text: string,
   keyboard?: { text: string; data: string }[][],
 ) {
+  if (captureOutboundLine(`${text}${confirmHint(keyboard)}`)) return;
   return tg("sendMessage", {
     chat_id: chatId,
     text: text.slice(0, 4000),
@@ -44,6 +48,7 @@ export async function sendMessage(
 }
 
 export async function answerCallback(id: string) {
+  if (isCapturingOutbound()) return;
   try {
     await tg("answerCallbackQuery", { callback_query_id: id });
   } catch {
@@ -58,6 +63,10 @@ export async function sendDocument(
   caption?: string,
   mime = "application/pdf",
 ) {
+  if (isCapturingOutbound()) {
+    captureOutboundLine(caption?.trim() || `File ${filename} tidak bisa dilampirkan di WhatsApp. Minta file yang sama di Telegram.`);
+    return;
+  }
   const t = token();
   const form = new FormData();
   form.set("chat_id", String(chatId));

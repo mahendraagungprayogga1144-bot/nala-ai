@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     if (!from || from !== founder || !text) continue;
     salesLog("infobip_inbound", { messageId: row.messageId });
     try {
-      const answer = await answerWhatsAppPull(salesDb(), text);
-      await sendWhatsAppText(from, answer);
+      const answer = await answerWhatsAppPull(salesDb(), text, row.messageId);
+      if (answer.trim()) await sendWhatsAppText(from, answer);
     } catch (err) {
       salesLogError("infobip_reply", err);
     }

@@ -210,7 +210,13 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       const note = incoming.text.trim().replace(/^(ingat|catat)\s+/i, "");
       const saved = await saveAgentNote(db, actor, telegramUserId, note);
       reduced = { session, effects: [{ type: "reply", reply: { text: saved.message } }] };
-    } else if (actor.role === "FOUNDER" && /^(ya|iya|setuju|ok)$/.test(bare) && session.memory?.pending) {
+    } else if (
+      actor.role === "FOUNDER" &&
+      /^(ya|iya|setuju|ok)$/.test(bare) &&
+      session.memory?.pending &&
+      !session.memory?.crud &&
+      !session.memory?.work
+    ) {
       const cmd = parseFounderCommand(session.memory.pending.command);
       session.memory = { ...session.memory, pending: undefined };
       reduced = { session, effects: [{ type: "run_founder", cmd }] };
@@ -218,15 +224,28 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   }
   let expenseHandled = false;
   const confirmKeys = [[{ text: "Konfirmasi", data: "ex:yes" }, { text: "Batal", data: "ex:no" }]];
-  if (actor && incoming.kind === "callback" && (incoming.data === "ex:yes" || incoming.data === "ex:no")) {
+  const typedConfirm = incoming.kind === "text" ? incoming.text.trim().toLowerCase() : "";
+  const confirmData =
+    session.state === "idle" &&
+    /^(ya|iya|setuju|ok|konfirmasi)$/.test(typedConfirm) &&
+    (session.memory?.crud || session.memory?.work)
+      ? "ex:yes"
+      : session.state === "idle" &&
+          /^(batal|tidak jadi)$/.test(typedConfirm) &&
+          (session.memory?.crud || session.memory?.work)
+        ? "ex:no"
+        : incoming.kind === "callback" && (incoming.data === "ex:yes" || incoming.data === "ex:no")
+          ? incoming.data
+          : null;
+  if (actor && confirmData) {
     expenseHandled = true;
     const crud = session.memory?.crud;
     const work = session.memory?.work;
-    if (incoming.data === "ex:no" || (!crud && !work)) {
+    if (confirmData === "ex:no" || (!crud && !work)) {
       const memory = { ...(session.memory || {}), crud: null, work: null };
       reduced = {
         session: { ...session, memory },
-        effects: [{ type: "reply", reply: { text: incoming.data === "ex:no" ? "Dibatalkan. Tidak ada yang disimpan." : "Tidak ada konfirmasi yang menunggu." } }],
+        effects: [{ type: "reply", reply: { text: confirmData === "ex:no" ? "Dibatalkan. Tidak ada yang disimpan." : "Tidak ada konfirmasi yang menunggu." } }],
       };
     } else if (work) {
       reduced = { session, effects: [{ type: "apply_work", draft: work }] };

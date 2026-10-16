@@ -24,6 +24,8 @@ import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../re
 import { cleanProductLabel } from "../labels";
 import { formatKommoLeads } from "../kommo/client";
 import { infobipAccepted, whatsAppTextBody } from "../whatsapp/infobip";
+import { whatsAppUpdateId } from "../whatsapp/pull";
+import { confirmHint } from "../telegram/capture";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
 import { parseHenimaAiJson } from "../telegram/deepseek";
 import { staffOffboardingFields } from "../staff-service";
@@ -477,6 +479,10 @@ test("expense chat records operational cost", () => {
   assert.deepEqual(whatsAppTextBody("628111", "0812-345", "halo"), { from: "628111", to: "0812345", content: { text: "halo" } });
   assert.equal(infobipAccepted({ status: { groupName: "PENDING" } }), true);
   assert.equal(infobipAccepted({ status: { groupName: "REJECTED" } }), false);
+  assert.equal(whatsAppUpdateId("abc"), whatsAppUpdateId("abc"));
+  assert.ok(whatsAppUpdateId("abc") >= 8_000_000_000_000);
+  assert.match(confirmHint([[{ text: "Konfirmasi" }, { text: "Batal" }]]), /Balas YA/);
+  assert.equal(confirmHint([[{ text: "Nota" }]]), "");
   assert.equal(taskJob("follow up reseller"), null);
   assert.match(formatKommoLeads([{ id: 12, name: "Sinta", price: 130000 }]), /Sinta/);
   assert.equal(formatKommoLeads([]), "Belum ada lead di Kommo.");

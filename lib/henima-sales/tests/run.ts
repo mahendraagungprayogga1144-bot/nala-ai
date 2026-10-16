@@ -14,6 +14,7 @@ import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
+import { parseHenimaAiJson } from "../telegram/deepseek";
 import { staffOffboardingFields } from "../staff-service";
 import { formatNotaNumber, notaFromOrder, pdfSafe, buildSalesNotaPdf } from "../nota";
 import { buildSalesReportPdf, groupRecapByMonth } from "../pdf";
@@ -138,6 +139,13 @@ test("RBAC scope founder/leader/sales", () => {
       incomingTelegramUserId: 42,
     }),
   );
+});
+
+test("deepseek json maps finance and expense", () => {
+  assert.equal(parseHenimaAiJson('{"kind":"pdf","period":"this_month"}')?.kind, "pdf");
+  const exp = parseHenimaAiJson('{"kind":"expense","amount":700000,"note":"iklan"}');
+  assert.equal(exp?.kind, "expense");
+  if (exp?.kind === "expense") assert.equal(exp.amount, 700000);
 });
 
 test("opex cuts profit not omzet", () => {

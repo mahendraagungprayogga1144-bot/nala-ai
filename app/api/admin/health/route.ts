@@ -64,6 +64,11 @@ export async function GET() {
         : "missing PHOTOROOM_API_KEY (or REMOVEBG_API_KEY)",
   });
   checks.push({
+    name: "DeepSeek sales bot",
+    ok: Boolean(process.env.DEEPSEEK_API_KEY),
+    detail: process.env.DEEPSEEK_API_KEY ? "DEEPSEEK_API_KEY set (chat Telegram santai)" : "missing DEEPSEEK_API_KEY",
+  });
+  checks.push({
     name: "Henima Studio Gemini",
     ok: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY),
     detail: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY

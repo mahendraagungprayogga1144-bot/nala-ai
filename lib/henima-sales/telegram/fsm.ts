@@ -402,7 +402,14 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 const CHAT_HINT =
   "Boleh ketik santai, contoh:\nlaku 1 afternoon 130rb atas nama Sinta no 08… qris\npengeluaran 100rb buat bensin\nkeuangan perusahaan\nrekapan hari ini · pdf bulan ini · nota · /help";
 
-function applyNaturalChat(
+export function looksLikeGenericHint(effects: BotEffect[]) {
+  const first = effects[0];
+  if (!first || first.type !== "reply") return false;
+  const t = first.reply.text;
+  return t.startsWith("Boleh ketik santai") || t.startsWith("Kirim chat penjualan");
+}
+
+export function applyNaturalChat(
   session: Session,
   actor: Actor,
   text: string,

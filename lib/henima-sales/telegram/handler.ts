@@ -4,7 +4,7 @@ import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { createExpense, listExpenses } from "../expense-service";
-import { periodRange } from "../dates";
+import { addDaysYmd, periodRange } from "../dates";
 import { listProducts, listStaff } from "../staff-service";
 import { createCustomer, findCustomerByPhone, getCustomer, listCustomers } from "../customer-service";
 import { confirmSale, listOrders, getOrder, softDeleteOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
@@ -19,7 +19,8 @@ import { writeAudit } from "../audit";
 import { displayPhone, isUsablePhone } from "../phone";
 import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
-import { reduceBot, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
+import { reduceBot, applyNaturalChat, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
+import { interpretHenimaChat } from "./deepseek";
 import type { Session } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, parseOpsIntent } from "./nl-sale";
@@ -152,7 +153,39 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   const products =
     actor && needsProductCatalog(incoming, session) ? await listProducts(db, actor.businessId) : [];
 
-  const reduced = reduceBot(session, incoming, { actor, products });
+  let reduced = reduceBot(session, incoming, { actor, products });
+  if (actor && incoming.kind === "text" && looksLikeGenericHint(reduced.effects)) {
+    const catalog = products.length ? products : await listProducts(db, actor.businessId);
+    const ai = await interpretHenimaChat(incoming.text, catalog);
+    if (ai && ai.kind !== "unknown") {
+      if (ai.kind === "sale") {
+        reduced = applyNaturalChat(session, actor, ai.text, catalog);
+      } else if (ai.kind === "expense") {
+        reduced = {
+          session: { state: "idle", draft: newDraft() },
+          effects: [
+            {
+              type: "save_expense",
+              amount: ai.amount,
+              note: ai.note,
+              expenseDate: ai.yesterday ? addDaysYmd(todayWib(), -1) : todayWib(),
+            },
+          ],
+        };
+      } else {
+        const idle = { state: "idle" as const, draft: newDraft() };
+        if (ai.kind === "pdf") reduced = { session: idle, effects: [{ type: "send_pdf", kind: ai.period }] };
+        else if (ai.kind === "rekap") reduced = { session: idle, effects: [{ type: "send_report", kind: ai.period }] };
+        else if (ai.kind === "nota") reduced = { session: idle, effects: [{ type: "send_nota", query: ai.query }] };
+        else if (ai.kind === "riwayat") reduced = { session: idle, effects: [{ type: "send_riwayat" }] };
+        else if (ai.kind === "target") reduced = { session: idle, effects: [{ type: "send_target" }] };
+        else if (ai.kind === "help") reduced = applyNaturalChat(session, actor, "help", catalog);
+        else if (ai.kind === "expense_list") {
+          reduced = { session: idle, effects: [{ type: "send_expenses", kind: ai.period }] };
+        }
+      }
+    }
+  }
   let next = reduced.session;
 
   for (const effect of reduced.effects) {

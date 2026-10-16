@@ -23,6 +23,7 @@ import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
 import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import { askHenimaAgent, deskDecisionToEffects, shouldUseDeskAgent } from "./agent";
+import { executeFounderCommand, parseFounderCommand } from "./founder-ops";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
@@ -167,7 +168,13 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     actor && needsProductCatalog(incoming, session) ? await listProducts(db, actor.businessId) : [];
 
   let reduced = reduceBot(session, incoming, { actor, products });
-  if (actor && incoming.kind === "text" && session.state === "idle") {
+  if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle") {
+    const founderCmd = parseFounderCommand(incoming.text);
+    if (founderCmd.type !== "none") {
+      reduced = { session: { state: "idle", draft: newDraft(), memory: session.memory }, effects: [{ type: "run_founder", cmd: founderCmd }] };
+    }
+  }
+  if (actor && incoming.kind === "text" && session.state === "idle" && reduced.effects[0]?.type !== "run_founder") {
     const catalog = products.length ? products : await listProducts(db, actor.businessId);
     const raw = incoming.text;
     const combined =
@@ -320,6 +327,10 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         }
       } else if (effect.type === "send_briefing" && actor) {
         await sendBriefing(db, actor, chatId, effect.query, effect.kind, effect.from, effect.to);
+      } else if (effect.type === "run_founder" && actor) {
+        const text = await executeFounderCommand(db, actor, effect.cmd);
+        await sendMessage(chatId, text, mainMenuKeyboard(actor));
+        next = { state: "idle", draft: newDraft(), memory: session.memory };
       }
     } catch (err) {
       salesLogError("telegram_effect", err, { type: effect.type, telegramUserId });

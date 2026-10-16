@@ -67,6 +67,15 @@ export function helpText(actor: Actor) {
       "keuangan perusahaan — PDF laba",
     );
   }
+  if (actor.role === "FOUNDER") {
+    common.push(
+      "",
+      "KENDALI FOUNDER",
+      "tagline … · nama bisnis … · target bulan 30",
+      "harga afternoon 199999 · nonaktifkan sales Andi",
+      "status sistem",
+    );
+  }
   common.push("", "Perintah: /menu  /start  /help");
   return common.join("\n");
 }

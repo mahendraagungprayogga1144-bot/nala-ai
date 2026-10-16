@@ -2,6 +2,7 @@ import type { Actor, PaymentMethod, PaymentStatus, ProductRow, SaleLine } from "
 import { paymentLabel, priceAgainstRetail } from "../types";
 import { UNLINKED_MSG } from "../sales-guide";
 import { helpText } from "./menu";
+import type { FounderCommand } from "./founder-ops";
 import { fmtDiscount, fmtRp } from "../money";
 
 export { UNLINKED_MSG };
@@ -93,6 +94,7 @@ export type BotEffect =
   | { type: "recruit_sales"; nama: string }
   | { type: "send_team" }
   | { type: "send_briefing"; query?: string; kind?: string; from?: string; to?: string }
+  | { type: "run_founder"; cmd: FounderCommand }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 

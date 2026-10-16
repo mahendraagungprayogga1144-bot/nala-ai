@@ -12,6 +12,7 @@ import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, periodFromText } from "../telegram/nl-sale";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent } from "../telegram/agent";
+import { parseFounderCommand } from "../telegram/founder-ops";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -776,6 +777,24 @@ test("/help lists commands", () => {
   const founderHelp = helpText(founder);
   assert.match(founderHelp, /rekrut sales/);
   assert.match(founderHelp, /data sales/);
+});
+
+test("founder ops parse settings not a shell", () => {
+  assert.equal(parseFounderCommand("program server kita").type, "refuse_os");
+  assert.equal(parseFounderCommand("merogram server").type, "refuse_os");
+  assert.equal(parseFounderCommand("status sistem").type, "status");
+  const tag = parseFounderCommand("tagline Parfum premium");
+  assert.equal(tag.type, "tagline");
+  if (tag.type === "tagline") assert.equal(tag.tagline, "Parfum premium");
+  const tgt = parseFounderCommand("target bulan 30");
+  assert.equal(tgt.type, "target");
+  if (tgt.type === "target") {
+    assert.equal(tgt.period, "monthly");
+    assert.equal(tgt.qty, 30);
+  }
+  const off = parseFounderCommand("nonaktifkan sales Andi");
+  assert.equal(off.type, "disable");
+  assert.equal(parseFounderCommand("laku 1 afternoon 130rb").type, "none");
 });
 
 test("recruit and team chat for managers", () => {

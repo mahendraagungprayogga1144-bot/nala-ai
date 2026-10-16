@@ -73,6 +73,11 @@ export async function GET() {
       : "missing INFOBIP_API_KEY",
   });
   checks.push({
+    name: "Kommo CRM",
+    ok: Boolean(process.env.KOMMO_TOKEN && process.env.KOMMO_SUBDOMAIN),
+    detail: process.env.KOMMO_TOKEN && process.env.KOMMO_SUBDOMAIN ? "KOMMO_TOKEN and KOMMO_SUBDOMAIN set" : "missing KOMMO_TOKEN or KOMMO_SUBDOMAIN",
+  });
+  checks.push({
     name: "DeepSeek sales bot",
     ok: Boolean(process.env.DEEPSEEK_API_KEY),
     detail: process.env.DEEPSEEK_API_KEY ? "DEEPSEEK_API_KEY set (chat Telegram santai)" : "missing DEEPSEEK_API_KEY",

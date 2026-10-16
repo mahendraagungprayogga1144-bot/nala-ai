@@ -1,6 +1,7 @@
 import { lastNMonthsRange, periodRange, type PeriodKind } from "../dates";
 import type { SalesDb } from "../db";
 import { listExpenses } from "../expense-service";
+import { listKommoLeads } from "../kommo/client";
 import { fmtRp } from "../money";
 import { buildSalesReport } from "../report-service";
 import { salesInviteShareText } from "../sales-guide";
@@ -73,6 +74,7 @@ export function deskToolsFor(actor: Actor): DeskTool[] {
     fn("lihat_keuangan", "Omzet, HPP, biaya, laba/sisa uang operasional. Wajib untuk pertanyaan uang/profit.", PERIOD_PROP),
     fn("data_sales", "Performa per sales atau satu nama.", { ...PERIOD_PROP, nama: { type: "string" } }),
     fn("lihat_tim", "Daftar sales dan status CONNECTED/PENDING."),
+    fn("lihat_kommo", "Lead terbaru dari CRM Kommo. Panggil jika user menyebut Kommo."),
     fn("lihat_produk", "Katalog parfum (harga, HPP, stok)."),
     fn("lihat_biaya", "Daftar pengeluaran operasional.", PERIOD_PROP),
     fn("catat_biaya", "Catat pengeluaran. Potong laba, bukan omzet.", {
@@ -217,6 +219,10 @@ export async function runDeskTool(rawName: string, rawArgs: unknown, ctx: DeskTo
       }
       const report = await buildSalesReport(db, actor, { kind: "custom", from: range.from, to: range.to, salesId });
       return { text: formatSalesBriefing(report, focus) };
+    }
+    if (name === "lihat_kommo") {
+      if (actor.role === "SALES") return { text: "Data Kommo hanya untuk founder dan leader." };
+      return { text: await listKommoLeads() };
     }
     if (name === "lihat_tim") {
       const staff = await listStaff(db, actor);

@@ -22,6 +22,7 @@ import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
 import { cleanProductLabel } from "../labels";
+import { formatKommoLeads } from "../kommo/client";
 import { infobipAccepted, whatsAppTextBody } from "../whatsapp/infobip";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
 import { parseHenimaAiJson } from "../telegram/deepseek";
@@ -477,6 +478,8 @@ test("expense chat records operational cost", () => {
   assert.equal(infobipAccepted({ status: { groupName: "PENDING" } }), true);
   assert.equal(infobipAccepted({ status: { groupName: "REJECTED" } }), false);
   assert.equal(taskJob("follow up reseller"), null);
+  assert.match(formatKommoLeads([{ id: 12, name: "Sinta", price: 130000 }]), /Sinta/);
+  assert.equal(formatKommoLeads([]), "Belum ada lead di Kommo.");
   const pnlBefore = companyPnl({ revenue: 500000, hpp: 100000, opex: 100000 });
   const pnlAfter = companyPnl({ revenue: 500000, hpp: 100000, opex: 150000 });
   assert.equal(pnlBefore.omzet, pnlAfter.omzet);

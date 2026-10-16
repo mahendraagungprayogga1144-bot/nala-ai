@@ -32,6 +32,7 @@ import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, p
 import { alreadyApplied, looksLikeExpenseMutation, planExpenseMessage } from "./expense-nl";
 import { looksLikeWorkEdit, planWorkMessage, taskJob } from "./crud-nl";
 import { notifyFounderWhatsApp } from "../whatsapp/infobip";
+import { listKommoLeads } from "../kommo/client";
 import { runDeskTool } from "./desk-tools";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
@@ -203,6 +204,8 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         await setAgentTaskStatus(db, actor, made.id, out.text.includes("gagal") ? "failed" : "completed", out.text.slice(0, 180));
         reduced = { session, effects: [{ type: "reply", reply: { text: `${made.text}\n${out.text}` } }, ...(out.effects || [])] };
       }
+    } else if (/\bkommo\b/i.test(incoming.text) && (actor.role === "FOUNDER" || actor.role === "LEADER")) {
+      reduced = { session, effects: [{ type: "reply", reply: { text: await listKommoLeads(), keyboard: mainMenuKeyboard(actor) } }] };
     } else if (/^(ingat|catat)\s+/i.test(incoming.text.trim())) {
       const note = incoming.text.trim().replace(/^(ingat|catat)\s+/i, "");
       const saved = await saveAgentNote(db, actor, telegramUserId, note);
@@ -333,6 +336,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   const memoryHandled =
     /^(lihat memori|memory|hapus memori|lupakan|lihat tugas|daftar tugas)$/i.test(bareText) ||
     /^(ingat|catat|buat tugas)\s+/i.test(bareText) ||
+    (/\bkommo\b/i.test(bareText) && (actor?.role === "FOUNDER" || actor?.role === "LEADER")) ||
     (/^(ya|iya|setuju|ok)$/i.test(bareText) && Boolean(session.memory?.pending));
   let founderGate = false;
   if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !expenseHandled) {

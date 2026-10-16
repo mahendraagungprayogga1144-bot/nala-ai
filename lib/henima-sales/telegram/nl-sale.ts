@@ -267,6 +267,15 @@ export function looksLikeMoneyLeft(text: string) {
   );
 }
 
+export function looksLikeChitchat(text: string) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim().replace(/[!?.,]+$/g, "");
+  if (!t || t.length > 48) return false;
+  if (looksLikeMoneyLeft(t) || looksLikeCompanyFinance(t) || looksLikeQuestion(t)) return false;
+  return /^(halo+|hallo+|hai+|hi+|hey+|hei+|pagi|siang|sore|malam|yo+|yow|ping|p|test|tes|ok+|oke+|okay|sip+|siap|thanks|thank you|makasih|terima kasih|trimakasih|noted|hmm+|hehe+|bro+|bos+|gas+|lanjut)$/.test(
+    t,
+  );
+}
+
 export function looksLikeQuestion(text: string) {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return false;

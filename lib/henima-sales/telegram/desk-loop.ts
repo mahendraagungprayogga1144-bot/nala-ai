@@ -2,9 +2,10 @@ import type { SalesReport } from "../report-service";
 import { salesLogError } from "../log";
 import type { Actor, ProductRow } from "../types";
 import type { SalesDb } from "../db";
-import { formatCashPosition, CAPABLE_REPLY, fallbackDeskDecision, deskDecisionToEffects } from "./agent";
+import { formatCashPosition, CAPABLE_REPLY, fallbackDeskDecision, deskDecisionToEffects, greetingReply } from "./agent";
 import { deskToolsFor, runDeskTool } from "./desk-tools";
 import { mainMenuKeyboard } from "./menu";
+import { looksLikeChitchat } from "./nl-sale";
 import type { BotEffect, Session } from "./session";
 import { newDraft } from "./session";
 
@@ -18,13 +19,18 @@ type ToolCall = {
 
 const MAX_ROUNDS = 4;
 
-function snapshotFacts(report: SalesReport, actor: Actor, catalog: ProductRow[]) {
-  return [
+function snapshotFacts(report: SalesReport | null, actor: Actor, catalog: ProductRow[], chitchat: boolean) {
+  const lines = [
     `role=${actor.role} nama=${actor.nama} bisnis=${actor.businessName}`,
-    `snapshot ${report.range.label}: omzet=${report.totalRevenue} hpp=${report.hppTotal || 0} biaya=${report.opexTotal || 0} sisa_laba=${report.profitTotal || 0} pcs=${report.totalQty} trx=${report.totalOrders}`,
     `katalog=${catalog.map((p) => p.name).join(", ") || "Afternoon, The Distance"}`,
-    "Sisa uang = laba bersih operasional (omzet-HPP-biaya), bukan rekening bank.",
-  ].join("\n");
+  ];
+  if (!chitchat && report) {
+    lines.push(
+      `snapshot ${report.range.label}: omzet=${report.totalRevenue} hpp=${report.hppTotal || 0} biaya=${report.opexTotal || 0} sisa_laba=${report.profitTotal || 0} pcs=${report.totalQty} trx=${report.totalOrders}`,
+      "Sisa uang = laba bersih operasional (omzet-HPP-biaya), bukan rekening bank. Jangan sebut angka ini kecuali user minta.",
+    );
+  }
+  return lines.join("\n");
 }
 
 export async function runDeskLoop(opts: {
@@ -39,8 +45,9 @@ export async function runDeskLoop(opts: {
 }): Promise<{ session: Session; effects: BotEffect[] } | null> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   const idle: Session = { state: "idle", draft: newDraft(), memory: opts.session.memory };
+  const chitchat = looksLikeChitchat(opts.text);
   if (!key) {
-    const fb = fallbackDeskDecision(opts.text, opts.report);
+    const fb = fallbackDeskDecision(opts.text, opts.report, opts.actor);
     return deskDecisionToEffects(fb, opts.session, opts.actor, opts.catalog, opts.range);
   }
 
@@ -48,15 +55,14 @@ export async function runDeskLoop(opts: {
   const messages: ChatMsg[] = [
     {
       role: "system",
-      content: `Kamu asisten operasional Henima Sales, gaya Gercep OS: tegas, jelas, eksekusi. Jangan markdown. Bahasa user.
-Pakai TOOLS sampai pekerjaan selesai. Jangan bilang tidak bisa kalau tool-nya ada.
-Jangan mengarang angka — ambil dari tool atau snapshot.
-Klarifikasi singkat hanya jika nama/nominal wajib tapi kosong.
+      content: `Kamu asisten operasional Henima Sales, gaya Gercep OS: ngobrol dulu, eksekusi kalau diminta. Jangan markdown. Bahasa user.
+Kalau user hanya sapa (halo/hai/pagi) atau obrolan pendek: balas hangat 1-3 kalimat, tawarkan bantuan. JANGAN dump omzet/HPP/rekap. JANGAN panggil tool.
+Pakai TOOLS hanya jika user minta kerja (uang, tim, pdf, rekrut, catat, harga). Jangan mengarang angka.
 Setelah tool sukses, konfirmasi hasil nyata.
-${snapshotFacts(opts.report, opts.actor, opts.catalog)}`,
+${snapshotFacts(chitchat ? null : opts.report, opts.actor, opts.catalog, chitchat)}`,
     },
   ];
-  if (opts.history) messages.push({ role: "user", content: `Riwayat:\n${opts.history}` });
+  if (opts.history && !chitchat) messages.push({ role: "user", content: `Riwayat:\n${opts.history}` });
   messages.push({ role: "user", content: opts.text.slice(0, 800) });
 
   const extraEffects: BotEffect[] = [];
@@ -72,9 +78,9 @@ ${snapshotFacts(opts.report, opts.actor, opts.catalog)}`,
         signal: controller.signal,
         body: JSON.stringify({
           model: "deepseek-chat",
-          temperature: 0.2,
-          max_tokens: 500,
-          tools,
+          temperature: chitchat ? 0.5 : 0.2,
+          max_tokens: chitchat ? 220 : 500,
+          ...(chitchat ? {} : { tools, tool_choice: "auto" }),
           messages,
         }),
       });
@@ -115,8 +121,9 @@ ${snapshotFacts(opts.report, opts.actor, opts.catalog)}`,
   }
 
   if (!finalText) {
-    finalText = extraEffects.length ? "Sudah dikerjakan." : formatCashPosition(opts.report);
-    if (!extraEffects.length && !opts.text) finalText = CAPABLE_REPLY;
+    if (chitchat) finalText = greetingReply(opts.actor);
+    else if (extraEffects.length) finalText = "Sudah dikerjakan.";
+    else finalText = formatCashPosition(opts.report);
   }
 
   return {

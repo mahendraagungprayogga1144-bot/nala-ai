@@ -39,7 +39,7 @@ function fn(name: string, description: string, properties: Record<string, unknow
 const PERIOD_PROP = {
   periode: {
     type: "string",
-    enum: ["today", "yesterday", "this_week", "last_week", "this_month", "last_month"],
+    enum: ["today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "all"],
   },
   bulan: { type: "number", description: "N bulan terakhir, contoh 3" },
 };

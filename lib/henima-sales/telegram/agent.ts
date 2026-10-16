@@ -4,6 +4,7 @@ import { fmtRp } from "../money";
 import { salesLogError } from "../log";
 import {
   isPeriodOnly,
+  looksLikeChitchat,
   looksLikeFollowUp,
   looksLikeMoneyLeft,
   looksLikeQuestion,
@@ -158,7 +159,18 @@ export function parseAgentJson(raw: string): AgentDecision | null {
   };
 }
 
-export function fallbackDeskDecision(text: string, report: SalesReport): AgentDecision {
+export function greetingReply(actor: Actor) {
+  return [
+    `Halo ${actor.nama}. Saya asisten Henima Sales — ngobrol santai aja, seperti di Gercep OS.`,
+    "",
+    "Mau catat penjualan, cek sisa uang, lihat tim, rekrut sales, atau yang lain?",
+  ].join("\n");
+}
+
+export function fallbackDeskDecision(text: string, report: SalesReport, actor?: Actor): AgentDecision {
+  if (looksLikeChitchat(text)) {
+    return { action: "answer", reply: actor ? greetingReply(actor) : CAPABLE_REPLY };
+  }
   if (looksLikeMoneyLeft(text) || looksLikeQuestion(text)) {
     return { action: "answer", reply: formatCashPosition(report) };
   }

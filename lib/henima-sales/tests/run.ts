@@ -20,6 +20,7 @@ import { alreadyApplied, canChangeExpense, planExpenseMessage, type ExpenseSnap 
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
+import { cleanProductLabel } from "../labels";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
 import { parseHenimaAiJson } from "../telegram/deepseek";
 import { staffOffboardingFields } from "../staff-service";
@@ -700,6 +701,11 @@ test("riwayat card shows customer name", () => {
     formatOrderItemsLabel([{ product_name_snapshot: "THE DISTANCE × 1 × 1", qty: 1 }]),
     "THE DISTANCE × 1",
   );
+  assert.equal(
+    formatOrderItemsLabel([{ product_name_snapshot: "THE DISTANCE x 1 x 1", qty: 1 }]),
+    "THE DISTANCE × 1",
+  );
+  assert.equal(cleanProductLabel("AFTERNOON x 1 x 1"), "AFTERNOON");
   assert.equal(
     formatOrderItemsLabel([
       { product_name_snapshot: "Afternoon", qty: 1 },

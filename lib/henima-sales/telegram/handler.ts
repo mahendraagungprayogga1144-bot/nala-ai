@@ -689,7 +689,7 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
   const { order, duplicate } = await confirmSale(db, actor, {
     customerId: d.customerId,
     productId: lines[0].productId,
-    productName: lines.map((line) => `${line.productName} × ${line.quantity}`).join(" + "),
+    productName: lines.map((line) => line.productName).join(" + "),
     quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
     unitPrice: lines[0].unitPrice,
     discount: d.discount || 0,

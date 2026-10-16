@@ -4,6 +4,7 @@ import { UNLINKED_MSG } from "../sales-guide";
 import { helpText } from "./menu";
 import type { FounderCommand } from "./founder-ops";
 import { fmtDiscount, fmtRp } from "../money";
+import { cleanProductLabel } from "../labels";
 import type { ExpenseDraft, ExpenseSnap } from "./expense-nl";
 
 export { UNLINKED_MSG };
@@ -193,8 +194,7 @@ export function formatOrderItemsLabel(items?: { product_name_snapshot: string | 
   if (!items?.length) return "Produk";
   const qtyByName = new Map<string, number>();
   for (const i of items) {
-    const raw = (i.product_name_snapshot || "Produk").replace(/\s+/g, " ").trim();
-    const name = raw.replace(/(?:\s*×\s*\d+)+\s*$/g, "").trim() || raw;
+    const name = cleanProductLabel(i.product_name_snapshot || "Produk");
     qtyByName.set(name, (qtyByName.get(name) || 0) + (Number(i.qty) || 1));
   }
   return [...qtyByName.entries()].map(([name, qty]) => `${name} × ${qty}`).join(" + ");

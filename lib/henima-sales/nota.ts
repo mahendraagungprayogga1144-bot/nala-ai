@@ -7,6 +7,7 @@ import { listProducts } from "./staff-service";
 import { displayPhone } from "./phone";
 import { fmtDateLongId, fmtRp } from "./money";
 import { embedBrandFonts } from "./pdf-fonts";
+import { cleanProductLabel } from "./labels";
 import { discountPercentOf, formatDiscountPercent, priceAgainstRetail, type ProductRow } from "./types";
 
 export type NotaLine = {
@@ -72,7 +73,7 @@ export function notaFromOrder(opts: {
   catalog?: ProductRow[];
 }): NotaPayload {
   const rawLines = (opts.order.order_items || []).map((item) => ({
-    name: item.product_name_snapshot || "Produk",
+    name: cleanProductLabel(item.product_name_snapshot || "Produk"),
     qty: Number(item.qty || 0),
     unitPrice: Number(item.harga_jual || 0),
     productId: item.product_id ? String(item.product_id) : "",

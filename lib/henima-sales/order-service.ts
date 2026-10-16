@@ -9,6 +9,7 @@ import { getCustomer } from "./customer-service";
 import { listProducts } from "./staff-service";
 import { catalogUnitCost } from "./hpp";
 import { salesLogError } from "./log";
+import { cleanProductLabel } from "./labels";
 
 export type SalesOrder = {
   id: string;
@@ -72,7 +73,7 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
     unitPrice: priced.lines[0].unitPrice,
     quantity: priced.lines.reduce((sum, line) => sum + line.quantity, 0),
     discount: priced.discount,
-    productName: priced.lines.map((line) => `${line.productName} × ${line.quantity}`).join(" + "),
+    productName: priced.lines.map((line) => cleanProductLabel(line.productName)).join(" + "),
     lines: priced.lines.length > 1 ? priced.lines : undefined,
   };
 
@@ -136,7 +137,7 @@ async function confirmSaleItems(db: SalesDb, actor: Actor, input: ConfirmSaleInp
     actor,
     input,
     data,
-    lines.map((l) => `${l.productName} × ${l.quantity}`).join(" + "),
+    lines.map((l) => cleanProductLabel(l.productName)).join(" + "),
     lines.reduce((sum, l) => sum + l.quantity, 0),
   );
 }

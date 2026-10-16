@@ -6,6 +6,7 @@ import { periodRange, type PeriodKind } from "./dates";
 import { listCommissionLedger } from "./commission-service";
 import { backfillMissingSaleHpp, loadCatalogCosts, orderHppTotal } from "./hpp";
 import { listExpenses } from "./expense-service";
+import { cleanProductLabel } from "./labels";
 
 export type { PeriodKind as ReportKind } from "./dates";
 export type RankMetric = "quantity" | "revenue" | "count";
@@ -73,7 +74,8 @@ function displayCustomerName(raw: string) {
 function recapNote(catatan: string | null, products: string) {
   const note = (catatan || "").replace(/\s+/g, " ").trim();
   if (!note) return products;
-  if (/^(laku|terjual|jual)\b/i.test(note) || note.length > 48) return products || note.slice(0, 32);
+  if (/^(laku|terjual|jual)\b/i.test(note) || note.length > 48) return products || cleanProductLabel(note);
+  if (/(?:\s*[x×]\s*\d+){2,}/i.test(note)) return products || cleanProductLabel(note);
   return note;
 }
 
@@ -164,7 +166,7 @@ export async function buildSalesReport(
   const byProduct: Record<string, { name: string; qty: number; omzet: number }> = {};
   for (const o of paid) {
     for (const i of o.order_items || []) {
-      const name = i.product_name_snapshot || i.product_id || "Produk";
+      const name = cleanProductLabel(i.product_name_snapshot || i.product_id || "Produk");
       const key = i.product_id || name;
       if (!byProduct[key]) byProduct[key] = { name, qty: 0, omzet: 0 };
       byProduct[key].qty += Number(i.qty || 0);
@@ -208,7 +210,13 @@ export async function buildSalesReport(
       const hpp = hppOf(o, catalog);
       const profit = total - hpp;
       const qty = qtyOf(o);
-      const products = (o.order_items || []).map((i) => i.product_name_snapshot || "Produk").join(" + ");
+      const products = (o.order_items || [])
+        .map((i) => {
+          const name = cleanProductLabel(i.product_name_snapshot || "Produk");
+          const qty = Number(i.qty || 0);
+          return qty > 1 ? `${name} × ${qty}` : name;
+        })
+        .join(" + ");
       byPay[split.method] += total;
       cashTotal += split.cash;
       transferTotal += split.transfer;

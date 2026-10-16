@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { salesDb } from "@/lib/henima-sales/db";
 import { salesLog, salesLogError } from "@/lib/henima-sales/log";
 import { infobipMonitorReady, sendWhatsAppText } from "@/lib/henima-sales/whatsapp/infobip";
+import { answerWhatsAppPull } from "@/lib/henima-sales/whatsapp/pull";
 
 export const maxDuration = 30;
 
@@ -34,7 +36,8 @@ export async function POST(request: Request) {
     if (!from || from !== founder || !text) continue;
     salesLog("infobip_inbound", { messageId: row.messageId });
     try {
-      await sendWhatsAppText(from, "Monitor WhatsApp aktif. Perintah lengkap tetap di Telegram Henima.");
+      const answer = await answerWhatsAppPull(salesDb(), text);
+      await sendWhatsAppText(from, answer);
     } catch (err) {
       salesLogError("infobip_reply", err);
     }

@@ -21,25 +21,55 @@ export function whatsAppTextBody(from: string, to: string, text: string) {
   };
 }
 
-export async function sendWhatsAppText(to: string, text: string) {
+export function whatsAppTemplateBody(from: string, to: string, templateName: string, placeholder: string) {
+  return {
+    messages: [
+      {
+        from: from.replace(/\s+/g, ""),
+        to: to.replace(/\D/g, ""),
+        content: {
+          templateName,
+          language: "en",
+          templateData: { body: { placeholders: [placeholder.slice(0, 300)] } },
+        },
+      },
+    ],
+  };
+}
+
+export function infobipAccepted(body: { status?: { groupName?: string }; messages?: { status?: { groupName?: string } }[] }) {
+  const name = body.status?.groupName || body.messages?.[0]?.status?.groupName || "";
+  return name === "PENDING" || name === "DELIVERED" || name === "ACCEPTED";
+}
+
+async function infobipPost(path: string, payload: unknown) {
   const key = process.env.INFOBIP_API_KEY?.trim();
   const base = infobipBaseUrl();
-  const from = process.env.INFOBIP_WA_FROM?.trim();
-  if (!key || !base || !from || !to.trim()) return { ok: false as const, reason: "not_configured" };
-  const res = await fetch(`https://${base}/whatsapp/1/message/text`, {
+  if (!key || !base) return { ok: false as const, reason: "not_configured" };
+  const res = await fetch(`https://${base}${path}`, {
     method: "POST",
     headers: {
       Authorization: `App ${key}`,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify(whatsAppTextBody(from, to, text)),
+    body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    salesLogError("infobip_send", { status: res.status }, { status: res.status });
+  const body = (await res.json().catch(() => ({}))) as { status?: { groupName?: string }; messages?: { status?: { groupName?: string } }[] };
+  if (!res.ok || !infobipAccepted(body)) {
+    salesLogError("infobip_send", { status: res.status, group: body.status?.groupName || body.messages?.[0]?.status?.groupName }, { status: res.status });
     return { ok: false as const, reason: `http_${res.status}` };
   }
   return { ok: true as const };
+}
+
+export async function sendWhatsAppText(to: string, text: string) {
+  const from = process.env.INFOBIP_WA_FROM?.trim();
+  if (!from || !to.trim()) return { ok: false as const, reason: "not_configured" };
+  const plain = await infobipPost("/whatsapp/1/message/text", whatsAppTextBody(from, to, text));
+  if (plain.ok) return plain;
+  const template = process.env.INFOBIP_WA_TEMPLATE?.trim() || "welcome_multiple_languages";
+  return infobipPost("/whatsapp/1/message/template", whatsAppTemplateBody(from, to, template, text));
 }
 
 /** Founder monitor only. Never used to message customers. */

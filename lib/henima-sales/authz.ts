@@ -161,6 +161,19 @@ export function invalidateTelegramActorCache(telegramUserId?: number) {
   else telegramActorCache.clear();
 }
 
+export async function resolveActiveFounder(db: SalesDb): Promise<Actor | null> {
+  const { data: staff } = await db
+    .from("module_sales_staff")
+    .select("*")
+    .eq("role", "FOUNDER")
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (!staff) return null;
+  const biz = await businessOf(db, staff.business_id);
+  return toActor(db, staff as StaffRow, biz);
+}
+
 export async function resolveActorByTelegramId(db: SalesDb, telegramUserId: number): Promise<Actor | null> {
   const hit = telegramActorCache.get(telegramUserId);
   if (hit && Date.now() - hit.at < TELEGRAM_ACTOR_TTL_MS) return hit.actor;

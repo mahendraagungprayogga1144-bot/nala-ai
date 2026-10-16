@@ -22,7 +22,7 @@ import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
 import { cleanProductLabel } from "../labels";
-import { whatsAppTextBody } from "../whatsapp/infobip";
+import { infobipAccepted, whatsAppTextBody } from "../whatsapp/infobip";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
 import { parseHenimaAiJson } from "../telegram/deepseek";
 import { staffOffboardingFields } from "../staff-service";
@@ -474,6 +474,8 @@ test("expense chat records operational cost", () => {
   assert.match(planWorkMessage("cek saldo rekening", { role: "FOUNDER" }).type === "say" ? "laba operasional" : "", /laba operasional/);
   assert.equal(taskJob("kirim pdf bulan ini"), "pdf");
   assert.deepEqual(whatsAppTextBody("628111", "0812-345", "halo"), { from: "628111", to: "0812345", content: { text: "halo" } });
+  assert.equal(infobipAccepted({ status: { groupName: "PENDING" } }), true);
+  assert.equal(infobipAccepted({ status: { groupName: "REJECTED" } }), false);
   assert.equal(taskJob("follow up reseller"), null);
   const pnlBefore = companyPnl({ revenue: 500000, hpp: 100000, opex: 100000 });
   const pnlAfter = companyPnl({ revenue: 500000, hpp: 100000, opex: 150000 });

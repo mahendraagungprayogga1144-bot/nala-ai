@@ -1,6 +1,7 @@
 import type { Actor, PaymentMethod, PaymentStatus, ProductRow, SaleLine } from "../types";
 import { paymentLabel, priceAgainstRetail } from "../types";
-import { UNLINKED_MSG, salesHowToText } from "../sales-guide";
+import { UNLINKED_MSG } from "../sales-guide";
+import { helpText } from "./menu";
 import { fmtDiscount, fmtRp } from "../money";
 
 export { UNLINKED_MSG };
@@ -82,6 +83,9 @@ export type BotEffect =
   | { type: "send_target" }
   | { type: "save_expense"; amount: number; note: string; expenseDate?: string }
   | { type: "send_expenses"; kind: string; from?: string; to?: string }
+  | { type: "recruit_sales"; nama: string }
+  | { type: "send_team" }
+  | { type: "send_briefing"; query?: string; kind?: string }
   | { type: "link_invite"; code: string }
   | { type: "noop" };
 
@@ -97,41 +101,21 @@ export function connectedStatusText(actor: Actor, extraHelp?: string) {
     lines.push("Akun founder terkunci. Jangan pinjamkan Telegram/HP ini ke sales.");
   }
   lines.push("");
-  lines.push(extraHelp || salesHowToText());
+  lines.push(extraHelp || "Tekan menu di bawah, atau ketik santai. /help untuk daftar lengkap.");
   return lines.join("\n");
 }
 
-export const HELP_TEXT = `Perintah Henima Sales:
-
-/input — catat penjualan
-/riwayat — lihat, edit, hapus transaksi
-/customer — cari customer
-/rekap — ringkasan penjualan
-/target — target & pencapaian
-/followup — buat reminder
-/pdf — laporan PDF
-/nota — nota / invoice customer (contoh: nota regan)
-/biaya — catat pengeluaran operasional
-/help — bantuan
-
-Sales cukup pakai Telegram. Bahasa bebas, contoh:
-laku 1 harga 130rb atas nama Regan no 0877... tf
-beli 3 jenis distance harga 120rb atas nama Nicco no 08... tf
-sold 3 afternoon 2 the distance price 149k for Vitha phone 08... cash
-laku 2 paket new member harga 250k atas nama Dimas no 08... qris
-afternoon dan the distance
-Bayar: tf / qris / cash / transfer / bank
-berapa yang terjual semuanya
-rekapan hari ini / recap today
-pdf bulan ini / pdf agustus / pdf bulan lalu
-pdf setahun / pdf 2025 / pdf tahun lalu
-riwayat / history
-nota regan / invoice
-target / targetku
-pengeluaran 100rb buat bensin
-biaya hari ini
-
-Belum CONNECTED? Minta kode 8 karakter ke manajemen, lalu /start 43E33258`;
+export const HELP_TEXT = helpText({
+  staffId: "s1",
+  businessId: "b1",
+  businessName: "Henima",
+  ownerUserId: "u1",
+  userId: "u3",
+  telegramUserId: 3,
+  role: "SALES",
+  nama: "Sales",
+  leaderId: null,
+});
 
 export function newDraft(): Draft {
   return { paymentStatus: "PAID" };

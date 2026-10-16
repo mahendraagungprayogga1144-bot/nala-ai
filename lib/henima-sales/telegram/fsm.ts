@@ -20,7 +20,8 @@ import {
 import { calculateOrderTotal } from "../types";
 import type { Actor, ProductRow } from "../types";
 import type { BotEffect, BotReply, BotState, Draft, Session } from "./session";
-import { formatConfirm, HELP_TEXT, UNLINKED_MSG, applyCatalogPricing, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
+import { formatConfirm, UNLINKED_MSG, applyCatalogPricing, applyLinesToDraft, connectedStatusText, kb, newDraft } from "./session";
+import { helpText, isManager, mainMenuKeyboard, recruitPrompt } from "./menu";
 
 export type World = {
   actor: Actor | null;
@@ -52,9 +53,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
     }
     return {
       session: { state: "idle", draft: newDraft() },
-      effects: [
-        reply(connectedStatusText(actor)),
-      ],
+      effects: [reply(connectedStatusText(actor), mainMenuKeyboard(actor))],
     };
   }
 
@@ -65,7 +64,39 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
   if (incoming.kind === "command") {
     switch (incoming.cmd) {
       case "/help":
-        return { session: { state: "idle", draft: newDraft() }, effects: [reply(HELP_TEXT)] };
+      case "/menu":
+        return {
+          session: { state: "idle", draft: newDraft() },
+          effects: [reply(helpText(actor), mainMenuKeyboard(actor))],
+        };
+      case "/tim":
+      case "/team":
+        if (!isManager(actor)) {
+          return {
+            session: { state: "idle", draft: newDraft() },
+            effects: [reply("Daftar tim hanya untuk founder atau leader.")],
+          };
+        }
+        return { session: { state: "idle", draft: newDraft() }, effects: [{ type: "send_team" }] };
+      case "/data":
+        return {
+          session: { state: "idle", draft: newDraft() },
+          effects: [{ type: "send_briefing", query: incoming.arg?.trim() || undefined, kind: "this_month" }],
+        };
+      case "/rekrut":
+      case "/recruit": {
+        if (!isManager(actor)) {
+          return {
+            session: { state: "idle", draft: newDraft() },
+            effects: [reply("Rekrut sales hanya untuk founder atau leader.")],
+          };
+        }
+        const nama = (incoming.arg || "").trim();
+        if (!nama) {
+          return { session: { state: "idle", draft: newDraft() }, effects: [reply(recruitPrompt())] };
+        }
+        return { session: { state: "idle", draft: newDraft() }, effects: [{ type: "recruit_sales", nama }] };
+      }
       case "/input":
         return {
           session: { state: "input_phone", draft: { ...newDraft(), idempotencyKey: randomUUID() } },
@@ -122,12 +153,38 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
           effects: [{ type: "send_nota", query: incoming.arg?.trim() || undefined }],
         };
       default:
-        return { session, effects: [reply("Perintah tidak dikenali. Ketik /help.")] };
+        return { session, effects: [reply("Perintah tidak dikenali. Ketik /menu.")] };
     }
   }
 
   if (incoming.kind === "callback") {
     const data = incoming.data;
+    if (data.startsWith("m:")) {
+      const key = data.slice(2);
+      const idle = { state: "idle" as const, draft: newDraft() };
+      if (key === "sale") {
+        return {
+          session: { state: "input_phone", draft: { ...newDraft(), idempotencyKey: randomUUID() } },
+          effects: [reply("Nomor WhatsApp customer, atau ketik penjualan dalam satu pesan.")],
+        };
+      }
+      if (key === "hist") return { session: idle, effects: [{ type: "send_riwayat" }] };
+      if (key === "today") return { session: idle, effects: [{ type: "send_report", kind: "today" }] };
+      if (key === "pdf") return { session: idle, effects: [{ type: "send_pdf", kind: "this_month" }] };
+      if (key === "nota") return { session: idle, effects: [{ type: "send_nota" }] };
+      if (key === "tgt") return { session: idle, effects: [{ type: "send_target" }] };
+      if (key === "help") return { session: idle, effects: [reply(helpText(actor), mainMenuKeyboard(actor))] };
+      if (key === "team") {
+        if (!isManager(actor)) return { session: idle, effects: [reply("Daftar tim hanya untuk founder atau leader.")] };
+        return { session: idle, effects: [{ type: "send_team" }] };
+      }
+      if (key === "data") return { session: idle, effects: [{ type: "send_briefing", kind: "this_month" }] };
+      if (key === "hire") {
+        if (!isManager(actor)) return { session: idle, effects: [reply("Rekrut sales hanya untuk founder atau leader.")] };
+        return { session: idle, effects: [reply(recruitPrompt())] };
+      }
+      if (key === "fin") return { session: idle, effects: [{ type: "send_pdf", kind: "this_month" }] };
+    }
     if (data.startsWith("rk:")) {
       const kind = data.slice(3);
       return { session: go(session, "idle"), effects: [{ type: "send_report", kind }] };
@@ -389,7 +446,7 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
       case "idle":
       default: {
         if (session.state !== "idle" && session.state !== "input_confirm") {
-          return { session, effects: [reply("Ketik /help untuk melihat perintah.")] };
+          return { session, effects: [reply("Ketik /menu untuk melihat perintah.")] };
         }
         return applyNaturalChat(session, actor, text, world.products);
       }
@@ -400,13 +457,17 @@ export function reduceBot(session: Session, incoming: Incoming, world: World): {
 }
 
 const CHAT_HINT =
-  "Boleh ketik santai, contoh:\nlaku 1 afternoon 130rb atas nama Sinta no 08… qris\npengeluaran 100rb buat bensin\nkeuangan perusahaan\nrekapan hari ini · pdf bulan ini · nota · /help";
+  "Belum ketemu maksudnya. Pilih menu, atau ketik santai — penjualan, rekap, biaya, tim.";
 
 export function looksLikeGenericHint(effects: BotEffect[]) {
   const first = effects[0];
   if (!first || first.type !== "reply") return false;
   const t = first.reply.text;
-  return t.startsWith("Boleh ketik santai") || t.startsWith("Kirim chat penjualan");
+  return (
+    t.startsWith("Belum ketemu") ||
+    t.startsWith("Boleh ketik santai") ||
+    t.startsWith("Kirim chat penjualan")
+  );
 }
 
 export function applyNaturalChat(
@@ -418,7 +479,26 @@ export function applyNaturalChat(
   const ops = parseOpsIntent(text);
   const idle = { state: "idle" as const, draft: newDraft() };
   if (ops.type === "help") {
-    return { session: idle, effects: [reply(HELP_TEXT)] };
+    return { session: idle, effects: [reply(helpText(actor), mainMenuKeyboard(actor))] };
+  }
+  if (ops.type === "recruit") {
+    if (!isManager(actor)) {
+      return { session: idle, effects: [reply("Rekrut sales hanya untuk founder atau leader.")] };
+    }
+    if (!ops.nama) return { session: idle, effects: [reply(recruitPrompt())] };
+    return { session: idle, effects: [{ type: "recruit_sales", nama: ops.nama }] };
+  }
+  if (ops.type === "team") {
+    if (!isManager(actor)) {
+      return { session: idle, effects: [reply("Daftar tim hanya untuk founder atau leader.")] };
+    }
+    return { session: idle, effects: [{ type: "send_team" }] };
+  }
+  if (ops.type === "briefing") {
+    return {
+      session: idle,
+      effects: [{ type: "send_briefing", query: ops.query, kind: ops.period }],
+    };
   }
   if (ops.type === "rekap") {
     return { session: idle, effects: [{ type: "send_report", kind: ops.period, from: ops.from, to: ops.to }] };
@@ -456,7 +536,10 @@ function applyNaturalSale(
 ): { session: Session; effects: BotEffect[] } {
   const parsed = parseSalesChat(text, products);
   if (!parsed.looksLikeSale) {
-    return { session: { state: "idle", draft: newDraft() }, effects: [reply(CHAT_HINT)] };
+    return {
+      session: { state: "idle", draft: newDraft() },
+      effects: [reply(CHAT_HINT, mainMenuKeyboard(_actor))],
+    };
   }
 
   const quantity = parsed.quantity || (parsed.unitPrice ? 1 : undefined);

@@ -22,78 +22,54 @@ export function salesInviteShareText(opts: {
 
 Selamat bergabung di tim penjualan ${brand}.
 
-Berikut prosedur resmi aktivasi akun sales Anda. Mohon diikuti secara berurutan.
-
 PROSEDUR AKTIVASI
-1. Buka Telegram pada akun pribadi Anda. Jangan menggunakan perangkat atau akun manajemen.
-2. Cari dan buka percakapan resmi: @${bot}
-3. Kirim perintah aktivasi berikut secara persis (termasuk spasi):
+1. Buka Telegram di akun pribadi Anda (bukan akun manajemen).
+2. Cari @${bot}
+3. Kirim persis:
 /start ${code}
-4. Tunggu konfirmasi sistem: CONNECTED
+4. Tunggu konfirmasi CONNECTED
 
-Kode undangan ini bersifat rahasia, berlaku untuk satu orang, dan hanya dapat digunakan di Telegram Anda sendiri. Dilarang dibagikan kepada pihak lain.
+Kode ini rahasia, satu orang, satu Telegram.
 
-PENCATATAN PENJUALAN
-Setelah status CONNECTED, catat transaksi dengan format standar perusahaan:
+SETELAH CONNECTED
+Ketik santai, contoh:
+laku 1 afternoon 130rb atas nama Regan no 087712345678 tf
 
-laku 1 harga 130rb atas nama Regan no 087712345678 tf
+Retail katalog Rp199.999. Tulis harga yang dibayar; diskon dihitung otomatis.
+Paket: laku 2 paket new member harga 250k atas nama Dimas no 08… qris
+Bayar: tf / qris / cash
 
-Harga retail katalog Rp199.999. Tuliskan harga yang dibayar pelanggan. Sistem akan menghitung diskon dan potongan secara otomatis.
-Contoh persentase: laku 1 harga 199.999 diskon 20% atas nama Sinta no 08xxxxxxxxxx qris
+Cek kerja: rekapan hari ini · riwayat · nota · target · /menu
 
-Paket Afternoon + The Distance:
-laku 2 paket new member harga 250k atas nama Dimas no 08xxxxxxxxxx qris
-
-Metode pembayaran: tf / qris / cash / lainnya. Apabila belum disebutkan, sistem akan menanyakan.
-
-PEMANTAUAN
-rekapan hari ini
-riwayat
-nota regan
-target / targetku
-
-Apabila aktivasi gagal, hubungi manajemen untuk penerbitan kode undangan baru. Terima kasih.`;
+Jika gagal, minta manajemen terbitkan kode baru.`;
 }
 
-export const UNLINKED_MSG = `Akun Telegram Anda belum terdaftar pada sistem penjualan.
+export const UNLINKED_MSG = `Akun Telegram Anda belum terdaftar.
 
-Minta kode 8 karakter kepada manajemen, lalu kirim persis (ganti angkanya, jangan ketik kata KODE):
+Minta kode 8 karakter ke manajemen, lalu kirim persis (ganti angkanya, jangan ketik kata KODE):
 /start 43E33258
 
-Satu kode hanya berlaku untuk satu orang.
-Sales wajib mengirim /start di Telegram mereka sendiri. Jangan menggunakan perangkat atau akun manajemen.`;
+Satu kode, satu orang. Sales wajib /start di Telegram mereka sendiri — bukan akun manajemen.`;
 
 export function salesHowToText() {
-  return `PEDOMAN OPERASIONAL
+  return `HENIMA SALES — cara kerja singkat
 
-Pencatatan penjualan — ketik dalam satu pesan, format standar:
-laku 1 harga 130rb atas nama NamaCustomer no 08xxxxxxxxxx tf
+CATAT PENJUALAN (satu pesan, bahasa bebas)
+laku 1 afternoon 130rb atas nama NamaCustomer no 08xxxxxxxxxx tf
+sold 2 the distance 250k for Dimas phone 08xxxxxxxxxx cash
 
-Harga retail katalog Rp199.999. Apabila pelanggan membayar Rp130.000, sistem mencatat DISKON 35% (Rp69.999) secara otomatis.
-Contoh persentase: laku 1 harga 199.999 diskon 20% atas nama Sinta no 08xxxxxxxxxx qris
+Retail Rp199.999. Tulis yang dibayar pelanggan. Diskon otomatis.
+Paket: laku 2 paket new member harga 250k atas nama Dimas no 08… qris
+Bayar: tf / qris / cash
 
-Paket Afternoon + The Distance dalam satu transaksi:
-laku 2 paket new member harga 250k atas nama NamaCustomer no 08xxxxxxxxxx qris
-atau: afternoon dan the distance
+LAPORAN
+rekapan hari ini · pdf bulan ini · nota nama · riwayat · target
 
-Metode pembayaran: tf (transfer), qris, cash, atau lainnya. Jika belum disebutkan, sistem akan menanyakan.
-
-Biaya operasional — potong omzet bersih dan profit perusahaan:
+BIAYA (potong laba, bukan omzet)
 pengeluaran 100rb buat bensin
-kemarin biaya 50rb untuk packing
-biaya hari ini
 
-Laporan dan dokumen:
-rekapan hari ini
-rekap minggu ini
-pdf bulan ini
-pdf agustus
-pdf bulan lalu
-pdf setahun
-pdf 2025
-riwayat
-nota (contoh: nota regan)
-target / targetku
+MANAJEMEN (founder / leader)
+tim · data sales · omzet Nama · rekrut sales Nama · keuangan perusahaan
 
-Perintah cadangan: /input /help`;
+Menu: /menu`;
 }

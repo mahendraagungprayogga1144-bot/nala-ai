@@ -11,6 +11,7 @@ import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines } from "../telegram/nl-sale";
+import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
 import { catalogUnitCost, lineHpp, orderHppTotal } from "../hpp";
@@ -146,6 +147,8 @@ test("deepseek json maps finance and expense", () => {
   const exp = parseHenimaAiJson('{"kind":"expense","amount":700000,"note":"iklan"}');
   assert.equal(exp?.kind, "expense");
   if (exp?.kind === "expense") assert.equal(exp.amount, 700000);
+  assert.equal(parseHenimaAiJson('{"kind":"recruit","nama":"Andi"}')?.kind, "recruit");
+  assert.equal(parseHenimaAiJson('{"kind":"briefing","query":"andi"}')?.kind, "briefing");
 });
 
 test("opex cuts profit not omzet", () => {
@@ -744,9 +747,34 @@ test("nota intent and customer invoice number", () => {
 test("/help lists commands", () => {
   const out = reduceBot({ state: "idle", draft: newDraft() }, { kind: "command", cmd: "/help" }, { actor: sales, products: [] });
   if (out.effects[0].type === "reply") {
-    assert.match(out.effects[0].reply.text, /\/input/);
-    assert.match(out.effects[0].reply.text, /\/pdf/);
+    assert.match(out.effects[0].reply.text, /HENIMA SALES/);
+    assert.match(out.effects[0].reply.text, /\/menu/);
+    assert.doesNotMatch(out.effects[0].reply.text, /rekrut sales/);
+    assert.ok(out.effects[0].reply.keyboard?.length);
   }
+  const founderHelp = helpText(founder);
+  assert.match(founderHelp, /rekrut sales/);
+  assert.match(founderHelp, /data sales/);
+});
+
+test("recruit and team chat for managers", () => {
+  assert.equal(parseRecruitName("rekrut sales Andi"), "Andi");
+  assert.equal(parseRecruitName("rekrut sales"), "");
+  const hire = reduceBot({ state: "idle", draft: newDraft() }, { kind: "text", text: "rekrut sales Nala" }, { actor: founder, products: [] });
+  assert.equal(hire.effects[0].type, "recruit_sales");
+  if (hire.effects[0].type === "recruit_sales") assert.equal(hire.effects[0].nama, "Nala");
+  const blocked = reduceBot({ state: "idle", draft: newDraft() }, { kind: "text", text: "rekrut sales Nala" }, { actor: sales, products: [] });
+  assert.equal(blocked.effects[0].type, "reply");
+  const team = parseOpsIntent("tim");
+  assert.equal(team.type, "team");
+  const data = parseOpsIntent("omzet andi");
+  assert.equal(data.type, "briefing");
+  if (data.type === "briefing") assert.equal(data.query, "andi");
+  const roster = formatTeamRoster([
+    { id: "s1", business_id: "b1", user_id: null, telegram_user_id: 9, role: "SALES", leader_id: null, nama: "Andi", telepon: null, invite_code: null, status: "active" },
+  ]);
+  assert.match(roster, /Andi/);
+  assert.match(roster, /CONNECTED/);
 });
 
 const perfume = [

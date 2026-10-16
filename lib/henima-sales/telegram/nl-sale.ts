@@ -1,6 +1,7 @@
 import { namedMonthWindow, namedYearWindow, wibParts } from "../dates";
 import { isValidPhoneId, normalizePhoneId } from "../phone";
 import { DEFAULT_HENIMA_PRODUCTS, type PaymentMethod, type ProductRow, type SaleLine, normalizePaymentMethod } from "../types";
+import { parseRecruitName } from "./menu";
 
 export type ParsedSaleChat = {
   looksLikeSale: boolean;
@@ -28,6 +29,9 @@ export type OpsIntent =
   | { type: "expense"; amount: number; note: string; yesterday?: boolean }
   | { type: "expense_list"; period: ReportPeriod; from?: string; to?: string }
   | { type: "help" }
+  | { type: "recruit"; nama: string }
+  | { type: "team" }
+  | { type: "briefing"; query?: string; period: ReportPeriod; from?: string; to?: string }
   | { type: "none" };
 
 const EXPENSE_HINT =
@@ -133,10 +137,41 @@ export function parseExpenseChat(text: string): { looksLike: boolean; amount: nu
   return { looksLike: true, amount, note: note.slice(0, 120), yesterday: /\b(kemarin|yesterday)\b/.test(lower) };
 }
 
+export function extractStaffQuery(text: string): string | undefined {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  const m = t.match(
+    /\b(?:omzet|data|performa|closing)\s+(?:sales\s+)?([a-z][a-z .'-]{1,40})$/i,
+  );
+  if (!m) return undefined;
+  const q = m[1].replace(/\s+/g, " ").trim();
+  if (
+    /^(hari|kemarin|minggu|pekan|bulan|bln|tahun|tim|team|sales|berapa|perusahaan|ini|lalu|today|yesterday|week|month|year|all)$/i.test(
+      q,
+    )
+  ) {
+    return undefined;
+  }
+  return q.slice(0, 40);
+}
+
 export function parseOpsIntent(text: string): OpsIntent {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return { type: "none" };
-  if (/^(help|bantuan|menu|perintah|aide|ayuda|\?)$/.test(t)) return { type: "help" };
+  if (
+    /^(help|bantuan|menu|perintah|aide|ayuda|\?|tolong|cara pakai|how to|commands?)$/.test(t) ||
+    (/^\s*(help|bantuan|menu)\b/.test(t) && t.length < 36)
+  ) {
+    return { type: "help" };
+  }
+  const recruitNama = parseRecruitName(text);
+  if (recruitNama != null) return { type: "recruit", nama: recruitNama };
+  if (/^(?:\/)?(?:tim|team|daftar\s+sales|anggota(?:\s+tim)?|roster)$/.test(t)) return { type: "team" };
+  if (/(target|pencapaian|tercapai|goal)/.test(t)) return { type: "target" };
+  const staffQ = extractStaffQuery(text);
+  if (staffQ) return { type: "briefing", query: staffQ, ...periodFromText(t) };
+  if (/\b(data\s+sales|performa(?:\s+tim)?|peringkat|ranking|laporan\s+tim|omzet\s+tim)\b/.test(t)) {
+    return { type: "briefing", ...periodFromText(t) };
+  }
   const expense = parseExpenseChat(text);
   if (expense.looksLike) {
     if (expense.amount && expense.amount > 0) {

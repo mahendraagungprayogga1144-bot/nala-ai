@@ -8,6 +8,9 @@ export type HenimaAiIntent =
   | { kind: "riwayat" }
   | { kind: "target" }
   | { kind: "help" }
+  | { kind: "recruit"; nama: string }
+  | { kind: "team" }
+  | { kind: "briefing"; query?: string; period: ReportPeriod }
   | { kind: "expense"; amount: number; note: string; yesterday?: boolean }
   | { kind: "expense_list"; period: ReportPeriod }
   | { kind: "sale"; text: string }
@@ -52,7 +55,14 @@ export function parseHenimaAiJson(raw: string): HenimaAiIntent | null {
   if (kind === "nota" || kind === "invoice") return { kind: "nota", query: data.query ? String(data.query) : undefined };
   if (kind === "riwayat" || kind === "history") return { kind: "riwayat" };
   if (kind === "target") return { kind: "target" };
-  if (kind === "help") return { kind: "help" };
+  if (kind === "help" || kind === "menu") return { kind: "help" };
+  if (kind === "team" || kind === "roster") return { kind: "team" };
+  if (kind === "briefing" || kind === "data" || kind === "performance") {
+    return { kind: "briefing", query: data.query ? String(data.query) : undefined, period };
+  }
+  if (kind === "recruit" || kind === "hire") {
+    return { kind: "recruit", nama: String(data.nama || data.name || "").trim() };
+  }
   if (kind === "expense_list" || kind === "expenses") return { kind: "expense_list", period };
   if (kind === "expense") {
     const amount = Math.round(Number(data.amount) || 0);
@@ -93,15 +103,17 @@ export async function interpretHenimaChat(text: string, products: ProductRow[]):
         messages: [
           {
             role: "system",
-            content: `Kamu parser chat sales parfum Henima. Katalog: ${catalog}.
-Balas HANYA JSON valid, tanpa markdown.
-kind: pdf|rekap|nota|riwayat|target|help|expense|expense_list|sale|unknown
+            content: `You parse Henima perfume sales chat in ANY language. Catalog: ${catalog}.
+Reply ONLY valid JSON, no markdown.
+kind: pdf|rekap|nota|riwayat|target|help|recruit|team|briefing|expense|expense_list|sale|unknown
 period: today|yesterday|this_week|last_week|this_month|last_month
-Keuangan/omzet/profit perusahaan → kind=pdf, period=this_month kecuali user sebut hari ini.
-Pengeluaran/biaya + nominal → kind=expense, amount rupiah angka, note singkat, yesterday true jika kemarin.
-Daftar biaya tanpa nominal → expense_list.
-Catat penjualan → kind=sale dan text bentuk: laku QTY NAMA harga NOMINAL atas nama NAMA no NOMOR tf|qris|cash
-Tidak yakin → unknown.`,
+Company finance/profit/P&L → pdf this_month unless a day is named.
+Team roster → team. Hire new salesperson → recruit + nama.
+Sales performance / omzet per person → briefing, query=person name if any.
+Expense + amount → expense (amount IDR number, short note).
+Expense list without amount → expense_list.
+Sale → kind=sale and text: laku QTY NAME harga AMOUNT atas nama NAME no PHONE tf|qris|cash
+Help/menu/how-to → help. Unsure → unknown.`,
           },
           { role: "user", content: text.slice(0, 400) },
         ],

@@ -5,7 +5,9 @@ import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { createExpense, listExpenses } from "../expense-service";
 import { addDaysYmd, periodRange } from "../dates";
-import { listProducts, listStaff } from "../staff-service";
+import { createStaff, listProducts, listStaff } from "../staff-service";
+import { salesInviteShareText } from "../sales-guide";
+import { formatSalesBriefing, formatTeamRoster, isManager, mainMenuKeyboard, recruitPrompt } from "./menu";
 import { createCustomer, findCustomerByPhone, getCustomer, listCustomers } from "../customer-service";
 import { confirmSale, listOrders, getOrder, softDeleteOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
 import { createFollowUp } from "../followup-service";
@@ -180,6 +182,15 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         else if (ai.kind === "riwayat") reduced = { session: idle, effects: [{ type: "send_riwayat" }] };
         else if (ai.kind === "target") reduced = { session: idle, effects: [{ type: "send_target" }] };
         else if (ai.kind === "help") reduced = applyNaturalChat(session, actor, "help", catalog);
+        else if (ai.kind === "team") reduced = { session: idle, effects: [{ type: "send_team" }] };
+        else if (ai.kind === "briefing") {
+          reduced = { session: idle, effects: [{ type: "send_briefing", query: ai.query, kind: ai.period }] };
+        }
+        else if (ai.kind === "recruit") {
+          reduced = ai.nama
+            ? { session: idle, effects: [{ type: "recruit_sales", nama: ai.nama }] }
+            : applyNaturalChat(session, actor, "rekrut sales", catalog);
+        }
         else if (ai.kind === "expense_list") {
           reduced = { session: idle, effects: [{ type: "send_expenses", kind: ai.period }] };
         }
@@ -228,7 +239,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
             `${fmtDateLongId(row.expense_date)} · ${row.note}`,
             fmtRp(row.amount),
             "",
-            "Omzet bersih dan profit perusahaan otomatis berkurang sebesar ini.",
+            "Laba perusahaan berkurang sebesar ini. Omzet penjualan tidak dipotong.",
           ].join("\n"),
         );
       } else if (effect.type === "send_expenses" && actor) {
@@ -250,7 +261,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
               ...rows.map((r) => `${fmtDateLongId(r.expense_date)} · ${r.note || "Operasional"} · ${fmtRp(r.amount)}`),
               "",
               `Total: ${fmtRp(total)}`,
-              "Angka ini memotong omzet bersih dan profit perusahaan.",
+              "Angka ini memotong laba, bukan omzet penjualan.",
             ].join("\n"),
           );
         }
@@ -273,6 +284,44 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         await sendRiwayat(db, actor, chatId);
       } else if (effect.type === "send_target" && actor) {
         await sendTarget(db, actor, chatId);
+      } else if (effect.type === "recruit_sales" && actor) {
+        if (!isManager(actor)) {
+          await sendMessage(chatId, "Rekrut sales hanya untuk founder atau leader.");
+        } else {
+          const nama = effect.nama.trim();
+          if (nama.length < 2) {
+            await sendMessage(chatId, recruitPrompt());
+          } else {
+            const row = await createStaff(db, actor, { nama, role: "SALES" });
+            const share = salesInviteShareText({
+              staffName: row.nama,
+              code: row.invite_code || "",
+              brandName: actor.businessName,
+              botUsername: process.env.TELEGRAM_BOT_USERNAME,
+            });
+            await sendMessage(
+              chatId,
+              [
+                `Sales baru dicatat: ${row.nama}`,
+                `Kode undangan: ${row.invite_code}`,
+                "",
+                "Salin pesan berikut ke WhatsApp/Telegram pribadi sales:",
+                "",
+                share,
+              ].join("\n"),
+            );
+          }
+        }
+        next = { state: "idle", draft: newDraft() };
+      } else if (effect.type === "send_team" && actor) {
+        if (!isManager(actor)) {
+          await sendMessage(chatId, "Daftar tim hanya untuk founder atau leader.");
+        } else {
+          const staff = await listStaff(db, actor);
+          await sendMessage(chatId, formatTeamRoster(staff), mainMenuKeyboard(actor));
+        }
+      } else if (effect.type === "send_briefing" && actor) {
+        await sendBriefing(db, actor, chatId, effect.query, effect.kind);
       }
     } catch (err) {
       salesLogError("telegram_effect", err, { type: effect.type, telegramUserId });
@@ -646,6 +695,25 @@ async function orderCustomerName(
     }
   }
   return customerNameFromNote(order.catatan) || "Tanpa nama";
+}
+
+async function sendBriefing(db: SalesDb, actor: Actor, chatId: number, query?: string, kind?: string) {
+  const period = (kind || "this_month") as ReportKind;
+  let salesId: string | undefined;
+  let focusName: string | undefined;
+  if (query?.trim()) {
+    const staff = await listStaff(db, actor);
+    const q = query.trim().toLowerCase();
+    const hit = staff.find((s) => s.nama.toLowerCase() === q) || staff.find((s) => s.nama.toLowerCase().includes(q));
+    if (!hit) {
+      await sendMessage(chatId, `Sales "${query}" tidak ada di tim.\nKetik tim untuk daftar.`);
+      return;
+    }
+    salesId = hit.id;
+    focusName = hit.nama;
+  }
+  const report = await buildSalesReport(db, actor, { kind: period, salesId });
+  await sendMessage(chatId, formatSalesBriefing(report, focusName), mainMenuKeyboard(actor));
 }
 
 async function sendRekap(db: SalesDb, actor: Actor, chatId: number, kind: ReportKind, from?: string, to?: string) {

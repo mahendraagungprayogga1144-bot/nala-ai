@@ -31,6 +31,7 @@ import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, fo
 import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
 import { alreadyApplied, looksLikeExpenseMutation, planExpenseMessage } from "./expense-nl";
 import { looksLikeWorkEdit, planWorkMessage, taskJob } from "./crud-nl";
+import { notifyFounderWhatsApp } from "../whatsapp/infobip";
 import { runDeskTool } from "./desk-tools";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
@@ -493,6 +494,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
             },
           };
           await sendMessage(chatId, `Tersimpan. ID ${row.id.slice(0, 8)}.\n${row.expense_date} · ${row.note} · ${fmtRp(Number(row.amount))}\nLaba berkurang. Omzet tidak dipotong. Ini bukan saldo rekening.`);
+          void notifyFounderWhatsApp(`Biaya tercatat ${row.id.slice(0, 8)}\n${row.expense_date} · ${row.note} · ${fmtRp(Number(row.amount))}`);
         } else if (draft.op === "delete" && draft.id) {
           await softDeleteExpense(db, actor, draft.id);
           next = { ...next, memory: { ...(session.memory || {}), crud: null, expense: null } };
@@ -885,6 +887,7 @@ async function runConfirm(db: SalesDb, actor: Actor, chatId: number, session: Se
       .join("\n"),
     [[{ text: "NOTA", data: `nota:${order.id}` }]],
   );
+  void notifyFounderWhatsApp(`Closing tersimpan ${order.id.slice(0, 8)}\n${d.productName || lines.map((line) => line.productName).join(" + ")} = ${fmtRp(order.total)}`);
 }
 
 function progressBar(pct: number) {

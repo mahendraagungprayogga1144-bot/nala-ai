@@ -64,6 +64,15 @@ export async function GET() {
         : "missing PHOTOROOM_API_KEY (or REMOVEBG_API_KEY)",
   });
   checks.push({
+    name: "Infobip WhatsApp monitor",
+    ok: Boolean(process.env.INFOBIP_API_KEY && process.env.INFOBIP_BASE_URL && process.env.INFOBIP_WA_FROM && process.env.INFOBIP_WA_TO),
+    detail: process.env.INFOBIP_API_KEY
+      ? process.env.INFOBIP_WA_FROM && process.env.INFOBIP_WA_TO
+        ? "key, sender, and founder number set"
+        : "key set, missing INFOBIP_WA_FROM or INFOBIP_WA_TO"
+      : "missing INFOBIP_API_KEY",
+  });
+  checks.push({
     name: "DeepSeek sales bot",
     ok: Boolean(process.env.DEEPSEEK_API_KEY),
     detail: process.env.DEEPSEEK_API_KEY ? "DEEPSEEK_API_KEY set (chat Telegram santai)" : "missing DEEPSEEK_API_KEY",

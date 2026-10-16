@@ -13,6 +13,7 @@ import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service"
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, periodFromText } from "../telegram/nl-sale";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent } from "../telegram/agent";
 import { parseFounderCommand } from "../telegram/founder-ops";
+import { deskToolsFor } from "../telegram/desk-tools";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -777,6 +778,17 @@ test("/help lists commands", () => {
   const founderHelp = helpText(founder);
   assert.match(founderHelp, /rekrut sales/);
   assert.match(founderHelp, /data sales/);
+});
+
+test("desk tools match gercep style by role", () => {
+  const founderTools = deskToolsFor(founder).map((t) => t.function.name);
+  const salesTools = deskToolsFor(sales).map((t) => t.function.name);
+  assert.ok(founderTools.includes("lihat_keuangan"));
+  assert.ok(founderTools.includes("atur_perusahaan"));
+  assert.ok(founderTools.includes("rekrut_sales"));
+  assert.ok(salesTools.includes("lihat_keuangan"));
+  assert.equal(salesTools.includes("atur_perusahaan"), false);
+  assert.equal(salesTools.includes("rekrut_sales"), false);
 });
 
 test("founder ops parse settings not a shell", () => {

@@ -22,7 +22,8 @@ import { displayPhone, isUsablePhone } from "../phone";
 import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
 import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
-import { askHenimaAgent, deskDecisionToEffects, shouldUseDeskAgent } from "./agent";
+import { shouldUseDeskAgent } from "./agent";
+import { runDeskLoop } from "./desk-loop";
 import { executeFounderCommand, parseFounderCommand } from "./founder-ops";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
@@ -196,10 +197,17 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
         .slice(-6)
         .map((t) => `${t.role}: ${t.text}`)
         .join("\n");
-      const agent = await askHenimaAgent({ text: combined, actor, report, history, catalog });
-      if (agent) {
-        reduced = deskDecisionToEffects(agent, session, actor, catalog, range);
-      }
+      const looped = await runDeskLoop({
+        db,
+        actor,
+        text: combined,
+        history,
+        catalog,
+        report,
+        range,
+        session,
+      });
+      if (looped) reduced = looped;
     }
   }
   let next = reduced.session;

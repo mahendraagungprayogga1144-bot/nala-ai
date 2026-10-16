@@ -1,7 +1,6 @@
-import { todayWib } from "@/lib/date";
-import { addDaysYmd, lastNMonthsRange, periodRange, type PeriodKind } from "../dates";
+import { lastNMonthsRange, periodRange, type PeriodKind } from "../dates";
 import type { SalesDb } from "../db";
-import { createExpense, listExpenses } from "../expense-service";
+import { listExpenses } from "../expense-service";
 import { fmtRp } from "../money";
 import { buildSalesReport } from "../report-service";
 import { salesInviteShareText } from "../sales-guide";
@@ -241,12 +240,12 @@ export async function runDeskTool(rawName: string, rawArgs: unknown, ctx: DeskTo
     }
     if (name === "catat_biaya") {
       const amount = Math.round(Number(args.amount) || 0);
-      const row = await createExpense(db, actor, {
-        amount,
-        note: String(args.note || "Operasional"),
-        expenseDate: args.kemarin ? addDaysYmd(todayWib(), -1) : todayWib(),
-      });
-      return { text: `Biaya tercatat: ${fmtRp(row.amount)} · ${row.note} (${row.expense_date}). Memotong laba, bukan omzet.` };
+      const note = String(args.note || "").trim() || "operasional";
+      return {
+        text: amount > 0
+          ? `Belum disimpan. Minta user mengirim satu kalimat lalu menekan Konfirmasi. Contoh: catat pengeluaran ${note} ${fmtRp(amount)}.`
+          : "Nominal biaya belum jelas.",
+      };
     }
     if (name === "kirim_pdf") {
       const range = rangeFromArgs(args);

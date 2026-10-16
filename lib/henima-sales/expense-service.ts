@@ -79,6 +79,74 @@ export async function listExpenses(
   })) as ExpenseRow[];
 }
 
+export async function updateExpense(
+  db: SalesDb,
+  actor: Actor,
+  id: string,
+  patch: { amount?: number; note?: string; expenseDate?: string },
+) {
+  if (actor.role === "SALES") throw new SalesError("Ubah biaya hanya untuk founder dan leader.", "expense_role", 403);
+  const { data: current, error: readErr } = await db
+    .from("module_sales_expenses")
+    .select("id, business_id, sales_id, amount, note, expense_date, created_at")
+    .eq("id", id)
+    .eq("business_id", actor.businessId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (readErr || !current) throw new SalesError("Pengeluaran tidak ditemukan.", "expense_missing");
+  const amount = patch.amount != null ? Math.round(Number(patch.amount) || 0) : Number(current.amount);
+  if (!(amount > 0)) throw new SalesError("Nominal biaya tidak valid.", "expense_amount");
+  const note = (patch.note ?? current.note ?? "Operasional").replace(/\s+/g, " ").trim().slice(0, 120);
+  const expenseDate = patch.expenseDate || current.expense_date;
+  const { data, error } = await db
+    .from("module_sales_expenses")
+    .update({ amount, note, expense_date: expenseDate, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("business_id", actor.businessId)
+    .is("deleted_at", null)
+    .select("id, business_id, sales_id, amount, note, expense_date, created_at")
+    .single();
+  if (error || !data) throw new SalesError(error?.message || "Gagal mengubah biaya.", "expense_update");
+  if (Number(data.amount) !== amount || data.note !== note || data.expense_date !== expenseDate) {
+    throw new SalesError("Perubahan belum sesuai data tersimpan.", "expense_verify");
+  }
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "UPDATE_EXPENSE",
+    entityType: "expense",
+    entityId: id,
+    oldValue: { amount: Number(current.amount), note: current.note, expense_date: current.expense_date },
+    newValue: { amount, note, expense_date: expenseDate },
+  });
+  return { ...data, amount: Number(data.amount) } as ExpenseRow;
+}
+
+export async function softDeleteExpense(db: SalesDb, actor: Actor, id: string) {
+  if (actor.role === "SALES") throw new SalesError("Hapus biaya hanya untuk founder dan leader.", "expense_role", 403);
+  const { data: current, error: readErr } = await db
+    .from("module_sales_expenses")
+    .select("id, amount, note, expense_date, deleted_at")
+    .eq("id", id)
+    .eq("business_id", actor.businessId)
+    .maybeSingle();
+  if (readErr || !current) throw new SalesError("Pengeluaran tidak ditemukan.", "expense_missing");
+  if (current.deleted_at) return { already: true as const, id };
+  const { error } = await db
+    .from("module_sales_expenses")
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("business_id", actor.businessId);
+  if (error) throw new SalesError(error.message, "expense_delete");
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "DELETE_EXPENSE",
+    entityType: "expense",
+    entityId: id,
+    oldValue: { amount: Number(current.amount), note: current.note, expense_date: current.expense_date },
+  });
+  return { already: false as const, id };
+}
+
 export async function sumExpenses(db: SalesDb, actor: Actor, opts: { from: string; to: string }) {
   const rows = await listExpenses(db, actor, opts);
   return rows.reduce((s, r) => s + Number(r.amount || 0), 0);

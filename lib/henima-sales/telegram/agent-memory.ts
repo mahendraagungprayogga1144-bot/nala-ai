@@ -30,6 +30,8 @@ export function compactTurns(mem: SessionMemory | undefined, user: string, topic
     summary,
     turns: kept,
     pending: mem?.pending,
+    expense: mem?.expense ?? undefined,
+    crud: mem?.crud ?? undefined,
   };
 }
 

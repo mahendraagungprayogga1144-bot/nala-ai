@@ -3,7 +3,7 @@ import { todayWib } from "@/lib/date";
 import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
-import { createExpense, listExpenses } from "../expense-service";
+import { createExpense, listExpenses, softDeleteExpense, updateExpense } from "../expense-service";
 import { periodRange, type PeriodKind } from "../dates";
 import { createStaff, listProducts, listStaff } from "../staff-service";
 import { salesInviteShareText } from "../sales-guide";
@@ -29,6 +29,7 @@ import { clearAgentMemory, compactTurns, createAgentTask, listAgentMemory, listA
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
+import { alreadyApplied, looksLikeExpenseMutation, planExpenseMessage } from "./expense-nl";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -198,6 +199,41 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       reduced = { session, effects: [{ type: "run_founder", cmd }] };
     }
   }
+  let expenseHandled = false;
+  const confirmKeys = [[{ text: "Konfirmasi", data: "ex:yes" }, { text: "Batal", data: "ex:no" }]];
+  if (actor && incoming.kind === "callback" && (incoming.data === "ex:yes" || incoming.data === "ex:no")) {
+    expenseHandled = true;
+    const crud = session.memory?.crud;
+    if (incoming.data === "ex:no" || !crud) {
+      const memory = { ...(session.memory || {}), crud: null };
+      reduced = {
+        session: { ...session, memory },
+        effects: [{ type: "reply", reply: { text: incoming.data === "ex:no" ? "Dibatalkan. Tidak ada yang disimpan." : "Tidak ada konfirmasi yang menunggu." } }],
+      };
+    } else {
+      reduced = { session, effects: [{ type: "apply_expense", draft: crud }] };
+    }
+  }
+  if (actor && incoming.kind === "text" && session.state === "idle" && !expenseHandled && looksLikeExpenseMutation(incoming.text)) {
+    const rows = await listExpenses(db, actor, { from: "2024-01-01", to: todayWib() });
+    const plan = planExpenseMessage(incoming.text, {
+      role: actor.role,
+      focus: session.memory?.expense,
+      rows: rows.map((r) => ({ id: r.id, amount: r.amount, note: r.note || "", expenseDate: r.expense_date })),
+      today: todayWib(),
+    });
+    if (plan.type !== "none") {
+      expenseHandled = true;
+      const memory = { ...(session.memory || {}), crud: plan.type === "confirm" ? plan.draft : null };
+      reduced = {
+        session: { ...session, memory },
+        effects: [{
+          type: "reply",
+          reply: { text: plan.text, keyboard: plan.type === "confirm" ? confirmKeys : mainMenuKeyboard(actor) },
+        }],
+      };
+    }
+  }
   const bareText = incoming.kind === "text" ? incoming.text.trim() : "";
   const memoryHandled =
     /^(lihat memori|memory|hapus memori|lupakan|lihat tugas|daftar tugas)$/i.test(bareText) ||
@@ -225,7 +261,7 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       }
     }
   }
-  if (actor && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !founderGate) {
+  if (actor && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !founderGate && !expenseHandled) {
     const catalog = products.length ? products : await listProducts(db, actor.businessId);
     const raw = incoming.text;
     const combined =
@@ -290,6 +326,48 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
           } else {
             await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak ditemukan.");
           }
+        }
+      } else if (effect.type === "apply_expense" && actor) {
+        const draft = effect.draft;
+        const focus = session.memory?.expense;
+        if (alreadyApplied(focus, draft) && focus?.id) {
+          await sendMessage(chatId, `Sudah tersimpan. ID ${focus.id.slice(0, 8)}. Tidak dibuat dua kali.`);
+        } else if (draft.op === "create") {
+          const row = await createExpense(db, actor, { amount: draft.amount, note: draft.note, expenseDate: draft.expenseDate });
+          next = {
+            ...next,
+            memory: {
+              ...(session.memory || {}),
+              crud: null,
+              expense: { id: row.id, amount: Number(row.amount), note: row.note || draft.note, expenseDate: row.expense_date, key: draft.key },
+            },
+          };
+          await sendMessage(chatId, `Tersimpan. ID ${row.id.slice(0, 8)}.\n${row.expense_date} · ${row.note} · ${fmtRp(Number(row.amount))}\nLaba berkurang. Omzet tidak dipotong. Ini bukan saldo rekening.`);
+        } else if (draft.op === "delete" && draft.id) {
+          await softDeleteExpense(db, actor, draft.id);
+          next = { ...next, memory: { ...(session.memory || {}), crud: null, expense: null } };
+          await sendMessage(chatId, `Pengeluaran ${draft.id.slice(0, 8)} dihapus dari laporan.`);
+        } else if (draft.id) {
+          const row = await updateExpense(db, actor, draft.id, { amount: draft.amount, note: draft.note, expenseDate: draft.expenseDate });
+          if (Number(row.amount) !== draft.amount || row.expense_date !== draft.expenseDate) {
+            throw new SalesError("Perubahan belum sesuai data tersimpan.", "expense_verify");
+          }
+          next = {
+            ...next,
+            memory: {
+              ...(session.memory || {}),
+              crud: null,
+              expense: {
+                id: row.id,
+                amount: Number(row.amount),
+                note: row.note || draft.note,
+                expenseDate: row.expense_date,
+                key: draft.key,
+                before: draft.before,
+              },
+            },
+          };
+          await sendMessage(chatId, `Berhasil diubah. ID ${row.id.slice(0, 8)}.\n${row.expense_date} · ${row.note} · ${fmtRp(Number(row.amount))}`);
         }
       } else if (effect.type === "save_expense" && actor) {
         const row = await createExpense(db, actor, {
@@ -471,12 +549,12 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
 
   if (incoming.kind === "text") {
     next.memory = remember(
-      session.memory,
+      { ...(session.memory || {}), ...(next.memory || {}) },
       incoming.text,
       shouldUseDeskAgent(incoming.text, products, session.memory, false) ? "desk" : session.memory?.topic,
     );
   } else {
-    next.memory = session.memory;
+    next.memory = { ...(session.memory || {}), ...(next.memory || {}) };
   }
   if (!sameSession(session, next) || incoming.kind === "text") {
     await saveSession(db, telegramUserId, actor, next);

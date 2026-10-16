@@ -16,6 +16,7 @@ import { parseFounderCommand } from "../telegram/founder-ops";
 import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
 import { compactTurns, formatTaskBoard, redactSecrets, salesCsv, salesXlsxBase64, taskAfterWork } from "../telegram/agent-memory";
 import { needsFounderApproval } from "../telegram/founder-ops";
+import { alreadyApplied, canChangeExpense, planExpenseMessage, type ExpenseSnap } from "../telegram/expense-nl";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -416,6 +417,48 @@ test("expense chat records operational cost", () => {
     assert.equal(out.effects[0].amount, 100000);
     assert.match(out.effects[0].note, /bensin/i);
   }
+  const focus: ExpenseSnap = { id: "abcdef12-0000-4000-8000-000000000001", amount: 100000, note: "Bensin", expenseDate: "2026-09-01" };
+  const created = planExpenseMessage("Catat pengeluaran September 2026, bensin Rp100.000.", { role: "FOUNDER", today: "2026-10-16" });
+  assert.equal(created.type, "confirm");
+  if (created.type === "confirm") {
+    assert.equal(created.draft.amount, 100000);
+    assert.equal(created.draft.note, "Bensin");
+    assert.equal(created.draft.expenseDate, "2026-09-01");
+    assert.match(created.text, /September 2026/);
+  }
+  const edited = planExpenseMessage("Ubah pengeluaran bensin tadi menjadi Rp150.000.", { role: "FOUNDER", today: "2026-10-16", focus, rows: [focus] });
+  assert.equal(edited.type, "confirm");
+  if (edited.type === "confirm") {
+    assert.equal(edited.draft.amount, 150000);
+    assert.equal(edited.draft.note, "Bensin");
+    assert.equal(edited.draft.expenseDate, "2026-09-01");
+  }
+  const category = planExpenseMessage("Yang biaya bensin tadi ganti jadi transportasi.", { role: "FOUNDER", today: "2026-10-16", focus, rows: [focus] });
+  if (category.type === "confirm") {
+    assert.equal(category.draft.note, "Transportasi");
+    assert.equal(category.draft.amount, 100000);
+  } else assert.fail(category.type);
+  const moved = planExpenseMessage("Pindahkan pengeluaran itu ke Oktober 2026.", { role: "FOUNDER", today: "2026-10-16", focus, rows: [focus] });
+  if (moved.type === "confirm") assert.equal(moved.draft.expenseDate, "2026-10-01");
+  else assert.fail(moved.type);
+  const twin = { ...focus, id: "bbbbbbbb-0000-4000-8000-000000000002", expenseDate: "2026-09-02" };
+  const ambiguous = planExpenseMessage("Ubah pengeluaran bensin tadi menjadi Rp150.000.", { role: "FOUNDER", today: "2026-10-16", focus, rows: [focus, twin] });
+  assert.equal(ambiguous.type, "clarify");
+  const removed = planExpenseMessage("Hapus pengeluaran yang tadi salah.", { role: "FOUNDER", today: "2026-10-16", focus, rows: [focus] });
+  assert.equal(removed.type, "confirm");
+  if (removed.type === "confirm") assert.equal(removed.draft.op, "delete");
+  const changed: ExpenseSnap = { ...focus, amount: 150000, before: { amount: 100000, note: "Bensin", expenseDate: "2026-09-01" } };
+  const undo = planExpenseMessage("Kembalikan nilai sebelumnya.", { role: "FOUNDER", today: "2026-10-16", focus: changed });
+  if (undo.type === "confirm") assert.equal(undo.draft.amount, 100000);
+  else assert.fail(undo.type);
+  assert.equal(canChangeExpense("SALES", "patch"), false);
+  assert.equal(planExpenseMessage("Ubah pengeluaran bensin tadi menjadi Rp150.000.", { role: "SALES", today: "2026-10-16", focus, rows: [focus] }).type, "denied");
+  assert.equal(alreadyApplied({ ...focus, key: "create:1" }, { op: "create", key: "create:1", amount: 100000, note: "Bensin", expenseDate: "2026-09-01" }), true);
+  assert.equal(planExpenseMessage("Sekarang berapa laba September setelah biaya itu dimasukkan?", { role: "FOUNDER", today: "2026-10-16", focus }).type, "none");
+  const pnlBefore = companyPnl({ revenue: 500000, hpp: 100000, opex: 100000 });
+  const pnlAfter = companyPnl({ revenue: 500000, hpp: 100000, opex: 150000 });
+  assert.equal(pnlBefore.omzet, pnlAfter.omzet);
+  assert.ok(pnlAfter.labaBersih < pnlBefore.labaBersih);
 });
 
 test("targetku per sales is a target intent", () => {

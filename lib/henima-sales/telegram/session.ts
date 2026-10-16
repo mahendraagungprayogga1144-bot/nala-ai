@@ -4,6 +4,7 @@ import { UNLINKED_MSG } from "../sales-guide";
 import { helpText } from "./menu";
 import type { FounderCommand } from "./founder-ops";
 import { fmtDiscount, fmtRp } from "../money";
+import type { ExpenseDraft, ExpenseSnap } from "./expense-nl";
 
 export { UNLINKED_MSG };
 
@@ -65,6 +66,8 @@ export type SessionMemory = {
   summary?: string;
   turns?: { role: "user" | "assistant"; text: string }[];
   pending?: { command: string; label: string };
+  expense?: ExpenseSnap | null;
+  crud?: ExpenseDraft | null;
 };
 
 export type Session = {
@@ -92,6 +95,7 @@ export type BotEffect =
   | { type: "send_riwayat" }
   | { type: "send_target" }
   | { type: "save_expense"; amount: number; note: string; expenseDate?: string }
+  | { type: "apply_expense"; draft: ExpenseDraft }
   | { type: "send_expenses"; kind: string; from?: string; to?: string }
   | { type: "recruit_sales"; nama: string }
   | { type: "send_team" }

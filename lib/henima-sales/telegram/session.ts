@@ -6,6 +6,7 @@ import type { FounderCommand } from "./founder-ops";
 import { fmtDiscount, fmtRp } from "../money";
 import { cleanProductLabel } from "../labels";
 import type { ExpenseDraft, ExpenseSnap } from "./expense-nl";
+import type { SaleSnap, WorkDraft } from "./crud-nl";
 
 export { UNLINKED_MSG };
 
@@ -69,6 +70,8 @@ export type SessionMemory = {
   pending?: { command: string; label: string };
   expense?: ExpenseSnap | null;
   crud?: ExpenseDraft | null;
+  work?: WorkDraft | null;
+  sale?: SaleSnap | null;
 };
 
 export type Session = {
@@ -97,6 +100,7 @@ export type BotEffect =
   | { type: "send_target" }
   | { type: "save_expense"; amount: number; note: string; expenseDate?: string }
   | { type: "apply_expense"; draft: ExpenseDraft }
+  | { type: "apply_work"; draft: WorkDraft }
   | { type: "send_expenses"; kind: string; from?: string; to?: string }
   | { type: "recruit_sales"; nama: string }
   | { type: "send_team" }

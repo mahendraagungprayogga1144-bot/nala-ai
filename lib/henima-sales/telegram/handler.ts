@@ -4,20 +4,20 @@ import type { SalesDb } from "../db";
 import { salesLog, salesLogError } from "../log";
 import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { createExpense, listExpenses, softDeleteExpense, updateExpense } from "../expense-service";
+import { latestRestorableAudit, writeAudit } from "../audit";
 import { periodRange, type PeriodKind } from "../dates";
-import { createStaff, listProducts, listStaff } from "../staff-service";
+import { createStaff, listProducts, listStaff, upsertSalesProduct } from "../staff-service";
 import { salesInviteShareText } from "../sales-guide";
 import { formatSalesBriefing, formatTeamRoster, isManager, mainMenuKeyboard, recruitPrompt } from "./menu";
 import { createCustomer, findCustomerByPhone, getCustomer, listCustomers } from "../customer-service";
-import { confirmSale, listOrders, getOrder, softDeleteOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
+import { confirmSale, listOrders, getOrder, softDeleteOrder, updateOrder, latestOrderId, latestOrdersByCustomerIds } from "../order-service";
 import { createFollowUp } from "../followup-service";
 import { saveTestimonial } from "../testimonial-service";
-import { achievementFor } from "../target-service";
+import { achievementFor, upsertTarget } from "../target-service";
 import { buildSalesReport, servedByLabel, type ReportKind } from "../report-service";
 import { buildSalesReportPdf } from "../pdf";
 import { buildOrderNota } from "../nota";
 import { fmtDateLongId, fmtRp } from "../money";
-import { writeAudit } from "../audit";
 import { displayPhone, isUsablePhone } from "../phone";
 import type { Actor } from "../types";
 import { paymentLabel, SalesError } from "../types";
@@ -25,11 +25,13 @@ import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, pr
 import { shouldUseDeskAgent } from "./agent";
 import { runDeskLoop } from "./desk-loop";
 import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from "./founder-ops";
-import { clearAgentMemory, compactTurns, createAgentTask, listAgentMemory, listAgentTasks, memoryContext, saveAgentNote } from "./agent-memory";
+import { clearAgentMemory, compactTurns, createAgentTask, listAgentMemory, listAgentTasks, memoryContext, saveAgentNote, setAgentTaskStatus } from "./agent-memory";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
 import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
 import { alreadyApplied, looksLikeExpenseMutation, planExpenseMessage } from "./expense-nl";
+import { looksLikeWorkEdit, planWorkMessage, taskJob } from "./crud-nl";
+import { runDeskTool } from "./desk-tools";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -187,8 +189,19 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       reduced = { session, effects: [{ type: "reply", reply: { text: listed.text, keyboard: mainMenuKeyboard(actor) } }] };
     } else if (/^buat tugas\s+/i.test(incoming.text.trim())) {
       const title = incoming.text.trim().replace(/^buat tugas\s+/i, "");
-      const made = await createAgentTask(db, actor, title, undefined, "pending");
-      reduced = { session, effects: [{ type: "reply", reply: { text: made.text } }] };
+      const job = taskJob(title);
+      const made = await createAgentTask(db, actor, title, undefined, job ? "running" : "pending");
+      if (!job || !made.ok) {
+        reduced = { session, effects: [{ type: "reply", reply: { text: made.ok ? `${made.text}\nTugas ini dicatat. Aku belum menjalankannya otomatis.` : made.text } }] };
+      } else if (job === "pdf") {
+        await setAgentTaskStatus(db, actor, made.id, "completed", "PDF bulan ini dikirim");
+        reduced = { session, effects: [{ type: "reply", reply: { text: `${made.text}\nPDF bulan ini menyusul.` } }, { type: "send_pdf", kind: "this_month" }] };
+      } else {
+        const catalog = products.length ? products : await listProducts(db, actor.businessId);
+        const out = await runDeskTool("generate_spreadsheet", {}, { db, actor, catalog, telegramUserId });
+        await setAgentTaskStatus(db, actor, made.id, out.text.includes("gagal") ? "failed" : "completed", out.text.slice(0, 180));
+        reduced = { session, effects: [{ type: "reply", reply: { text: `${made.text}\n${out.text}` } }, ...(out.effects || [])] };
+      }
     } else if (/^(ingat|catat)\s+/i.test(incoming.text.trim())) {
       const note = incoming.text.trim().replace(/^(ingat|catat)\s+/i, "");
       const saved = await saveAgentNote(db, actor, telegramUserId, note);
@@ -204,13 +217,16 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
   if (actor && incoming.kind === "callback" && (incoming.data === "ex:yes" || incoming.data === "ex:no")) {
     expenseHandled = true;
     const crud = session.memory?.crud;
-    if (incoming.data === "ex:no" || !crud) {
-      const memory = { ...(session.memory || {}), crud: null };
+    const work = session.memory?.work;
+    if (incoming.data === "ex:no" || (!crud && !work)) {
+      const memory = { ...(session.memory || {}), crud: null, work: null };
       reduced = {
         session: { ...session, memory },
         effects: [{ type: "reply", reply: { text: incoming.data === "ex:no" ? "Dibatalkan. Tidak ada yang disimpan." : "Tidak ada konfirmasi yang menunggu." } }],
       };
-    } else {
+    } else if (work) {
+      reduced = { session, effects: [{ type: "apply_work", draft: work }] };
+    } else if (crud) {
       reduced = { session, effects: [{ type: "apply_expense", draft: crud }] };
     }
   }
@@ -234,13 +250,91 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       };
     }
   }
+  if (actor && incoming.kind === "text" && session.state === "idle" && !expenseHandled && looksLikeWorkEdit(incoming.text)) {
+    const catalog = products.length ? products : await listProducts(db, actor.businessId);
+    const listed = await listOrders(db, actor, { pageSize: 5 });
+    const sales = listed.rows.map((row) => ({
+      id: row.id,
+      total: Number(row.total || 0),
+      qty: (row.order_items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0) || 1,
+      product: (row.order_items || []).map((item) => item.product_name_snapshot || "Produk").join(" + "),
+      items: row.order_items?.length || 1,
+    }));
+    const undo = /\b(kembalikan nilai|batalkan perubahan)\b/i.test(incoming.text);
+    if (undo && !session.memory?.expense?.before) {
+      const audit = await latestRestorableAudit(db, actor.businessId);
+      const old = (audit?.old_value || null) as { amount?: number; note?: string; expense_date?: string; total?: number; qty?: number; stock?: number; price?: number; name?: string } | null;
+      expenseHandled = true;
+      if (!audit || !old || !audit.entity_id) {
+        reduced = { session, effects: [{ type: "reply", reply: { text: "Tidak ada perubahan terakhir yang bisa dikembalikan dari catatan audit." } }] };
+      } else if (audit.action === "UPDATE_EXPENSE" && old.amount) {
+        const draft = {
+          kind: "expense_restore" as const,
+          key: `undo:${audit.id}`,
+          id: String(audit.entity_id),
+          label: old.note || "biaya",
+          next: Number(old.amount),
+          before: Number((audit.new_value as { amount?: number } | null)?.amount || 0),
+          note: old.note,
+          expenseDate: old.expense_date,
+        };
+        reduced = {
+          session: { ...session, memory: { ...(session.memory || {}), work: draft, crud: null } },
+          effects: [{ type: "reply", reply: { text: `Kembalikan biaya ${draft.id.slice(0, 8)} ke nilai audit?`, keyboard: confirmKeys } }],
+        };
+      } else if (audit.action === "UPDATE_ORDER" && old.total) {
+        const draft = {
+          kind: "sale_total" as const,
+          key: `undo:${audit.id}`,
+          id: String(audit.entity_id),
+          label: "closing",
+          next: Math.round(Number(old.total) / Math.max(1, Number(old.qty || 1))),
+          before: Number((audit.new_value as { total?: number } | null)?.total || 0),
+        };
+        reduced = {
+          session: { ...session, memory: { ...(session.memory || {}), work: draft, crud: null } },
+          effects: [{ type: "reply", reply: { text: `Kembalikan closing ${draft.id.slice(0, 8)} ke total sebelumnya? Nilai ini dari audit.`, keyboard: confirmKeys } }],
+        };
+      } else if (audit.action === "UPDATE_PRODUCT") {
+        const draft = {
+          kind: (old.stock != null ? "stock" : "catalog_price") as "stock" | "catalog_price",
+          key: `undo:${audit.id}`,
+          id: String(audit.entity_id),
+          label: old.name || "produk",
+          next: Number(old.stock != null ? old.stock : old.price || 0),
+          before: 0,
+        };
+        reduced = {
+          session: { ...session, memory: { ...(session.memory || {}), work: draft, crud: null } },
+          effects: [{ type: "reply", reply: { text: `Kembalikan ${draft.label} ke nilai audit ${draft.next}?`, keyboard: confirmKeys } }],
+        };
+      } else {
+        reduced = { session, effects: [{ type: "reply", reply: { text: "Perubahan terakhir itu tidak bisa dikembalikan dengan aman." } }] };
+      }
+    }
+    if (!expenseHandled) {
+      const plan = planWorkMessage(incoming.text, {
+        role: actor.role,
+        sales,
+        focusSale: session.memory?.sale,
+        products: catalog.map((p) => ({ id: p.id, name: p.name, price: Number(p.price || 0), stock: Number(p.stock || 0) })),
+      });
+      if (plan.type !== "none") {
+        expenseHandled = true;
+        reduced = {
+          session: { ...session, memory: { ...(session.memory || {}), work: plan.type === "confirm" ? plan.draft : null, crud: null } },
+          effects: [{ type: "reply", reply: { text: plan.text, keyboard: plan.type === "confirm" ? confirmKeys : mainMenuKeyboard(actor) } }],
+        };
+      }
+    }
+  }
   const bareText = incoming.kind === "text" ? incoming.text.trim() : "";
   const memoryHandled =
     /^(lihat memori|memory|hapus memori|lupakan|lihat tugas|daftar tugas)$/i.test(bareText) ||
     /^(ingat|catat|buat tugas)\s+/i.test(bareText) ||
     (/^(ya|iya|setuju|ok)$/i.test(bareText) && Boolean(session.memory?.pending));
   let founderGate = false;
-  if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle" && !memoryHandled) {
+  if (actor?.role === "FOUNDER" && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !expenseHandled) {
     const founderCmd = parseFounderCommand(incoming.text);
     if (founderCmd.type !== "none") {
       founderGate = true;
@@ -326,6 +420,62 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
           } else {
             await sendMessage(chatId, err instanceof Error ? err.message : "Kode undangan tidak ditemukan.");
           }
+        }
+      } else if (effect.type === "apply_work" && actor) {
+        const draft = effect.draft;
+        if (draft.kind === "sale_delete") {
+          await softDeleteOrder(db, actor, draft.id);
+          next = { ...next, memory: { ...(session.memory || {}), work: null, sale: null } };
+          await sendMessage(chatId, `Closing ${draft.id.slice(0, 8)} dihapus dari omzet.`);
+        } else if (draft.kind === "sale_total") {
+          const order = await getOrder(db, actor, draft.id);
+          const item = order.order_items?.[0];
+          const qty = Number(item?.qty || 1);
+          const saved = await updateOrder(db, actor, draft.id, {
+            unitPrice: draft.next,
+            quantity: qty,
+            discount: 0,
+            productName: item?.product_name_snapshot || draft.label,
+          });
+          const sale = {
+            id: saved.id,
+            total: Number(saved.total || 0),
+            qty,
+            product: item?.product_name_snapshot || draft.label,
+            items: saved.order_items?.length || 1,
+          };
+          next = { ...next, memory: { ...(session.memory || {}), work: null, sale } };
+          await sendMessage(chatId, `Closing ${saved.id.slice(0, 8)} diubah. Total sekarang ${fmtRp(Number(saved.total || 0))}.`);
+        } else if (draft.kind === "stock" || draft.kind === "catalog_price") {
+          const productsNow = await listProducts(db, actor.businessId);
+          const hit = productsNow.find((p) => p.id === draft.id);
+          if (!hit) throw new SalesError("Produk tidak ditemukan.", "product_missing");
+          const saved = await upsertSalesProduct(db, actor, {
+            id: hit.id,
+            name: hit.name,
+            price: draft.kind === "catalog_price" ? draft.next : Number(hit.price || 0),
+            cost: hit.cost,
+            stock: draft.kind === "stock" ? draft.next : Number(hit.stock || 0),
+            unit: hit.unit,
+          });
+          await writeAudit(db, actor, {
+            businessId: actor.businessId,
+            action: "UPDATE_PRODUCT",
+            entityType: "product",
+            entityId: hit.id,
+            oldValue: { name: hit.name, price: hit.price, stock: hit.stock },
+            newValue: { name: saved.name, price: saved.price, stock: saved.stock },
+          });
+          next = { ...next, memory: { ...(session.memory || {}), work: null } };
+          await sendMessage(chatId, draft.kind === "stock" ? `Stok ${saved.name} sekarang ${saved.stock} pcs.` : `Harga ${saved.name} sekarang ${fmtRp(Number(saved.price || 0))}.`);
+        } else if (draft.kind === "target" && draft.period) {
+          await upsertTarget(db, actor, { periodType: draft.period, quantityTarget: draft.next, effectiveFrom: todayWib() });
+          next = { ...next, memory: { ...(session.memory || {}), work: null } };
+          await sendMessage(chatId, `Target ${draft.label} disimpan: ${draft.next} unit.`);
+        } else if (draft.kind === "expense_restore") {
+          const row = await updateExpense(db, actor, draft.id, { amount: draft.next, note: draft.note, expenseDate: draft.expenseDate });
+          next = { ...next, memory: { ...(session.memory || {}), work: null, expense: { id: row.id, amount: Number(row.amount), note: row.note || "", expenseDate: row.expense_date, key: draft.key } } };
+          await sendMessage(chatId, `Biaya ${row.id.slice(0, 8)} dikembalikan ke ${fmtRp(Number(row.amount))}.`);
         }
       } else if (effect.type === "apply_expense" && actor) {
         const draft = effect.draft;

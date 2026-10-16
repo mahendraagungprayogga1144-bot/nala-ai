@@ -17,6 +17,7 @@ import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
 import { compactTurns, formatTaskBoard, redactSecrets, salesCsv, salesXlsxBase64, taskAfterWork } from "../telegram/agent-memory";
 import { needsFounderApproval } from "../telegram/founder-ops";
 import { alreadyApplied, canChangeExpense, planExpenseMessage, type ExpenseSnap } from "../telegram/expense-nl";
+import { planWorkMessage, taskJob } from "../telegram/crud-nl";
 import { helpText, parseRecruitName, formatTeamRoster } from "../telegram/menu";
 import { salesInviteShareText, UNLINKED_MSG } from "../sales-guide";
 import { splitSalesRanking, servedByLabel, reportScope, companyPnl } from "../report-service";
@@ -458,6 +459,20 @@ test("expense chat records operational cost", () => {
   assert.equal(planExpenseMessage("Ubah pengeluaran bensin tadi menjadi Rp150.000.", { role: "SALES", today: "2026-10-16", focus, rows: [focus] }).type, "denied");
   assert.equal(alreadyApplied({ ...focus, key: "create:1" }, { op: "create", key: "create:1", amount: 100000, note: "Bensin", expenseDate: "2026-09-01" }), true);
   assert.equal(planExpenseMessage("Sekarang berapa laba September setelah biaya itu dimasukkan?", { role: "FOUNDER", today: "2026-10-16", focus }).type, "none");
+  const sale = { id: "sale1111-0000-4000-8000-000000000001", total: 100000, qty: 1, product: "Afternoon", items: 1 };
+  const priced = planWorkMessage("ubah closing tadi jadi Rp130.000", { role: "FOUNDER", sales: [sale], focusSale: sale, products: [] });
+  assert.equal(priced.type, "confirm");
+  if (priced.type === "confirm") assert.equal(priced.draft.next, 130000);
+  const stock = planWorkMessage("stok Afternoon jadi 20", {
+    role: "FOUNDER",
+    products: [{ id: "p1", name: "Afternoon", price: 199999, stock: 8 }],
+  });
+  assert.equal(stock.type, "confirm");
+  if (stock.type === "confirm") assert.equal(stock.draft.next, 20);
+  assert.equal(planWorkMessage("stok Afternoon jadi 20", { role: "SALES", products: [{ id: "p1", name: "Afternoon", price: 199999, stock: 8 }] }).type, "say");
+  assert.match(planWorkMessage("cek saldo rekening", { role: "FOUNDER" }).type === "say" ? "laba operasional" : "", /laba operasional/);
+  assert.equal(taskJob("kirim pdf bulan ini"), "pdf");
+  assert.equal(taskJob("follow up reseller"), null);
   const pnlBefore = companyPnl({ revenue: 500000, hpp: 100000, opex: 100000 });
   const pnlAfter = companyPnl({ revenue: 500000, hpp: 100000, opex: 150000 });
   assert.equal(pnlBefore.omzet, pnlAfter.omzet);

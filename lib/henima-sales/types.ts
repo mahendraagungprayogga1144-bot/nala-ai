@@ -97,6 +97,7 @@ export const AUDIT_ACTIONS = [
   "CREATE_EXPENSE",
   "UPDATE_EXPENSE",
   "DELETE_EXPENSE",
+  "UPDATE_PRODUCT",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

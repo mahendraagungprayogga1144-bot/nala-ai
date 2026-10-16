@@ -69,7 +69,7 @@ export function planExpenseMessage(
 
   if (/\b(batalkan perubahan|kembalikan nilai|salah input)\b/.test(t)) {
     const before = ctx.focus?.before;
-    if (!ctx.focus?.id || !before) return { type: "ask", text: "Nilai sebelumnya tidak tersimpan. Sebut nominal dan kategori yang benar." };
+    if (!ctx.focus?.id || !before) return { type: "none" };
     const draft = draftOf("undo", ctx.focus, before);
     return guard(ctx.role, confirmUndo(ctx.focus, { ...ctx.focus, ...before }), draft);
   }

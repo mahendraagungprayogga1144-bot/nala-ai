@@ -32,6 +32,8 @@ export function compactTurns(mem: SessionMemory | undefined, user: string, topic
     pending: mem?.pending,
     expense: mem?.expense ?? undefined,
     crud: mem?.crud ?? undefined,
+    work: mem?.work ?? undefined,
+    sale: mem?.sale ?? undefined,
   };
 }
 

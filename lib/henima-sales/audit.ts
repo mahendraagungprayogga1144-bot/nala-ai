@@ -21,6 +21,20 @@ function scrub(value: unknown): unknown {
   return value;
 }
 
+export async function latestRestorableAudit(db: SalesDb, businessId: string) {
+  const { data, error } = await db
+    .from("module_sales_audit_logs")
+    .select("id, action, entity_type, entity_id, old_value, new_value, created_at")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  if (error || !data?.length) return null;
+  return (
+    data.find((row) => row.old_value && row.entity_id && /^(UPDATE_EXPENSE|UPDATE_ORDER|UPDATE_PRODUCT|UPDATE_TARGET)$/.test(String(row.action))) ||
+    null
+  );
+}
+
 export async function writeAudit(
   db: SalesDb,
   actor: Actor | null,

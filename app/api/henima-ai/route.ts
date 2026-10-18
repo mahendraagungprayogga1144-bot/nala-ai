@@ -118,23 +118,29 @@ export async function POST(req: Request) {
   const hasUpload = Boolean(lastUser?.image?.data);
   const draw = !hasUpload && wantsPicture(lastText, modeId);
   const makePdf = wantsDocument(lastText, modeId);
+  const businessQuestion = aboutBusiness(lastText);
 
-  const system = `Kamu adalah Henima AI, asisten umum. Pengguna memakai kamu seperti AI biasa: pertanyaan apa saja, menulis, menerjemahkan, menghitung, kode, ide, rencana, belajar, dan analisa.
-Jawab dalam bahasa yang dipakai user. Langsung, jelas, dan lengkap. Untuk daftar, mulai baris dengan "- ". Jangan pakai bintang atau pagar markdown.
-Jangan menolak topik hanya karena di luar bisnis. Kalau pertanyaannya tentang usaha mereka, pakai DATA GERCEP. Jangan mengarang angka usaha. Kalau angkanya tidak ada, bilang belum tercatat, lalu tetap bantu.
-Kamu bisa mencari web untuk berita, harga, fakta yang berubah, dan riset. Pakai itu kalau jawabannya butuh info terkini.
+  const system = `Kamu adalah Henima AI, asisten umum. Kamu bisa diminta apa saja, seperti AI pada umumnya: obrolan, cerita, menulis, menerjemahkan, kode, hitungan, belajar, rencana, riset, opini, dan pekerjaan kreatif.
+Kalau ditanya "kamu bisa apa" atau sejenisnya, jawab singkat: kamu bisa bantu hampir semua permintaan, termasuk membuat gambar, membuat PDF, dan mencari info terkini di internet. Jangan keluarkan daftar menu bisnis, keuangan, atau ternak.
+Jangan mengalihkan jawaban ke usaha user kalau pertanyaannya bukan tentang usaha.
+Pakai pencarian web untuk berita, harga, dan fakta yang berubah.
+Kalau user minta gambar, balas satu kalimat saja tentang gambar itu. File gambarnya dibuat terpisah oleh server.
+Untuk daftar, mulai baris dengan "- ". Jangan pakai bintang atau pagar markdown.
 ${mode}
 ${think ? "Jawab lebih dalam dan urut." : ""}
 
 Pengguna: ${userName}
-Bisnis aktif: ${business ? `${business.name} (${business.type || "umum"})` : "belum dipilih"}
-Bisnis di akun: ${list.map((b) => `${b.name} (${b.type || "-"})`).join(", ") || "belum ada"}
-
-DATA GERCEP (pakai hanya kalau relevan):
-${snapshot}`;
+${
+  businessQuestion
+    ? `Bisnis aktif: ${business ? `${business.name} (${business.type || "umum"})` : "belum dipilih"}
+Jangan mengarang angka. Kalau angkanya tidak ada di data, bilang belum tercatat.
+DATA GERCEP:
+${snapshot}`
+    : "Data usaha user tersedia, tapi jangan disebut kecuali user bertanya soal usaha, angka, atau stok."
+}`;
 
   try {
-    const picture = draw ? generateImage(lastText) : Promise.resolve(null);
+    const picture = draw ? generateImage(`Buat gambar ini, tanpa teks penjelasan: ${lastText}`) : Promise.resolve(null);
     const reply = await answer(system, messages, think || modeId === "research");
     const image = await picture;
     let text = reply || "Aku belum bisa menyusun jawaban. Coba ulangi dengan lebih spesifik.";
@@ -159,7 +165,15 @@ ${snapshot}`;
 
 function wantsPicture(text: string, mode: string) {
   if (mode === "image" || mode === "sketch") return true;
-  return /(buat|bikin|generate|desain|lukis|gambar(kan)?).{0,48}(gambar|stiker|ilustrasi|logo|ikon)/i.test(text);
+  const t = text.toLowerCase();
+  if (/^(gambar|stiker|ilustrasi|logo)\b/.test(t)) return true;
+  const visual = /(gambar|stiker|ilustrasi|logo|ikon|image|picture|wallpaper|artwork)/.test(t);
+  const make = /(buat|bikin|bikinin|buatin|tolong|kasih|generate|desain|lukis|render|draw)/.test(t);
+  return visual && make;
+}
+
+function aboutBusiness(text: string) {
+  return /\b(bisnis|usaha|omzet|stok|keuangan|laba|rugi|ternak|pakan|hpp|kas|penjualan|order|modal|hewan)\b/i.test(text);
 }
 
 function wantsDocument(text: string, mode: string) {

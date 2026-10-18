@@ -30,7 +30,12 @@ import {
 } from "lucide-react";
 
 type Role = "user" | "assistant";
-type ChatMsg = { role: Role; content: string };
+type ChatMsg = {
+  role: Role;
+  content: string;
+  image?: string;
+  file?: { name: string; dataUrl: string };
+};
 type Thread = {
   id: string;
   title: string;
@@ -180,7 +185,19 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
 
   useEffect(() => {
     if (!ready) return;
-    localStorage.setItem(THREAD_KEY, JSON.stringify(threads));
+    const slim = threads.map((t) => ({
+      ...t,
+      messages: t.messages.map(({ role, content }) => ({ role, content })),
+    }));
+    try {
+      localStorage.setItem(THREAD_KEY, JSON.stringify(threads));
+    } catch {
+      try {
+        localStorage.setItem(THREAD_KEY, JSON.stringify(slim));
+      } catch {
+        /* riwayat teks tetap di memori tab ini */
+      }
+    }
   }, [threads, ready]);
   useEffect(() => {
     if (!ready) return;
@@ -273,7 +290,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
     setInput("");
     setPlusOpen(false);
     setLoading(true);
-    const image = attachment?.image;
+    const upload = attachment?.image;
     setAttachment(null);
 
     try {
@@ -286,15 +303,21 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
           messages: history.map((m, i) => ({
             role: m.role,
             content: i === history.length - 1 ? content : m.content,
-            image: i === history.length - 1 ? image : undefined,
+            image: i === history.length - 1 ? upload : undefined,
           })),
         }),
       });
       const data = await res.json();
       const reply = data.reply || data.error || "GPT Astra tidak menjawab.";
+      const picture = data.image?.data ? `data:${data.image.mediaType || "image/png"};base64,${data.image.data}` : undefined;
+      const file = data.file?.data
+        ? { name: data.file.name || "henima.pdf", dataUrl: `data:${data.file.mediaType || "application/pdf"};base64,${data.file.data}` }
+        : undefined;
       setThreads((prev) =>
         prev.map((t) =>
-          t.id === id ? { ...t, updatedAt: Date.now(), messages: [...t.messages, { role: "assistant", content: reply }] } : t,
+          t.id === id
+            ? { ...t, updatedAt: Date.now(), messages: [...t.messages, { role: "assistant", content: reply, image: picture, file }] }
+            : t,
         ),
       );
       setNotice({ title: next.title, body: "Respons Anda sudah siap" });
@@ -708,7 +731,16 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                   ) : (
                     <div key={i} className="text-[15.5px] leading-7 text-[#1a1a1a]">
                       {renderAnswer(m.content)}
-                      <button type="button" onClick={() => saveAnswer(m.content)} className="mt-2 text-[12px] text-[#8a8a8a] hover:text-[#111]">
+                      {m.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={m.image} alt="" className="mt-3 max-h-[420px] rounded-2xl border border-black/[0.06]" />
+                      ) : null}
+                      {m.file ? (
+                        <a href={m.file.dataUrl} download={m.file.name} className="mt-3 inline-flex rounded-full bg-[#111] px-4 py-2 text-[13px] text-white">
+                          Unduh {m.file.name}
+                        </a>
+                      ) : null}
+                      <button type="button" onClick={() => saveAnswer(m.content)} className="mt-2 block text-[12px] text-[#8a8a8a] hover:text-[#111]">
                         Simpan ke pustaka
                       </button>
                     </div>
@@ -805,7 +837,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
         )}
 
         {panel === "astra" && (
-          <PanelShell title="GPT Astra" subtitle="Mesin analisa Henima AI. Angka diambil dari data Gercep bisnis yang sedang aktif.">
+          <PanelShell title="GPT Astra" subtitle="Asisten umum. Bisa tanya apa saja, dan kalau soalnya soal usaha, angkanya diambil dari Gercep.">
             <div className="grid gap-2">
               {WORK.slice(0, 4).map((job) => (
                 <button key={job.title} type="button" onClick={() => void send(job.prompt)} className="rounded-2xl bg-[#F6F6F6] px-4 py-3 text-left text-[14px] hover:bg-[#F1F1F1]">

@@ -1,7 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { PDFDocument, rgb } from "pdf-lib";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { embedBrandFonts } from "@/lib/henima-sales/pdf-fonts";
+
+export const maxDuration = 60;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -14,14 +18,14 @@ type InMsg = {
 };
 
 const MODE_NOTES: Record<string, string> = {
-  image: "Mode gambar/stiker: susun brief visual (subjek, gaya, warna, teks di gambar, rasio). Jangan mengaku sudah membuat file gambar.",
-  write: "Mode tulis/edit: bantu merapikan atau menulis teks yang diminta. Langsung berikan naskahnya.",
-  web: "Mode cari: user ingin info. Kamu tidak menelusuri web live. Jawab dari pengetahuan dan data bisnis, dan katakan itu bukan hasil telusuran langsung.",
-  research: "Mode riset mendalam: susun laporan singkat — temuan, angka dari data, risiko, dan langkah berikutnya.",
-  sketch: "Mode sketsa: jelaskan komposisi gambar yang bisa dilampirkan, langkah demi langkah, tanpa mengaku sudah menggambar.",
-  template: "Mode template: buat kerangka yang bisa dipakai ulang, dengan bagian yang jelas dan placeholder.",
-  slides: "Mode presentasi: susun outline slide. Tiap slide: judul + 3 poin paling penting.",
-  pdf: "Mode PDF: susun dokumen rapi (judul, ringkasan, isi, penutup) yang siap disalin. Jangan mengaku file PDF sudah terunduh.",
+  image: "User meminta gambar atau stiker. Jelaskan singkat apa yang dibuat. Server yang menghasilkan file gambarnya.",
+  write: "User ingin teks ditulis atau diedit. Langsung berikan naskahnya.",
+  web: "User ingin info terkini. Pakai pencarian web.",
+  research: "User ingin riset mendalam. Pakai pencarian web bila perlu, lalu tulis laporan yang lengkap.",
+  sketch: "User meminta sketsa. Server membuat gambarnya. Jelaskan singkat hasilnya.",
+  template: "Buat template yang bisa dipakai ulang, lengkap, siap diisi.",
+  slides: "Susun presentasi lengkap. Tiap slide: judul lalu poin-poin. Server mengubahnya jadi PDF.",
+  pdf: "Tulis dokumen lengkap dan rapi. Server mengubahnya jadi file PDF.",
 };
 
 function rp(n: number) {
@@ -106,41 +110,194 @@ export async function POST(req: Request) {
   const userName = profile?.full_name || user.email?.split("@")[0] || "Owner";
   const snapshot = await loadSnapshot(supabase, user.id, business?.id || null);
 
-  const mode = MODE_NOTES[String(body.mode || "")] || "";
+  const modeId = String(body.mode || "");
+  const mode = MODE_NOTES[modeId] || "";
   const think = Boolean(body.think);
-  const system = `Kamu adalah Henima AI di Gercep OS. Pengguna memakai modul ini sebagai GPT Astra: untuk analisa bisnis dan bantuan umum.
-Bahasa Indonesia, jelas, tenang, tanpa basa-basi. Jangan pakai markdown bintang atau pagar. Untuk daftar, mulai baris dengan "- ".
-Jangan mengarang angka. Kalau datanya tidak ada di konteks, bilang belum ada di data Gercep.
-Kamu tidak membuka internet secara langsung dan tidak membuat file gambar atau PDF biner.
-Jangan mengaku sebagai ChatGPT.
+  const lastUser = [...incoming].reverse().find((m) => m?.role === "user");
+  const lastText = cleanText(lastUser?.content, 4000);
+  const hasUpload = Boolean(lastUser?.image?.data);
+  const draw = !hasUpload && wantsPicture(lastText, modeId);
+  const makePdf = wantsDocument(lastText, modeId);
+
+  const system = `Kamu adalah Henima AI, asisten umum. Pengguna memakai kamu seperti AI biasa: pertanyaan apa saja, menulis, menerjemahkan, menghitung, kode, ide, rencana, belajar, dan analisa.
+Jawab dalam bahasa yang dipakai user. Langsung, jelas, dan lengkap. Untuk daftar, mulai baris dengan "- ". Jangan pakai bintang atau pagar markdown.
+Jangan menolak topik hanya karena di luar bisnis. Kalau pertanyaannya tentang usaha mereka, pakai DATA GERCEP. Jangan mengarang angka usaha. Kalau angkanya tidak ada, bilang belum tercatat, lalu tetap bantu.
+Kamu bisa mencari web untuk berita, harga, fakta yang berubah, dan riset. Pakai itu kalau jawabannya butuh info terkini.
+${mode}
+${think ? "Jawab lebih dalam dan urut." : ""}
 
 Pengguna: ${userName}
 Bisnis aktif: ${business ? `${business.name} (${business.type || "umum"})` : "belum dipilih"}
 Bisnis di akun: ${list.map((b) => `${b.name} (${b.type || "-"})`).join(", ") || "belum ada"}
-${mode}
-${think ? "Mode berpikir: jawab lebih dalam, urut, dan lengkap. Tetap ringkas di pembuka." : ""}
 
-DATA GERCEP (bulan berjalan, untuk analisa):
+DATA GERCEP (pakai hanya kalau relevan):
 ${snapshot}`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: think || body.mode === "research" ? 1800 : 1000,
-      system,
-      messages,
-    });
-    const reply = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("\n")
-      .trim();
+    const picture = draw ? generateImage(lastText) : Promise.resolve(null);
+    const reply = await answer(system, messages, think || modeId === "research");
+    const image = await picture;
+    let text = reply || "Aku belum bisa menyusun jawaban. Coba ulangi dengan lebih spesifik.";
+    if (draw && !image) text += "\n\nGambarnya belum terbentuk. Coba ulangi dengan deskripsi yang lebih konkret.";
+
+    let file: { name: string; mediaType: string; data: string } | undefined;
+    if (makePdf && reply) {
+      const pdf = await textToPdf(lastText.slice(0, 80) || "Henima AI", reply);
+      const slug = (lastText || "henima").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "henima";
+      file = { name: `${slug}.pdf`, mediaType: "application/pdf", data: pdf };
+    }
+
     return NextResponse.json({
-      reply: reply || "Aku belum bisa menyusun jawaban. Coba ulangi dengan pertanyaan yang lebih spesifik.",
+      reply: text,
+      image: image || undefined,
+      file,
     });
   } catch {
     return NextResponse.json({ error: "GPT Astra sedang tidak menjawab. Coba lagi sebentar." }, { status: 502 });
   }
+}
+
+function wantsPicture(text: string, mode: string) {
+  if (mode === "image" || mode === "sketch") return true;
+  return /(buat|bikin|generate|desain|lukis|gambar(kan)?).{0,48}(gambar|stiker|ilustrasi|logo|ikon)/i.test(text);
+}
+
+function wantsDocument(text: string, mode: string) {
+  if (mode === "pdf" || mode === "slides") return true;
+  return /(buat|bikin|unduh|download|susun|export|jadikan).{0,40}(pdf|presentasi|slide)/i.test(text);
+}
+
+async function answer(system: string, messages: Anthropic.Messages.MessageParam[], deep: boolean) {
+  const max_tokens = deep ? 4000 : 2500;
+  try {
+    return await collectText(system, messages, max_tokens, true);
+  } catch {
+    return collectText(system, messages, max_tokens, false);
+  }
+}
+
+async function collectText(
+  system: string,
+  messages: Anthropic.Messages.MessageParam[],
+  max_tokens: number,
+  search: boolean,
+) {
+  let thread = messages;
+  let finalText = "";
+  for (let round = 0; round < 4; round++) {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens,
+      system,
+      messages: thread,
+      ...(search
+        ? {
+            tools: [
+              {
+                type: "web_search_20250305" as const,
+                name: "web_search" as const,
+                max_uses: 5,
+              },
+            ],
+          }
+        : {}),
+    });
+    const text = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("\n")
+      .trim();
+    if (text) finalText = text;
+    if (response.stop_reason !== "pause_turn") break;
+    thread = [...thread, { role: "assistant", content: response.content }];
+  }
+  return finalText;
+}
+
+async function generateImage(prompt: string): Promise<{ mediaType: string; data: string } | null> {
+  const key =
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    "";
+  if (!key) return null;
+  const models = ["gemini-2.5-flash-image", "gemini-3-pro-image-preview"];
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt.slice(0, 2000) }] }],
+            generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+          }),
+          signal: AbortSignal.timeout(55_000),
+        },
+      );
+      const json = (await res.json()) as {
+        candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }[] } }[];
+      };
+      if (!res.ok) continue;
+      for (const part of json.candidates?.[0]?.content?.parts || []) {
+        const inline = part.inlineData || part.inline_data;
+        if (inline?.data) {
+          const blob = inline as { mimeType?: string; mime_type?: string };
+          return { mediaType: blob.mimeType || blob.mime_type || "image/png", data: inline.data };
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function textToPdf(title: string, body: string) {
+  const doc = await PDFDocument.create();
+  const { sans, sansBold } = await embedBrandFonts(doc);
+  const margin = 48;
+  const size = 11;
+  const leading = 16;
+  const pageW = 595;
+  const pageH = 842;
+  const maxW = pageW - margin * 2;
+  const ink = rgb(0.1, 0.1, 0.1);
+  let page = doc.addPage([pageW, pageH]);
+  let y = pageH - margin;
+
+  const draw = (text: string, font: typeof sans, fontSize: number) => {
+    const safe = text.replace(/[^\u0000-\u024F\u1E00-\u1EFF]/g, " ").replace(/\s+/g, " ").trim();
+    if (!safe) return;
+    if (y < margin + fontSize) {
+      page = doc.addPage([pageW, pageH]);
+      y = pageH - margin;
+    }
+    page.drawText(safe, { x: margin, y, size: fontSize, font, color: ink });
+    y -= fontSize + 5;
+  };
+
+  draw(title || "Henima AI", sansBold, 16);
+  y -= 8;
+  for (const raw of body.replace(/\r/g, "").split("\n")) {
+    if (!raw.trim()) {
+      y -= leading / 2;
+      continue;
+    }
+    let rest = raw.trim();
+    while (rest) {
+      let cut = rest.length;
+      while (cut > 1 && sans.widthOfTextAtSize(rest.slice(0, cut), size) > maxW) cut -= 1;
+      if (cut < rest.length) {
+        const space = rest.lastIndexOf(" ", cut);
+        if (space > 24) cut = space;
+      }
+      draw(rest.slice(0, cut), sans, size);
+      rest = rest.slice(cut).trim();
+    }
+  }
+  return Buffer.from(await doc.save()).toString("base64");
 }
 
 async function loadSnapshot(

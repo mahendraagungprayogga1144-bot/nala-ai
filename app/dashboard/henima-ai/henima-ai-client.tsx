@@ -109,44 +109,13 @@ function readStore<T>(key: string, fallback: T): T {
 function CyberWallpaper() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      <div className="absolute inset-0 bg-[#070514]" />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(820px 380px at 78% 12%, rgba(255,45,149,0.38), transparent 62%), radial-gradient(640px 360px at 12% 78%, rgba(0,229,255,0.28), transparent 58%), linear-gradient(180deg, #14081f 0%, #070514 46%, #03141c 100%)",
-        }}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/henima-cyber-city.jpg"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-center"
       />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,229,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,229,255,0.08)_1px,transparent_1px)] bg-[size:56px_56px] opacity-70 [mask-image:linear-gradient(to_top,#000_18%,transparent_72%)]" />
-      <svg className="absolute inset-x-0 bottom-0 h-[58%] w-full" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMax slice">
-        <defs>
-          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ff2d95" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.05" />
-          </linearGradient>
-          <linearGradient id="rise" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="#00e5ff" />
-            <stop offset="100%" stopColor="#ff2d95" />
-          </linearGradient>
-        </defs>
-        <rect width="1200" height="520" fill="url(#sky)" />
-        {[80, 150, 230, 300, 390, 470, 560, 640, 730, 820, 910, 1000, 1090].map((x, i) => {
-          const h = 90 + ((i * 47) % 180);
-          return (
-            <g key={x}>
-              <rect x={x} y={520 - h} width={46} height={h} fill="#0b1024" stroke="#00e5ff" strokeOpacity="0.45" />
-              {Array.from({ length: Math.floor(h / 22) }).map((_, row) => (
-                <rect key={row} x={x + 8} y={528 - h + row * 20} width="8" height="6" fill={row % 3 === 0 ? "#ff2d95" : "#7ef9ff"} opacity="0.8" />
-              ))}
-            </g>
-          );
-        })}
-        <path d="M40 430 C 180 410, 260 360, 380 340 S 560 250, 700 220 900 150, 1160 90" fill="none" stroke="url(#rise)" strokeWidth="3" />
-        {[180, 380, 560, 760, 980].map((x, i) => (
-          <circle key={x} cx={x} cy={410 - i * 62} r="5" fill="#00e5ff" />
-        ))}
-      </svg>
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#070514] to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(7,5,20,0.18),rgba(7,5,20,0.55))]" />
     </div>
   );
 }

@@ -126,7 +126,7 @@ Jangan persempit jawaban ke usaha user atau ke satu negara. Kalau topiknya luas,
 Untuk fakta, berita, harga, tempat, orang, dan kejadian, pakai pencarian web dulu baru menjawab. Sebut sumbernya singkat kalau ada.
 Kalau ditanya kamu bisa apa, jawab bahwa kamu bisa bantu hampir semua hal di dunia, termasuk gambar, PDF, dan info terkini. Jangan buat daftar menu bisnis atau ternak.
 Kalau user minta gambar, balas satu kalimat saja. File gambar dibuat server.
-Untuk daftar, mulai baris dengan "- ". Jangan pakai bintang atau pagar markdown.
+Untuk daftar, mulai baris dengan "- ". Jangan pakai emoji sama sekali. Jangan pakai bintang, pagar, atau markdown.
 ${worldQuestion ? "Pertanyaan ini soal dunia. Wajib cari di web dulu, lalu jawab tuntas." : ""}
 ${mode}
 ${think ? "Jawab lebih dalam dan urut." : ""}
@@ -145,7 +145,7 @@ ${snapshot}`
     const picture = draw ? generateImage(`Buat gambar ini, tanpa teks penjelasan: ${lastText}`) : Promise.resolve(null);
     const reply = await answer(system, messages, think || modeId === "research" || worldQuestion);
     const image = await picture;
-    let text = reply || "Aku belum bisa menyusun jawaban. Coba ulangi dengan lebih spesifik.";
+    let text = tidyReply(reply) || "Aku belum bisa menyusun jawaban. Coba ulangi dengan lebih spesifik.";
     if (draw && !image) text += "\n\nGambarnya belum terbentuk. Coba ulangi dengan deskripsi yang lebih konkret.";
 
     let file: { name: string; mediaType: string; data: string } | undefined;
@@ -163,6 +163,18 @@ ${snapshot}`
   } catch {
     return NextResponse.json({ error: "GPT Astra sedang tidak menjawab. Coba lagi sebentar." }, { status: 502 });
   }
+}
+
+function tidyReply(text: string) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/[*_`#]+/g, "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function wantsPicture(text: string, mode: string) {

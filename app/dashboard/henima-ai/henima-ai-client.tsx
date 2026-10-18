@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Plus_Jakarta_Sans } from "next/font/google";
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 import {
   AudioLines,
   ArrowUp,
@@ -139,8 +145,20 @@ function ThinkIcon() {
   );
 }
 
+function tidyText(text: string) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/[*_`#]+/g, "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function renderAnswer(text: string) {
-  return text.split("\n").map((line, i) => {
+  return tidyText(text).split("\n").map((line, i) => {
     const item = line.match(/^\s*[-•]\s+(.*)/);
     if (item) {
       return (
@@ -535,7 +553,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
   );
 
   return (
-    <div className="henima-cyber relative flex h-dvh overflow-hidden bg-[#070514] text-[#e8fff8] antialiased" style={{ colorScheme: "dark" }}>
+    <div className={`${jakarta.className} henima-cyber relative flex h-dvh overflow-hidden bg-[#070514] text-[#e8fff8] antialiased`} style={{ colorScheme: "dark" }}>
       <CyberWallpaper />
       <style>{`.henima-cyber *::-webkit-scrollbar-thumb{background:rgba(0,255,255,.35)}`}</style>
       {mobileNav && (

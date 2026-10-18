@@ -119,13 +119,15 @@ export async function POST(req: Request) {
   const draw = !hasUpload && wantsPicture(lastText, modeId);
   const makePdf = wantsDocument(lastText, modeId);
   const businessQuestion = aboutBusiness(lastText);
+  const worldQuestion = !businessQuestion && !draw && !makePdf && needsWorld(lastText);
 
-  const system = `Kamu adalah Henima AI, asisten umum. Kamu bisa diminta apa saja, seperti AI pada umumnya: obrolan, cerita, menulis, menerjemahkan, kode, hitungan, belajar, rencana, riset, opini, dan pekerjaan kreatif.
-Kalau ditanya "kamu bisa apa" atau sejenisnya, jawab singkat: kamu bisa bantu hampir semua permintaan, termasuk membuat gambar, membuat PDF, dan mencari info terkini di internet. Jangan keluarkan daftar menu bisnis, keuangan, atau ternak.
-Jangan mengalihkan jawaban ke usaha user kalau pertanyaannya bukan tentang usaha.
-Pakai pencarian web untuk berita, harga, dan fakta yang berubah.
-Kalau user minta gambar, balas satu kalimat saja tentang gambar itu. File gambarnya dibuat terpisah oleh server.
+  const system = `Kamu adalah Henima AI. Kamu menjawab soal apa saja di seluruh dunia: negara, kota, sejarah, sains, budaya, olahraga, teknologi, berita, tokoh, bahasa, kesehatan umum, dan kehidupan sehari-hari.
+Jangan persempit jawaban ke usaha user atau ke satu negara. Kalau topiknya luas, jawab lengkap.
+Untuk fakta, berita, harga, tempat, orang, dan kejadian, pakai pencarian web dulu baru menjawab. Sebut sumbernya singkat kalau ada.
+Kalau ditanya kamu bisa apa, jawab bahwa kamu bisa bantu hampir semua hal di dunia, termasuk gambar, PDF, dan info terkini. Jangan buat daftar menu bisnis atau ternak.
+Kalau user minta gambar, balas satu kalimat saja. File gambar dibuat server.
 Untuk daftar, mulai baris dengan "- ". Jangan pakai bintang atau pagar markdown.
+${worldQuestion ? "Pertanyaan ini soal dunia. Wajib cari di web dulu, lalu jawab tuntas." : ""}
 ${mode}
 ${think ? "Jawab lebih dalam dan urut." : ""}
 
@@ -136,12 +138,12 @@ ${
 Jangan mengarang angka. Kalau angkanya tidak ada di data, bilang belum tercatat.
 DATA GERCEP:
 ${snapshot}`
-    : "Data usaha user tersedia, tapi jangan disebut kecuali user bertanya soal usaha, angka, atau stok."
+    : ""
 }`;
 
   try {
     const picture = draw ? generateImage(`Buat gambar ini, tanpa teks penjelasan: ${lastText}`) : Promise.resolve(null);
-    const reply = await answer(system, messages, think || modeId === "research");
+    const reply = await answer(system, messages, think || modeId === "research" || worldQuestion);
     const image = await picture;
     let text = reply || "Aku belum bisa menyusun jawaban. Coba ulangi dengan lebih spesifik.";
     if (draw && !image) text += "\n\nGambarnya belum terbentuk. Coba ulangi dengan deskripsi yang lebih konkret.";
@@ -173,7 +175,11 @@ function wantsPicture(text: string, mode: string) {
 }
 
 function aboutBusiness(text: string) {
-  return /\b(bisnis|usaha|omzet|stok|keuangan|laba|rugi|ternak|pakan|hpp|kas|penjualan|order|modal|hewan)\b/i.test(text);
+  return /\b(bisnis|usaha|omzet|stok|keuangan|laba|rugi|ternak|pakan|hpp|penjualan|modal)\b/i.test(text);
+}
+
+function needsWorld(text: string) {
+  return /\b(apa|siapa|kapan|dimana|di mana|kenapa|mengapa|bagaimana|berapa|dunia|negara|kota|berita|sejarah|fakta|siapakah|apakah|where|what|who|when|why|how)\b/i.test(text);
 }
 
 function wantsDocument(text: string, mode: string) {

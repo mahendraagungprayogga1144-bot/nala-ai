@@ -106,6 +106,51 @@ function readStore<T>(key: string, fallback: T): T {
   }
 }
 
+function CyberWallpaper() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      <div className="absolute inset-0 bg-[#070514]" />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(820px 380px at 78% 12%, rgba(255,45,149,0.38), transparent 62%), radial-gradient(640px 360px at 12% 78%, rgba(0,229,255,0.28), transparent 58%), linear-gradient(180deg, #14081f 0%, #070514 46%, #03141c 100%)",
+        }}
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,229,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,229,255,0.08)_1px,transparent_1px)] bg-[size:56px_56px] opacity-70 [mask-image:linear-gradient(to_top,#000_18%,transparent_72%)]" />
+      <svg className="absolute inset-x-0 bottom-0 h-[58%] w-full" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMax slice">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ff2d95" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.05" />
+          </linearGradient>
+          <linearGradient id="rise" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stopColor="#00e5ff" />
+            <stop offset="100%" stopColor="#ff2d95" />
+          </linearGradient>
+        </defs>
+        <rect width="1200" height="520" fill="url(#sky)" />
+        {[80, 150, 230, 300, 390, 470, 560, 640, 730, 820, 910, 1000, 1090].map((x, i) => {
+          const h = 90 + ((i * 47) % 180);
+          return (
+            <g key={x}>
+              <rect x={x} y={520 - h} width={46} height={h} fill="#0b1024" stroke="#00e5ff" strokeOpacity="0.45" />
+              {Array.from({ length: Math.floor(h / 22) }).map((_, row) => (
+                <rect key={row} x={x + 8} y={528 - h + row * 20} width="8" height="6" fill={row % 3 === 0 ? "#ff2d95" : "#7ef9ff"} opacity="0.8" />
+              ))}
+            </g>
+          );
+        })}
+        <path d="M40 430 C 180 410, 260 360, 380 340 S 560 250, 700 220 900 150, 1160 90" fill="none" stroke="url(#rise)" strokeWidth="3" />
+        {[180, 380, 560, 760, 980].map((x, i) => (
+          <circle key={x} cx={x} cy={410 - i * 62} r="5" fill="#00e5ff" />
+        ))}
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#070514] to-transparent" />
+    </div>
+  );
+}
+
 function Mark({ className = "h-7 w-7" }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden>
@@ -176,7 +221,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
     setSchedules(readStore<Schedule[]>(SCHEDULE_KEY, []));
     setReady(true);
     const prev = document.body.style.background;
-    document.body.style.background = "#ffffff";
+    document.body.style.background = "#070514";
     return () => {
       document.body.style.background = prev;
       recRef.current?.stop();
@@ -391,7 +436,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
       {plusOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-[calc(100%+10px)] left-0 z-20 max-h-[min(440px,52vh)] w-[min(440px,100%)] overflow-y-auto rounded-2xl border border-black/[0.06] bg-white py-1.5 shadow-[0_16px_50px_rgba(0,0,0,0.12)]"
+          className="absolute bottom-[calc(100%+10px)] left-0 z-20 max-h-[min(440px,52vh)] w-[min(440px,100%)] overflow-y-auto rounded-2xl border border-cyan-300/25 bg-[#0c1024]/95 py-1.5 shadow-[0_16px_50px_rgba(0,0,0,0.45)]"
         >
           {plusItems.map((item, i) => (
             <button
@@ -403,10 +448,10 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                 setPlusOpen(false);
                 boxRef.current?.focus();
               }}
-              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${highlight === i ? "bg-[#F3F3F3]" : ""}`}
+              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${highlight === i ? "bg-cyan-400/15" : ""}`}
             >
-              <item.icon size={16} strokeWidth={1.75} className={item.key === "pdf" ? "text-[#E11D2E]" : "text-[#2a2a2a]"} />
-              <span className="text-[13.5px] font-medium text-[#171717]">{item.title}</span>
+              <item.icon size={16} strokeWidth={1.75} className={item.key === "pdf" ? "text-[#ff4d8d]" : "text-cyan-200"} />
+              <span className="text-[13.5px] font-medium text-[#e8fff8]">{item.title}</span>
               <span className="ml-auto pl-3 text-[12px] text-[#8d8d8d]">{item.hint}</span>
             </button>
           ))}
@@ -416,19 +461,19 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
       {(modeMeta || think || attachment) && (
         <div className="mb-2 flex flex-wrap items-center gap-2 px-2">
           {modeMeta && (
-            <button type="button" onClick={() => setMode(null)} className="inline-flex items-center gap-1.5 rounded-full bg-[#F3F3F3] px-3 py-1 text-[12px] text-[#333]">
+            <button type="button" onClick={() => setMode(null)} className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[12px] text-cyan-50">
               {modeMeta.label}
               <X size={12} />
             </button>
           )}
           {think && (
-            <button type="button" onClick={() => setThink(false)} className="inline-flex items-center gap-1.5 rounded-full bg-[#F3F3F3] px-3 py-1 text-[12px] text-[#333]">
+            <button type="button" onClick={() => setThink(false)} className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-300/30 bg-fuchsia-500/15 px-3 py-1 text-[12px] text-fuchsia-50">
               Berpikir
               <X size={12} />
             </button>
           )}
           {attachment && (
-            <button type="button" onClick={() => setAttachment(null)} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#F3F3F3] px-3 py-1 text-[12px] text-[#333]">
+            <button type="button" onClick={() => setAttachment(null)} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[12px] text-cyan-50">
               <span className="truncate">{attachment.name}</span>
               <X size={12} />
             </button>
@@ -441,7 +486,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
           e.preventDefault();
           void send();
         }}
-        className="flex min-h-[56px] items-end gap-1 rounded-full border border-black/[0.08] bg-white px-1.5 py-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.05)]"
+        className="flex min-h-[56px] items-end gap-1 rounded-full border border-cyan-300/35 bg-[#070514]/75 px-1.5 py-1.5 shadow-[0_0_32px_rgba(0,229,255,0.16)] backdrop-blur-md"
       >
         <button
           type="button"
@@ -451,7 +496,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
             setHighlight(0);
             setPlusOpen((v) => !v);
           }}
-          className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#2a2a2a] hover:bg-[#F3F3F3]"
+          className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-cyan-100 hover:bg-cyan-400/15"
         >
           <Plus size={18} />
         </button>
@@ -472,12 +517,12 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
             }
             if (e.key === "Escape") setPlusOpen(false);
           }}
-          className="max-h-[140px] min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[16px] leading-6 text-[#111] outline-none placeholder:text-[#9a9a9a]"
+          className="max-h-[140px] min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[16px] leading-6 text-[#e8fff8] outline-none placeholder:text-cyan-100/40"
         />
         <button
           type="button"
           onClick={() => setThink((v) => !v)}
-          className={`mb-0.5 hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13px] sm:inline-flex ${think ? "bg-[#EFEFEF] text-[#111]" : "text-[#5c5c5c] hover:bg-[#F4F4F4]"}`}
+          className={`mb-0.5 hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13px] sm:inline-flex ${think ? "bg-fuchsia-500/25 text-fuchsia-100" : "text-cyan-100/80 hover:bg-cyan-400/10"}`}
         >
           <ThinkIcon />
           Berpikir
@@ -486,7 +531,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
           type="button"
           aria-label="Mikrofon"
           onClick={toggleMic}
-          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${listening ? "bg-[#F3F3F3] text-[#111]" : "text-[#3a3a3a] hover:bg-[#F3F3F3]"}`}
+          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${listening ? "bg-fuchsia-500/25 text-fuchsia-100" : "text-cyan-100 hover:bg-cyan-400/10"}`}
         >
           <Mic size={18} />
         </button>
@@ -521,15 +566,16 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
   );
 
   return (
-    <div className="henima-paper flex h-dvh bg-white text-[#111] antialiased" style={{ colorScheme: "light" }}>
-      <style>{`.henima-paper *::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18)}`}</style>
+    <div className="henima-cyber relative flex h-dvh overflow-hidden bg-[#070514] text-[#e8fff8] antialiased" style={{ colorScheme: "dark" }}>
+      <CyberWallpaper />
+      <style>{`.henima-cyber *::-webkit-scrollbar-thumb{background:rgba(0,255,255,.35)}`}</style>
       {mobileNav && (
         <button aria-label="Tutup menu" className="fixed inset-0 z-30 bg-black/20 md:hidden" onClick={() => setMobileNav(false)} />
       )}
 
       <aside
         className={[
-          "z-40 flex h-full shrink-0 flex-col border-r border-black/[0.06] bg-white",
+          "relative z-40 flex h-full shrink-0 flex-col border-r border-cyan-300/20 bg-[#070514]/75 backdrop-blur-md",
           mobileNav ? "fixed inset-y-0 left-0 w-[280px]" : "hidden md:flex",
           rail ? "md:w-[72px]" : "md:w-[268px]",
         ].join(" ")}
@@ -544,10 +590,10 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
               <Mark />
               <span className="text-[15px] font-semibold tracking-tight">Henima AI</span>
               <div className="ml-auto flex items-center gap-0.5">
-                <button type="button" aria-label="Cari" onClick={() => setSearchOpen((v) => !v)} className="rounded-lg p-1.5 text-[#444] hover:bg-[#F3F3F3]">
+                <button type="button" aria-label="Cari" onClick={() => setSearchOpen((v) => !v)} className="rounded-lg p-1.5 text-cyan-100 hover:bg-cyan-400/10">
                   <Search size={16} />
                 </button>
-                <button type="button" aria-label="Ciutkan" onClick={() => setCollapsed(true)} className="hidden rounded-lg p-1.5 text-[#444] hover:bg-[#F3F3F3] md:inline-flex">
+                <button type="button" aria-label="Ciutkan" onClick={() => setCollapsed(true)} className="hidden rounded-lg p-1.5 text-cyan-100 hover:bg-cyan-400/10 md:inline-flex">
                   <PanelLeft size={16} />
                 </button>
               </div>
@@ -562,7 +608,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cari obrolan"
-              className="w-full rounded-xl bg-[#F4F4F4] px-3 py-2 text-[13px] outline-none placeholder:text-[#9a9a9a]"
+              className="w-full rounded-xl border border-cyan-300/20 bg-black/30 px-3 py-2 text-[13px] text-[#e8fff8] outline-none placeholder:text-cyan-100/40"
             />
           </div>
         )}
@@ -588,7 +634,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                   setPanel("home");
                   setActiveId(null);
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[14px] hover:bg-[#F4F4F4] ${projectId === p.id ? "bg-[#F3F3F3]" : ""}`}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[14px] hover:bg-cyan-400/10 ${projectId === p.id ? "bg-cyan-400/15" : ""}`}
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-md text-white" style={{ background: p.color }}>
                   <Pencil size={11} />
@@ -600,7 +646,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
             <p className="mt-4 px-2.5 pb-1 text-[12px] text-[#8d8d8d]">Terbaru</p>
             {visibleThreads.length === 0 && <p className="px-2.5 py-2 text-[13px] text-[#9a9a9a]">Belum ada obrolan.</p>}
             {visibleThreads.map((t) => (
-              <div key={t.id} className={`group flex items-center rounded-xl ${activeId === t.id ? "bg-[#F3F3F3]" : "hover:bg-[#F4F4F4]"}`}>
+              <div key={t.id} className={`group flex items-center rounded-xl ${activeId === t.id ? "bg-cyan-400/15" : "hover:bg-cyan-400/10"}`}>
                 <button type="button" onClick={() => openThread(t.id)} className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-[14px]">
                   {t.title}
                 </button>
@@ -623,8 +669,8 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
 
         <div className="relative border-t border-black/[0.04] p-2">
           {userMenu && !rail && (
-            <div className="absolute bottom-14 left-2 right-2 rounded-xl border border-black/[0.06] bg-white p-1 shadow-[0_12px_40px_rgba(0,0,0,0.1)]">
-              <Link href="/dashboard/owner" className="block rounded-lg px-3 py-2 text-[13px] hover:bg-[#F4F4F4]">
+            <div className="absolute bottom-14 left-2 right-2 rounded-xl border border-cyan-300/25 bg-[#0c1024] p-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+              <Link href="/dashboard/owner" className="block rounded-lg px-3 py-2 text-[13px] hover:bg-cyan-400/10">
                 Kembali ke Gercep OS
               </Link>
             </div>
@@ -632,7 +678,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
           <button
             type="button"
             onClick={() => setUserMenu((v) => !v)}
-            className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-[#F4F4F4] ${rail ? "justify-center" : ""}`}
+            className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-cyan-400/10 ${rail ? "justify-center" : ""}`}
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F5C451] text-[13px] font-semibold text-[#3a2a00]">
               {userName.slice(0, 1).toUpperCase()}
@@ -648,31 +694,31 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
       </aside>
 
       <section
-        className="relative flex min-w-0 flex-1 flex-col bg-white"
+        className="relative z-10 flex min-w-0 flex-1 flex-col bg-transparent"
         onClick={() => {
           setPlusOpen(false);
           setUserMenu(false);
         }}
       >
         <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-14 items-center justify-center">
-          <button type="button" aria-label="Menu" onClick={() => setMobileNav(true)} className="pointer-events-auto absolute left-3 rounded-lg p-2 hover:bg-[#F4F4F4] md:hidden">
+          <button type="button" aria-label="Menu" onClick={() => setMobileNav(true)} className="pointer-events-auto absolute left-3 rounded-lg p-2 text-cyan-100 hover:bg-cyan-400/10 md:hidden">
             <Menu size={18} />
           </button>
-          <div className="pointer-events-auto inline-flex items-center rounded-full bg-[#F4F4F4] p-1">
+          <div className="pointer-events-auto inline-flex items-center rounded-full border border-cyan-300/30 bg-[#070514]/70 p-1 backdrop-blur-md">
             <button
               type="button"
               onClick={() => {
                 setPanel("home");
                 setPlusOpen(false);
               }}
-              className={`rounded-full px-4 py-1.5 text-[14px] ${panel !== "work" ? "bg-white font-medium shadow-sm" : "text-[#666]"}`}
+              className={`rounded-full px-4 py-1.5 text-[14px] ${panel !== "work" ? "bg-cyan-400/20 font-medium text-cyan-50" : "text-cyan-100/70"}`}
             >
               Chat
             </button>
             <button
               type="button"
               onClick={() => { setPanel("work"); setActiveId(null); }}
-              className={`rounded-full px-4 py-1.5 text-[14px] ${panel === "work" ? "bg-white font-medium shadow-sm" : "text-[#666]"}`}
+              className={`rounded-full px-4 py-1.5 text-[14px] ${panel === "work" ? "bg-fuchsia-500/25 font-medium text-fuchsia-50" : "text-cyan-100/70"}`}
             >
               + Work
             </button>
@@ -680,7 +726,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
         </header>
 
         {notice && (
-          <div className="absolute right-4 top-16 z-20 flex w-[280px] items-start gap-3 rounded-2xl border border-black/[0.06] bg-white p-3 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+          <div className="absolute right-4 top-16 z-20 flex w-[280px] items-start gap-3 rounded-2xl border border-cyan-300/30 bg-[#0c1024]/95 p-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F4F4F4]">
               <Sparkles size={14} />
             </span>
@@ -696,7 +742,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
 
         {isEmptyHome && (
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-10">
-            <h1 className="mb-7 text-center text-[30px] font-medium tracking-[-0.03em] text-[#111] md:text-[34px]">
+            <h1 className="mb-7 text-center text-[30px] font-medium tracking-[-0.03em] text-white drop-shadow-[0_0_18px_rgba(0,229,255,0.45)] md:text-[34px]">
               Hai, {userName}. Siap mulai?
             </h1>
             {composer}
@@ -709,7 +755,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                     setMode(item.mode);
                     boxRef.current?.focus();
                   }}
-                  className="flex items-center gap-3 rounded-xl px-2 py-2 text-[14.5px] text-[#4a4a4a] hover:bg-[#F6F6F6]"
+                  className="flex items-center gap-3 rounded-xl px-2 py-2 text-[14.5px] text-cyan-100/80 hover:bg-cyan-400/10"
                 >
                   <item.icon size={16} strokeWidth={1.75} />
                   {item.label}
@@ -725,11 +771,11 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
               <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5">
                 {active.messages.map((m, i) =>
                   m.role === "user" ? (
-                    <div key={i} className="ml-auto max-w-[85%] rounded-3xl bg-[#F4F4F4] px-4 py-2.5 text-[15px] leading-6">
+                    <div key={i} className="ml-auto max-w-[85%] rounded-3xl border border-fuchsia-300/30 bg-fuchsia-500/15 px-4 py-2.5 text-[15px] leading-6 text-white">
                       {m.content}
                     </div>
                   ) : (
-                    <div key={i} className="text-[15.5px] leading-7 text-[#1a1a1a]">
+                    <div key={i} className="rounded-3xl border border-cyan-300/15 bg-[#070514]/55 px-4 py-3 text-[15.5px] leading-7 text-[#e8fff8] backdrop-blur-sm">
                       {renderAnswer(m.content)}
                       {m.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -763,7 +809,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                   key={job.title}
                   type="button"
                   onClick={() => void send(job.prompt)}
-                  className="rounded-2xl border border-black/[0.06] bg-white px-4 py-4 text-left text-[14px] shadow-[0_1px_0_rgba(0,0,0,0.02)] hover:bg-[#FAFAFA]"
+                  className="rounded-2xl border border-cyan-300/25 bg-[#070514]/60 px-4 py-4 text-left text-[14px] backdrop-blur-sm hover:bg-cyan-400/10"
                 >
                   {job.title}
                 </button>
@@ -776,7 +822,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
         {panel === "terjadwal" && (
           <PanelShell title="Terjadwal" subtitle="Pengingat analisa yang kamu simpan di modul ini.">
             <form
-              className="mb-4 grid gap-2 rounded-2xl border border-black/[0.06] p-4"
+              className="mb-4 grid gap-2 rounded-2xl border border-cyan-300/20 bg-[#070514]/50 p-4"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!scheduleDraft.title.trim()) return;
@@ -784,9 +830,9 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                 setScheduleDraft({ title: "", when: "", note: "" });
               }}
             >
-              <input value={scheduleDraft.title} onChange={(e) => setScheduleDraft({ ...scheduleDraft, title: e.target.value })} placeholder="Judul, misalnya Analisa Senin" className="rounded-xl bg-[#F6F6F6] px-3 py-2 text-[14px] outline-none" />
-              <input value={scheduleDraft.when} onChange={(e) => setScheduleDraft({ ...scheduleDraft, when: e.target.value })} placeholder="Kapan, misalnya Setiap Senin 08.00" className="rounded-xl bg-[#F6F6F6] px-3 py-2 text-[14px] outline-none" />
-              <input value={scheduleDraft.note} onChange={(e) => setScheduleDraft({ ...scheduleDraft, note: e.target.value })} placeholder="Catatan" className="rounded-xl bg-[#F6F6F6] px-3 py-2 text-[14px] outline-none" />
+              <input value={scheduleDraft.title} onChange={(e) => setScheduleDraft({ ...scheduleDraft, title: e.target.value })} placeholder="Judul, misalnya Analisa Senin" className="rounded-xl border border-cyan-300/20 bg-black/30 px-3 py-2 text-[14px] text-[#e8fff8] outline-none" />
+              <input value={scheduleDraft.when} onChange={(e) => setScheduleDraft({ ...scheduleDraft, when: e.target.value })} placeholder="Kapan, misalnya Setiap Senin 08.00" className="rounded-xl border border-cyan-300/20 bg-black/30 px-3 py-2 text-[14px] text-[#e8fff8] outline-none" />
+              <input value={scheduleDraft.note} onChange={(e) => setScheduleDraft({ ...scheduleDraft, note: e.target.value })} placeholder="Catatan" className="rounded-xl border border-cyan-300/20 bg-black/30 px-3 py-2 text-[14px] text-[#e8fff8] outline-none" />
               <button type="submit" className="w-fit rounded-full bg-[#111] px-4 py-2 text-[13px] text-white">Simpan</button>
             </form>
             {schedules.length === 0 && <Empty>Belum ada jadwal.</Empty>}
@@ -826,7 +872,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
                     setMode(item.id);
                     openHome();
                   }}
-                  className="rounded-2xl border border-black/[0.06] px-4 py-3 text-left hover:bg-[#FAFAFA]"
+                  className="rounded-2xl border border-cyan-300/20 bg-[#070514]/50 px-4 py-3 text-left hover:bg-cyan-400/10"
                 >
                   <span className="block text-[14px] font-medium">{item.label}</span>
                   <span className="block text-[12px] text-[#8a8a8a]">{item.hint}</span>
@@ -840,7 +886,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
           <PanelShell title="GPT Astra" subtitle="Asisten umum. Bisa tanya apa saja, dan kalau soalnya soal usaha, angkanya diambil dari Gercep.">
             <div className="grid gap-2">
               {WORK.slice(0, 4).map((job) => (
-                <button key={job.title} type="button" onClick={() => void send(job.prompt)} className="rounded-2xl bg-[#F6F6F6] px-4 py-3 text-left text-[14px] hover:bg-[#F1F1F1]">
+                <button key={job.title} type="button" onClick={() => void send(job.prompt)} className="rounded-2xl border border-fuchsia-300/25 bg-fuchsia-500/10 px-4 py-3 text-left text-[14px] hover:bg-fuchsia-500/20">
                   {job.title}
                 </button>
               ))}
@@ -852,7 +898,7 @@ export default function HenimaAiClient({ userName }: { userName: string }) {
           <PanelShell title="Jelajahi" subtitle="Pertanyaan yang sering dipakai untuk analisa.">
             <div className="grid gap-2">
               {EXPLORE.map((prompt) => (
-                <button key={prompt} type="button" onClick={() => void send(prompt)} className="rounded-2xl border border-black/[0.06] px-4 py-3 text-left text-[14px] hover:bg-[#FAFAFA]">
+                <button key={prompt} type="button" onClick={() => void send(prompt)} className="rounded-2xl border border-cyan-300/20 bg-[#070514]/50 px-4 py-3 text-left text-[14px] hover:bg-cyan-400/10">
                   {prompt}
                 </button>
               ))}
@@ -882,9 +928,9 @@ function SideItem({
       type="button"
       title={label}
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[14px] ${collapsed ? "justify-center" : ""} ${active ? "bg-[#F0F0F0]" : "hover:bg-[#F4F4F4]"}`}
+      className={`flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[14px] text-[#e8fff8] ${collapsed ? "justify-center" : ""} ${active ? "bg-cyan-400/15 text-cyan-50" : "hover:bg-cyan-400/10"}`}
     >
-      <Icon size={17} strokeWidth={1.75} className="shrink-0 text-[#2c2c2c]" />
+      <Icon size={17} strokeWidth={1.75} className="shrink-0 text-cyan-200" />
       {!collapsed && <span>{label}</span>}
     </button>
   );
@@ -895,7 +941,7 @@ function PanelShell({ title, subtitle, children }: { title: string; subtitle: st
     <div className="flex-1 overflow-y-auto px-5 pb-10 pt-20">
       <div className="mx-auto w-full max-w-[720px]">
         <h1 className="text-[28px] font-medium tracking-[-0.03em]">{title}</h1>
-        <p className="mb-5 mt-1 text-[14px] text-[#777]">{subtitle}</p>
+        <p className="mb-5 mt-1 text-[14px] text-cyan-100/70">{subtitle}</p>
         {children}
       </div>
     </div>
@@ -903,7 +949,7 @@ function PanelShell({ title, subtitle, children }: { title: string; subtitle: st
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-2xl bg-[#F7F7F7] px-4 py-6 text-[14px] text-[#777]">{children}</p>;
+  return <p className="rounded-2xl border border-cyan-300/15 bg-[#070514]/50 px-4 py-6 text-[14px] text-cyan-100/70">{children}</p>;
 }
 
 function Row({
@@ -920,12 +966,12 @@ function Row({
   onUse?: () => void;
 }) {
   return (
-    <div className="mb-2 rounded-2xl border border-black/[0.06] px-4 py-3">
+    <div className="mb-2 rounded-2xl border border-cyan-300/20 bg-[#070514]/45 px-4 py-3">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium">{title}</p>
           <p className="text-[12px] text-[#8a8a8a]">{meta}</p>
-          {body ? <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-[13px] leading-5 text-[#333]">{body}</p> : null}
+          {body ? <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-[13px] leading-5 text-cyan-50/90">{body}</p> : null}
         </div>
         <div className="flex shrink-0 gap-2">
           {onUse && (

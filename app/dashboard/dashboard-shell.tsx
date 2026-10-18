@@ -82,7 +82,7 @@ export default function DashboardShell({
 
   if (pathname?.startsWith("/dashboard/henima-ai")) {
     return (
-      <div className="fixed inset-0 z-[60] overflow-hidden bg-white text-[#0d0d0d]">
+      <div className="fixed inset-0 z-[60] overflow-hidden bg-[#070514] text-[#e8fff8]">
         <SyncActiveBusiness businessId={activeBusiness?.id} />
         {children}
       </div>

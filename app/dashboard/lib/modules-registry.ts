@@ -3,7 +3,7 @@ import {
   Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera,
   ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
-  Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target, Gauge,
+  Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target, Gauge, Sparkles,
 } from "lucide-react";
 import { normalizeBizType } from "@/lib/auth/post-login";
 
@@ -52,6 +52,7 @@ const BIZ_MODULES: DashboardModule[] = [
 ];
 /** Modul universal — tampil untuk semua jenis bisnis */
 export const GERCEP_MODULES: DashboardModule[] = [
+  { id: "henima-ai", name: "Henima AI", desc: "Analisa dan obrolan GPT Astra. Latar putih kertas.", href: "/dashboard/henima-ai", icon: Sparkles, category: "utama", status: "live" },
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },
   { id: "sales", name: "Henima Sales", desc: "Dashboard, KPI, CRM, Telegram, laporan khusus modul sales Henima.", href: "/dashboard/sales", icon: Target, category: "utama", status: "live" },
   { id: "henima-studio", name: "Studio Henima", desc: "Tukar botol ke foto referensi, atau ganti latar produk.", href: "/dashboard/studio", icon: Camera, category: "utama", status: "beta" },

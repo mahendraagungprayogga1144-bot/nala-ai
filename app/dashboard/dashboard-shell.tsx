@@ -80,6 +80,15 @@ export default function DashboardShell({
     announcement.message?.trim() &&
     !announceDismissed;
 
+  if (pathname?.startsWith("/dashboard/henima-ai")) {
+    return (
+      <div className="fixed inset-0 z-[60] overflow-hidden bg-white text-[#0d0d0d]">
+        <SyncActiveBusiness businessId={activeBusiness?.id} />
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
       <SyncActiveBusiness businessId={activeBusiness?.id} />

@@ -11,6 +11,7 @@ import {
 import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
 import { getPlatformSettings } from "@/lib/admin/settings";
 import { homeForBizType } from "@/lib/auth/post-login";
+import { daysLeft, trialStillOpen } from "@/lib/auth/trial";
 
 function needsAuth(pathname: string) {
   // Public share surfaces (invoice printable for WA) must stay outside this list.
@@ -211,25 +212,41 @@ export async function proxy(request: NextRequest) {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const endAt = sub?.trial_ends_at || sub?.expired_at;
-      const ended = endAt ? new Date(endAt) < new Date() : false;
-      const isPaidOrTrial = sub?.plan && sub.plan !== "free";
+      const endAt = sub?.expired_at;
+      const trialEnd = sub?.trial_ends_at;
+      const trialOpen = trialStillOpen(trialEnd);
+      const paidEnded = Boolean(endAt && new Date(endAt) < new Date() && sub?.plan && sub.plan !== "free" && sub.plan !== "trial");
 
-      if (ended && isPaidOrTrial) {
+      const paidPlan = sub?.plan === "starter" || sub?.plan === "pro" || sub?.plan === "enterprise";
+      if (trialOpen && !paidPlan && (sub?.plan !== "trial" || sub?.status !== "trial")) {
+        await supabase
+          .from("subscriptions")
+          .update({ plan: "trial", status: "trial", updated_at: new Date().toISOString() })
+          .eq("user_id", user.id);
+      }
+
+      if (!trialOpen && sub?.plan === "trial" && trialEnd) {
         await supabase
           .from("subscriptions")
           .update({ plan: "free", status: "expired", updated_at: new Date().toISOString() })
           .eq("user_id", user.id);
         response.cookies.set("sub_expired", "1", { path: "/", maxAge: 86400 });
-      } else if (sub?.plan === "trial" && endAt) {
+        response.cookies.delete("trial_days_left");
+      } else if (paidEnded) {
+        await supabase
+          .from("subscriptions")
+          .update({ plan: "free", status: "expired", updated_at: new Date().toISOString() })
+          .eq("user_id", user.id);
+        response.cookies.set("sub_expired", "1", { path: "/", maxAge: 86400 });
+      } else if (trialOpen && trialEnd && !paidPlan) {
         response.cookies.delete("sub_expired");
-        const days = Math.ceil((new Date(endAt).getTime() - Date.now()) / 86400000);
-        response.cookies.set("trial_days_left", String(Math.max(0, days)), {
+        const days = daysLeft(trialEnd) ?? 0;
+        response.cookies.set("trial_days_left", String(days), {
           path: "/",
           maxAge: 300,
           sameSite: "lax",
         });
-      } else if (isPaidOrTrial) {
+      } else if (sub?.plan && sub.plan !== "free") {
         response.cookies.delete("sub_expired");
         response.cookies.delete("trial_days_left");
       }

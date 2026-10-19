@@ -44,7 +44,15 @@ export default function TrialBanner() {
           </p>
         ) : (
           <p>
-            Trial aktif · sisa <strong>{daysLeft} hari</strong>.{" "}
+            {daysLeft === 0 ? (
+              <>
+                Trial aktif sampai <strong>tengah malam WIB</strong>.{" "}
+              </>
+            ) : (
+              <>
+                Trial aktif · sisa <strong>{daysLeft} hari</strong>.{" "}
+              </>
+            )}
             <Link href="/dashboard/upgrade" className="font-semibold underline">
               Upgrade sekarang
             </Link>

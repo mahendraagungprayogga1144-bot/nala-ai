@@ -10,6 +10,7 @@ import { listOrders } from "@/lib/henima-sales/order-service";
 import { listFollowUps } from "@/lib/henima-sales/followup-service";
 import { listTestimonials, signedTestimonialUrl } from "@/lib/henima-sales/testimonial-service";
 import { listStaff } from "@/lib/henima-sales/staff-service";
+import { cleanProductLabel } from "@/lib/henima-sales/labels";
 import { displayPhone } from "@/lib/henima-sales/phone";
 import { fmtDateLongId, fmtRp } from "@/lib/henima-sales/money";
 import FollowUpActions from "../../follow-ups/followup-actions";
@@ -72,7 +73,7 @@ ${fmtRp(customer.total_spent)}`}
         <div className="mb-6 space-y-2">
           {orders.rows.map((o) => {
             const items = (o.order_items || [])
-              .map((i) => `${i.product_name_snapshot || "Produk"} × ${i.qty}`)
+              .map((i) => `${cleanProductLabel(i.product_name_snapshot || "")} × ${i.qty}`)
               .join(" + ") || "—";
             return (
               <div key={o.id} className={MODULE_CARD + " flex flex-wrap items-center justify-between gap-3 text-sm"}>

@@ -176,7 +176,7 @@ export async function listCustomers(
   },
 ) {
   const page = Math.max(1, opts.page || 1);
-  const pageSize = Math.min(50, Math.max(1, opts.pageSize || 20));
+  const pageSize = Math.min(300, Math.max(1, opts.pageSize || 20));
   const from = (page - 1) * pageSize;
   const teamIds = await loadTeamIds(db, actor);
   const scope = scopedCustomerFilter(actor, teamIds);

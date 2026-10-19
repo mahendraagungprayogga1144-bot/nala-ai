@@ -10,7 +10,7 @@ export default function CustomersPage({ searchParams }: { searchParams: Promise<
   return guardPage("Customers", async () => {
     const params = await searchParams;
     const { actor, db } = await loadSalesContext();
-    const { rows, total } = await listCustomers(db, actor, { q: params.q, status: params.status, pageSize: 30 });
+    const { rows, total } = await listCustomers(db, actor, { q: params.q, status: params.status, pageSize: 300 });
     return (
       <div className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-8 pb-12">
         <ModuleHeader icon={Users} title="Customers" subtitle="CRM pelanggan Henima" />

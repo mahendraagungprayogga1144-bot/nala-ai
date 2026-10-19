@@ -24,10 +24,12 @@ export default function TrackingDesk({
   date,
   links,
   points,
+  notice,
 }: {
   date: string;
   links: TrackingLink[];
   points: TrackingPoint[];
+  notice?: string;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState("");
@@ -113,6 +115,7 @@ export default function TrackingDesk({
         <aside className="max-h-[40vh] overflow-y-auto border-b border-[#00f0ff]/15 bg-[#070b12]/95 p-4 lg:max-h-none lg:border-b-0 lg:border-r">
           <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">HENIMA TRACKING</p>
           <p className="mt-1 text-xs text-white/45">{date} · peta diperbarui otomatis</p>
+          {notice && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-950/40 px-2 py-2 text-[11px] text-red-200">{notice}</p>}
           <div className="mt-3 flex flex-wrap gap-1.5">
             <button
               type="button"

@@ -18,7 +18,7 @@ export default function HenimaTrackingPage() {
             title="Henima Tracking"
             subtitle="Peta jejak sales. Setelah check-in, kemana pun mereka pergi kelihatan. Setelah check-out, hari itu tidak bisa check-in lagi."
           />
-          <TrackingDesk date={desk.date} links={desk.links} points={desk.points} />
+          <TrackingDesk date={desk.date} links={desk.links} points={desk.points} notice={desk.notice} />
         </div>
       );
     } catch (err) {
@@ -29,6 +29,7 @@ export default function HenimaTrackingPage() {
           <p className="text-sm text-[#8B8AA0]">
             Jalankan migration <code>20261019_henima_tracking.sql</code> di Supabase, lalu muat ulang halaman ini.
           </p>
+          <p className="mt-3 text-xs text-[#8B8AA0]">{err instanceof Error ? err.message : "Gagal memuat tracking."}</p>
         </div>
       );
     }

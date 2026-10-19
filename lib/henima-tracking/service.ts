@@ -28,7 +28,7 @@ type StaffLite = {
 
 export function isMissingTrackingTable(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return /module_henima_tracking|schema cache|henima-tracking/i.test(message);
+  return /does not exist|schema cache|could not find the table/i.test(message) && /module_henima_tracking|henima-tracking/i.test(message);
 }
 
 export function dayWindow(ymd = todayWib()) {
@@ -195,7 +195,13 @@ export async function loadVisiblePoints(db: SalesDb) {
 }
 
 export async function loadTrackingDesk(admin: SalesDb, session: SalesDb, actor: Actor) {
-  const links = await ensureTrackingLinks(admin, actor);
+  let links: TrackingLink[] = [];
+  let notice = "";
+  try {
+    links = await ensureTrackingLinks(admin, actor);
+  } catch (err) {
+    notice = err instanceof Error ? err.message : "Link check-in gagal dibuat.";
+  }
   const visible = await loadVisiblePoints(session);
-  return { date: visible.date, links, points: visible.points };
+  return { date: visible.date, links, points: visible.points, notice };
 }

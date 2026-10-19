@@ -119,8 +119,6 @@ export default function TrackingMap({
             { maxWidth: 260 },
           );
           marker.on("click", () => onPointRef.current?.(point));
-          const dot = marker.getElement();
-          if (dot) dot.style.cursor = "pointer";
         }
       }
       const picked = focusPointId ? points.find((point) => point.id === focusPointId) : undefined;

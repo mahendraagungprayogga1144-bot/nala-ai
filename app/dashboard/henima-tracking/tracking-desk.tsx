@@ -235,7 +235,7 @@ export default function TrackingDesk({
         .henima-track-map .leaflet-container { background:#080D18; font-family: inherit; }
       `}</style>
 
-      <aside className={`${navOpen ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[220px] flex-col border-r border-[#243247] bg-[#0B1220] md:static md:flex`}>
+      <aside className={`${navOpen ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[220px] flex-col border-r border-[#243247] bg-[#0B1220]/80 backdrop-blur-md md:static md:flex`}>
         <div className="px-4 pb-3 pt-5">
           <p className="text-[11px] font-bold tracking-[0.22em] text-[#06D6D6]">HENIMA</p>
           <p className="text-sm font-bold">Tracking</p>
@@ -272,7 +272,7 @@ export default function TrackingDesk({
       {navOpen && <button type="button" aria-label="Tutup menu" className="absolute inset-0 z-20 bg-black/50 md:hidden" onClick={() => setNavOpen(false)} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center gap-2 border-b border-[#243247] px-3 py-2.5 md:px-4">
+        <header className="flex flex-wrap items-center gap-2 border-b border-[#243247]/80 bg-[#080D18]/35 px-3 py-2.5 backdrop-blur-md md:px-4">
           <button type="button" onClick={() => setNavOpen(true)} className="rounded-lg border border-[#243247] px-2 py-1.5 text-xs font-semibold md:hidden">
             Menu
           </button>
@@ -355,7 +355,7 @@ export default function TrackingDesk({
         {(notice || formError) && <p className="mx-3 mt-2 rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200 md:mx-4">{notice || formError}</p>}
 
         <div className="grid min-h-0 flex-1 gap-3 px-3 py-3 lg:grid-cols-[340px_1fr] md:px-4">
-          <section className="flex max-h-[48vh] min-h-0 flex-col rounded-2xl border border-[#243247] bg-[#0B1220] lg:max-h-none">
+          <section className="flex max-h-[48vh] min-h-0 flex-col rounded-2xl border border-[#243247] bg-[#0B1220]/75 backdrop-blur-md lg:max-h-none">
             <div className="flex items-center justify-between px-3 pt-3">
               <p className="text-sm font-bold">Filter Sales</p>
               <button
@@ -413,7 +413,7 @@ export default function TrackingDesk({
               {people.map((link) => {
                 const card = snapshot(link, points);
                 return (
-                  <article key={link.staffId} className="rounded-2xl border border-[#243247] bg-[#101827] p-3">
+                  <article key={link.staffId} className="rounded-2xl border border-[#243247] bg-[#101827]/85 p-3">
                     <div className="flex gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-[#080D18]" style={{ background: colorOf(link.staffId) }}>
                         {initials(link.nama)}
@@ -574,7 +574,7 @@ function Stat({
 }) {
   const iconBg = tone === "ok" ? "bg-[#22E6A8]/15 text-[#22E6A8]" : tone === "late" ? "bg-[#FFD34D]/15 text-[#FFD34D]" : tone === "photo" ? "bg-[#fb7185]/15 text-[#fb7185]" : "bg-[#06D6D6]/10 text-[#06D6D6]";
   return (
-    <div className="flex min-w-[148px] items-center gap-2.5 rounded-2xl border border-[#243247] bg-[#101827] px-3 py-2">
+    <div className="flex min-w-[148px] items-center gap-2.5 rounded-2xl border border-[#243247] bg-[#101827]/80 px-3 py-2 backdrop-blur-md">
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconBg}`}>{icon}</span>
       <span>
         <span className="block text-[11px] font-semibold text-[#94A3B8]">{label}</span>

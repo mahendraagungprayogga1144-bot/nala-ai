@@ -76,13 +76,39 @@ export default function FieldClient({ token, initial }: { token: string; initial
       if (!ok) return;
       void (async () => {
         const claim = await supabase.rpc("henima_tracking_klaim", { p_token: token });
+        const saya = await identitas();
+        if (saya) {
+          setState((prev) => ({
+            ...prev,
+            staffId: saya.staff_id,
+            businessId: saya.business_id,
+            nama: saya.nama,
+          }));
+          if (saya.staff_id !== initial.staffId) {
+            setError(`Kamu masuk sebagai ${saya.nama}. Check-in tercatat untuk nama itu, bukan ${initial.nama}.`);
+          } else if (claim.error) setError(pesanDb(claim.error.message));
+          await refresh(saya.staff_id);
+          return;
+        }
         if (claim.error) setError(pesanDb(claim.error.message));
         await refresh();
       })().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
     });
   }, []);
 
-  async function refresh() {
+  async function identitas() {
+    const supabase = createClient();
+    const { data, error: identError } = await supabase.rpc("henima_tracking_identitas");
+    if (identError) {
+      if (identError.message.includes("henima_tracking_identitas")) return null;
+      throw new Error(pesanDb(identError.message));
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row?.staff_id || !row.business_id) throw new Error("Akun ini belum terhubung ke sales.");
+    return row as { staff_id: string; business_id: string; nama: string };
+  }
+
+  async function refresh(staffId = state.staffId) {
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
@@ -93,7 +119,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
     const { data, error: readError } = await supabase
       .from("module_henima_tracking_points")
       .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
-      .eq("staff_id", state.staffId)
+      .eq("staff_id", staffId)
       .gte("recorded_at", win.from)
       .lt("recorded_at", win.to)
       .order("recorded_at", { ascending: false })
@@ -139,16 +165,20 @@ export default function FieldClient({ token, initial }: { token: string; initial
       setSignedIn(false);
       throw new Error("Masuk dulu dengan akun sales, leader, atau founder.");
     }
+    const saya = await identitas();
+    const businessId = saya?.business_id || state.businessId;
+    const staffId = saya?.staff_id || state.staffId;
     let photoPath: string | null = null;
     if (file) {
-      if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
+      const type = file.type || "image/jpeg";
+      if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(type)) {
         throw new Error("Foto harus JPG, PNG, atau WEBP.");
       }
       if (file.size > 5 * 1024 * 1024) throw new Error("Foto maksimal 5MB.");
-      const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg";
-      photoPath = `${state.businessId}/${state.staffId}/${crypto.randomUUID()}.${ext}`;
+      const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+      photoPath = `${businessId}/${staffId}/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("henima-tracking").upload(photoPath, file, {
-        contentType: file.type,
+        contentType: type,
         upsert: false,
       });
       if (upErr) throw new Error("Upload foto gagal. Coba lagi.");
@@ -191,7 +221,10 @@ export default function FieldClient({ token, initial }: { token: string; initial
                 })
               ).error;
     if (error) throw new Error(pesanDb(error.message));
-    await refresh();
+    if (saya) {
+      setState((prev) => ({ ...prev, staffId: saya.staff_id, businessId: saya.business_id, nama: saya.nama }));
+    }
+    await refresh(staffId);
     lastSent.current = Date.now();
     lastPos.current = fix;
   }

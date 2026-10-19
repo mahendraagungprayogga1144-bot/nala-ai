@@ -57,6 +57,7 @@ async function resolvePostLoginPath(
   const hasReal = list.some((b) => !(b.type === "retail" && b.name === "Bisnis Utama") && b.type);
 
   if (!hasReal && list.length === 0) {
+    if (preferredNext?.startsWith("/t/")) return preferredNext;
     clearFastGateCookies();
     return "/onboarding";
   }
@@ -197,7 +198,10 @@ function LoginForm() {
 
         <p className="mt-6 text-center text-sm text-[#8B8AA0]">
           Belum punya akun?{" "}
-          <a href="/signup" className="text-[#2DD4BF]">
+          <a
+            href={preferredNext?.startsWith("/t/") ? `/signup?next=${encodeURIComponent(preferredNext)}` : "/signup"}
+            className="text-[#2DD4BF]"
+          >
             Daftar gratis · trial {trialDays} hari
           </a>
         </p>

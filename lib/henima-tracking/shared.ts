@@ -22,6 +22,7 @@ export type TrackingLink = {
   status: string;
   token: string;
   path: string;
+  terhubung: boolean;
 };
 
 export function mapsUrl(lat: number, lng: number) {

@@ -171,6 +171,7 @@ export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<Tr
       status: row.status,
       token,
       path: `/t/${token}`,
+      terhubung: Boolean(row.user_id),
     };
   });
 }

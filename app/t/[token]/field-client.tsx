@@ -49,6 +49,8 @@ function pesanDb(message: string) {
   if (message.includes("SUDAH_CHECKOUT")) return "Sudah check-out. Hari ini tidak bisa check-in lagi.";
   if (message.includes("TIDAK_LOGIN")) return "Masuk dulu dengan akun sales, leader, atau founder.";
   if (message.includes("DATA_TIDAK_VALID")) return "Data tidak valid. Cek foto, GPS, atau apakah check-in hari ini sudah ada.";
+  if (message.includes("LINK_SUDAH_DIPAKAI")) return "Link ini sudah terhubung ke akun lain.";
+  if (message.includes("AKUN_SUDAH_TERHUBUNG")) return "Akun ini sudah terhubung ke sales lain.";
   return message;
 }
 
@@ -71,7 +73,12 @@ export default function FieldClient({ token, initial }: { token: string; initial
     void supabase.auth.getUser().then(({ data }) => {
       const ok = Boolean(data.user);
       setSignedIn(ok);
-      if (ok) void refresh().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
+      if (!ok) return;
+      void (async () => {
+        const claim = await supabase.rpc("henima_tracking_klaim", { p_token: token });
+        if (claim.error) setError(pesanDb(claim.error.message));
+        await refresh();
+      })().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
     });
   }, []);
 
@@ -330,12 +337,20 @@ export default function FieldClient({ token, initial }: { token: string; initial
         {error && <p className="rounded-xl border border-red-500/30 bg-red-950/40 px-3 py-2 text-xs text-red-200">{error}</p>}
 
         {signedIn === false && (
-          <a
-            href={`/login?next=${encodeURIComponent(`/t/${token}`)}`}
-            className="block rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-center text-sm font-semibold text-[#08080f]"
-          >
-            Masuk dulu untuk check-in
-          </a>
+          <div className="space-y-2">
+            <a
+              href={`/login?next=${encodeURIComponent(`/t/${token}`)}`}
+              className="block rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-center text-sm font-semibold text-[#08080f]"
+            >
+              Masuk untuk check-in
+            </a>
+            <a
+              href={`/signup?next=${encodeURIComponent(`/t/${token}`)}`}
+              className="block rounded-xl border border-white/15 py-3 text-center text-sm text-white/80"
+            >
+              Belum punya akun? Daftar, lalu kembali ke sini
+            </a>
+          </div>
         )}
 
         {!state.checkedIn && signedIn && (

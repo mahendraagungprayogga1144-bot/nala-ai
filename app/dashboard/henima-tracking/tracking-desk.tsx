@@ -110,6 +110,9 @@ export default function TrackingDesk({
                         {copied === link.staffId ? "Tersalin" : "Salin link"}
                       </button>
                     </div>
+                    <p className="mt-1 text-[11px] text-white/40">
+                      {link.terhubung ? "Akun sudah terhubung" : "Akun belum terhubung. Sales buka link ini lalu masuk."}
+                    </p>
                     <p className="mt-1 text-[11px] text-white/50">
                       {pagi ? `CI ${clock(pagi.recorded_at)}${pagi.late ? " telat" : ""}` : "Belum check-in"}
                       {sore ? ` · CO ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}

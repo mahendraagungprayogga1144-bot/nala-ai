@@ -107,7 +107,6 @@ export default function TrackingDesk({
   ownerName: string;
 }) {
   const router = useRouter();
-  const dateRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState("");
   const [focus, setFocus] = useState<string>("all");
   const [query, setQuery] = useState("");
@@ -117,6 +116,8 @@ export default function TrackingDesk({
   const [adding, setAdding] = useState(false);
   const [formError, setFormError] = useState("");
   const [navOpen, setNavOpen] = useState(false);
+  const [viewer, setViewer] = useState<TrackingPoint | null>(null);
+  const [focusPointId, setFocusPointId] = useState<string | undefined>();
 
   useEffect(() => {
     if (date !== today) return;
@@ -283,24 +284,7 @@ export default function TrackingDesk({
             placeholder="Cari nama sales, lokasi atau tanggal..."
             className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-medium outline-none placeholder:text-[#64748B]"
           />
-          <button
-            type="button"
-            onClick={() => dateRef.current?.showPicker?.()}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-semibold"
-          >
-            <CalendarDays size={15} className="text-[#94A3B8]" />
-            {longDate(date)}
-            <ChevronDown size={14} className="text-[#94A3B8]" />
-          </button>
-          <input
-            ref={dateRef}
-            type="date"
-            value={date}
-            max={today}
-            onChange={(event) => event.target.value && openDay(event.target.value)}
-            className="sr-only"
-            tabIndex={-1}
-          />
+          <DayCalendar date={date} today={today} marked={memory} onPick={openDay} />
           <span className={`inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold ${date === today ? "border-[#22E6A8]/40 text-[#22E6A8]" : "border-[#243247] text-[#94A3B8]"}`}>
             <Wifi size={15} />
             <span className="leading-tight">
@@ -446,7 +430,14 @@ export default function TrackingDesk({
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => setFocus(link.staffId)} className="rounded-xl bg-[#FFD34D] py-2 text-xs font-bold text-[#080D18]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFocus(link.staffId);
+                          setFocusPointId(undefined);
+                        }}
+                        className="rounded-xl bg-[#FFD34D] py-2 text-xs font-bold text-[#080D18]"
+                      >
                         Lihat di Peta
                       </button>
                       <button type="button" onClick={() => void copy(link)} className="rounded-xl border border-[#243247] bg-[#0B1220] py-2 text-xs font-semibold text-[#F1F5F9]">
@@ -507,8 +498,15 @@ export default function TrackingDesk({
           </section>
 
           <section className="flex min-h-0 flex-col gap-3">
-            <div className="relative min-h-[320px] flex-1 overflow-hidden rounded-2xl border border-[#243247] bg-[#080D18]">
-              <TrackingMap points={visible} colorOf={colorOf} nameOf={nameOf} focusStaffId={focus === "all" ? undefined : focus} />
+            <div id="peta-tracking" className="relative min-h-[320px] flex-1 overflow-hidden rounded-2xl border border-[#243247] bg-[#080D18]">
+              <TrackingMap
+                points={visible}
+                colorOf={colorOf}
+                nameOf={nameOf}
+                focusStaffId={focus === "all" ? undefined : focus}
+                focusPointId={focusPointId}
+                onPoint={setViewer}
+              />
               {visible.length === 0 && (
                 <p className="pointer-events-none absolute left-1/2 top-16 z-[400] w-[min(280px,80%)] -translate-x-1/2 rounded-xl border border-[#243247] bg-[#101827]/95 px-3 py-2 text-center text-xs font-medium text-[#94A3B8]">
                   Belum ada jejak pada tanggal ini.
@@ -530,12 +528,22 @@ export default function TrackingDesk({
                 <ul className="flex gap-2 overflow-x-auto pb-1">
                   {photos.map((point) => (
                     <li key={point.id} className="w-44 shrink-0 overflow-hidden rounded-2xl border border-[#243247] bg-[#101827]">
-                      <Thumb src={point.photo_url || ""} />
+                      <button type="button" onClick={() => setViewer(point)} className="block w-full text-left">
+                        <Thumb src={point.photo_url || ""} />
+                      </button>
                       <div className="p-2">
                         <p className="truncate text-xs font-bold">{nameOf(point.staff_id)}</p>
                         <p className="text-[11px] font-medium text-[#94A3B8]">{clock(point.recorded_at)} · {KIND[point.kind]}</p>
                         <p className="truncate text-[11px] text-[#94A3B8]">{point.note || "Titik GPS"}</p>
-                        <button type="button" onClick={() => setFocus(point.staff_id)} className="mt-1 text-[11px] font-semibold text-[#06D6D6]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFocus(point.staff_id);
+                            setFocusPointId(point.id);
+                            document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
+                          }}
+                          className="mt-1 text-[11px] font-semibold text-[#06D6D6]"
+                        >
                           Lihat di peta
                         </button>
                       </div>
@@ -547,6 +555,161 @@ export default function TrackingDesk({
           </section>
         </div>
       </div>
+      {viewer && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4" onClick={() => setViewer(null)}>
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#243247] bg-[#101827] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            {viewer.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={viewer.photo_url} alt="" className="max-h-[70vh] w-full bg-black object-contain" />
+            ) : (
+              <p className="px-4 py-10 text-center text-sm text-[#94A3B8]">Titik ini belum ada foto.</p>
+            )}
+            <div className="flex items-start justify-between gap-3 p-4">
+              <div>
+                <p className="text-sm font-bold">{nameOf(viewer.staff_id)}</p>
+                <p className="text-xs font-medium text-[#94A3B8]">{clock(viewer.recorded_at)} · {KIND[viewer.kind]}</p>
+                <p className="mt-1 text-xs text-[#94A3B8]">{viewer.note || "Titik GPS tersimpan"}</p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocus(viewer.staff_id);
+                    setFocusPointId(viewer.id);
+                    setViewer(null);
+                    document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
+                  }}
+                  className="rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]"
+                >
+                  Lihat di peta
+                </button>
+                <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#243247] px-3 py-2 text-xs font-semibold">
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function shiftMonth(ym: string, delta: number) {
+  const [year, month] = ym.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthCells(year: number, month: number) {
+  const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+  const lead = (firstDow + 6) % 7;
+  const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const cells: (string | null)[] = Array.from({ length: lead }, () => null);
+  for (let day = 1; day <= count; day += 1) {
+    cells.push(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+  }
+  return cells;
+}
+
+function DayCalendar({
+  date,
+  today,
+  marked,
+  onPick,
+}: {
+  date: string;
+  today: string;
+  marked: string[];
+  onPick: (ymd: string) => void;
+}) {
+  const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(date.slice(0, 7));
+  const markedSet = useMemo(() => new Set(marked), [marked]);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(event: MouseEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const [year, mon] = month.split("-").map(Number);
+  const title = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, mon - 1, 1)),
+  );
+  const canNext = month < today.slice(0, 7);
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setMonth(date.slice(0, 7));
+          setOpen((value) => !value);
+        }}
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-semibold"
+      >
+        <CalendarDays size={15} className="text-[#94A3B8]" />
+        {longDate(date)}
+        <ChevronDown size={14} className={`text-[#94A3B8] transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[292px] rounded-2xl border border-[#243247] bg-[#101827] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
+          <div className="mb-3 flex items-center justify-between">
+            <button type="button" onClick={() => setMonth((value) => shiftMonth(value, -1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9]" aria-label="Bulan sebelumnya">
+              ‹
+            </button>
+            <p className="text-sm font-bold capitalize">{title}</p>
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={() => canNext && setMonth((value) => shiftMonth(value, 1))}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9] disabled:opacity-30"
+              aria-label="Bulan berikutnya"
+            >
+              ›
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[#94A3B8]">
+            {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((label) => (
+              <span key={label} className="py-1">{label}</span>
+            ))}
+          </div>
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {monthCells(year, mon).map((ymd, index) => {
+              if (!ymd) return <span key={`empty-${index}`} />;
+              const disabled = ymd > today;
+              const selected = ymd === date;
+              const isToday = ymd === today;
+              return (
+                <button
+                  key={ymd}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    onPick(ymd);
+                    setOpen(false);
+                  }}
+                  className={`relative flex h-9 items-center justify-center rounded-lg text-sm font-semibold ${
+                    selected
+                      ? "bg-[#06D6D6] text-[#080D18]"
+                      : isToday
+                        ? "border border-[#FFD34D] text-[#FFD34D]"
+                        : "text-[#F1F5F9] hover:bg-white/5"
+                  } disabled:cursor-default disabled:text-[#475569] disabled:hover:bg-transparent`}
+                >
+                  {Number(ymd.slice(8))}
+                  {markedSet.has(ymd) && !selected && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#FFD34D]" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -36,16 +36,25 @@ export default function TrackingMap({
   colorOf,
   nameOf,
   focusStaffId,
+  focusPointId,
+  onPoint,
 }: {
   points: TrackingPoint[];
   colorOf: (staffId: string) => string;
   nameOf: (staffId: string) => string;
   focusStaffId?: string;
+  focusPointId?: string;
+  onPoint?: (point: TrackingPoint) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
+  const onPointRef = useRef(onPoint);
   const [basemap, setBasemap] = useState<"peta" | "satelit">("peta");
   const [locateNote, setLocateNote] = useState("");
+
+  useEffect(() => {
+    onPointRef.current = onPoint;
+  }, [onPoint]);
 
   useEffect(() => {
     const node = host.current;
@@ -90,27 +99,33 @@ export default function TrackingMap({
         for (const point of ordered) {
           const big = point.kind !== "ping" || point === latest;
           const marker = L.circleMarker([point.lat, point.lng], {
-            radius: point === latest ? 9 : big ? 7 : 4,
+            radius: point === latest ? 11 : big ? 9 : 5,
             color,
             weight: 2,
             fillColor: point.kind === "visit" ? "#FFD34D" : point.kind === "checkin_sore" ? "#fb7185" : color,
             fillOpacity: 0.95,
           }).addTo(map);
           const photo = point.photo_url
-            ? `<img src="${esc(point.photo_url)}" alt="" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-top:8px" />`
+            ? `<img src="${esc(point.photo_url)}" alt="" style="width:220px;max-height:160px;object-fit:cover;border-radius:8px;margin-top:8px;display:block" />`
             : "";
           marker.bindPopup(
-            `<div style="min-width:180px;font-family:inherit">
+            `<div style="min-width:200px;font-family:inherit">
               <div style="font-size:13px;font-weight:700;color:${color}">${esc(nameOf(staffId))}</div>
               <div style="font-size:11px;letter-spacing:.08em;margin-top:2px">${esc(KIND[point.kind])}</div>
               <div style="margin-top:4px;font-size:13px">${esc(point.note || "Titik GPS tersimpan")}</div>
               <div style="margin-top:2px;font-size:11px;opacity:.7">${esc(clock(point.recorded_at))}</div>
               ${photo}
             </div>`,
+            { maxWidth: 260 },
           );
+          marker.on("click", () => onPointRef.current?.(point));
+          const dot = marker.getElement();
+          if (dot) dot.style.cursor = "pointer";
         }
       }
-      if (bounds.length === 1) map.setView(bounds[0], 16);
+      const picked = focusPointId ? points.find((point) => point.id === focusPointId) : undefined;
+      if (picked) map.setView([picked.lat, picked.lng], 17);
+      else if (bounds.length === 1) map.setView(bounds[0], 16);
       else if (bounds.length > 1) map.fitBounds(bounds, { padding: [28, 28] });
       else map.fitBounds([[6.2, 95], [-11, 141]], { padding: [12, 12] });
       window.setTimeout(() => map?.invalidateSize(), 80);
@@ -121,7 +136,7 @@ export default function TrackingMap({
       map?.remove();
       mapRef.current = null;
     };
-  }, [points, colorOf, nameOf, focusStaffId, basemap]);
+  }, [points, colorOf, nameOf, focusStaffId, focusPointId, basemap]);
 
   function locateMe() {
     const map = mapRef.current;

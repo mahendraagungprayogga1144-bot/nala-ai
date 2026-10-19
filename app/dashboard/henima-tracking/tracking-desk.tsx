@@ -54,17 +54,17 @@ export default function TrackingDesk({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#00f0ff]/25 bg-[#05070d] shadow-[0_0_40px_rgba(0,240,255,0.08)]">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#00f0ff]/25 bg-[#05070d] shadow-[0_0_40px_rgba(0,240,255,0.08)]">
       <style>{`
-        .henima-track-map .leaflet-tile-pane { filter: hue-rotate(188deg) saturate(1.7) contrast(1.2) brightness(0.7); }
+        .henima-track-map .leaflet-tile-pane { filter: invert(1) hue-rotate(185deg) saturate(0.55) brightness(0.92) contrast(1.05); }
         .henima-track-map .leaflet-control-zoom a { background:#070b12; color:#00f0ff; border-color:rgba(0,240,255,.35); }
         .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip {
           background:#070b12; color:#e7fff8; box-shadow:0 0 18px rgba(0,240,255,.28);
         }
         .henima-track-map .leaflet-container { background:#05070d; font-family:inherit; }
       `}</style>
-      <div className="grid min-h-[72vh] lg:grid-cols-[340px_1fr]">
-        <aside className="max-h-[72vh] overflow-y-auto border-b border-[#00f0ff]/15 bg-[#070b12]/95 p-4 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_1fr]">
+        <aside className="max-h-[40vh] overflow-y-auto border-b border-[#00f0ff]/15 bg-[#070b12]/95 p-4 lg:max-h-none lg:border-b-0 lg:border-r">
           <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">HENIMA TRACKING</p>
           <p className="mt-1 text-xs text-white/45">{date} · peta diperbarui otomatis</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -155,7 +155,7 @@ export default function TrackingDesk({
           )}
         </aside>
 
-        <div className="relative min-h-[420px]">
+        <div className="relative min-h-[55vh] lg:min-h-0">
           <div className="pointer-events-none absolute inset-0 z-[400] bg-[linear-gradient(rgba(0,240,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.05)_1px,transparent_1px)] bg-[size:48px_48px]" />
           <TrackingMap points={visible} colorOf={colorOf} />
         </div>

@@ -2,17 +2,14 @@ import { randomBytes } from "crypto";
 import { addDaysYmd } from "@/lib/henima-sales/dates";
 import { salesDb, type SalesDb } from "@/lib/henima-sales/db";
 import { listStaff } from "@/lib/henima-sales/staff-service";
-import { loadTeamIds } from "@/lib/henima-sales/authz";
 import { NotFoundError, SalesError } from "@/lib/henima-sales/types";
 import type { Actor } from "@/lib/henima-sales/types";
 import { todayWib } from "@/lib/date";
-import { mapsUrl, TRACKING_KINDS, type TrackingKind, type TrackingLink, type TrackingPoint } from "./shared";
+import { mapsUrl, type TrackingKind, type TrackingLink, type TrackingPoint } from "./shared";
 
-export { mapsUrl, TRACKING_KINDS };
-export type { TrackingKind, TrackingLink, TrackingPoint };
+export { mapsUrl };
+export type { TrackingLink, TrackingPoint };
 
-const PHOTO_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
-const PHOTO_MAX = 5 * 1024 * 1024;
 const BUCKET = "henima-tracking";
 
 type LinkRow = {
@@ -34,6 +31,11 @@ export function isMissingTrackingTable(error: unknown) {
   return /module_henima_tracking|schema cache|henima-tracking/i.test(message);
 }
 
+export function dayWindow(ymd = todayWib()) {
+  const next = addDaysYmd(ymd, 1);
+  return { from: `${ymd}T00:00:00+07:00`, to: `${next}T00:00:00+07:00`, ymd };
+}
+
 function wibHour(date = new Date()) {
   const hour = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Jakarta",
@@ -41,27 +43,6 @@ function wibHour(date = new Date()) {
     hourCycle: "h23",
   }).format(date);
   return Number(hour);
-}
-
-export function dayWindow(ymd = todayWib()) {
-  const next = addDaysYmd(ymd, 1);
-  return { from: `${ymd}T00:00:00+07:00`, to: `${next}T00:00:00+07:00`, ymd };
-}
-
-function assertCoord(lat: number, lng: number) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    throw new SalesError("Lokasi GPS tidak valid.", "gps_invalid");
-  }
-}
-
-export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad;
-  const dLng = (b.lng - a.lng) * rad;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
-  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 async function staffById(db: SalesDb, staffId: string) {
@@ -121,153 +102,34 @@ function asPoint(row: {
   };
 }
 
-export async function listPointsForStaff(db: SalesDb, staffId: string, ymd = todayWib()) {
-  const win = dayWindow(ymd);
-  const { data, error } = await db
-    .from("module_henima_tracking_points")
-    .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
-    .eq("staff_id", staffId)
-    .gte("recorded_at", win.from)
-    .lt("recorded_at", win.to)
-    .order("recorded_at", { ascending: false })
-    .limit(200);
-  if (error) throw new SalesError(error.message, "tracking_points");
-  const rows = data || [];
-  const signed = await Promise.all(
-    rows.map((row) => (row.kind === "ping" ? Promise.resolve(null) : signPhoto(db, row.photo_path))),
-  );
-  return rows.map((row, i) => asPoint(row, signed[i]));
-}
-
 export async function publicTrackingState(token: string) {
   const db = salesDb();
-  const { staff } = await resolveTrackingToken(db, token);
-  const points = await listPointsForStaff(db, staff.id);
+  const { link, staff } = await resolveTrackingToken(db, token);
   const hour = wibHour();
   return {
     nama: staff.nama,
     role: staff.role,
+    staffId: staff.id,
+    businessId: link.business_id,
     date: todayWib(),
     hour,
     lateWindow: hour >= 9,
     beforeDuty: hour < 7,
-    checkedIn: points.some((p) => p.kind === "checkin_pagi"),
-    checkedOut: points.some((p) => p.kind === "checkin_sore"),
-    points: points.map((p) => ({
-      id: p.id,
-      kind: p.kind,
-      lat: p.lat,
-      lng: p.lng,
-      accuracy_m: p.accuracy_m,
-      note: p.note,
-      late: p.late,
-      recorded_at: p.recorded_at,
-      maps: mapsUrl(p.lat, p.lng),
-      photo_url: p.photo_url,
-    })),
+    checkedIn: false,
+    checkedOut: false,
+    points: [] as {
+      id: string;
+      kind: TrackingPoint["kind"];
+      lat: number;
+      lng: number;
+      accuracy_m: number | null;
+      note: string | null;
+      late: boolean;
+      recorded_at: string;
+      maps: string;
+      photo_url: string | null;
+    }[],
   };
-}
-
-async function latestPoint(db: SalesDb, staffId: string) {
-  const { data } = await db
-    .from("module_henima_tracking_points")
-    .select("lat, lng, recorded_at, kind")
-    .eq("staff_id", staffId)
-    .order("recorded_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data as { lat: number; lng: number; recorded_at: string; kind: string } | null;
-}
-
-export async function recordTrackingPoint(
-  token: string,
-  input: {
-    kind: TrackingKind;
-    lat: number;
-    lng: number;
-    accuracy?: number | null;
-    note?: string | null;
-    photo?: { bytes: Uint8Array; mime: string } | null;
-  },
-) {
-  if (!TRACKING_KINDS.includes(input.kind)) throw new SalesError("Jenis catatan tidak valid.", "kind_invalid");
-  assertCoord(input.lat, input.lng);
-  const db = salesDb();
-  const { link, staff } = await resolveTrackingToken(db, token);
-  const win = dayWindow();
-
-  const { count: checkedOut } = await db
-    .from("module_henima_tracking_points")
-    .select("id", { count: "exact", head: true })
-    .eq("staff_id", staff.id)
-    .eq("kind", "checkin_sore")
-    .gte("recorded_at", win.from)
-    .lt("recorded_at", win.to);
-  if (checkedOut) {
-    throw new SalesError("Sudah check-out. Hari ini tidak bisa check-in atau mencatat lokasi lagi.", "checked_out");
-  }
-
-  if (input.kind === "checkin_pagi" || input.kind === "checkin_sore") {
-    const { count } = await db
-      .from("module_henima_tracking_points")
-      .select("id", { count: "exact", head: true })
-      .eq("staff_id", staff.id)
-      .eq("kind", input.kind)
-      .gte("recorded_at", win.from)
-      .lt("recorded_at", win.to);
-    if (count) {
-      throw new SalesError(
-        input.kind === "checkin_pagi" ? "Check-in pagi hari ini sudah tercatat." : "Check-in sore hari ini sudah tercatat.",
-        input.kind === "checkin_pagi" ? "already_checked_in" : "already_checked_out",
-      );
-    }
-  }
-  if (input.kind === "checkin_pagi" && !input.photo) {
-    throw new SalesError("Check-in pagi butuh foto lokasi.", "photo_required");
-  }
-  if ((input.kind === "checkin_pagi" || input.kind === "checkin_sore" || input.kind === "visit") && input.accuracy != null && input.accuracy > 250) {
-    throw new SalesError("Sinyal GPS masih kasar. Ambil lokasi lagi di tempat terbuka.", "gps_coarse");
-  }
-
-  if (input.kind === "ping") {
-    const last = await latestPoint(db, staff.id);
-    if (last) {
-      const age = Date.now() - new Date(last.recorded_at).getTime();
-      const moved = distanceMeters({ lat: Number(last.lat), lng: Number(last.lng) }, input);
-      if (age < 60_000 && moved < 40) {
-        return { skipped: true as const };
-      }
-    }
-  }
-
-  let photoPath: string | null = null;
-  if (input.photo) {
-    if (!PHOTO_MIME.has(input.photo.mime)) throw new SalesError("Foto harus JPG, PNG, atau WEBP.", "file_type");
-    if (input.photo.bytes.byteLength > PHOTO_MAX) throw new SalesError("Foto maksimal 5MB.", "file_size");
-    const ext = input.photo.mime.includes("png") ? "png" : input.photo.mime.includes("webp") ? "webp" : "jpg";
-    photoPath = `${link.business_id}/${staff.id}/${crypto.randomUUID()}.${ext}`;
-    const { error: upErr } = await db.storage.from(BUCKET).upload(photoPath, input.photo.bytes, {
-      contentType: input.photo.mime,
-      upsert: false,
-    });
-    if (upErr) throw new SalesError("Upload foto gagal. Coba lagi.", "upload_failed", 502);
-  }
-
-  const note = (input.note || "").replace(/\s+/g, " ").trim().slice(0, 180) || null;
-  const late = input.kind === "checkin_pagi" && wibHour() >= 9;
-  const { error } = await db.from("module_henima_tracking_points").insert({
-    business_id: link.business_id,
-    staff_id: staff.id,
-    kind: input.kind,
-    lat: input.lat,
-    lng: input.lng,
-    accuracy_m: input.accuracy != null && Number.isFinite(input.accuracy) ? Math.round(input.accuracy) : null,
-    note: input.kind === "visit" ? note : note,
-    photo_path: photoPath,
-    late,
-  });
-  if (error) throw new SalesError(error.message, "tracking_insert");
-  return { skipped: false as const };
 }
 
 export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<TrackingLink[]> {
@@ -313,30 +175,26 @@ export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<Tr
   });
 }
 
-export async function loadTrackingDesk(db: SalesDb, actor: Actor) {
-  const links = await ensureTrackingLinks(db, actor);
+export async function loadVisiblePoints(db: SalesDb) {
   const win = dayWindow();
-  let q = db
+  const { data, error } = await db
     .from("module_henima_tracking_points")
     .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
-    .eq("business_id", actor.businessId)
     .gte("recorded_at", win.from)
     .lt("recorded_at", win.to)
     .order("recorded_at", { ascending: false })
     .limit(400);
-  if (actor.role !== "FOUNDER") {
-    const teamIds = await loadTeamIds(db, actor);
-    const ids = links.map((row) => row.staffId);
-    const allowed = actor.role === "LEADER" ? ids.filter((id) => id === actor.staffId || teamIds.includes(id)) : [actor.staffId];
-    q = q.in("staff_id", allowed.length ? allowed : ["00000000-0000-0000-0000-000000000000"]);
-  }
-  const { data, error } = await q;
-  if (error) throw new SalesError(error.message, "tracking_desk");
+  if (error) throw new SalesError(error.message, "tracking_read");
   const rows = data || [];
   const signed = await Promise.all(rows.map((row) => (row.photo_path ? signPhoto(db, row.photo_path) : Promise.resolve(null))));
   return {
     date: win.ymd,
-    links,
     points: rows.map((row, i) => asPoint(row, signed[i])),
   };
+}
+
+export async function loadTrackingDesk(admin: SalesDb, session: SalesDb, actor: Actor) {
+  const links = await ensureTrackingLinks(admin, actor);
+  const visible = await loadVisiblePoints(session);
+  return { date: visible.date, links, points: visible.points };
 }

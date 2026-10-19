@@ -50,11 +50,10 @@ export default function TrackingMap({
       const leaflet = await import("leaflet");
       const L = leaflet.default ?? leaflet;
       if (cancelled || !host.current) return;
-      map = L.map(host.current, { zoomControl: true, attributionControl: true }).setView([-2.5, 118], 5);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        subdomains: "abcd",
+      map = L.map(host.current, { zoomControl: true, attributionControl: true }).setView([-2.2, 118], 5);
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         maxZoom: 19,
-        attribution: "&copy; OpenStreetMap &copy; CARTO",
+        attribution: "Tiles &copy; Esri",
       }).addTo(map);
 
       const byStaff = new Map<string, TrackingPoint[]>();
@@ -97,6 +96,8 @@ export default function TrackingMap({
       }
       if (bounds.length === 1) map.setView(bounds[0], 16);
       else if (bounds.length > 1) map.fitBounds(bounds, { padding: [28, 28] });
+      else map.fitBounds([[6.2, 95], [-11, 141]], { padding: [12, 12] });
+      window.setTimeout(() => map?.invalidateSize(), 80);
     })();
 
     return () => {

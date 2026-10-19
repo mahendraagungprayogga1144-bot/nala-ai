@@ -27,3 +27,13 @@ export type TrackingLink = {
 export function mapsUrl(lat: number, lng: number) {
   return `https://maps.google.com/?q=${lat},${lng}`;
 }
+
+/** Batas hari kalender WIB, sama dengan function database. */
+export function wibDayWindow(now = new Date()) {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
+  const [year, month, day] = ymd.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day));
+  next.setUTCDate(next.getUTCDate() + 1);
+  const nextYmd = next.toISOString().slice(0, 10);
+  return { from: `${ymd}T00:00:00+07:00`, to: `${nextYmd}T00:00:00+07:00`, ymd };
+}

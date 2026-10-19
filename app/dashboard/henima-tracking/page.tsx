@@ -2,16 +2,17 @@ import { Activity } from "lucide-react";
 import ModuleHeader from "../components/module-header";
 import { guardPage } from "../lib/page-guard";
 import { loadSalesContext } from "@/lib/henima-sales/page-context";
+import { createClient } from "@/lib/supabase/server";
 import { isMissingTrackingTable, loadTrackingDesk } from "@/lib/henima-tracking/service";
 import TrackingDesk from "./tracking-desk";
 
 export default function HenimaTrackingPage() {
   return guardPage("Henima Tracking", async () => {
     try {
-      const { actor, db } = await loadSalesContext();
-      const desk = await loadTrackingDesk(db, actor);
+      const [{ actor, db }, session] = await Promise.all([loadSalesContext(), createClient()]);
+      const desk = await loadTrackingDesk(db, session, actor);
       return (
-        <div className="mx-auto max-w-6xl px-4 py-4 pb-12 sm:px-8 sm:py-8">
+        <div className="flex h-[calc(100dvh-4.75rem)] min-h-[640px] flex-col px-3 pb-3 pt-3 md:h-screen">
           <ModuleHeader
             icon={Activity}
             title="Henima Tracking"

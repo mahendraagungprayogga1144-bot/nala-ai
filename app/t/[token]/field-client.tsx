@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { mapsUrl, wibDayWindow, type TrackingKind } from "@/lib/henima-tracking/shared";
 
 export type FieldPoint = {
   id: string;
@@ -18,6 +20,8 @@ export type FieldPoint = {
 export type FieldState = {
   nama: string;
   role: string;
+  staffId: string;
+  businessId: string;
   date: string;
   hour: number;
   lateWindow: boolean;
@@ -50,28 +54,101 @@ export default function FieldClient({ token, initial }: { token: string; initial
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [watching, setWatching] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const lastSent = useRef(0);
   const lastPos = useRef<GpsFix | null>(null);
 
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      const ok = Boolean(data.user);
+      setSignedIn(ok);
+      if (ok) void refresh().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
+    });
+  }, []);
+
   async function refresh() {
-    const res = await fetch(`/api/henima-tracking/public/${token}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Gagal memuat.");
-    setState(data);
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setSignedIn(false);
+      return;
+    }
+    const win = wibDayWindow();
+    const { data, error: readError } = await supabase
+      .from("module_henima_tracking_points")
+      .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
+      .eq("staff_id", state.staffId)
+      .gte("recorded_at", win.from)
+      .lt("recorded_at", win.to)
+      .order("recorded_at", { ascending: false })
+      .limit(200);
+    if (readError) throw new Error(readError.message);
+    const points: FieldPoint[] = await Promise.all(
+      (data || []).map(async (row) => {
+        let photo_url: string | null = null;
+        if (row.photo_path && row.kind !== "ping") {
+          const signed = await supabase.storage.from("henima-tracking").createSignedUrl(row.photo_path, 60 * 60);
+          photo_url = signed.data?.signedUrl || null;
+        }
+        return {
+          id: row.id,
+          kind: row.kind as TrackingKind,
+          lat: Number(row.lat),
+          lng: Number(row.lng),
+          accuracy_m: row.accuracy_m,
+          note: row.note,
+          late: Boolean(row.late),
+          recorded_at: row.recorded_at,
+          maps: mapsUrl(Number(row.lat), Number(row.lng)),
+          photo_url,
+        };
+      }),
+    );
+    setState((prev) => ({
+      ...prev,
+      date: win.ymd,
+      points,
+      checkedIn: points.some((point) => point.kind === "checkin_pagi"),
+      checkedOut: points.some((point) => point.kind === "checkin_sore"),
+    }));
   }
 
   async function send(kind: FieldPoint["kind"], fix: GpsFix, file?: File | null, place?: string) {
-    const body = new FormData();
-    body.set("kind", kind);
-    body.set("lat", String(fix.lat));
-    body.set("lng", String(fix.lng));
-    body.set("accuracy", String(fix.acc));
-    if (place) body.set("note", place);
-    if (file) body.set("photo", file);
-    const res = await fetch(`/api/henima-tracking/public/${token}`, { method: "POST", body });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Gagal menyimpan.");
-    if (!data.skipped) setState(data);
+    if (fix.acc > 250 && kind !== "ping") {
+      throw new Error("Sinyal GPS masih kasar. Ambil lokasi lagi di tempat terbuka.");
+    }
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setSignedIn(false);
+      throw new Error("Masuk dulu dengan akun sales, leader, atau founder.");
+    }
+    let photoPath: string | null = null;
+    if (file) {
+      if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
+        throw new Error("Foto harus JPG, PNG, atau WEBP.");
+      }
+      if (file.size > 5 * 1024 * 1024) throw new Error("Foto maksimal 5MB.");
+      const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg";
+      photoPath = `${state.businessId}/${state.staffId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("henima-tracking").upload(photoPath, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (upErr) throw new Error("Upload foto gagal. Coba lagi.");
+    }
+    const { error } = await supabase.rpc("henima_tracking_record", {
+      p_staff_id: state.staffId,
+      p_kind: kind,
+      p_lat: fix.lat,
+      p_lng: fix.lng,
+      p_accuracy_m: Math.round(fix.acc),
+      p_note: place || null,
+      p_photo_path: photoPath,
+    });
+    if (error) throw new Error(error.message);
+    await refresh();
     lastSent.current = Date.now();
     lastPos.current = fix;
   }
@@ -108,7 +185,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
   }
 
   useEffect(() => {
-    if (!state.checkedIn || state.checkedOut) return;
+    if (!state.checkedIn || state.checkedOut || !signedIn) return;
     if (!navigator.geolocation) return;
     const watch = navigator.geolocation.watchPosition(
       (pos) => {
@@ -132,7 +209,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
     return () => navigator.geolocation.clearWatch(watch);
     // send closes over token only
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.checkedIn, state.checkedOut, token]);
+  }, [state.checkedIn, state.checkedOut, signedIn, token]);
 
   async function onCheckin() {
     if (!gps || !photo) {
@@ -216,7 +293,16 @@ export default function FieldClient({ token, initial }: { token: string; initial
         )}
         {error && <p className="rounded-xl border border-red-500/30 bg-red-950/40 px-3 py-2 text-xs text-red-200">{error}</p>}
 
-        {!state.checkedIn && (
+        {signedIn === false && (
+          <a
+            href={`/login?next=${encodeURIComponent(`/t/${token}`)}`}
+            className="block rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-center text-sm font-semibold text-[#08080f]"
+          >
+            Masuk dulu untuk check-in
+          </a>
+        )}
+
+        {!state.checkedIn && signedIn && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-center text-sm font-semibold">Check-in pagi</p>
             <p className="mt-1 text-center text-[11px] text-white/40">Wajib sebelum jam 07:00. Batas jam 09:00.</p>
@@ -253,7 +339,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && (
+        {state.checkedIn && !state.checkedOut && signedIn && (
           <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
             <p className="text-sm font-semibold text-emerald-200">Jejak aktif</p>
             <p className="mt-1 text-xs text-white/60">
@@ -264,7 +350,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && (
+        {state.checkedIn && !state.checkedOut && signedIn && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-semibold">Nawar di sini</p>
             <p className="mt-1 text-[11px] text-white/40">Tap saat kamu sedang menawarkan, supaya tempatnya tercatat.</p>
@@ -313,7 +399,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && (
+        {state.checkedIn && !state.checkedOut && signedIn && (
           <section className="rounded-2xl border border-white/10 p-4">
             <p className="text-sm font-semibold">Check-in sore</p>
             <p className="mt-1 text-[11px] text-white/40">Saat pulang. Setelah check-out, hari ini tidak bisa check-in lagi.</p>

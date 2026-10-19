@@ -115,6 +115,16 @@ export async function ensureFounderStaff(
   return data as StaffRow;
 }
 
+export function pickOwnedBusiness<T extends { id: string }>(
+  list: T[],
+  preferredBusinessId: string | null | undefined,
+  salesBusinessId: string | null,
+) {
+  const withSales = salesBusinessId ? list.find((b) => b.id === salesBusinessId) : null;
+  const preferred = preferredBusinessId ? list.find((b) => b.id === preferredBusinessId) : null;
+  return withSales || preferred || list[0] || null;
+}
+
 export async function resolveActorByUserId(
   db: SalesDb,
   userId: string,
@@ -127,10 +137,16 @@ export async function resolveActorByUserId(
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
   const list = owned || [];
-  const preferred = preferredBusinessId
-    ? list.find((b) => b.id === preferredBusinessId)
-    : null;
-  const ownedBiz = preferred || list[0] || null;
+  const { data: salesRows } = list.length
+    ? await db
+        .from("orders")
+        .select("business_id")
+        .eq("source", "henima_sales")
+        .is("deleted_at", null)
+        .in("business_id", list.map((b) => b.id))
+        .limit(1)
+    : { data: [] as { business_id: string }[] };
+  const ownedBiz = pickOwnedBusiness(list, preferredBusinessId, salesRows?.[0]?.business_id || null);
 
   if (ownedBiz) {
     const staff = await ensureFounderStaff(db, {

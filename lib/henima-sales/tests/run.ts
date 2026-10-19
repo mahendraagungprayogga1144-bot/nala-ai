@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { normalizePhoneId, isValidPhoneId, maskPhone, phonesMatch, isSkippedPhone } from "../phone";
 import { calculateCommissionAmount, calculateOrderTotal, pickCommissionRule, isRevenueStatus, isSalesCatalogProduct, paymentLabel, paymentSplit, normalizePaymentMethod, priceAgainstRetail, discountPercentOf, DEFAULT_RETAIL_PRICE, needsRetailSync } from "../types";
-import { staffScopeIds, canAccessStaff, assertTelegramInviteAllowed, normalizeInviteCode, isPlaceholderInviteCode } from "../authz";
+import { staffScopeIds, canAccessStaff, assertTelegramInviteAllowed, normalizeInviteCode, isPlaceholderInviteCode, pickOwnedBusiness } from "../authz";
 import { periodRange, startOfWeekMonday, addDaysYmd, namedMonthWindow, namedYearWindow, lastNMonthsRange } from "../dates";
 import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
@@ -45,6 +45,13 @@ function test(name: string, fn: () => void) {
     console.error("FAIL", name, err instanceof Error ? err.message : err);
   }
 }
+
+test("sales module opens the business that still has sales", () => {
+  const hh = { id: "hh" };
+  const henima = { id: "henima" };
+  assert.equal(pickOwnedBusiness([hh, henima], "hh", "henima")?.id, "henima");
+  assert.equal(pickOwnedBusiness([hh], "hh", null)?.id, "hh");
+});
 
 test("normalize 0812 and 62812 as same id", () => {
   assert.equal(normalizePhoneId("0812-3456-7890"), "6281234567890");

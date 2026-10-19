@@ -32,6 +32,9 @@ export default function TrackingDesk({
   const router = useRouter();
   const [copied, setCopied] = useState("");
   const [focus, setFocus] = useState<string>("all");
+  const [nama, setNama] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     const timer = window.setInterval(() => router.refresh(), 25000);
@@ -51,6 +54,50 @@ export default function TrackingDesk({
   async function copy(link: TrackingLink) {
     await navigator.clipboard.writeText(`${window.location.origin}${link.path}`);
     setCopied(link.staffId);
+  }
+
+  async function addSales() {
+    const name = nama.trim();
+    if (!name) return;
+    setAdding(true);
+    setFormError("");
+    try {
+      const created = await fetch("/api/sales/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nama: name, role: "SALES" }),
+      });
+      const json = await created.json();
+      if (!created.ok) throw new Error(json.error || "Gagal menambah sales.");
+      const activated = await fetch("/api/sales/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_status", staffId: json.id, status: "active" }),
+      });
+      const activatedJson = await activated.json();
+      if (!activated.ok) throw new Error(activatedJson.error || "Sales tercatat, tetapi belum bisa check-in.");
+      setNama("");
+      router.refresh();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Gagal menambah sales.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function activate(staffId: string) {
+    setFormError("");
+    const response = await fetch("/api/sales/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_status", staffId, status: "active" }),
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      setFormError(json.error || "Gagal mengaktifkan sales.");
+      return;
+    }
+    router.refresh();
   }
 
   return (
@@ -90,8 +137,27 @@ export default function TrackingDesk({
             ))}
           </div>
 
+          <form
+            className="mt-4 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void addSales();
+            }}
+          >
+            <input
+              value={nama}
+              onChange={(event) => setNama(event.target.value)}
+              placeholder="Nama sales"
+              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-xs text-white outline-none"
+            />
+            <button type="submit" disabled={adding || !nama.trim()} className="rounded-lg bg-[#d4af37] px-2 py-2 text-[11px] font-semibold text-[#08080f] disabled:opacity-40">
+              {adding ? "..." : "Tambah"}
+            </button>
+          </form>
+          {formError && <p className="mt-2 text-[11px] text-red-300">{formError}</p>}
+
           <div className="mt-4 space-y-3">
-            {links.length === 0 && <p className="text-xs text-white/40">Belum ada orang di tim ini. Tambah sales di Henima Sales, lalu salin link dari sini.</p>}
+            {links.length === 0 && <p className="text-xs text-white/40">Belum ada orang. Isi nama di atas, atau buka link check-in setelah namamu muncul.</p>}
             {links
               .filter((link) => focus === "all" || link.staffId === focus)
               .map((link) => {
@@ -111,8 +177,26 @@ export default function TrackingDesk({
                       </button>
                     </div>
                     <p className="mt-1 text-[11px] text-white/40">
-                      {link.terhubung ? "Akun sudah terhubung" : "Akun belum terhubung. Sales buka link ini lalu masuk."}
+                      {link.status !== "active"
+                        ? "Belum aktif. Aktifkan dulu supaya bisa check-in."
+                        : link.terhubung
+                          ? "Akun sudah terhubung"
+                          : "Buka check-in, lalu sales masuk dengan akunnya."}
                     </p>
+                    {link.status === "active" ? (
+                      <a
+                        href={link.path}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 block rounded-lg bg-[#d4af37] py-2 text-center text-[11px] font-semibold text-[#08080f]"
+                      >
+                        Buka check-in
+                      </a>
+                    ) : (
+                      <button type="button" onClick={() => void activate(link.staffId)} className="mt-2 w-full rounded-lg bg-white/10 py-2 text-[11px]">
+                        Aktifkan untuk check-in
+                      </button>
+                    )}
                     <p className="mt-1 text-[11px] text-white/50">
                       {pagi ? `CI ${clock(pagi.recorded_at)}${pagi.late ? " telat" : ""}` : "Belum check-in"}
                       {sore ? ` · CO ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}

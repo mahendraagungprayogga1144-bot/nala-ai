@@ -133,7 +133,7 @@ export async function publicTrackingState(token: string) {
 }
 
 export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<TrackingLink[]> {
-  const staff = (await listStaff(db, actor)).filter((row) => row.status === "active");
+  const staff = (await listStaff(db, actor)).filter((row) => row.status !== "disabled");
   if (!staff.length) return [];
   const ids = staff.map((row) => row.id);
   const { data, error } = await db

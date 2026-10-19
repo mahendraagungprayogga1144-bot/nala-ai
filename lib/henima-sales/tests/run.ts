@@ -569,7 +569,8 @@ test("keuangan perusahaan is a company recap", () => {
 test("shopee screenshot uses buyer name and net payout for one duo", () => {
   const shot = parseShopeeShotJson('{"buyer":"novannullah","net":190819,"afternoon":1,"distance":1}');
   assert.ok(shot);
-  assert.equal(parseShopeeShotJson('{"buyer":"henima.id","net":190819,"afternoon":1,"distance":1}'), null);
+  assert.equal(parseShopeeShotJson('{"buyer":"henima.id","net":190819,"afternoon":1,"distance":1}')?.buyer, "Shopee");
+  assert.equal(parseShopeeShotJson('{"buyer":"","net":"209.010","product":"The Distance","jumlah":1}')?.netAmount, 209010);
   const products = [
     { id: "a", name: "Afternoon", price: 199999, cost: 64500, stock: 948, unit: "pcs" },
     { id: "d", name: "The Distance", price: 199999, cost: 64500, stock: 945, unit: "pcs" },

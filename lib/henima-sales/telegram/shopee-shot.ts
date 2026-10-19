@@ -11,8 +11,14 @@ export type ShopeeShot = {
 
 function cleanBuyer(raw: string) {
   const name = raw.replace(/\s+/g, " ").trim();
-  if (!name || /^(henima|shopee|seller|pembeli)$/i.test(name) || /henima\.id/i.test(name)) return "";
+  if (!name || /^(henima|shopee|seller|pembeli|unknown|null)$/i.test(name) || /henima\.id/i.test(name)) return "";
   return name.slice(0, 80);
+}
+
+function idr(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
+  const digits = String(value || "").replace(/\./g, "").replace(/,/g, "").replace(/[^\d]/g, "");
+  return Math.round(Number(digits) || 0);
 }
 
 export function parseShopeeShotJson(raw: string): ShopeeShot | null {
@@ -24,13 +30,17 @@ export function parseShopeeShotJson(raw: string): ShopeeShot | null {
   } catch {
     return null;
   }
-  const buyer = cleanBuyer(String(data.buyer || data.nama || ""));
-  const netAmount = Math.round(Number(data.net ?? data.penghasilan ?? data.amount) || 0);
-  const afternoonQty = Math.max(0, Math.round(Number(data.afternoon) || 0));
-  const distanceQty = Math.max(0, Math.round(Number(data.distance) || 0));
-  if (!buyer || netAmount < 1000 || netAmount > 50_000_000) return null;
+  const named = cleanBuyer(String(data.buyer || data.nama || ""));
+  const netAmount = idr(data.net ?? data.penghasilan ?? data.amount);
+  let afternoonQty = Math.max(0, Math.round(Number(data.afternoon) || 0));
+  let distanceQty = Math.max(0, Math.round(Number(data.distance) || 0));
+  const product = String(data.product || data.produk || "").toLowerCase();
+  const jumlah = Math.max(1, Math.round(Number(data.qty || data.jumlah) || 1));
+  if (!afternoonQty && /afternoon/.test(product)) afternoonQty = jumlah;
+  if (!distanceQty && /distance/.test(product)) distanceQty = jumlah;
+  if (netAmount < 1000 || netAmount > 50_000_000) return null;
   if (afternoonQty + distanceQty < 1 || afternoonQty > 20 || distanceQty > 20) return null;
-  return { buyer, netAmount, afternoonQty, distanceQty };
+  return { buyer: named || "Shopee", netAmount, afternoonQty, distanceQty };
 }
 
 export function shopeeDraftFromShot(shot: ShopeeShot, products: ProductRow[]): Draft | null {
@@ -75,7 +85,8 @@ export async function readShopeeScreenshot(bytes: Uint8Array, mime: string): Pro
       body: JSON.stringify({
         model: "deepseek-flash",
         temperature: 0,
-        max_tokens: 200,
+        max_tokens: 800,
+        thinking: { type: "disabled" },
         messages: [
           {
             role: "user",
@@ -98,8 +109,11 @@ export async function readShopeeScreenshot(bytes: Uint8Array, mime: string): Pro
       }),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    return parseShopeeShotJson(body.choices?.[0]?.message?.content || "");
+    const body = (await res.json()) as {
+      choices?: { message?: { content?: string | null; reasoning_content?: string | null } }[];
+    };
+    const message = body.choices?.[0]?.message;
+    return parseShopeeShotJson(message?.content || message?.reasoning_content || "");
   } catch {
     return null;
   } finally {

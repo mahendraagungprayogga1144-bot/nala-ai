@@ -16,7 +16,7 @@ export default function HenimaTrackingPage() {
           <ModuleHeader
             icon={Activity}
             title="Henima Tracking"
-            subtitle="Peta jejak sales. Setelah check-in, kemana pun mereka pergi kelihatan. Setelah check-out, hari itu tidak bisa check-in lagi."
+            subtitle="Meja pantau founder. Kirim link ke sales. Setelah mereka check-in, rute dan fotonya muncul di peta ini."
           />
           <TrackingDesk date={desk.date} links={desk.links} points={desk.points} notice={desk.notice} />
         </div>

@@ -111,10 +111,18 @@ export default function TrackingDesk({
         }
         .henima-track-map .leaflet-container { background:#05070d; font-family:inherit; }
       `}</style>
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_1fr]">
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[340px_1fr]">
         <aside className="max-h-[40vh] overflow-y-auto border-b border-[#00f0ff]/15 bg-[#070b12]/95 p-4 lg:max-h-none lg:border-b-0 lg:border-r">
-          <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">HENIMA TRACKING</p>
-          <p className="mt-1 text-xs text-white/45">{date} · peta diperbarui otomatis</p>
+          <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">CARA PAKAI</p>
+          <p className="mt-1 text-xs leading-5 text-white/70">
+            Kamu di sini hanya memantau. Sales yang berangkat lewat HP.
+          </p>
+          <ol className="mt-2 space-y-1 text-[11px] leading-4 text-white/50">
+            <li>1. Pilih nama, lalu salin link dan kirim ke HP sales.</li>
+            <li>2. Sales masuk, foto tempatnya, ambil GPS, lalu check-in.</li>
+            <li>3. Rute jalan dan fotonya muncul di peta sebelah kanan.</li>
+          </ol>
+          <p className="mt-2 text-[11px] text-white/40">{date} · peta ini disegarkan sendiri</p>
           {notice && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-950/40 px-2 py-2 text-[11px] text-red-200">{notice}</p>}
           <div className="mt-3 flex flex-wrap gap-1.5">
             <button
@@ -122,7 +130,7 @@ export default function TrackingDesk({
               onClick={() => setFocus("all")}
               className={`rounded-full border px-2.5 py-1 text-[11px] ${focus === "all" ? "border-[#00f0ff] text-[#00f0ff]" : "border-white/10 text-white/45"}`}
             >
-              Semua
+              Semua orang
             </button>
             {links.map((link) => (
               <button
@@ -150,7 +158,7 @@ export default function TrackingDesk({
             <input
               value={nama}
               onChange={(event) => setNama(event.target.value)}
-              placeholder="Nama sales"
+              placeholder="Nama sales baru"
               className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-xs text-white outline-none"
             />
             <button type="submit" disabled={adding || !nama.trim()} className="rounded-lg bg-[#d4af37] px-2 py-2 text-[11px] font-semibold text-[#08080f] disabled:opacity-40">
@@ -176,15 +184,15 @@ export default function TrackingDesk({
                         {link.nama}
                       </p>
                       <button type="button" onClick={() => void copy(link)} className="text-[11px] text-[#d4af37]">
-                        {copied === link.staffId ? "Tersalin" : "Salin link"}
+                        {copied === link.staffId ? "Link tersalin" : "Salin link HP"}
                       </button>
                     </div>
                     <p className="mt-1 text-[11px] text-white/40">
                       {link.status !== "active"
-                        ? "Belum aktif. Aktifkan dulu supaya bisa check-in."
+                        ? "Belum bisa berangkat. Aktifkan dulu."
                         : link.terhubung
-                          ? "Akun sudah terhubung"
-                          : "Buka check-in, lalu sales masuk dengan akunnya."}
+                          ? "Sudah punya akun. Siap check-in dari HP."
+                          : "Belum punya akun. Sales buka link ini, lalu daftar atau masuk."}
                     </p>
                     {link.status === "active" && link.token ? (
                       <a
@@ -193,7 +201,7 @@ export default function TrackingDesk({
                         rel="noreferrer"
                         className="mt-2 block rounded-lg bg-[#d4af37] py-2 text-center text-[11px] font-semibold text-[#08080f]"
                       >
-                        Buka check-in
+                        Coba di HP saya
                       </a>
                     ) : link.status !== "active" ? (
                       <button type="button" onClick={() => void activate(link.staffId)} className="mt-2 w-full rounded-lg bg-white/10 py-2 text-[11px]">
@@ -201,13 +209,13 @@ export default function TrackingDesk({
                       </button>
                     ) : null}
                     <p className="mt-1 text-[11px] text-white/50">
-                      {pagi ? `CI ${clock(pagi.recorded_at)}${pagi.late ? " telat" : ""}` : "Belum check-in"}
-                      {sore ? ` · CO ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}
-                      {` · ${visits.length} nawar`}
+                      {pagi ? `Berangkat ${clock(pagi.recorded_at)}${pagi.late ? " · telat" : ""}` : "Belum berangkat hari ini"}
+                      {sore ? ` · Pulang ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}
+                      {` · ${visits.length} tempat nawar`}
                     </p>
                     {last && (
                       <a href={mapsUrl(last.lat, last.lng)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#00f0ff]">
-                        Terakhir {clock(last.recorded_at)} · {KIND[last.kind]}
+                        Posisi terakhir {clock(last.recorded_at)} · {KIND[last.kind]}
                       </a>
                     )}
                   </article>
@@ -215,9 +223,9 @@ export default function TrackingDesk({
               })}
           </div>
 
-          <h2 className="mb-2 mt-5 text-[10px] font-bold tracking-[0.18em] text-[#d4af37]">DOKUMENTASI</h2>
+          <h2 className="mb-2 mt-5 text-[10px] font-bold tracking-[0.18em] text-[#d4af37]">FOTO HARI INI</h2>
           {docs.length === 0 ? (
-            <p className="text-xs text-white/35">Foto dan tempat nawar muncul di sini setelah sales check-in.</p>
+            <p className="text-xs leading-5 text-white/35">Belum ada foto. Foto check-in dan foto tempat nawar akan nongol di sini, sekaligus di titik petanya.</p>
           ) : (
             <ul className="space-y-3">
               {docs.map((point) => {
@@ -234,7 +242,7 @@ export default function TrackingDesk({
                         {point.note ? ` · ${point.note}` : ""}
                       </p>
                       <a href={mapsUrl(point.lat, point.lng)} target="_blank" rel="noreferrer" className="text-[11px] text-[#00f0ff]">
-                        Buka titik
+                        Lihat di peta luar
                       </a>
                     </div>
                   </li>

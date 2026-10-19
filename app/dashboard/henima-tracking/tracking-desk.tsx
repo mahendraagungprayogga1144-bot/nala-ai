@@ -87,6 +87,23 @@ export default function TrackingDesk({
     }
   }
 
+  async function remove(link: TrackingLink) {
+    if (!window.confirm(`Hapus ${link.nama} dari daftar ini? Link check-in HP-nya ikut mati.`)) return;
+    setFormError("");
+    const response = await fetch("/api/sales/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_status", staffId: link.staffId, status: "disabled" }),
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      setFormError(json.error || "Gagal menghapus.");
+      return;
+    }
+    if (focus === link.staffId) setFocus("all");
+    router.refresh();
+  }
+
   async function activate(staffId: string) {
     setFormError("");
     const response = await fetch("/api/sales/staff", {
@@ -183,9 +200,16 @@ export default function TrackingDesk({
                       <p className="text-sm text-white" style={{ color: colorOf(link.staffId) }}>
                         {link.nama}
                       </p>
-                      <button type="button" onClick={() => void copy(link)} className="text-[11px] text-[#d4af37]">
-                        {copied === link.staffId ? "Link tersalin" : "Salin link HP"}
-                      </button>
+                      <div className="flex shrink-0 gap-2">
+                        <button type="button" onClick={() => void copy(link)} className="text-[11px] text-[#d4af37]">
+                          {copied === link.staffId ? "Link tersalin" : "Salin link HP"}
+                        </button>
+                        {link.role !== "FOUNDER" && (
+                          <button type="button" onClick={() => void remove(link)} className="text-[11px] text-red-300">
+                            Hapus
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-1 text-[11px] text-white/40">
                       {link.status !== "active"

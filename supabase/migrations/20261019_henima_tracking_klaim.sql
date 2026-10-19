@@ -26,7 +26,7 @@ BEGIN
    AND staff.business_id = link.business_id
   WHERE link.token = lower(p_token);
 
-  IF NOT FOUND OR v_staff.status <> 'active' OR v_staff.role = 'FOUNDER' THEN
+  IF NOT FOUND OR v_staff.status <> 'active' THEN
     PERFORM public.henima_tracking_raise('DATA_TIDAK_VALID');
   END IF;
 

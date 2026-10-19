@@ -91,7 +91,7 @@ export default function TrackingDesk({
           </div>
 
           <div className="mt-4 space-y-3">
-            {links.length === 0 && <p className="text-xs text-white/40">Belum ada sales. Tambah di Henima Sales, lalu salin link dari sini.</p>}
+            {links.length === 0 && <p className="text-xs text-white/40">Belum ada orang di tim ini. Tambah sales di Henima Sales, lalu salin link dari sini.</p>}
             {links
               .filter((link) => focus === "all" || link.staffId === focus)
               .map((link) => {

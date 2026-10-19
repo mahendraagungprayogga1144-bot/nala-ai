@@ -44,6 +44,14 @@ function clock(iso: string) {
   return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
+function pesanDb(message: string) {
+  if (message.includes("BELUM_CHECKIN")) return "Belum check-in. Jejak dan kunjungan belum bisa dicatat.";
+  if (message.includes("SUDAH_CHECKOUT")) return "Sudah check-out. Hari ini tidak bisa check-in lagi.";
+  if (message.includes("TIDAK_LOGIN")) return "Masuk dulu dengan akun sales, leader, atau founder.";
+  if (message.includes("DATA_TIDAK_VALID")) return "Data tidak valid. Cek foto, GPS, atau apakah check-in hari ini sudah ada.";
+  return message;
+}
+
 export default function FieldClient({ token, initial }: { token: string; initial: FieldState }) {
   const [state, setState] = useState(initial);
   const [gps, setGps] = useState<GpsFix | null>(null);
@@ -138,16 +146,44 @@ export default function FieldClient({ token, initial }: { token: string; initial
       });
       if (upErr) throw new Error("Upload foto gagal. Coba lagi.");
     }
-    const { error } = await supabase.rpc("henima_tracking_record", {
-      p_staff_id: state.staffId,
-      p_kind: kind,
-      p_lat: fix.lat,
-      p_lng: fix.lng,
-      p_accuracy_m: Math.round(fix.acc),
-      p_note: place || null,
-      p_photo_path: photoPath,
-    });
-    if (error) throw new Error(error.message);
+    const accuracy = Math.round(fix.acc);
+    const error =
+      kind === "checkin_pagi"
+        ? (
+            await supabase.rpc("henima_tracking_checkin", {
+              p_lat: fix.lat,
+              p_lng: fix.lng,
+              p_accuracy_m: accuracy,
+              p_photo_path: photoPath,
+            })
+          ).error
+        : kind === "checkin_sore"
+          ? (
+              await supabase.rpc("henima_tracking_checkout", {
+                p_lat: fix.lat,
+                p_lng: fix.lng,
+                p_accuracy_m: accuracy,
+                p_photo_path: photoPath,
+              })
+            ).error
+          : kind === "visit"
+            ? (
+                await supabase.rpc("henima_tracking_catat_kunjungan", {
+                  p_lat: fix.lat,
+                  p_lng: fix.lng,
+                  p_accuracy_m: accuracy,
+                  p_note: place || null,
+                  p_photo_path: photoPath,
+                })
+              ).error
+            : (
+                await supabase.rpc("henima_tracking_catat_titik", {
+                  p_lat: fix.lat,
+                  p_lng: fix.lng,
+                  p_accuracy_m: accuracy,
+                })
+              ).error;
+    if (error) throw new Error(pesanDb(error.message));
     await refresh();
     lastSent.current = Date.now();
     lastPos.current = fix;
@@ -430,6 +466,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
                     <span className="font-mono text-xs text-white/40">{clock(point.recorded_at)}</span>
                   </div>
                   {point.note && <p className="mt-1 text-xs text-white/60">{point.note}</p>}
+                  {point.photo_url && <img src={point.photo_url} alt="" className="mt-2 max-h-40 w-full rounded-lg object-cover" />}
                   {point.late && <p className="mt-1 text-[11px] text-red-300">Lewat batas 09:00</p>}
                   <a href={point.maps} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#d4af37]">
                     Lihat di Maps

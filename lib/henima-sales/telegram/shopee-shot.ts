@@ -35,9 +35,24 @@ export function parseShopeeShotJson(raw: string): ShopeeShot | null {
   let afternoonQty = Math.max(0, Math.round(Number(data.afternoon) || 0));
   let distanceQty = Math.max(0, Math.round(Number(data.distance) || 0));
   const product = String(data.product || data.produk || "").toLowerCase();
-  const jumlah = Math.max(1, Math.round(Number(data.qty || data.jumlah) || 1));
-  if (!afternoonQty && /afternoon/.test(product)) afternoonQty = jumlah;
-  if (!distanceQty && /distance/.test(product)) distanceQty = jumlah;
+  const mark = String(data.mark || data.label || "");
+  const marked = Number((mark.match(/x\s*(\d+)/i) || [])[1] || 0);
+  const jumlah = marked || Math.max(1, Math.round(Number(data.qty || data.jumlah) || 1));
+  const hasAfternoon = /afternoon/.test(product) || afternoonQty > 0;
+  const hasDistance = /distance/.test(product) || distanceQty > 0;
+  if (marked > 0 && hasAfternoon && hasDistance) {
+    afternoonQty = marked;
+    distanceQty = marked;
+  } else if (marked > 0 && hasDistance && !hasAfternoon) {
+    distanceQty = marked;
+    afternoonQty = 0;
+  } else if (marked > 0 && hasAfternoon && !hasDistance) {
+    afternoonQty = marked;
+    distanceQty = 0;
+  } else {
+    if (!afternoonQty && hasAfternoon) afternoonQty = jumlah;
+    if (!distanceQty && hasDistance) distanceQty = jumlah;
+  }
   if (netAmount < 1000 || netAmount > 50_000_000) return null;
   if (afternoonQty + distanceQty < 1 || afternoonQty > 20 || distanceQty > 20) return null;
   return { buyer: named || "Shopee", netAmount, afternoonQty, distanceQty };
@@ -95,11 +110,13 @@ export async function readShopeeScreenshot(bytes: Uint8Array, mime: string): Pro
                 type: "text",
                 text: [
                   "Baca screenshot Rincian Pesanan Shopee seller. Balas JSON saja:",
-                  '{"buyer":"","net":0,"afternoon":0,"distance":0}',
-                  "buyer = username pembeli di atas pesanan, bukan nama toko.",
-                  "net = Estimasi Total Penghasilan, angka rupiah utuh. Bukan harga satuan, bukan subtotal pesanan, bukan ongkir.",
-                  "Duo set Afternoon + The Distance dengan Jumlah 1 berarti afternoon 1 dan distance 1.",
-                  "Kalau bukan pesanan Shopee, buyer kosong dan net 0.",
+                  '{"buyer":"","net":0,"mark":"x1","product":"","afternoon":0,"distance":0}',
+                  "buyer = username pembeli, bukan nama toko.",
+                  "net = Penghasilan Akhir atau Estimasi Total Penghasilan. Bukan harga satuan.",
+                  "Di kartu produk paling bawah ada judul besar. Tepat di bawah judul itu ada tulisan kecil x1 atau x2. Itu jumlahnya. Isi mark dengan tulisan kecil itu, misalnya x2.",
+                  "Judul The Distance dengan tulisan kecil x2 berarti distance 2, bukan 1.",
+                  "Judul yang memuat Afternoon dan The Distance dengan tulisan kecil x2 berarti afternoon 2 dan distance 2.",
+                  "Jangan mengambil jumlah dari judul. Kalau bukan pesanan Shopee, net 0.",
                 ].join("\n"),
               },
               { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },

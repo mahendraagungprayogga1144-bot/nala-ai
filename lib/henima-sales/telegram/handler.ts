@@ -35,6 +35,7 @@ import { looksLikeWorkEdit, planWorkMessage, taskJob } from "./crud-nl";
 import { notifyFounderWhatsApp } from "../whatsapp/infobip";
 import { listKommoLeads } from "../kommo/client";
 import { runDeskTool } from "./desk-tools";
+import { readShopeeScreenshot, shopeeDraftFromShot } from "./shopee-shot";
 import { answerCallback, downloadTelegramFile, sendChatAction, sendDocument, sendMessage } from "./api";
 import { telegramRateOk } from "./rate-limit";
 
@@ -175,6 +176,41 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
     actor && needsProductCatalog(incoming, session) ? await listProducts(db, actor.businessId) : [];
 
   let reduced = reduceBot(session, incoming, { actor, products });
+  if (actor && incoming.kind === "photo" && session.state !== "input_testimonial") {
+    await sendMessage(chatId, "Membaca screenshot Shopee…");
+    try {
+      const file = await downloadTelegramFile(incoming.fileId);
+      const catalog = products.length ? products : await listProducts(db, actor.businessId);
+      const shot = await readShopeeScreenshot(file.bytes, file.mime);
+      const built = shot ? shopeeDraftFromShot(shot, catalog) : null;
+      const draft = built ? applyCatalogPricing({ ...built, idempotencyKey: randomUUID() }, catalog) : null;
+      if (!shot || !draft?.lines?.length) {
+        reduced = {
+          session,
+          effects: [{
+            type: "reply",
+            reply: { text: "Screenshot belum terbaca. Kirim halaman Rincian Pesanan Shopee yang ada nama pembeli dan Estimasi Total Penghasilan." },
+          }],
+        };
+      } else {
+        reduced = {
+          session: { state: "input_confirm", draft, memory: session.memory },
+          effects: [{
+            type: "reply",
+            reply: {
+              text: `Dari screenshot Shopee. Cek lalu tekan CONFIRM.\n\n${formatConfirm(draft, actor, fmtDateLongId(todayWib()))}`,
+              keyboard: confirmKeyboard(),
+            },
+          }],
+        };
+      }
+    } catch {
+      reduced = {
+        session,
+        effects: [{ type: "reply", reply: { text: "Foto Shopee gagal dibaca. Kirim ulang screenshot rincian pesanan." } }],
+      };
+    }
+  }
   if (actor && incoming.kind === "text" && session.state === "idle") {
     const bare = incoming.text.trim().toLowerCase();
     if (/^(lihat memori|memory)$/.test(bare)) {

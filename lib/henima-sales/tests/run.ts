@@ -11,6 +11,7 @@ import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
 import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, looksLikeHowTo, looksLikeStockRead, needsCompanyData, periodFromText } from "../telegram/nl-sale";
+import { parseShopeeShotJson, shopeeDraftFromShot } from "../telegram/shopee-shot";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent, greetingReply } from "../telegram/agent";
 import { parseFounderCommand } from "../telegram/founder-ops";
 import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
@@ -563,6 +564,22 @@ test("keuangan perusahaan is a company recap", () => {
     { actor: founder, products: [] },
   );
   assert.equal(out.effects[0].type, "send_pdf");
+});
+
+test("shopee screenshot uses buyer name and net payout for one duo", () => {
+  const shot = parseShopeeShotJson('{"buyer":"novannullah","net":190819,"afternoon":1,"distance":1}');
+  assert.ok(shot);
+  assert.equal(parseShopeeShotJson('{"buyer":"henima.id","net":190819,"afternoon":1,"distance":1}'), null);
+  const products = [
+    { id: "a", name: "Afternoon", price: 199999, cost: 64500, stock: 948, unit: "pcs" },
+    { id: "d", name: "The Distance", price: 199999, cost: 64500, stock: 945, unit: "pcs" },
+  ];
+  const draft = shopeeDraftFromShot(shot!, products);
+  assert.equal(draft?.customerName, "novannullah");
+  assert.equal(draft?.notes, "Shopee");
+  assert.equal(draft?.orderTotal, 190819);
+  assert.equal(draft?.lines?.length, 2);
+  assert.equal(draft?.lines?.reduce((s, line) => s + line.quantity, 0), 2);
 });
 
 test("ask how many sold is a recap not a sale hint", () => {

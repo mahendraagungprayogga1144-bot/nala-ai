@@ -319,8 +319,8 @@ export function looksLikeAskReport(text: string) {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();
   if (!t) return false;
   if (/\b(target|pencapaian|tercapai|goal)\b/.test(t)) return false;
+  if (/\b(berapa|how many|how much)\b/.test(t) && !/\b(harga\s+[\d.,]|atas nama|no\.?\s*(telp|hp|wa))\b/.test(t)) return true;
   if (/\b(laku|atas nama|no\.?\s*(telp|hp|wa)|harga\s+[\d.,])\b/.test(t)) return false;
-  if (/\b(berapa|how many|how much)\b/.test(t)) return true;
   if (/\b(total|semua(nya)?|keseluruhan)\s+(yang\s+)?(terjual|dijual|laku|sold|omzet|penjualan)\b/.test(t)) return true;
   if (/\b(yang\s+terjual|terjual)\s+(semua(nya)?|total|berapa)\b/.test(t)) return true;
   if (looksLikeCompanyFinance(t)) return true;

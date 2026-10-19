@@ -574,6 +574,8 @@ test("ask how many sold is a recap not a sale hint", () => {
     to: year.to,
   });
   assert.deepEqual(parseOpsIntent("berapa terjual hari ini"), { type: "rekap", period: "today" });
+  assert.equal(parseOpsIntent("tarik semua penjualan afternoon laku berapa the distance berapa").type, "rekap");
+  assert.equal(parseOpsIntent("Laku 1 atas Nama tommy afternoon harga 100k").type, "none");
   const out = reduceBot(
     { state: "idle", draft: newDraft() },
     { kind: "text", text: "Berapa yang terjual semuanya" },

@@ -167,7 +167,7 @@ export async function buildSalesReport(
   for (const o of paid) {
     for (const i of o.order_items || []) {
       const name = cleanProductLabel(i.product_name_snapshot || i.product_id || "Produk");
-      const key = i.product_id || name;
+      const key = name.toLowerCase();
       if (!byProduct[key]) byProduct[key] = { name, qty: 0, omzet: 0 };
       byProduct[key].qty += Number(i.qty || 0);
       byProduct[key].omzet += Number(i.qty || 0) * Number(i.harga_jual || 0);

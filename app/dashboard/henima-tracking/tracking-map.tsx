@@ -34,9 +34,13 @@ const KIND: Record<TrackingPoint["kind"], string> = {
 export default function TrackingMap({
   points,
   colorOf,
+  nameOf,
+  focusStaffId,
 }: {
   points: TrackingPoint[];
   colorOf: (staffId: string) => string;
+  nameOf: (staffId: string) => string;
+  focusStaffId?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
 
@@ -69,20 +73,22 @@ export default function TrackingMap({
 
       const bounds: [number, number][] = [];
       for (const [staffId, list] of byStaff) {
+        if (focusStaffId && staffId !== focusStaffId) continue;
         const ordered = [...list].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
         const color = colorOf(staffId);
         const latlngs = ordered.map((point) => [point.lat, point.lng] as [number, number]);
         bounds.push(...latlngs);
         if (latlngs.length > 1) {
-          L.polyline(latlngs, { color, weight: 3, opacity: 0.9 }).addTo(map);
+          L.polyline(latlngs, { color, weight: 4, opacity: 0.9 }).addTo(map);
         }
+        const latest = ordered[ordered.length - 1];
         for (const point of ordered) {
-          const big = point.kind !== "ping";
+          const big = point.kind !== "ping" || point === latest;
           const marker = L.circleMarker([point.lat, point.lng], {
-            radius: big ? 8 : 4,
+            radius: point === latest ? 9 : big ? 7 : 4,
             color,
             weight: 2,
-            fillColor: point.kind === "visit" ? "#d4af37" : point.kind === "checkin_sore" ? "#ff2bd6" : color,
+            fillColor: point.kind === "visit" ? "#FFD34D" : point.kind === "checkin_sore" ? "#fb7185" : color,
             fillOpacity: 0.95,
           }).addTo(map);
           const photo = point.photo_url
@@ -90,8 +96,9 @@ export default function TrackingMap({
             : "";
           marker.bindPopup(
             `<div style="min-width:180px;font-family:inherit">
-              <div style="font-size:11px;letter-spacing:.14em;color:${color}">${esc(KIND[point.kind])}</div>
-              <div style="margin-top:4px;font-size:13px">${esc(point.note || "Tanpa catatan")}</div>
+              <div style="font-size:13px;font-weight:700;color:${color}">${esc(nameOf(staffId))}</div>
+              <div style="font-size:11px;letter-spacing:.08em;margin-top:2px">${esc(KIND[point.kind])}</div>
+              <div style="margin-top:4px;font-size:13px">${esc(point.note || "Titik GPS tersimpan")}</div>
               <div style="margin-top:2px;font-size:11px;opacity:.7">${esc(clock(point.recorded_at))}</div>
               ${photo}
             </div>`,
@@ -108,7 +115,7 @@ export default function TrackingMap({
       cancelled = true;
       map?.remove();
     };
-  }, [points, colorOf]);
+  }, [points, colorOf, nameOf, focusStaffId]);
 
   return <div ref={host} className="henima-track-map absolute inset-0" />;
 }

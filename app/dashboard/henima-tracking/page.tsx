@@ -1,4 +1,5 @@
 import { Activity } from "lucide-react";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import ModuleHeader from "../components/module-header";
 import { guardPage } from "../lib/page-guard";
 import { loadSalesContext } from "@/lib/henima-sales/page-context";
@@ -6,6 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 import { isMissingTrackingTable, loadTrackingDesk } from "@/lib/henima-tracking/service";
 import { todayWib } from "@/lib/date";
 import TrackingDesk from "./tracking-desk";
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 function chosenDay(raw: string | undefined) {
   const today = todayWib();
@@ -21,12 +27,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
       const [{ actor, db }, session] = await Promise.all([loadSalesContext(), createClient()]);
       const desk = await loadTrackingDesk(db, session, actor, day);
       return (
-        <div className="flex h-[calc(100dvh-4.75rem)] min-h-[640px] flex-col px-3 pb-3 pt-3 md:h-screen">
-          <ModuleHeader
-            icon={Activity}
-            title="Henima Tracking"
-            subtitle="Meja pantau founder. Jejak dan foto tiap hari tetap tersimpan. Pilih tanggal untuk membuka hari itu."
-          />
+        <div className={`${jakarta.className} flex h-[calc(100dvh-4.75rem)] min-h-[640px] flex-col bg-[#080D18] px-3 pb-3 pt-3 md:h-screen`}>
           <TrackingDesk
             date={desk.date}
             today={desk.today}

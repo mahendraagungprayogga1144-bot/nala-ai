@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { mapsUrl, type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
+import { type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
 import TrackingMap, { staffColor } from "./tracking-map";
 
 const KIND: Record<TrackingPoint["kind"], string> = {
@@ -28,9 +28,30 @@ function shiftDay(ymd: string, days: number) {
 }
 
 function dayLabel(ymd: string) {
-  return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" }).format(
+  return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" }).format(
     new Date(`${ymd}T12:00:00+07:00`),
   );
+}
+
+function initials(nama: string) {
+  const parts = nama.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase() || "").join("") || "?";
+}
+
+function snapshot(link: TrackingLink, points: TrackingPoint[]) {
+  const mine = points.filter((point) => point.staff_id === link.staffId);
+  const pagi = mine.find((point) => point.kind === "checkin_pagi");
+  const sore = mine.find((point) => point.kind === "checkin_sore");
+  const visits = mine.filter((point) => point.kind === "visit");
+  const last = mine[0];
+  const status = !pagi
+    ? { label: "Belum berangkat", tone: "off" as const }
+    : sore
+      ? { label: "Pulang", tone: "off" as const }
+      : pagi.late
+        ? { label: "Terlambat", tone: "late" as const }
+        : { label: "Di jalan", tone: "road" as const };
+  return { mine, pagi, sore, visits, last, status };
 }
 
 export default function TrackingDesk({
@@ -51,6 +72,8 @@ export default function TrackingDesk({
   const router = useRouter();
   const [copied, setCopied] = useState("");
   const [focus, setFocus] = useState<string>("all");
+  const [query, setQuery] = useState("");
+  const [detail, setDetail] = useState("");
   const [nama, setNama] = useState("");
   const [adding, setAdding] = useState(false);
   const [formError, setFormError] = useState("");
@@ -63,13 +86,27 @@ export default function TrackingDesk({
 
   const colorOf = useMemo(() => {
     const map = new Map(links.map((link, index) => [link.staffId, staffColor(index)]));
-    return (staffId: string) => map.get(staffId) || "#00f0ff";
+    return (staffId: string) => map.get(staffId) || "#06D6D6";
+  }, [links]);
+  const nameOf = useMemo(() => {
+    const map = new Map(links.map((link) => [link.staffId, link.nama]));
+    return (staffId: string) => map.get(staffId) || "Sales";
   }, [links]);
 
-  const visible = focus === "all" ? points : points.filter((point) => point.staff_id === focus);
-  const docs = [...visible]
-    .filter((point) => point.kind === "visit" || point.kind === "checkin_pagi" || point.photo_url)
-    .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
+  const needle = query.trim().toLowerCase();
+  const people = links.filter((link) => {
+    if (!needle) return true;
+    const last = points.find((point) => point.staff_id === link.staffId);
+    return link.nama.toLowerCase().includes(needle) || (last?.note || "").toLowerCase().includes(needle);
+  });
+  const visible = (focus === "all" ? points : points.filter((point) => point.staff_id === focus)).filter((point) =>
+    people.some((link) => link.staffId === point.staff_id),
+  );
+  const photos = visible.filter((point) => point.photo_url);
+  const fieldLinks = links.filter((link) => link.role !== "FOUNDER");
+  const onRoad = fieldLinks.filter((link) => snapshot(link, points).status.tone === "road").length;
+  const late = fieldLinks.filter((link) => snapshot(link, points).status.tone === "late").length;
+  const checkins = points.filter((point) => point.kind === "checkin_pagi").length;
   const memory = days.includes(date) ? days : [date, ...days];
 
   function openDay(ymd: string) {
@@ -144,194 +181,242 @@ export default function TrackingDesk({
   }
 
   return (
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#00f0ff]/25 bg-[#05070d] shadow-[0_0_40px_rgba(0,240,255,0.08)]">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden text-[#F1F5F9]">
       <style>{`
-        .henima-track-map .leaflet-control-zoom a { background:#070b12; color:#00f0ff; border-color:rgba(0,240,255,.35); }
-        .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip {
-          background:#070b12; color:#e7fff8; box-shadow:0 0 18px rgba(0,240,255,.28);
-        }
-        .henima-track-map .leaflet-container { background:#05070d; font-family:inherit; }
+        .henima-track-map .leaflet-control-zoom a { background:#101827; color:#F1F5F9; border-color:#243247; }
+        .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip { background:#101827; color:#F1F5F9; }
+        .henima-track-map .leaflet-container { background:#080D18; font-family:inherit; }
       `}</style>
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[340px_1fr]">
-        <aside className="max-h-[40vh] overflow-y-auto border-b border-[#00f0ff]/15 bg-[#070b12]/95 p-4 lg:max-h-none lg:border-b-0 lg:border-r">
-          <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">INGATAN HARIAN</p>
-          <p className="mt-1 text-xs leading-5 text-white/70">
-            {date === today ? "Hari ini, masih berjalan." : `Arsip ${dayLabel(date)}. Jejak hari itu tidak hilang.`}
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <button type="button" onClick={() => openDay(shiftDay(date, -1))} className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/70">
-              Sebelumnya
-            </button>
-            <input
-              type="date"
-              value={date}
-              max={today}
-              onChange={(event) => event.target.value && openDay(event.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[11px] text-white"
-            />
-            {date !== today && (
-              <button type="button" onClick={() => openDay(today)} className="rounded-lg border border-[#00f0ff]/40 px-2 py-1 text-[11px] text-[#00f0ff]">
-                Hari ini
-              </button>
-            )}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {memory.slice(0, 8).map((ymd) => (
-              <button
-                key={ymd}
-                type="button"
-                onClick={() => openDay(ymd)}
-                className={`rounded-full border px-2 py-0.5 text-[11px] ${ymd === date ? "border-[#d4af37] text-[#d4af37]" : "border-white/10 text-white/45"}`}
-              >
-                {ymd === today ? "Hari ini" : dayLabel(ymd)}
-              </button>
-            ))}
-          </div>
-          {notice && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-950/40 px-2 py-2 text-[11px] text-red-200">{notice}</p>}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setFocus("all")}
-              className={`rounded-full border px-2.5 py-1 text-[11px] ${focus === "all" ? "border-[#00f0ff] text-[#00f0ff]" : "border-white/10 text-white/45"}`}
-            >
-              Semua orang
-            </button>
-            {links.map((link) => (
-              <button
-                key={link.staffId}
-                type="button"
-                onClick={() => setFocus(link.staffId)}
-                className="rounded-full border px-2.5 py-1 text-[11px]"
-                style={{
-                  borderColor: focus === link.staffId ? colorOf(link.staffId) : "rgba(255,255,255,.12)",
-                  color: colorOf(link.staffId),
-                }}
-              >
-                {link.nama}
-              </button>
-            ))}
-          </div>
 
-          <form
-            className="mt-4 flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void addSales();
-            }}
-          >
-            <input
-              value={nama}
-              onChange={(event) => setNama(event.target.value)}
-              placeholder="Nama sales baru"
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-xs text-white outline-none"
-            />
-            <button type="submit" disabled={adding || !nama.trim()} className="rounded-lg bg-[#d4af37] px-2 py-2 text-[11px] font-semibold text-[#08080f] disabled:opacity-40">
-              {adding ? "..." : "Tambah"}
-            </button>
-          </form>
-          {formError && <p className="mt-2 text-[11px] text-red-300">{formError}</p>}
-
-          <div className="mt-4 space-y-3">
-            {links.length === 0 && <p className="text-xs text-white/40">Belum ada orang. Isi nama di atas, atau buka link check-in setelah namamu muncul.</p>}
-            {links
-              .filter((link) => focus === "all" || link.staffId === focus)
-              .map((link) => {
-                const mine = points.filter((point) => point.staff_id === link.staffId);
-                const pagi = mine.find((point) => point.kind === "checkin_pagi");
-                const sore = mine.find((point) => point.kind === "checkin_sore");
-                const visits = mine.filter((point) => point.kind === "visit");
-                const last = mine[0];
-                return (
-                  <article key={link.staffId} className="rounded-xl border border-white/10 bg-black/30 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm text-white" style={{ color: colorOf(link.staffId) }}>
-                        {link.nama}
-                      </p>
-                      <div className="flex shrink-0 gap-2">
-                        <button type="button" onClick={() => void copy(link)} className="text-[11px] text-[#d4af37]">
-                          {copied === link.staffId ? "Link tersalin" : "Salin link HP"}
-                        </button>
-                        {link.role !== "FOUNDER" && (
-                          <button type="button" onClick={() => void remove(link)} className="text-[11px] text-red-300">
-                            Hapus
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="mt-1 text-[11px] text-white/40">
-                      {link.status !== "active"
-                        ? "Belum bisa berangkat. Aktifkan dulu."
-                        : link.terhubung
-                          ? "Sudah punya akun. Siap check-in dari HP."
-                          : "Belum punya akun. Sales buka link ini, lalu daftar atau masuk."}
-                    </p>
-                    {link.status === "active" && link.token ? (
-                      <a
-                        href={link.path}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 block rounded-lg bg-[#d4af37] py-2 text-center text-[11px] font-semibold text-[#08080f]"
-                      >
-                        Coba di HP saya
-                      </a>
-                    ) : link.status !== "active" ? (
-                      <button type="button" onClick={() => void activate(link.staffId)} className="mt-2 w-full rounded-lg bg-white/10 py-2 text-[11px]">
-                        Aktifkan untuk check-in
-                      </button>
-                    ) : null}
-                    <p className="mt-1 text-[11px] text-white/50">
-                      {pagi ? `Berangkat ${clock(pagi.recorded_at)}${pagi.late ? " · telat" : ""}` : date === today ? "Belum berangkat hari ini" : "Tidak berangkat tanggal ini"}
-                      {sore ? ` · Pulang ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}
-                      {` · ${visits.length} tempat nawar`}
-                    </p>
-                    {last && (
-                      <a href={mapsUrl(last.lat, last.lng)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#00f0ff]">
-                        Posisi terakhir {clock(last.recorded_at)} · {KIND[last.kind]}
-                      </a>
-                    )}
-                  </article>
-                );
-              })}
-          </div>
-
-          <h2 className="mb-2 mt-5 text-[10px] font-bold tracking-[0.18em] text-[#d4af37]">FOTO HARI INI</h2>
-          {docs.length === 0 ? (
-            <p className="text-xs leading-5 text-white/35">
-              {date === today
-                ? "Belum ada foto hari ini. Nanti foto check-in dan tempat nawar tersimpan di tanggal ini."
-                : "Tanggal ini belum ada foto."}
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {docs.map((point) => {
-                const who = links.find((link) => link.staffId === point.staff_id)?.nama || "Sales";
-                return (
-                  <li key={point.id} className="overflow-hidden rounded-xl border border-white/10">
-                    {point.photo_url && <img src={point.photo_url} alt="" className="h-28 w-full object-cover" />}
-                    <div className="p-2">
-                      <p className="text-xs text-white">
-                        {who} · {KIND[point.kind]}
-                      </p>
-                      <p className="text-[11px] text-white/50">
-                        {clock(point.recorded_at)}
-                        {point.note ? ` · ${point.note}` : ""}
-                      </p>
-                      <a href={mapsUrl(point.lat, point.lng)} target="_blank" rel="noreferrer" className="text-[11px] text-[#00f0ff]">
-                        Lihat di peta luar
-                      </a>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </aside>
-
-        <div className="relative min-h-[55vh] lg:min-h-0">
-          <div className="pointer-events-none absolute inset-0 z-[400] bg-[linear-gradient(rgba(0,240,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.05)_1px,transparent_1px)] bg-[size:48px_48px]" />
-          <TrackingMap points={visible} colorOf={colorOf} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">Henima Tracking</h2>
+          <p className="mt-1 text-sm font-medium text-[#94A3B8]">Pantau lokasi sales, rute perjalanan, dan foto check-in secara real-time.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Total sales" value={String(fieldLinks.length)} hint="orang" />
+          <Stat label="Di jalan" value={String(onRoad)} hint="masih muter" tone="ok" />
+          <Stat label="Terlambat" value={String(late)} hint="lewat 09:00" tone="late" />
+          <Stat label="Check-in" value={String(checkins)} hint={date === today ? "hari ini" : dayLabel(date)} />
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Cari nama sales atau catatan tempat"
+          className="h-10 min-w-[220px] flex-1 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-medium outline-none placeholder:text-[#94A3B8]"
+        />
+        <button type="button" onClick={() => openDay(shiftDay(date, -1))} className="h-10 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-semibold text-[#94A3B8]">
+          Sebelumnya
+        </button>
+        <input
+          type="date"
+          value={date}
+          max={today}
+          onChange={(event) => event.target.value && openDay(event.target.value)}
+          className="h-10 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-semibold"
+        />
+        {date !== today && (
+          <button type="button" onClick={() => openDay(today)} className="h-10 rounded-xl border border-[#06D6D6]/40 px-3 text-sm font-semibold text-[#06D6D6]">
+            Hari ini
+          </button>
+        )}
+        <span className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${date === today ? "border-[#22E6A8]/30 text-[#22E6A8]" : "border-[#243247] text-[#94A3B8]"}`}>
+          <span className={`h-2 w-2 rounded-full ${date === today ? "bg-[#22E6A8]" : "bg-[#94A3B8]"}`} />
+          {date === today ? "Live tracking" : "Arsip"}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {memory.slice(0, 10).map((ymd) => (
+          <button
+            key={ymd}
+            type="button"
+            onClick={() => openDay(ymd)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${ymd === date ? "border-[#FFD34D] text-[#FFD34D]" : "border-[#243247] text-[#94A3B8]"}`}
+          >
+            {ymd === today ? "Hari ini" : dayLabel(ymd)}
+          </button>
+        ))}
+      </div>
+      {notice && <p className="rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200">{notice}</p>}
+      {formError && <p className="rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200">{formError}</p>}
+
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[340px_1fr]">
+        <aside className="flex max-h-[46vh] min-h-0 flex-col gap-2 overflow-hidden lg:max-h-none">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            <FilterChip active={focus === "all"} onClick={() => setFocus("all")} label="Semua" />
+            {people.map((link) => (
+              <FilterChip key={link.staffId} active={focus === link.staffId} onClick={() => setFocus(link.staffId)} label={link.nama} color={colorOf(link.staffId)} />
+            ))}
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {people.length === 0 && <p className="rounded-2xl border border-[#243247] bg-[#101827] p-4 text-sm text-[#94A3B8]">Tidak ada sales dengan nama itu.</p>}
+            {people.map((link) => {
+              const card = snapshot(link, points);
+              return (
+                <article key={link.staffId} className="rounded-2xl border border-[#243247] bg-[#101827] p-3">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-[#080D18]" style={{ background: colorOf(link.staffId) }}>
+                      {initials(link.nama)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-bold">{link.nama}</p>
+                        <StatusBadge status={card.status} />
+                      </div>
+                      <p className="mt-1 text-xs font-medium text-[#94A3B8]">
+                        {card.last ? `Terakhir ${clock(card.last.recorded_at)} · ${KIND[card.last.kind]}` : "Belum ada titik"}
+                        {` · ${card.visits.length} tempat`}
+                      </p>
+                      <p className="mt-0.5 text-xs font-medium text-[#94A3B8]">
+                        {card.last?.note || (card.last ? "Titik GPS tersimpan" : link.terhubung ? "Akun siap, belum berangkat" : "Belum masuk lewat link HP")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setFocus(link.staffId)} className="rounded-xl bg-[#06D6D6] py-2 text-xs font-bold text-[#080D18]">
+                      Lihat di peta
+                    </button>
+                    <button type="button" onClick={() => void copy(link)} className="rounded-xl border border-[#243247] py-2 text-xs font-semibold text-[#FFD34D]">
+                      {copied === link.staffId ? "Tersalin" : "Salin link HP"}
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs font-semibold">
+                    <button type="button" onClick={() => setDetail(detail === link.staffId ? "" : link.staffId)} className="text-[#94A3B8]">
+                      {detail === link.staffId ? "Tutup detail" : "Lihat detail"}
+                    </button>
+                    {link.role !== "FOUNDER" && (
+                      <button type="button" onClick={() => void remove(link)} className="text-red-300">
+                        Hapus
+                      </button>
+                    )}
+                  </div>
+                  {link.status !== "active" && (
+                    <button type="button" onClick={() => void activate(link.staffId)} className="mt-2 w-full rounded-xl border border-[#243247] py-2 text-xs font-semibold">
+                      Aktifkan untuk check-in
+                    </button>
+                  )}
+                  {detail === link.staffId && (
+                    <ul className="mt-3 space-y-1 border-t border-[#243247] pt-2 text-xs text-[#94A3B8]">
+                      {card.mine.filter((point) => point.kind !== "ping").length === 0 && <li>Belum ada check-in atau tempat nawar.</li>}
+                      {card.mine
+                        .filter((point) => point.kind !== "ping")
+                        .map((point) => (
+                          <li key={point.id} className="flex justify-between gap-2">
+                            <span>{KIND[point.kind]}{point.note ? ` · ${point.note}` : ""}</span>
+                            <span>{clock(point.recorded_at)}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </article>
+              );
+            })}
+            <form
+              className="flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void addSales();
+              }}
+            >
+              <input
+                value={nama}
+                onChange={(event) => setNama(event.target.value)}
+                placeholder="Nama sales baru"
+                className="h-10 min-w-0 flex-1 rounded-xl border border-[#243247] bg-[#080D18] px-3 text-sm outline-none"
+              />
+              <button type="submit" disabled={adding || !nama.trim()} className="rounded-xl bg-[#FFD34D] px-3 text-xs font-bold text-[#080D18] disabled:opacity-40">
+                {adding ? "..." : "Tambah"}
+              </button>
+            </form>
+          </div>
+        </aside>
+
+        <section className="flex min-h-0 flex-col gap-3">
+          <div className="relative min-h-[360px] flex-1 overflow-hidden rounded-2xl border border-[#243247] bg-[#080D18]">
+            <TrackingMap points={visible} colorOf={colorOf} nameOf={nameOf} focusStaffId={focus === "all" ? undefined : focus} />
+            <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded-xl border border-[#243247] bg-[#101827]/95 px-3 py-2 text-[11px] font-medium text-[#94A3B8]">
+              <p><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#22E6A8]" />Posisi terbaru</p>
+              <p className="mt-1"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#FFD34D]" />Tempat nawar</p>
+              <p className="mt-1">Garis warna = rute orang itu</p>
+            </div>
+            {visible.length === 0 && (
+              <p className="pointer-events-none absolute left-1/2 top-4 z-[400] -translate-x-1/2 rounded-xl border border-[#243247] bg-[#101827]/95 px-3 py-2 text-center text-xs font-medium text-[#94A3B8]">
+                Belum ada jejak pada tanggal ini.
+              </p>
+            )}
+          </div>
+
+          <div id="foto-checkin" className="shrink-0">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-bold">Foto check-in hari ini</h3>
+              <span className="text-xs font-medium text-[#94A3B8]">{photos.length} foto</span>
+            </div>
+            {photos.length === 0 ? (
+              <p className="rounded-2xl border border-[#243247] bg-[#101827] px-3 py-4 text-sm text-[#94A3B8]">
+                {date === today ? "Foto muncul di sini setelah sales check-in atau mencatat tempat nawar." : "Tanggal ini belum ada foto."}
+              </p>
+            ) : (
+              <ul className="flex gap-2 overflow-x-auto pb-1">
+                {photos.map((point) => (
+                  <li key={point.id} className="w-40 shrink-0 overflow-hidden rounded-2xl border border-[#243247] bg-[#101827]">
+                    {point.photo_url ? (
+                      <img src={point.photo_url} alt="" className="h-24 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-24 items-center justify-center text-xs text-[#94A3B8]">Foto gagal dimuat</div>
+                    )}
+                    <div className="p-2">
+                      <p className="truncate text-xs font-bold">{nameOf(point.staff_id)}</p>
+                      <p className="text-[11px] font-medium text-[#94A3B8]">{clock(point.recorded_at)} · {KIND[point.kind]}</p>
+                      <p className="truncate text-[11px] text-[#94A3B8]">{point.note || "Titik GPS"}</p>
+                      <button type="button" onClick={() => setFocus(point.staff_id)} className="mt-1 text-[11px] font-semibold text-[#06D6D6]">
+                        Lihat di peta
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
+  );
+}
+
+function Stat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: "ok" | "late" }) {
+  const color = tone === "ok" ? "text-[#22E6A8]" : tone === "late" ? "text-[#FFD34D]" : "text-[#F1F5F9]";
+  return (
+    <div className="min-w-[120px] rounded-2xl border border-[#243247] bg-[#101827] px-3 py-2">
+      <p className="text-[11px] font-semibold text-[#94A3B8]">{label}</p>
+      <p className={`text-lg font-bold ${color}`}>{value}</p>
+      <p className="text-[11px] font-medium text-[#94A3B8]">{hint}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: { label: string; tone: "off" | "road" | "late" } }) {
+  const cls =
+    status.tone === "road"
+      ? "bg-[#22E6A8]/15 text-[#22E6A8]"
+      : status.tone === "late"
+        ? "bg-[#FFD34D]/15 text-[#FFD34D]"
+        : "bg-white/5 text-[#94A3B8]";
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cls}`}>{status.label}</span>;
+}
+
+function FilterChip({ active, onClick, label, color }: { active: boolean; onClick: () => void; label: string; color?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full border px-2.5 py-1 text-xs font-semibold"
+      style={{ borderColor: active ? color || "#06D6D6" : "#243247", color: active ? color || "#06D6D6" : "#94A3B8" }}
+    >
+      {label}
+    </button>
   );
 }

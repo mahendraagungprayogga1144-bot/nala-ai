@@ -20,13 +20,30 @@ function clock(iso: string) {
   }).format(new Date(iso));
 }
 
+function shiftDay(ymd: string, days: number) {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function dayLabel(ymd: string) {
+  return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" }).format(
+    new Date(`${ymd}T12:00:00+07:00`),
+  );
+}
+
 export default function TrackingDesk({
   date,
+  today,
+  days,
   links,
   points,
   notice,
 }: {
   date: string;
+  today: string;
+  days: string[];
   links: TrackingLink[];
   points: TrackingPoint[];
   notice?: string;
@@ -39,9 +56,10 @@ export default function TrackingDesk({
   const [formError, setFormError] = useState("");
 
   useEffect(() => {
+    if (date !== today) return;
     const timer = window.setInterval(() => router.refresh(), 25000);
     return () => window.clearInterval(timer);
-  }, [router]);
+  }, [router, date, today]);
 
   const colorOf = useMemo(() => {
     const map = new Map(links.map((link, index) => [link.staffId, staffColor(index)]));
@@ -52,6 +70,12 @@ export default function TrackingDesk({
   const docs = [...visible]
     .filter((point) => point.kind === "visit" || point.kind === "checkin_pagi" || point.photo_url)
     .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
+  const memory = days.includes(date) ? days : [date, ...days];
+
+  function openDay(ymd: string) {
+    const next = ymd > today ? today : ymd;
+    router.push(next === today ? "/dashboard/henima-tracking" : `/dashboard/henima-tracking?hari=${next}`);
+  }
 
   async function copy(link: TrackingLink) {
     await navigator.clipboard.writeText(`${window.location.origin}${link.path}`);
@@ -130,16 +154,39 @@ export default function TrackingDesk({
       `}</style>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[340px_1fr]">
         <aside className="max-h-[40vh] overflow-y-auto border-b border-[#00f0ff]/15 bg-[#070b12]/95 p-4 lg:max-h-none lg:border-b-0 lg:border-r">
-          <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">CARA PAKAI</p>
+          <p className="text-[10px] font-bold tracking-[0.22em] text-[#00f0ff]">INGATAN HARIAN</p>
           <p className="mt-1 text-xs leading-5 text-white/70">
-            Kamu di sini hanya memantau. Sales yang berangkat lewat HP.
+            {date === today ? "Hari ini, masih berjalan." : `Arsip ${dayLabel(date)}. Jejak hari itu tidak hilang.`}
           </p>
-          <ol className="mt-2 space-y-1 text-[11px] leading-4 text-white/50">
-            <li>1. Pilih nama, lalu salin link dan kirim ke HP sales.</li>
-            <li>2. Sales masuk, foto tempatnya, ambil GPS, lalu check-in.</li>
-            <li>3. Rute jalan dan fotonya muncul di peta sebelah kanan.</li>
-          </ol>
-          <p className="mt-2 text-[11px] text-white/40">{date} · peta ini disegarkan sendiri</p>
+          <div className="mt-2 flex items-center gap-2">
+            <button type="button" onClick={() => openDay(shiftDay(date, -1))} className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/70">
+              Sebelumnya
+            </button>
+            <input
+              type="date"
+              value={date}
+              max={today}
+              onChange={(event) => event.target.value && openDay(event.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[11px] text-white"
+            />
+            {date !== today && (
+              <button type="button" onClick={() => openDay(today)} className="rounded-lg border border-[#00f0ff]/40 px-2 py-1 text-[11px] text-[#00f0ff]">
+                Hari ini
+              </button>
+            )}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {memory.slice(0, 8).map((ymd) => (
+              <button
+                key={ymd}
+                type="button"
+                onClick={() => openDay(ymd)}
+                className={`rounded-full border px-2 py-0.5 text-[11px] ${ymd === date ? "border-[#d4af37] text-[#d4af37]" : "border-white/10 text-white/45"}`}
+              >
+                {ymd === today ? "Hari ini" : dayLabel(ymd)}
+              </button>
+            ))}
+          </div>
           {notice && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-950/40 px-2 py-2 text-[11px] text-red-200">{notice}</p>}
           <div className="mt-3 flex flex-wrap gap-1.5">
             <button
@@ -233,7 +280,7 @@ export default function TrackingDesk({
                       </button>
                     ) : null}
                     <p className="mt-1 text-[11px] text-white/50">
-                      {pagi ? `Berangkat ${clock(pagi.recorded_at)}${pagi.late ? " · telat" : ""}` : "Belum berangkat hari ini"}
+                      {pagi ? `Berangkat ${clock(pagi.recorded_at)}${pagi.late ? " · telat" : ""}` : date === today ? "Belum berangkat hari ini" : "Tidak berangkat tanggal ini"}
                       {sore ? ` · Pulang ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}
                       {` · ${visits.length} tempat nawar`}
                     </p>
@@ -249,7 +296,11 @@ export default function TrackingDesk({
 
           <h2 className="mb-2 mt-5 text-[10px] font-bold tracking-[0.18em] text-[#d4af37]">FOTO HARI INI</h2>
           {docs.length === 0 ? (
-            <p className="text-xs leading-5 text-white/35">Belum ada foto. Foto check-in dan foto tempat nawar akan nongol di sini, sekaligus di titik petanya.</p>
+            <p className="text-xs leading-5 text-white/35">
+              {date === today
+                ? "Belum ada foto hari ini. Nanti foto check-in dan tempat nawar tersimpan di tanggal ini."
+                : "Tanggal ini belum ada foto."}
+            </p>
           ) : (
             <ul className="space-y-3">
               {docs.map((point) => {

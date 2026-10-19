@@ -4,21 +4,37 @@ import { guardPage } from "../lib/page-guard";
 import { loadSalesContext } from "@/lib/henima-sales/page-context";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTrackingTable, loadTrackingDesk } from "@/lib/henima-tracking/service";
+import { todayWib } from "@/lib/date";
 import TrackingDesk from "./tracking-desk";
 
-export default function HenimaTrackingPage() {
+function chosenDay(raw: string | undefined) {
+  const today = todayWib();
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw) || raw > today) return today;
+  return raw;
+}
+
+export default async function HenimaTrackingPage({ searchParams }: { searchParams: Promise<{ hari?: string }> }) {
+  const { hari } = await searchParams;
+  const day = chosenDay(hari);
   return guardPage("Henima Tracking", async () => {
     try {
       const [{ actor, db }, session] = await Promise.all([loadSalesContext(), createClient()]);
-      const desk = await loadTrackingDesk(db, session, actor);
+      const desk = await loadTrackingDesk(db, session, actor, day);
       return (
         <div className="flex h-[calc(100dvh-4.75rem)] min-h-[640px] flex-col px-3 pb-3 pt-3 md:h-screen">
           <ModuleHeader
             icon={Activity}
             title="Henima Tracking"
-            subtitle="Meja pantau founder. Kirim link ke sales. Setelah mereka check-in, rute dan fotonya muncul di peta ini."
+            subtitle="Meja pantau founder. Jejak dan foto tiap hari tetap tersimpan. Pilih tanggal untuk membuka hari itu."
           />
-          <TrackingDesk date={desk.date} links={desk.links} points={desk.points} notice={desk.notice} />
+          <TrackingDesk
+            date={desk.date}
+            today={desk.today}
+            days={desk.days}
+            links={desk.links}
+            points={desk.points}
+            notice={desk.notice}
+          />
         </div>
       );
     } catch (err) {

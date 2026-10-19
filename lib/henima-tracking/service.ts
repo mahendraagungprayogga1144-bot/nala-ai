@@ -171,15 +171,15 @@ export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<Tr
   });
 }
 
-export async function loadVisiblePoints(db: SalesDb) {
-  const win = dayWindow();
+export async function loadVisiblePoints(db: SalesDb, ymd = todayWib()) {
+  const win = dayWindow(ymd);
   const { data, error } = await db
     .from("module_henima_tracking_points")
     .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
     .gte("recorded_at", win.from)
     .lt("recorded_at", win.to)
     .order("recorded_at", { ascending: false })
-    .limit(400);
+    .limit(1500);
   if (error) throw new SalesError(error.message, "tracking_read");
   const rows = data || [];
   const signed = await Promise.all(rows.map((row) => (row.photo_path ? signPhoto(db, row.photo_path) : Promise.resolve(null))));
@@ -189,7 +189,25 @@ export async function loadVisiblePoints(db: SalesDb) {
   };
 }
 
-export async function loadTrackingDesk(admin: SalesDb, session: SalesDb, actor: Actor) {
+export async function loadTrackingDays(db: SalesDb) {
+  const since = addDaysYmd(todayWib(), -120);
+  const { data, error } = await db
+    .from("module_henima_tracking_points")
+    .select("recorded_at")
+    .in("kind", ["checkin_pagi", "visit", "checkin_sore"])
+    .gte("recorded_at", `${since}T00:00:00+07:00`)
+    .order("recorded_at", { ascending: false })
+    .limit(800);
+  if (error) return [] as string[];
+  const days: string[] = [];
+  for (const row of data || []) {
+    const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(row.recorded_at));
+    if (!days.includes(ymd)) days.push(ymd);
+  }
+  return days;
+}
+
+export async function loadTrackingDesk(admin: SalesDb, session: SalesDb, actor: Actor, ymd = todayWib()) {
   let links: TrackingLink[] = [];
   let notice = "";
   try {
@@ -197,6 +215,6 @@ export async function loadTrackingDesk(admin: SalesDb, session: SalesDb, actor: 
   } catch (err) {
     notice = err instanceof Error ? err.message : "Link check-in gagal dibuat.";
   }
-  const visible = await loadVisiblePoints(session);
-  return { date: visible.date, links, points: visible.points, notice };
+  const [visible, days] = await Promise.all([loadVisiblePoints(session, ymd), loadTrackingDays(session)]);
+  return { date: visible.date, today: todayWib(), days, links, points: visible.points, notice };
 }

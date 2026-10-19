@@ -6,31 +6,6 @@ import type { TrackingPoint } from "@/lib/henima-tracking/shared";
 
 const COLORS = ["#00f0ff", "#d4af37", "#ff2bd6", "#7CFF6B", "#8B5CF6"];
 
-function esc(value: string) {
-  return value.replace(/[&<>"']/g, (char) => {
-    if (char === "&") return "&amp;";
-    if (char === "<") return "&lt;";
-    if (char === ">") return "&gt;";
-    if (char === '"') return "&quot;";
-    return "&#39;";
-  });
-}
-
-function clock(iso: string) {
-  return new Intl.DateTimeFormat("id-ID", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
-
-const KIND: Record<TrackingPoint["kind"], string> = {
-  checkin_pagi: "Check-in",
-  checkin_sore: "Check-out",
-  visit: "Nawar",
-  ping: "Jejak",
-};
-
 export default function TrackingMap({
   points,
   colorOf,
@@ -105,19 +80,6 @@ export default function TrackingMap({
             fillColor: point.kind === "visit" ? "#FFD34D" : point.kind === "checkin_sore" ? "#fb7185" : color,
             fillOpacity: 0.95,
           }).addTo(map);
-          const photo = point.photo_url
-            ? `<img src="${esc(point.photo_url)}" alt="" style="width:220px;max-height:160px;object-fit:cover;border-radius:8px;margin-top:8px;display:block" />`
-            : "";
-          marker.bindPopup(
-            `<div style="min-width:200px;font-family:inherit">
-              <div style="font-size:13px;font-weight:700;color:${color}">${esc(nameOf(staffId))}</div>
-              <div style="font-size:11px;letter-spacing:.08em;margin-top:2px">${esc(KIND[point.kind])}</div>
-              <div style="margin-top:4px;font-size:13px">${esc(point.note || "Titik GPS tersimpan")}</div>
-              <div style="margin-top:2px;font-size:11px;opacity:.7">${esc(clock(point.recorded_at))}</div>
-              ${photo}
-            </div>`,
-            { maxWidth: 260 },
-          );
           marker.on("click", () => onPointRef.current?.(point));
         }
       }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -556,42 +557,44 @@ export default function TrackingDesk({
           </section>
         </div>
       </div>
-      {viewer && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4" onClick={() => setViewer(null)}>
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#243247] bg-[#101827] shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            {viewer.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={viewer.photo_url} alt="" className="max-h-[70vh] w-full bg-black object-contain" />
-            ) : (
-              <p className="px-4 py-10 text-center text-sm text-[#94A3B8]">Titik ini belum ada foto.</p>
-            )}
-            <div className="flex items-start justify-between gap-3 p-4">
-              <div>
-                <p className="text-sm font-bold">{nameOf(viewer.staff_id)}</p>
-                <p className="text-xs font-medium text-[#94A3B8]">{clock(viewer.recorded_at)} · {KIND[viewer.kind]}</p>
-                <p className="mt-1 text-xs text-[#94A3B8]">{viewer.note || "Titik GPS tersimpan"}</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFocus(viewer.staff_id);
-                    setFocusPointId(viewer.id);
-                    setViewer(null);
-                    document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
-                  }}
-                  className="rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]"
-                >
-                  Lihat di peta
-                </button>
-                <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#243247] px-3 py-2 text-xs font-semibold">
-                  Tutup
-                </button>
+      {viewer &&
+        createPortal(
+          <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 p-4" onClick={() => setViewer(null)}>
+            <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#243247] bg-[#101827] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+              {viewer.photo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={viewer.photo_url} alt="" className="max-h-[70vh] w-full bg-black object-contain" />
+              ) : (
+                <p className="px-4 py-10 text-center text-sm text-[#94A3B8]">Titik ini belum ada foto.</p>
+              )}
+              <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">{nameOf(viewer.staff_id)}</p>
+                  <p className="text-xs font-medium text-[#94A3B8]">{clock(viewer.recorded_at)} · {KIND[viewer.kind]}</p>
+                  <p className="mt-1 text-xs text-[#94A3B8]">{viewer.note || "Titik GPS tersimpan"}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFocus(viewer.staff_id);
+                      setFocusPointId(viewer.id);
+                      setViewer(null);
+                      document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
+                    }}
+                    className="rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]"
+                  >
+                    Lihat di peta
+                  </button>
+                  <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#243247] px-3 py-2 text-xs font-semibold">
+                    Tutup
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

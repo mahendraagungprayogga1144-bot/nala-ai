@@ -56,7 +56,6 @@ export default function TrackingDesk({
   return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#00f0ff]/25 bg-[#05070d] shadow-[0_0_40px_rgba(0,240,255,0.08)]">
       <style>{`
-        .henima-track-map .leaflet-tile-pane { filter: invert(1) hue-rotate(185deg) saturate(0.55) brightness(0.92) contrast(1.05); }
         .henima-track-map .leaflet-control-zoom a { background:#070b12; color:#00f0ff; border-color:rgba(0,240,255,.35); }
         .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip {
           background:#070b12; color:#e7fff8; box-shadow:0 0 18px rgba(0,240,255,.28);

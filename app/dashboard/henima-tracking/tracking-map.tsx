@@ -51,10 +51,14 @@ export default function TrackingMap({
       const L = leaflet.default ?? leaflet;
       if (cancelled || !host.current) return;
       map = L.map(host.current, { zoomControl: true, attributionControl: true }).setView([-2.2, 118], 5);
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19,
-        attribution: "Tiles &copy; Esri",
-      }).addTo(map);
+      const key = process.env.NEXT_PUBLIC_MAPTILER_KEY || "w5GCpH0T3D6oGpmDyI29";
+      if (key) {
+        L.tileLayer(`https://api.maptiler.com/maps/streets-v2-dark/256/{z}/{x}/{y}.png?key=${key}`, {
+          maxZoom: 20,
+          attribution:
+            '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
+      }
 
       const byStaff = new Map<string, TrackingPoint[]>();
       for (const point of points) {

@@ -40,9 +40,11 @@ export function parseShopeeShotJson(raw: string): ShopeeShot | null {
   const jumlah = marked || Math.max(1, Math.round(Number(data.qty || data.jumlah) || 1));
   const hasAfternoon = /afternoon/.test(product) || afternoonQty > 0;
   const hasDistance = /distance/.test(product) || distanceQty > 0;
-  if (marked > 0 && hasAfternoon && hasDistance) {
-    afternoonQty = marked;
-    distanceQty = marked;
+  const duo = /duo|paket/.test(product) || (/afternoon/.test(product) && /distance/.test(product));
+  if (duo) {
+    const each = marked || Math.max(afternoonQty, distanceQty, 1);
+    afternoonQty = each;
+    distanceQty = each;
   } else if (marked > 0 && hasDistance && !hasAfternoon) {
     distanceQty = marked;
     afternoonQty = 0;
@@ -113,9 +115,10 @@ export async function readShopeeScreenshot(bytes: Uint8Array, mime: string): Pro
                   '{"buyer":"","net":0,"mark":"x1","product":"","afternoon":0,"distance":0}',
                   "buyer = username pembeli, bukan nama toko.",
                   "net = Penghasilan Akhir atau Estimasi Total Penghasilan. Bukan harga satuan.",
+                  "product = salinan judul lengkap, termasuk kata Duo dan kedua nama parfum.",
                   "Di kartu produk paling bawah ada judul besar. Tepat di bawah judul itu ada tulisan kecil x1 atau x2. Itu jumlahnya. Isi mark dengan tulisan kecil itu, misalnya x2.",
-                  "Judul The Distance dengan tulisan kecil x2 berarti distance 2, bukan 1.",
-                  "Judul yang memuat Afternoon dan The Distance dengan tulisan kecil x2 berarti afternoon 2 dan distance 2.",
+                  "Judul The Distance saja dengan tulisan kecil x2 berarti distance 2 dan afternoon 0.",
+                  "Judul Duo, atau judul yang memuat Afternoon dan The Distance, berarti satu paket berisi keduanya. Tulisan kecil x1 berarti afternoon 1 dan distance 1. Jangan isi afternoon saja.",
                   "Jangan mengambil jumlah dari judul. Kalau bukan pesanan Shopee, net 0.",
                 ].join("\n"),
               },

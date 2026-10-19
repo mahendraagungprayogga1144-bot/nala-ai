@@ -6,7 +6,7 @@ import { resolveActorByTelegramId, linkTelegramByInvite } from "../authz";
 import { createExpense, listExpenses, softDeleteExpense, updateExpense } from "../expense-service";
 import { latestRestorableAudit, writeAudit } from "../audit";
 import { periodRange, type PeriodKind } from "../dates";
-import { createStaff, listProducts, listStaff, upsertSalesProduct } from "../staff-service";
+import { createStaff, invalidateProductCache, listProducts, listStaff, upsertSalesProduct } from "../staff-service";
 import { salesInviteShareText } from "../sales-guide";
 import { formatSalesBriefing, formatTeamRoster, isManager, mainMenuKeyboard, recruitPrompt } from "./menu";
 import { createCustomer, findCustomerByPhone, getCustomer, listCustomers } from "../customer-service";
@@ -24,11 +24,12 @@ import { paymentLabel, SalesError } from "../types";
 import { reduceBot, looksLikeGenericHint, customerFoundText, confirmKeyboard, productKeyboard, paymentKeyboard } from "./fsm";
 import { shouldUseDeskAgent } from "./agent";
 import { runDeskLoop } from "./desk-loop";
+import { formatStockReply } from "./desk-tools";
 import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from "./founder-ops";
 import { clearAgentMemory, compactTurns, createAgentTask, listAgentMemory, listAgentTasks, memoryContext, saveAgentNote, setAgentTaskStatus } from "./agent-memory";
 import type { Session, SessionMemory } from "./session";
 import { connectedStatusText, newDraft, formatConfirm, formatOrderItemsLabel, formatRiwayatCard, customerNameFromNote, draftSaleLines, applyLinesToDraft, applyCatalogPricing } from "./session";
-import { buildPackLines, extractStaffQuery, looksLikeFollowUp, parseOpsIntent, periodFromText } from "./nl-sale";
+import { buildPackLines, extractStaffQuery, looksLikeFollowUp, looksLikeStockRead, parseOpsIntent, periodFromText } from "./nl-sale";
 import { alreadyApplied, looksLikeExpenseMutation, planExpenseMessage } from "./expense-nl";
 import { looksLikeWorkEdit, planWorkMessage, taskJob } from "./crud-nl";
 import { notifyFounderWhatsApp } from "../whatsapp/infobip";
@@ -379,7 +380,17 @@ export async function handleTelegramUpdate(db: SalesDb, update: TgUpdate) {
       }
     }
   }
-  if (actor && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !founderGate && !expenseHandled) {
+  let stockHandled = false;
+  if (actor && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !founderGate && !expenseHandled && looksLikeStockRead(incoming.text)) {
+    stockHandled = true;
+    invalidateProductCache(actor.businessId);
+    const catalog = await listProducts(db, actor.businessId);
+    reduced = {
+      session,
+      effects: [{ type: "reply", reply: { text: formatStockReply(catalog), keyboard: mainMenuKeyboard(actor) } }],
+    };
+  }
+  if (actor && incoming.kind === "text" && session.state === "idle" && !memoryHandled && !founderGate && !expenseHandled && !stockHandled) {
     const catalog = products.length ? products : await listProducts(db, actor.businessId);
     const raw = incoming.text;
     const combined =

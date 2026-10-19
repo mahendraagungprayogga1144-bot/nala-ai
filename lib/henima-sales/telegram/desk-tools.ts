@@ -14,6 +14,14 @@ import { executeFounderCommand, needsFounderApproval, parseFounderCommand } from
 import { formatSalesBriefing, formatTeamRoster } from "./menu";
 import type { BotEffect } from "./session";
 
+export function formatStockReply(products: { name: string; stock: number | null }[]) {
+  const rows = products.filter((p) => p.name);
+  if (!rows.length) return "Katalog kosong.";
+  const pcs = (n: number) => Math.round(n).toLocaleString("id-ID");
+  const total = rows.reduce((s, p) => s + Number(p.stock || 0), 0);
+  return ["Stok sekarang:", "", ...rows.map((p) => `${p.name} ${pcs(Number(p.stock || 0))} pcs`), "", `Total ${pcs(total)} pcs`].join("\n");
+}
+
 export type DeskTool = {
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };

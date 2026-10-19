@@ -73,6 +73,8 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
 
   const extraEffects: BotEffect[] = [];
   let finalText = "";
+  let factText = "";
+  const factTools = new Set(["lihat_produk", "lihat_keuangan", "lihat_biaya", "data_sales", "get_sales_summary", "calculate_profit"]);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
 
@@ -99,7 +101,7 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
       };
       const msg = body.choices?.[0]?.message;
       if (!msg) break;
-      if (msg.content) finalText = String(msg.content).trim();
+      if (msg.content && !factText) finalText = String(msg.content).trim();
       const calls = msg.tool_calls || [];
       if (!calls.length) break;
 
@@ -118,6 +120,7 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
           telegramUserId: opts.telegramUserId,
         });
         if (out.effects?.length) extraEffects.push(...out.effects);
+        if (factTools.has(call.function.name)) factText = out.text;
         messages.push({ role: "tool", tool_call_id: call.id, content: out.text.slice(0, 2500) });
       }
     }
@@ -127,6 +130,7 @@ ${opts.session.memory?.summary ? `Ringkasan chat lama:\n${opts.session.memory.su
     clearTimeout(timer);
   }
 
+  if (factText) finalText = factText;
   if (!finalText) {
     if (chitchat) finalText = greetingReply(opts.actor);
     else if (extraEffects.length) finalText = "Sudah dikerjakan.";

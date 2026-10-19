@@ -10,7 +10,7 @@ import { reduceBot } from "../telegram/fsm";
 import { connectedStatusText, newDraft, formatRiwayatCard, formatOrderItemsLabel, customerNameFromNote } from "../telegram/session";
 import { SalesError, type Actor } from "../types";
 import { DEFAULT_SALES_BRAND, resolveSalesBrandName } from "../settings-service";
-import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, looksLikeHowTo, needsCompanyData, periodFromText } from "../telegram/nl-sale";
+import { parseSalesChat, parseIdrAmountToken, parseOpsIntent, parsePaymentMethod, parseExpenseChat, buildPackLines, splitTotalAcrossLines, extractProductQuantities, buildQtyLines, buildUnitPriceLines, looksLikeFollowUp, looksLikeChitchat, looksLikeHowTo, looksLikeStockRead, needsCompanyData, periodFromText } from "../telegram/nl-sale";
 import { parseAgentJson, shouldAskAgent, shouldUseDeskAgent, greetingReply } from "../telegram/agent";
 import { parseFounderCommand } from "../telegram/founder-ops";
 import { deskToolsFor, resolveDeskTool } from "../telegram/desk-tools";
@@ -575,6 +575,8 @@ test("ask how many sold is a recap not a sale hint", () => {
   });
   assert.deepEqual(parseOpsIntent("berapa terjual hari ini"), { type: "rekap", period: "today" });
   assert.equal(parseOpsIntent("tarik semua penjualan afternoon laku berapa the distance berapa").type, "rekap");
+  assert.equal(looksLikeStockRead("Stok sekarang untuk 2 produk masih berapa"), true);
+  assert.equal(looksLikeStockRead("ubah stok Afternoon jadi 20"), false);
   assert.equal(parseOpsIntent("Laku 1 atas Nama tommy afternoon harga 100k").type, "none");
   const out = reduceBot(
     { state: "idle", draft: newDraft() },

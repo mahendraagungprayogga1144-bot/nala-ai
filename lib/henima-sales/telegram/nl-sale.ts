@@ -314,6 +314,14 @@ export function looksLikeCompanyFinance(text: string) {
   );
 }
 
+/** "stok sekarang berapa" reads the catalog. "stok Afternoon jadi 20" is an edit. */
+export function looksLikeStockRead(text: string) {
+  const t = (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!/\bstok\b/.test(t)) return false;
+  if (/\b(ubah|ganti|koreksi|jadi|menjadi)\b/.test(t)) return false;
+  return true;
+}
+
 /** "berapa yang terjual semuanya" / "keuangan perusahaan" → rekap, bukan chat penjualan. */
 export function looksLikeAskReport(text: string) {
   const t = text.toLowerCase().replace(/\s+/g, " ").trim();

@@ -26,8 +26,14 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
     try {
       const [{ actor, db }, session] = await Promise.all([loadSalesContext(), createClient()]);
       const desk = await loadTrackingDesk(db, session, actor, day);
+      const { data: auth } = await session.auth.getUser();
+      let ownerName = "Owner";
+      if (auth.user) {
+        const { data: profile } = await session.from("profiles").select("full_name").eq("id", auth.user.id).maybeSingle();
+        ownerName = profile?.full_name || auth.user.email?.split("@")[0] || "Owner";
+      }
       return (
-        <div className={`${jakarta.className} flex h-[calc(100dvh-4.75rem)] min-h-[640px] flex-col bg-[#080D18] px-3 pb-3 pt-3 md:h-screen`}>
+        <div className={`${jakarta.className} flex h-full min-h-0 flex-col bg-[#080D18]`}>
           <TrackingDesk
             date={desk.date}
             today={desk.today}
@@ -35,6 +41,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
             links={desk.links}
             points={desk.points}
             notice={desk.notice}
+            ownerName={ownerName}
           />
         </div>
       );

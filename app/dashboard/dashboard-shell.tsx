@@ -89,6 +89,16 @@ export default function DashboardShell({
     );
   }
 
+  if (pathname?.startsWith("/dashboard/henima-tracking")) {
+    return (
+      <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[#080D18] text-[#F1F5F9]">
+        <SyncActiveBusiness businessId={activeBusiness?.id} />
+        <TrialBanner />
+        <div className="min-h-0 flex-1">{children}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
       <SyncActiveBusiness businessId={activeBusiness?.id} />

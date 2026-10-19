@@ -233,6 +233,7 @@ export default function TrackingDesk({
         .henima-track-map .leaflet-control-zoom a { background:#101827; color:#F1F5F9; border-color:#243247; width: 32px; height: 32px; line-height: 32px; }
         .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip { background:#101827; color:#F1F5F9; }
         .henima-track-map .leaflet-container { background:#080D18; font-family: inherit; }
+        .henima-track-map .leaflet-control-attribution { display: none !important; }
       `}</style>
 
       <aside className={`${navOpen ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[220px] flex-col border-r border-[#243247] bg-[#0B1220]/80 backdrop-blur-md md:static md:flex`}>

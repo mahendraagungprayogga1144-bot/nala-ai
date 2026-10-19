@@ -57,7 +57,7 @@ export default function TrackingMap({
       const leaflet = await import("leaflet");
       const L = leaflet.default ?? leaflet;
       if (cancelled || !host.current) return;
-      map = L.map(host.current, { zoomControl: true, attributionControl: true }).setView([-2.2, 118], 5);
+      map = L.map(host.current, { zoomControl: true, attributionControl: false }).setView([-2.2, 118], 5);
       mapRef.current = map;
       const key = process.env.NEXT_PUBLIC_MAPTILER_KEY || "w5GCpH0T3D6oGpmDyI29";
       const style = basemap === "satelit" ? "satellite" : "streets-v2-dark";
@@ -65,8 +65,7 @@ export default function TrackingMap({
       if (key) {
         L.tileLayer(`https://api.maptiler.com/maps/${style}/256/{z}/{x}/{y}.${ext}?key=${key}`, {
           maxZoom: 20,
-          attribution:
-            '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          attribution: "",
         }).addTo(map);
       }
 

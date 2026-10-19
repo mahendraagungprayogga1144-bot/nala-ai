@@ -186,7 +186,7 @@ export default function TrackingDesk({
                           ? "Akun sudah terhubung"
                           : "Buka check-in, lalu sales masuk dengan akunnya."}
                     </p>
-                    {link.status === "active" ? (
+                    {link.status === "active" && link.token ? (
                       <a
                         href={link.path}
                         target="_blank"
@@ -195,11 +195,11 @@ export default function TrackingDesk({
                       >
                         Buka check-in
                       </a>
-                    ) : (
+                    ) : link.status !== "active" ? (
                       <button type="button" onClick={() => void activate(link.staffId)} className="mt-2 w-full rounded-lg bg-white/10 py-2 text-[11px]">
                         Aktifkan untuk check-in
                       </button>
-                    )}
+                    ) : null}
                     <p className="mt-1 text-[11px] text-white/50">
                       {pagi ? `CI ${clock(pagi.recorded_at)}${pagi.late ? " telat" : ""}` : "Belum check-in"}
                       {sore ? ` · CO ${clock(sore.recorded_at)}` : pagi ? " · masih di jalan" : ""}

@@ -145,34 +145,29 @@ export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<Tr
   const have = new Map((data || []).map((row: { staff_id: string; token: string }) => [row.staff_id, row.token]));
   const missing = staff.filter((row) => !have.has(row.id));
   if (missing.length) {
-    const { error: insErr } = await db.from("module_henima_tracking_links").insert(
-      missing.map((row) => ({
-        business_id: actor.businessId,
-        staff_id: row.id,
-        token: randomBytes(16).toString("hex"),
-      })),
-    );
+    const rows = missing.map((row) => ({
+      business_id: actor.businessId,
+      staff_id: row.id,
+      token: randomBytes(16).toString("hex"),
+    }));
+    const { error: insErr } = await db.from("module_henima_tracking_links").insert(rows);
     if (insErr) throw new SalesError(insErr.message, "tracking_link_create");
-    const { data: again, error: againErr } = await db
-      .from("module_henima_tracking_links")
-      .select("staff_id, token")
-      .eq("business_id", actor.businessId)
-      .in("staff_id", ids);
-    if (againErr) throw new SalesError(againErr.message, "tracking_links");
-    have.clear();
-    for (const row of again || []) have.set(row.staff_id, row.token);
+    for (const row of rows) have.set(row.staff_id, row.token);
   }
-  return staff.map((row) => {
+  return staff.flatMap((row) => {
     const token = have.get(row.id) || "";
-    return {
-      staffId: row.id,
-      nama: row.nama,
-      role: row.role,
-      status: row.status,
-      token,
-      path: `/t/${token}`,
-      terhubung: Boolean(row.user_id),
-    };
+    if (!/^[a-f0-9]{32}$/i.test(token)) return [];
+    return [
+      {
+        staffId: row.id,
+        nama: row.nama,
+        role: row.role,
+        status: row.status,
+        token,
+        path: `/t/${token}`,
+        terhubung: Boolean(row.user_id),
+      },
+    ];
   });
 }
 

@@ -5,14 +5,24 @@ import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 import { crewSpot, PANTRY_PARK, PANTRY_TABLE, STATIONS, salesPantryLoop } from "@/lib/office/layout";
 import { loopPoint, yawToward } from "@/lib/office/motion";
-import { STATUS_LABEL } from "@/lib/office/present";
+import { DIVISION_LABEL } from "@/lib/office/present";
 import type { OfficeAgent } from "@/lib/office/types";
 import FaceLabel from "./room-label";
 
 const WALK_SECONDS = 18;
-const YELLOW = "#F5C518";
+const SKIN = "#F3C7A1";
 const LEG = "#1E3A5F";
 const INK = "#1A1A1A";
+
+const HAIR: Record<string, string> = {
+  "laporan-harian": "#1C1917",
+  "monitor-sales": "#4C1D95",
+  "stok-produksi": "#9A3412",
+  "balas-wa": "#14532D",
+  "meja-software": "#0C4A6E",
+  "divisi-sosmed": "#9D174D",
+  "divisi-marketing": "#9F1239",
+};
 const SIT_LIFT = 0.16;
 const HIP = 0.44;
 
@@ -38,6 +48,7 @@ export default function OfficeAgent({
   const hall = agent.place === "hall";
   const hallSpot = crewSpot(agent.id);
   const seated = !hall && !agent.at_pantry;
+  const hair = HAIR[agent.id] ?? "#292524";
   const face = yawToward(station.chair, station.desk);
 
   useEffect(() => () => {
@@ -141,7 +152,7 @@ export default function OfficeAgent({
         </mesh>
         <mesh position={[0, HIP + 0.48, 0]}>
           <cylinderGeometry args={[0.05, 0.05, 0.05, 8]} />
-          <meshLambertMaterial color={YELLOW} />
+          <meshLambertMaterial color={SKIN} />
         </mesh>
         <group ref={armL} position={[-0.21, HIP + 0.38, 0]}>
           <mesh position={[0, -0.09, 0]}>
@@ -150,7 +161,7 @@ export default function OfficeAgent({
           </mesh>
           <mesh position={[0, -0.2, 0]}>
             <boxGeometry args={[0.07, 0.07, 0.07]} />
-            <meshLambertMaterial color={YELLOW} />
+            <meshLambertMaterial color={SKIN} />
           </mesh>
         </group>
         <group ref={armR} position={[0.21, HIP + 0.38, 0]}>
@@ -160,26 +171,26 @@ export default function OfficeAgent({
           </mesh>
           <mesh position={[0, -0.2, 0]}>
             <boxGeometry args={[0.07, 0.07, 0.07]} />
-            <meshLambertMaterial color={YELLOW} />
+            <meshLambertMaterial color={SKIN} />
           </mesh>
         </group>
         <mesh position={[0, HIP + 0.62, 0]}>
-          <cylinderGeometry args={[0.135, 0.135, 0.24, 12]} />
-          <meshLambertMaterial color={YELLOW} />
+          <sphereGeometry args={[0.16, 16, 12]} />
+          <meshLambertMaterial color={SKIN} />
         </mesh>
-        <mesh position={[0, HIP + 0.765, 0]}>
-          <cylinderGeometry args={[0.055, 0.055, 0.05, 8]} />
-          <meshLambertMaterial color={YELLOW} />
+        <mesh position={[0, HIP + 0.74, 0.02]}>
+          <sphereGeometry args={[0.15, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.42]} />
+          <meshLambertMaterial color={hair} />
         </mesh>
-        <mesh position={[-0.045, HIP + 0.65, -0.145]}>
+        <mesh position={[-0.05, HIP + 0.64, -0.15]}>
           <boxGeometry args={[0.035, 0.035, 0.02]} />
           <meshLambertMaterial color={INK} />
         </mesh>
-        <mesh position={[0.045, HIP + 0.65, -0.145]}>
+        <mesh position={[0.05, HIP + 0.64, -0.15]}>
           <boxGeometry args={[0.035, 0.035, 0.02]} />
           <meshLambertMaterial color={INK} />
         </mesh>
-        <mesh position={[0, HIP + 0.56, -0.145]} rotation={[0, 0, Math.PI]}>
+        <mesh position={[0, HIP + 0.56, -0.15]} rotation={[0, 0, Math.PI]}>
           <torusGeometry args={[0.05, 0.012, 6, 10, Math.PI]} />
           <meshLambertMaterial color={INK} />
         </mesh>
@@ -193,10 +204,10 @@ export default function OfficeAgent({
         ) : null}
         <FaceLabel
           title={agent.name}
-          subtitle={STATUS_LABEL[agent.status]}
-          accent={agent.status === "error" ? "#FB7185" : agent.color}
-          position={[0, seated ? 1.62 : 1.42, 0]}
-          width={2.15}
+          subtitle={DIVISION_LABEL[agent.division]}
+          accent={agent.color}
+          position={[0, seated ? 1.72 : 1.52, 0]}
+          width={1.55}
         />
       </group>
       {selected ? (

@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { crewSpot, FLOOR, PANTRY_PARK, PANTRY_TABLE, ROOMS, STATIONS } from "@/lib/office/layout";
+import { DIVISION_LABEL } from "@/lib/office/present";
 import type { OfficeAgent } from "@/lib/office/types";
 
 function worldStyle(x: number, z: number, width: number, depth: number): CSSProperties {
@@ -55,15 +56,19 @@ export default function OfficePlanFallback({
               title={agent.name}
               aria-pressed={selected}
               onClick={() => onSelect(agent.id)}
-              className="absolute grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 text-[10px] font-bold text-[#0b0e14]"
-              style={{
-                left: `${left}%`,
-                top: `${top}%`,
-                background: agent.color,
-                borderColor: selected ? "#2DD4BF" : "#0b0e14",
-              }}
+              className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+              style={{ left: `${left}%`, top: `${top}%` }}
             >
-              {agent.name.slice(0, 1)}
+              <span
+                className="grid h-8 w-8 place-items-center rounded-full border-2 text-[10px] font-bold text-[#0b0e14]"
+                style={{ background: agent.color, borderColor: selected ? "#2DD4BF" : "#0b0e14" }}
+              >
+                {agent.name.slice(0, 1)}
+              </span>
+              <span className="mt-0.5 max-w-16 truncate rounded bg-[#0b0e14]/90 px-1 text-[9px] font-bold text-white">{agent.name}</span>
+              <span className="text-[8px] font-semibold leading-none" style={{ color: agent.color }}>
+                {DIVISION_LABEL[agent.division]}
+              </span>
             </button>
           );
         })}

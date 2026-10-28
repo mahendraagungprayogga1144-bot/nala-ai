@@ -3,7 +3,10 @@ import { todayWib } from "@/lib/date";
 import { resolveActorByUserId } from "@/lib/henima-sales/authz";
 import { salesDb } from "@/lib/henima-sales/db";
 import { SALES_PRODUCT_CATEGORY } from "@/lib/henima-sales/types";
+import { getPublicShareOrigin } from "@/lib/auth/app-url";
 import { createClient } from "@/lib/supabase/server";
+import { answerPublicWa } from "./wa-ai";
+import type { WaInboxMessage, WaInboxThread } from "./types";
 
 export type WaDesk = {
   ok: boolean;
@@ -37,28 +40,36 @@ export function defaultGreeting(brand: string) {
   return `Halo, ini ${brand}. Ketik katalog, harga, atau stok. Saya balas otomatis.`;
 }
 
+function productLine(item: CatalogItem) {
+  const price = item.price != null ? rp(item.price) : "harga tanya sales";
+  const ready = item.stock > 0 ? "tersedia" : "habis";
+  return `• ${item.name} — ${price} (${ready})`;
+}
+
 export function composeWaReply(text: string, brand: string, greeting: string, products: CatalogItem[]) {
   const q = text.toLowerCase();
   const list = products.slice(0, 6);
-  if (/katalog|harga|produk|parfum|menu|berapa/.test(q)) {
-    if (!list.length) return `${brand}: katalog belum diisi. Sales akan membalas manual.`;
-    const lines = list.map((item) => {
-      const price = item.price != null ? rp(item.price) : "harga tanya sales";
-      const ready = item.stock > 0 ? "tersedia" : "habis";
-      return `• ${item.name} — ${price} (${ready})`;
-    });
-    return `Katalog ${brand}:\n${lines.join("\n")}\nMau yang mana?`;
-  }
+  const named = list.filter((item) => {
+    const name = item.name.toLowerCase().trim();
+    return name.length >= 3 && q.includes(name);
+  });
+  if (named.length) return `${brand}:\n${named.map(productLine).join("\n")}\nMau yang ini?`;
   if (/stok|ready|tersedia|\bada\b/.test(q)) {
     const ready = list.filter((item) => item.stock > 0);
     if (!ready.length) return `${brand}: stok yang bisa disebut dari sini sedang kosong.`;
     return `Yang tersedia di ${brand}: ${ready.map((item) => item.name).join(", ")}.`;
   }
+  if (/katalog|harga|produk|parfum|menu|berapa|\bbeli\b|\bpesan\b|\border\b|\bmau\b/.test(q)) {
+    if (!list.length) return `${brand}: katalog belum diisi. Sebut barangnya lagi nanti setelah produk diisi.`;
+    return `Katalog ${brand}:\n${list.map(productLine).join("\n")}\nMau yang mana?`;
+  }
+  if (/terima kasih|makasih|thanks|\bsiap\b|\boke\b|\bok\b/.test(q)) return `Siap. Sebut nama barangnya kalau mau lanjut.`;
   if (/halo|hai|hei|pagi|siang|sore|malam|assalam|permisi/.test(q)) return greeting;
-  return `${greeting}\nKalau mau lihat barang, ketik katalog.`;
+  if (!list.length) return greeting;
+  return `${greeting}\n${list.map(productLine).join("\n")}`;
 }
 
-async function catalog(businessId: string): Promise<CatalogItem[]> {
+async function catalog(businessId: string, take = 6): Promise<CatalogItem[]> {
   const db = salesDb();
   const first = await db.from("products").select("name, price, stock, category").eq("business_id", businessId).order("name").limit(40);
   const query = first.error?.message?.toLowerCase().includes("category")
@@ -72,7 +83,7 @@ async function catalog(businessId: string): Promise<CatalogItem[]> {
     category: "category" in row && row.category ? String(row.category) : "",
   }));
   const henima = rows.filter((row) => row.category === SALES_PRODUCT_CATEGORY);
-  return (henima.length ? henima : rows).slice(0, 6).map(({ name, price, stock }) => ({ name, price, stock }));
+  return (henima.length ? henima : rows).slice(0, take).map(({ name, price, stock }) => ({ name, price, stock }));
 }
 
 async function actorBusiness(preferredBusinessId: string) {
@@ -198,8 +209,28 @@ export async function replyOnWaLink(token: string, visitor: string, text: string
     const { data: business } = await admin.from("businesses").select("name").eq("id", link.business_id).maybeSingle();
     const brand = String(business?.name || "Henima");
     const greeting = String(link.greeting || defaultGreeting(brand));
-    const products = await catalog(String(link.business_id));
-    const reply = composeWaReply(clean, brand, greeting, products);
+    const products = await catalog(String(link.business_id), 15);
+    const { count: aiToday } = await admin
+      .from("module_wa_reply_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("link_id", link.id)
+      .eq("direction", "out")
+      .gte("created_at", `${today}T00:00:00+07:00`);
+    const { data: earlier } = await admin
+      .from("module_wa_reply_messages")
+      .select("direction, body")
+      .eq("link_id", link.id)
+      .eq("visitor_key", visitor)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    const history = (earlier || [])
+      .reverse()
+      .map((row) => ({ direction: row.direction === "out" ? ("out" as const) : ("in" as const), body: String(row.body || "") }));
+    const aiReply =
+      (aiToday || 0) < 120
+        ? await answerPublicWa({ brand, greeting, products, history, question: clean })
+        : null;
+    const reply = aiReply || composeWaReply(clean, brand, greeting, products);
     await admin.from("module_wa_reply_messages").insert([
       { business_id: link.business_id, link_id: link.id, visitor_key: visitor, direction: "in", body: clean },
       { business_id: link.business_id, link_id: link.id, visitor_key: visitor, direction: "out", body: reply },
@@ -207,6 +238,74 @@ export async function replyOnWaLink(token: string, visitor: string, text: string
     return { ok: true as const, reply };
   } catch {
     return { ok: false as const, message: "Balasan belum terkirim. Coba lagi." };
+  }
+}
+
+export async function loadWaInbox(preferredBusinessId: string): Promise<WaInboxThread[]> {
+  try {
+    const owned = await actorBusiness(preferredBusinessId);
+    if (!owned) return [];
+    const link = await ensureWaLink(owned.admin, owned.actor.businessId, owned.actor.businessName);
+    if (!link.ok) return [];
+    const { data, error } = await owned.admin
+      .from("module_wa_reply_messages")
+      .select("id, visitor_key, direction, body, created_at")
+      .eq("link_id", link.id)
+      .order("created_at", { ascending: false })
+      .limit(120);
+    if (error || !data) return [];
+    const grouped = new Map<string, WaInboxMessage[]>();
+    for (const row of data) {
+      const visitor = String(row.visitor_key || "");
+      if (!VISITOR.test(visitor)) continue;
+      const direction = row.direction === "out" ? "out" : "in";
+      const message: WaInboxMessage = {
+        id: String(row.id),
+        direction,
+        body: String(row.body || ""),
+        at: String(row.created_at || ""),
+      };
+      const bucket = grouped.get(visitor);
+      if (bucket) bucket.push(message);
+      else grouped.set(visitor, [message]);
+    }
+    return [...grouped.entries()].slice(0, 8).map(([visitor, messages], index) => {
+      const ordered = [...messages].reverse();
+      const last = ordered[ordered.length - 1];
+      return {
+        visitor,
+        label: `Chat ${index + 1}`,
+        preview: last?.body || "",
+        at: last?.at || "",
+        messages: ordered.slice(-20),
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function publicWaMessages(token: string, visitor: string) {
+  if (!TOKEN.test(token) || !VISITOR.test(visitor)) return [];
+  try {
+    const admin = salesDb();
+    const { data: link } = await admin.from("module_wa_reply_links").select("id").eq("token", token.toLowerCase()).maybeSingle();
+    if (!link) return [];
+    const { data } = await admin
+      .from("module_wa_reply_messages")
+      .select("id, direction, body, created_at")
+      .eq("link_id", link.id)
+      .eq("visitor_key", visitor)
+      .order("created_at", { ascending: true })
+      .limit(40);
+    return (data || []).map((row) => ({
+      id: String(row.id),
+      direction: row.direction === "out" ? ("out" as const) : ("in" as const),
+      body: String(row.body || ""),
+      at: String(row.created_at || ""),
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -231,12 +330,13 @@ export async function describeWa(preferredBusinessId: string, question: string) 
   if (!desk.ok) return desk.notice || "Tautan WA belum siap.";
   const text = question.toLowerCase();
   if (/tautan|link|salin|bagi/.test(text)) {
-    return `Tautan balasan WA ${desk.brand}: ${desk.path}. Salin dari panel, lalu kirim ke customer. Mereka ketik di halaman itu dan langsung dibalas.`;
+    const url = `${getPublicShareOrigin()}${desk.path}`;
+    return `Tautan balasan WA ${desk.brand}: ${url}. Buka alamat itu, atau salin dari panel. Henima AI yang membalas sendiri.`;
   }
-  if (/chat|pesan|masuk/.test(text)) {
+  if (/chat|pesan|masuk|baca/.test(text)) {
     return desk.today
-      ? `Hari ini ${desk.today} chat masuk lewat tautan ${desk.brand}.`
-      : `Hari ini belum ada chat masuk lewat tautan ${desk.brand}.`;
+      ? `Hari ini ${desk.today} chat masuk lewat tautan ${desk.brand}. Isi chatnya ada di panel Balas WA.`
+      : `Hari ini belum ada chat masuk lewat tautan ${desk.brand}. Chat yang masuk nanti bisa dibaca di panel.`;
   }
-  return `Balasan otomatis ${desk.brand}: ${desk.greeting} Kalau customer mengetik katalog, harga, atau stok, daftar produk Henima yang dikirim.`;
+  return `Henima AI yang membalas tautan ${desk.brand} sendiri. Customer dan orang yang melamar bisa nanya apa pun yang aman. Harga dan stok diambil dari katalog. Omzet dan data pemilik tidak dibuka di chat itu. Kalimat pembuka: ${desk.greeting}`;
 }

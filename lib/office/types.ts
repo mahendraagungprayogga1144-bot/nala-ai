@@ -25,6 +25,10 @@ export type OfficeAgent = {
   color: string;
 };
 
+export type WaInboxMessage = { id: string; direction: "in" | "out"; body: string; at: string };
+
+export type WaInboxThread = { visitor: string; label: string; preview: string; at: string; messages: WaInboxMessage[] };
+
 export type OfficeProductBrief = {
   id: string;
   name: string;
@@ -44,4 +48,6 @@ export type OfficeSnapshot = {
   products: OfficeProductBrief[];
   /** Path publik `/w/...`. Kosong kalau tautan belum bisa dibuat. */
   wa_path: string | null;
+  /** Alamat lengkap yang bisa dibuka dan dikirim ke WhatsApp. */
+  wa_url: string | null;
 };

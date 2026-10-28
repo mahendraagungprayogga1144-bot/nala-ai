@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { adjustOfficeStock, askOfficeAgent, saveOfficeWaGreeting } from "@/lib/office/actions";
 import { suggestionsFor } from "@/lib/office/present";
 import { STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "@/lib/office/types";
+import WaInbox from "./wa-inbox";
 import WaQr from "./wa-qr";
 
 export default function OfficeWorkPanel({
@@ -65,8 +66,8 @@ export default function OfficeWorkPanel({
   }
 
   async function copyLink() {
-    if (!snapshot.wa_path) return;
-    await navigator.clipboard.writeText(`${window.location.origin}${snapshot.wa_path}`);
+    if (!snapshot.wa_url) return;
+    await navigator.clipboard.writeText(snapshot.wa_url);
     setCopied(true);
   }
 
@@ -90,12 +91,20 @@ export default function OfficeWorkPanel({
     <div className="space-y-3">
       {agent.id === WA_AGENT_ID ? (
         <div className="space-y-2 rounded-xl border border-white/[0.06] bg-[#0b0e14] p-3">
+          <p className="text-[11px] font-semibold text-slate-500">Chat tautan</p>
+          <WaInbox businessId={snapshot.business_id} />
           <p className="text-[11px] font-semibold text-slate-500">Kode QR untuk WhatsApp Henima</p>
-          {snapshot.wa_path ? <WaQr path={snapshot.wa_path} /> : <p className="text-xs text-slate-400">Tautan belum siap.</p>}
-          <p className="break-all text-xs text-slate-200">{snapshot.wa_path ? snapshot.wa_path : "Tautan belum siap."}</p>
+          {snapshot.wa_url ? <WaQr url={snapshot.wa_url} /> : <p className="text-xs text-slate-400">Tautan belum siap.</p>}
+          {snapshot.wa_url ? (
+            <a href={snapshot.wa_url} target="_blank" rel="noreferrer" className="block break-all text-xs text-[#25D366] underline">
+              {snapshot.wa_url}
+            </a>
+          ) : (
+            <p className="text-xs text-slate-200">Tautan belum siap.</p>
+          )}
           <button
             type="button"
-            disabled={!snapshot.wa_path}
+            disabled={!snapshot.wa_url}
             onClick={() => void copyLink()}
             className="rounded-lg border border-[#25D366]/40 px-3 py-2 text-xs font-semibold text-[#25D366] disabled:opacity-50"
           >

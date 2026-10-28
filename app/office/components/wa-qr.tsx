@@ -3,15 +3,12 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
-export default function WaQr({ path }: { path: string }) {
-  const [url, setUrl] = useState("");
+export default function WaQr({ url }: { url: string }) {
   const [src, setSrc] = useState("");
 
   useEffect(() => {
-    const absolute = `${window.location.origin}${path}`;
-    setUrl(absolute);
     let cancel = false;
-    void QRCode.toDataURL(absolute, {
+    void QRCode.toDataURL(url, {
       margin: 1,
       width: 320,
       errorCorrectionLevel: "M",
@@ -22,7 +19,7 @@ export default function WaQr({ path }: { path: string }) {
     return () => {
       cancel = true;
     };
-  }, [path]);
+  }, [url]);
 
   if (!src) return <p className="text-[11px] text-slate-500">Menyiapkan kode QR…</p>;
 

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
-import { replyOnWaLink } from "@/lib/office/wa-reply";
+import { publicWaMessages, replyOnWaLink } from "@/lib/office/wa-reply";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const messages = await publicWaMessages(url.searchParams.get("token") || "", url.searchParams.get("visitor") || "");
+  return NextResponse.json({ messages });
+}
 
 export async function POST(request: Request) {
   let body: { token?: string; visitor?: string; text?: string };

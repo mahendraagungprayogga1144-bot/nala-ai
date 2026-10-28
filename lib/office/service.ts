@@ -4,6 +4,7 @@ import { loadTeamIds, resolveActorByUserId } from "@/lib/henima-sales/authz";
 import { salesDb } from "@/lib/henima-sales/db";
 import { namedMonthWindow, periodRange, type PeriodKind } from "@/lib/henima-sales/dates";
 import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
+import { getPublicShareOrigin } from "@/lib/auth/app-url";
 import { officeRepository, type OfficeFacts, type OfficeProductRow, type OfficeWindow, type StockAdjustResult } from "./repository";
 import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
 import { describeWa, loadWaDesk, type WaDesk } from "./wa-reply";
@@ -198,6 +199,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null): Off
     tasks_running: working.filter((agent) => agent.current_task).length,
     notices: [...noticesOf(facts), ...(wa?.notice ? [wa.notice] : [])],
     wa_path: wa?.path ?? null,
+    wa_url: wa?.path ? `${getPublicShareOrigin()}${wa.path}` : null,
     products: facts.products.ok
       ? facts.products.rows.map((row) => ({
           id: row.id,

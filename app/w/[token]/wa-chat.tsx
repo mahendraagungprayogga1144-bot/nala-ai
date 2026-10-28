@@ -24,13 +24,29 @@ export default function WaChat({ token, brand, greeting }: { token: string; bran
     setVisitor(visitorKey());
   }, []);
 
+  useEffect(() => {
+    if (!visitor) return;
+    let cancel = false;
+    async function pull() {
+      const res = await fetch(`/api/wa-reply?token=${encodeURIComponent(token)}&visitor=${encodeURIComponent(visitor)}`);
+      const data = (await res.json()) as { messages?: Bubble[] };
+      if (cancel || !Array.isArray(data.messages)) return;
+      setMessages([{ id: "greet", direction: "out", body: greeting }, ...data.messages]);
+    }
+    void pull();
+    const timer = window.setInterval(() => void pull(), 4000);
+    return () => {
+      cancel = true;
+      window.clearInterval(timer);
+    };
+  }, [visitor, token, greeting]);
+
   async function send(event: FormEvent) {
     event.preventDefault();
     const clean = text.trim();
     if (!clean || !visitor || pending) return;
     setPending(true);
     setError("");
-    setMessages((rows) => [...rows, { id: `in-${Date.now()}`, direction: "in", body: clean }]);
     setText("");
     try {
       const res = await fetch("/api/wa-reply", {
@@ -39,11 +55,10 @@ export default function WaChat({ token, brand, greeting }: { token: string; bran
         body: JSON.stringify({ token, visitor, text: clean }),
       });
       const data = (await res.json()) as { reply?: string; message?: string };
-      if (!res.ok || !data.reply) {
-        setError(data.message || "Balasan belum terkirim.");
-      } else {
-        setMessages((rows) => [...rows, { id: `out-${Date.now()}`, direction: "out", body: data.reply || "" }]);
-      }
+      if (!res.ok || !data.reply) setError(data.message || "Balasan belum terkirim.");
+      const listed = await fetch(`/api/wa-reply?token=${encodeURIComponent(token)}&visitor=${encodeURIComponent(visitor)}`);
+      const fresh = (await listed.json()) as { messages?: Bubble[] };
+      if (Array.isArray(fresh.messages)) setMessages([{ id: "greet", direction: "out", body: greeting }, ...fresh.messages]);
     } catch {
       setError("Balasan belum terkirim. Coba lagi.");
     } finally {

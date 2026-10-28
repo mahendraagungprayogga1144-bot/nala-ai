@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import { officeRepository } from "./repository";
 import { answerOfficeQuestion, loadOfficeSnapshot, resolveStockInstruction, stockChangeMessage } from "./service";
-import { STOK_AGENT_ID, type OfficeSnapshot } from "./types";
-import { saveWaGreeting } from "./wa-reply";
+import { STOK_AGENT_ID, type OfficeSnapshot, type WaInboxThread } from "./types";
+import { loadWaInbox, saveWaGreeting } from "./wa-reply";
 
 async function ownedBusiness(businessId: string) {
   const supabase = await createClient();
@@ -33,6 +33,7 @@ async function freshOrEmpty(businessId: string): Promise<OfficeSnapshot> {
       notices: ["Data kantor belum bisa dimuat. Coba muat ulang."],
       products: [],
       wa_path: null,
+      wa_url: null,
     };
   }
 }
@@ -62,6 +63,12 @@ export async function askOfficeAgent(businessId: string, agentId: string, questi
 
   const message = await answerOfficeQuestion(businessId, agentId, question);
   return { message, snapshot: await loadOfficeSnapshot(businessId) };
+}
+
+export async function loadOfficeWaInbox(businessId: string): Promise<{ threads: WaInboxThread[]; message: string | null }> {
+  const gate = await ownedBusiness(businessId);
+  if (!gate.ok) return { threads: [], message: gate.message };
+  return { threads: await loadWaInbox(businessId), message: null };
 }
 
 export async function saveOfficeWaGreeting(businessId: string, greeting: string) {

@@ -51,7 +51,7 @@ export function placeLine(agent: OfficeAgent) {
 }
 
 export function statusMeaning(agent: OfficeAgent) {
-  if (agent.id === WA_AGENT_ID) return "Customer yang membuka tautan langsung dapat balasan katalog, harga, atau stok.";
+  if (agent.id === WA_AGENT_ID) return "Henima AI membalas tautan sendiri, termasuk pertanyaan customer dan pelamar kerja.";
   if (agent.status === "working") return "Ada data hari ini yang sedang dia pegang.";
   if (agent.at_pantry) return "Tidak ada yang di lapangan. Dia jalan ke Pantry dan mejanya dikosongkan.";
   if (agent.status === "idle") return "Hari ini belum ada yang perlu dikerjakan di bagian ini.";

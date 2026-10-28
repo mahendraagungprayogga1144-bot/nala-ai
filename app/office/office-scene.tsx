@@ -2,11 +2,12 @@
 
 import { Canvas } from "@react-three/fiber";
 import { NoToneMapping } from "three";
-import { STATIONS } from "@/lib/office/layout";
+import { PANTRY_PARK, STATIONS } from "@/lib/office/layout";
 import type { OfficeAgent, OfficeViewMode, WorkRoomId } from "@/lib/office/types";
 import OfficeAgentMesh from "./components/office-agent";
 import { PingPongTable, WorkDesk } from "./components/office-furniture";
 import OfficeStructure from "./components/office-structure";
+import FaceLabel from "./components/room-label";
 import ViewRig from "./components/view-rig";
 
 const WORK_ROOMS: readonly WorkRoomId[] = ["sales", "ops", "founder"];
@@ -30,7 +31,12 @@ export default function OfficeScene({
   antialias: boolean;
   reduceMotion: boolean;
 }) {
-  const preset = mode === "2d" ? { position: [0, 20, 0.02] as const, zoom: 50 } : { position: [13.5, 12, 13.5] as const, zoom: 36 };
+  const selected = agents.find((agent) => agent.id === selectedId) ?? null;
+  const focus = selected
+    ? selected.status === "idle"
+      ? ([PANTRY_PARK[0], 0.7, PANTRY_PARK[1]] as const)
+      : ([STATIONS[selected.room].chair[0], 0.7, STATIONS[selected.room].chair[1]] as const)
+    : null;
 
   return (
     <div className="absolute inset-0">
@@ -38,7 +44,12 @@ export default function OfficeScene({
         orthographic
         shadows={false}
         dpr={antialias ? [1, maxDpr] : 1}
-        camera={{ position: [...preset.position], zoom: preset.zoom, near: -40, far: 90 }}
+        camera={{
+          position: mode === "2d" ? [0, 20, 0.02] : [13.5, 12, 13.5],
+          zoom: mode === "2d" ? 50 : 36,
+          near: -40,
+          far: 90,
+        }}
         gl={{
           antialias,
           alpha: false,
@@ -60,6 +71,18 @@ export default function OfficeScene({
           const agent = agents.find((item) => item.room === room);
           return <WorkDesk key={room} station={STATIONS[room]} status={agent?.status ?? "idle"} />;
         })}
+        {agents
+          .filter((agent) => agent.status === "idle")
+          .map((agent) => (
+            <FaceLabel
+              key={`${agent.id}-desk`}
+              title="Meja kosong"
+              subtitle={`${agent.name} ada di Pantry`}
+              accent={agent.color}
+              position={[STATIONS[agent.room].chair[0], 1.15, STATIONS[agent.room].chair[1]]}
+              width={2.4}
+            />
+          ))}
         {agents.map((agent) => (
           <OfficeAgentMesh
             key={agent.id}
@@ -69,7 +92,7 @@ export default function OfficeScene({
             onSelect={onSelect}
           />
         ))}
-        <ViewRig mode={mode} resetToken={resetToken} />
+        <ViewRig mode={mode} resetToken={resetToken} focus={focus} />
       </Canvas>
     </div>
   );

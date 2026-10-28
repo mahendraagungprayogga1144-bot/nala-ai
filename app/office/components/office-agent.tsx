@@ -5,7 +5,9 @@ import { useFrame } from "@react-three/fiber";
 import type { Group, Mesh } from "three";
 import { PANTRY_PARK, PANTRY_TABLE, STATIONS, salesPantryLoop } from "@/lib/office/layout";
 import { loopPoint, yawToward } from "@/lib/office/motion";
+import { STATUS_LABEL } from "@/lib/office/present";
 import type { OfficeAgent } from "@/lib/office/types";
+import FaceLabel from "./room-label";
 
 const WALK_SECONDS = 18;
 
@@ -115,6 +117,13 @@ export default function OfficeAgent({
             <meshBasicMaterial color="#F43F5E" />
           </mesh>
         ) : null}
+        <FaceLabel
+          title={agent.name}
+          subtitle={STATUS_LABEL[agent.status]}
+          accent={agent.status === "error" ? "#FB7185" : agent.color}
+          position={[0, seated ? 1.72 : 1.38, 0]}
+          width={2.15}
+        />
       </group>
       {selected ? (
         <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>

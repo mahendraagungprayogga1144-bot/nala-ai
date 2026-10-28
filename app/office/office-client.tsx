@@ -62,7 +62,10 @@ export default function OfficeClient({
           weak={graphics.weak}
           onSelect={setSelectedId}
           onMode={setModeOverride}
-          onReset={() => setResetToken((token) => token + 1)}
+          onReset={() => {
+            setSelectedId(null);
+            setResetToken((token) => token + 1);
+          }}
         />
       ) : null}
     </div>

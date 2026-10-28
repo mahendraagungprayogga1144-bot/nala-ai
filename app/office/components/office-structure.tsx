@@ -28,11 +28,9 @@ export default function OfficeStructure() {
             <meshLambertMaterial color={room.floor} />
           </mesh>
           <RoomLabel
-            text={room.label}
-            position={[
-              room.center[0] + (room.center[0] > 0 ? -1.35 : 1.35),
-              room.center[1] + (room.center[1] > 0 ? -1.45 : 1.45),
-            ]}
+            title={room.label}
+            position={[room.center[0], 1.72, room.center[1]]}
+            width={room.label.length > 12 ? 3.15 : 2.45}
           />
         </group>
       ))}

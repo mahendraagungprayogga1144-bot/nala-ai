@@ -7,16 +7,27 @@ import { MOUSE, TOUCH, OrthographicCamera, Vector3 } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { OfficeViewMode } from "@/lib/office/types";
 
-const TARGET = new Vector3(0, 0.35, 0);
+const HOME_TARGET = new Vector3(0, 0.35, 0);
 
 const PRESET: Record<OfficeViewMode, { position: Vector3; zoom: number }> = {
   "3d": { position: new Vector3(13.5, 12, 13.5), zoom: 36 },
   "2d": { position: new Vector3(0, 20, 0.02), zoom: 50 },
 };
 
-export default function ViewRig({ mode, resetToken }: { mode: OfficeViewMode; resetToken: number }) {
+export default function ViewRig({
+  mode,
+  resetToken,
+  focus,
+}: {
+  mode: OfficeViewMode;
+  resetToken: number;
+  focus: readonly [number, number, number] | null;
+}) {
   const controls = useRef<OrbitControlsImpl>(null);
   const blend = useRef(1);
+  const destPos = useRef(new Vector3());
+  const destTarget = useRef(new Vector3());
+  const focusKey = focus ? `${focus[0]}:${focus[1]}:${focus[2]}` : "";
 
   useLayoutEffect(() => {
     const ctrl = controls.current;
@@ -27,31 +38,37 @@ export default function ViewRig({ mode, resetToken }: { mode: OfficeViewMode; re
     ctrl.touches.ONE = mode === "2d" ? TOUCH.PAN : TOUCH.ROTATE;
     ctrl.touches.TWO = TOUCH.DOLLY_PAN;
     blend.current = 1;
-  }, [mode, resetToken]);
+  }, [mode, resetToken, focusKey]);
 
   useFrame((state) => {
     const ctrl = controls.current;
     if (!ctrl || blend.current <= 0) return;
     ctrl.enabled = false;
 
-    const cam = state.camera;
     const preset = PRESET[mode];
-    cam.position.lerp(preset.position, 0.16);
-    ctrl.target.lerp(TARGET, 0.16);
+    const look = destTarget.current;
+    if (focus) look.set(focus[0], focus[1], focus[2]);
+    else look.copy(HOME_TARGET);
+
+    const dest = destPos.current.copy(preset.position).sub(HOME_TARGET).add(look);
+    const zoom = focus ? preset.zoom * 1.45 : preset.zoom;
+    const cam = state.camera;
+    cam.position.lerp(dest, 0.16);
+    ctrl.target.lerp(look, 0.16);
     if (cam instanceof OrthographicCamera) {
-      cam.zoom = cam.zoom + (preset.zoom - cam.zoom) * 0.16;
+      cam.zoom = cam.zoom + (zoom - cam.zoom) * 0.16;
       cam.updateProjectionMatrix();
     }
     cam.lookAt(ctrl.target);
 
-    if (cam.position.distanceTo(preset.position) < 0.08) {
-      cam.position.copy(preset.position);
-      ctrl.target.copy(TARGET);
+    if (cam.position.distanceTo(dest) < 0.08) {
+      cam.position.copy(dest);
+      ctrl.target.copy(look);
       if (cam instanceof OrthographicCamera) {
-        cam.zoom = preset.zoom;
+        cam.zoom = zoom;
         cam.updateProjectionMatrix();
       }
-      cam.lookAt(TARGET);
+      cam.lookAt(look);
       blend.current = 0;
       ctrl.enabled = true;
       ctrl.update();
@@ -70,7 +87,7 @@ export default function ViewRig({ mode, resetToken }: { mode: OfficeViewMode; re
       minPolarAngle={mode === "2d" ? 0 : 0.35}
       maxPolarAngle={mode === "2d" ? Math.PI / 2.1 : 1.2}
       minZoom={22}
-      maxZoom={90}
+      maxZoom={110}
       target={[0, 0.35, 0]}
       onStart={() => {
         blend.current = 0;

@@ -1,19 +1,13 @@
 "use client";
 
 import { X } from "lucide-react";
-import { roomById } from "@/lib/office/layout";
+import { placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
 import type { AgentStatus, OfficeAgent, OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
-
-const STATUS_LABEL: Record<AgentStatus, string> = {
-  working: "Kerja",
-  idle: "Idle",
-  error: "Error",
-};
 
 const STATUS_CLASS: Record<AgentStatus, string> = {
   working: "bg-emerald-500/15 text-emerald-300",
   idle: "bg-sky-500/15 text-sky-300",
-  error: "bg-red-500/15 text-red-300",
+  error: "bg-amber-500/15 text-amber-300",
 };
 
 export default function OfficeHud({
@@ -39,28 +33,23 @@ export default function OfficeHud({
 }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
-      <div className="pointer-events-auto absolute top-3 left-3 flex max-h-[calc(100%-1.5rem)] w-[min(calc(100%-7.5rem),320px)] flex-col gap-3 overflow-y-auto">
+      <div className="pointer-events-auto absolute top-3 left-3 flex max-h-[calc(100%-1.5rem)] w-[min(calc(100%-5.5rem),340px)] flex-col gap-3 overflow-y-auto">
         <section className="dashboard-card p-4 shadow-[0_16px_48px_rgba(0,0,0,0.35)]">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 uppercase">Kantor AI</p>
-              <h1 className="text-lg font-semibold text-white">Crew</h1>
-              <p className="truncate text-xs text-slate-500">{businessName}</p>
-            </div>
-            <span className="rounded-md bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#F59E0B]">
-              Data dummy
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 uppercase">Kantor AI</p>
+          <h1 className="text-lg font-semibold text-white">{businessName}</h1>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            Contoh, belum dari database. Klik nama untuk mendekat ke orangnya.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-white/[0.06] bg-[#0b0e14] p-3">
-              <p className="text-[11px] text-slate-500">Crew Active</p>
+              <p className="text-[11px] text-slate-500">Sedang kerja</p>
               <p className="mt-1 text-xl font-bold text-white">
                 {snapshot.crew_active}
-                <span className="text-sm font-medium text-slate-500">/{snapshot.crew_total}</span>
+                <span className="text-sm font-medium text-slate-500"> dari {snapshot.crew_total}</span>
               </p>
             </div>
             <div className="rounded-xl border border-white/[0.06] bg-[#0b0e14] p-3">
-              <p className="text-[11px] text-slate-500">Tasks running</p>
+              <p className="text-[11px] text-slate-500">Tugas berjalan</p>
               <p className="mt-1 text-xl font-bold text-white">{snapshot.tasks_running}</p>
             </div>
           </div>
@@ -80,17 +69,16 @@ export default function OfficeHud({
                   active ? "border-[#2DD4BF]/40 bg-[#2DD4BF]/10" : "border-white/[0.06] bg-[#0b0e14] hover:border-white/15",
                 ].join(" ")}
               >
-                <span className="mt-0.5 h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: agent.color }} />
+                <span className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: agent.color }} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold text-white">{agent.name}</span>
-                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${STATUS_CLASS[agent.status]}`}>
+                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${STATUS_CLASS[agent.status]}`}>
                       {STATUS_LABEL[agent.status]}
                     </span>
                   </span>
-                  <span className="mt-0.5 block truncate text-[11px] text-slate-500">
-                    {agent.current_task ?? "Tidak ada tugas berjalan"}
-                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-slate-300">{placeLine(agent)}</span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">{taskLine(agent)}</span>
                 </span>
               </button>
             );
@@ -101,7 +89,7 @@ export default function OfficeHud({
           <section className="dashboard-card p-4 shadow-[0_16px_48px_rgba(0,0,0,0.35)]">
             <div className="mb-3 flex items-start justify-between gap-2">
               <div>
-                <p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 uppercase">Detail agent</p>
+                <p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 uppercase">Yang sedang dilihat</p>
                 <h2 className="text-base font-semibold text-white">{selected.name}</h2>
               </div>
               <button
@@ -113,24 +101,25 @@ export default function OfficeHud({
                 <X size={14} />
               </button>
             </div>
-            <dl className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Ruangan</dt>
-                <dd className="text-right text-slate-100">{roomById(selected.room).label}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Status</dt>
-                <dd className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${STATUS_CLASS[selected.status]}`}>
-                  {STATUS_LABEL[selected.status]}
-                </dd>
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-slate-500">Posisi</dt>
+                <dd className="mt-0.5 text-slate-100">{placeLine(selected)}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Tugas saat ini</dt>
-                <dd className="mt-1 text-slate-100">{selected.current_task ?? "Tidak ada tugas berjalan"}</dd>
+                <dt className="text-slate-500">Tugas</dt>
+                <dd className="mt-0.5 text-slate-100">{taskLine(selected)}</dd>
+              </div>
+              <div className="rounded-xl bg-[#0b0e14] px-3 py-2 text-xs leading-relaxed text-slate-400">
+                {statusMeaning(selected.status)}
               </div>
             </dl>
           </section>
-        ) : null}
+        ) : (
+          <p className="px-1 text-[11px] leading-relaxed text-slate-500">
+            Belum ada yang dipilih. Klik nama di atas, atau klik orang di dalam kantor.
+          </p>
+        )}
       </div>
 
       <div className="pointer-events-auto absolute top-3 right-3 flex flex-col items-end gap-2">
@@ -144,7 +133,7 @@ export default function OfficeHud({
                 type="button"
                 disabled={disabled}
                 aria-pressed={active}
-                title={disabled ? "Perangkat ini tidak mendukung 3D" : undefined}
+                title={disabled ? "Perangkat ini tidak mendukung 3D" : value === "2d" ? "Lihat dari atas" : "Lihat miring"}
                 onClick={() => onMode(value)}
                 className={[
                   "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
@@ -158,7 +147,7 @@ export default function OfficeHud({
           })}
         </div>
         <button type="button" onClick={onReset} className="dash-header-btn shadow-[0_16px_48px_rgba(0,0,0,0.35)]">
-          Reset view
+          Lihat semua ruang
         </button>
         {weak ? <p className="max-w-40 text-right text-[10px] leading-snug text-slate-500">Perangkat ringan: mulai dari tampilan atas.</p> : null}
         {!webgl ? <p className="max-w-40 text-right text-[10px] leading-snug text-slate-500">WebGL tidak tersedia. Denah 2D.</p> : null}

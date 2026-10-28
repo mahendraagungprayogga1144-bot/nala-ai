@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { adjustOfficeStock, askOfficeAgent, saveOfficeWaGreeting } from "@/lib/office/actions";
 import { suggestionsFor } from "@/lib/office/present";
 import { STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "@/lib/office/types";
+import WaQr from "./wa-qr";
 
 export default function OfficeWorkPanel({
   agent,
@@ -89,7 +90,8 @@ export default function OfficeWorkPanel({
     <div className="space-y-3">
       {agent.id === WA_AGENT_ID ? (
         <div className="space-y-2 rounded-xl border border-white/[0.06] bg-[#0b0e14] p-3">
-          <p className="text-[11px] font-semibold text-slate-500">Tautan balasan</p>
+          <p className="text-[11px] font-semibold text-slate-500">Kode QR untuk WhatsApp Henima</p>
+          {snapshot.wa_path ? <WaQr path={snapshot.wa_path} /> : <p className="text-xs text-slate-400">Tautan belum siap.</p>}
           <p className="break-all text-xs text-slate-200">{snapshot.wa_path ? snapshot.wa_path : "Tautan belum siap."}</p>
           <button
             type="button"

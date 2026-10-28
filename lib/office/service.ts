@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { todayWib } from "@/lib/date";
 import { loadTeamIds, resolveActorByUserId } from "@/lib/henima-sales/authz";
 import { salesDb } from "@/lib/henima-sales/db";
 import { namedMonthWindow, periodRange, type PeriodKind } from "@/lib/henima-sales/dates";
@@ -7,6 +6,23 @@ import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
 import { getPublicShareOrigin } from "@/lib/auth/app-url";
 import { officeRepository, type OfficeFacts, type OfficeProductRow, type OfficeWindow, type StockAdjustResult } from "./repository";
 import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
+import {
+  companyTask,
+  fieldTaskTail,
+  formatCompanyReport,
+  formatCustomers,
+  formatFollowUps,
+  formatPayments,
+  formatProduction,
+  formatProducts,
+  formatProfit,
+  formatRanking,
+  formatTarget,
+  formatUnpaid,
+  loadCompanyBrief,
+  productionQueue,
+  type CompanyBrief,
+} from "./company";
 import { describeWa, loadWaDesk, type WaDesk } from "./wa-reply";
 
 const KIND_LABEL: Record<string, string> = {
@@ -134,10 +150,11 @@ function stockStatus(facts: OfficeFacts): OfficeAgent["status"] {
   return "working";
 }
 
-export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null): OfficeSnapshot {
-  const laporanBusy = laporanWorking(facts);
+export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brief?: CompanyBrief | null): OfficeSnapshot {
+  const laporanBusy = brief ? brief.paidCount > 0 || brief.pendingCount > 0 : laporanWorking(facts);
   const salesBusy = salesWorking(facts);
-  const stock = stockStatus(facts);
+  const jobs = brief && facts.products.ok ? productionQueue(facts.products.rows, brief.products) : [];
+  const stock = jobs.length ? "error" : stockStatus(facts);
   const agents: OfficeAgent[] = [
     {
       id: LAPORAN_AGENT_ID,
@@ -147,7 +164,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null): Off
       place: "desk",
       status: laporanBusy ? "working" : "idle",
       at_pantry: false,
-      current_task: laporanTask(facts),
+      current_task: brief ? companyTask(brief) : laporanTask(facts),
       color: "#2DD4BF",
     },
     {
@@ -158,7 +175,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null): Off
       place: "desk",
       status: salesBusy ? "working" : "idle",
       at_pantry: facts.staff.ok && facts.points.ok && !salesBusy,
-      current_task: salesTask(facts),
+      current_task: brief ? `${salesTask(facts)} ${fieldTaskTail(brief)}`.trim() : salesTask(facts),
       color: "#A78BFA",
     },
     {
@@ -169,7 +186,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null): Off
       place: "desk",
       status: stock,
       at_pantry: false,
-      current_task: stockTask(facts),
+      current_task: jobs.length ? `${jobs.length} perlu diproduksi. ${jobs[0].name} ${jobs[0].make} ${jobs[0].unit}.` : stockTask(facts),
       color: "#F59E0B",
     },
     {
@@ -271,10 +288,11 @@ export async function loadOfficeSnapshot(businessId: string): Promise<OfficeSnap
   if (!id) throw new Error("active_business_id kosong.");
   const db = await createClient();
   const facts = await officeRepository.loadFacts(db, id);
-  const today = todayWib();
-  await applyHenimaBook(facts, id, { from: today, to: today });
+  const today = periodRange("today");
+  await applyHenimaBook(facts, id, { from: today.from, to: today.to });
   const wa = await loadWaDesk(id);
-  return buildOfficeSnapshot(facts, wa);
+  const brief = await loadCompanyBrief(id, today);
+  return buildOfficeSnapshot(facts, wa, brief.ok ? brief : null);
 }
 
 const MONTH_NAMES: readonly { month: number; names: readonly string[] }[] = [
@@ -321,7 +339,21 @@ function periodSummary(facts: OfficeFacts, label: string) {
   return `${label}, ${book}: ${orders.length} order lunas, omzet ${rp(omzet)}.${unpaid}`;
 }
 
-function laporanAnswer(facts: OfficeFacts, question: string, label: string) {
+function laporanAnswer(facts: OfficeFacts, question: string, label: string, brief?: CompanyBrief | null) {
+  if (brief?.ok) {
+    const text = question.toLowerCase();
+    let answer = formatCompanyReport(brief);
+    if (/laba|hpp|biaya|uang|sisa|rugi/.test(text)) answer = formatProfit(brief);
+    else if (/parfum|paling laku|yang laku|produk apa/.test(text)) answer = formatProducts(brief);
+    else if (/pelanggan|customer|siapa beli|pembeli/.test(text)) answer = formatCustomers(brief);
+    else if (/belum lunas|piutang|nunggak|nyangkut/.test(text)) answer = formatUnpaid(brief);
+    else if (/tunai|transfer|qris|cash/.test(text)) answer = formatPayments(brief);
+    else if (/siapa yang jual|ranking|top sales|paling banyak jual/.test(text)) answer = formatRanking(brief);
+    if (/kasir|pemasukan/.test(text) && facts.pemasukan.ok) {
+      return `${answer} Pemasukan kasir ${rp(facts.pemasukan.rows)}.`;
+    }
+    return answer;
+  }
   const summary = periodSummary(facts, label);
   if (/kasir|pemasukan/.test(question.toLowerCase()) && facts.pemasukan.ok) {
     return `${summary} Pemasukan kasir/keuangan ${rp(facts.pemasukan.rows)}.`;
@@ -329,11 +361,40 @@ function laporanAnswer(facts: OfficeFacts, question: string, label: string) {
   return summary;
 }
 
-function salesAnswer(facts: OfficeFacts, question: string, label: string) {
+function mapsUrl(lat: number, lng: number) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return "";
+  return `https://maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
+
+function routeAnswer(facts: OfficeFacts, label: string) {
+  if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+  if (!facts.points.rows.length) return `Belum ada rute pada ${label}.`;
+  const byStaff = new Map<string, OfficeFacts["points"]["rows"]>();
+  for (const point of [...facts.points.rows].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))) {
+    const list = byStaff.get(point.staff_id) || [];
+    list.push(point);
+    byStaff.set(point.staff_id, list);
+  }
+  const lines = [...byStaff.entries()].slice(0, 4).map(([staffId, points]) => {
+    const stops = points
+      .slice(0, 6)
+      .map((point) => `${kindLabel(point.kind)} ${wibClock(point.recorded_at)}${point.late ? " telat" : ""}`)
+      .join(" → ");
+    const last = points[points.length - 1];
+    const map = mapsUrl(last.lat, last.lng);
+    return `${staffName(facts, staffId)}: ${stops}.${map ? ` Peta: ${map}` : ""}`;
+  });
+  return `${label}. ${lines.join(" ")}`;
+}
+
+function salesAnswer(facts: OfficeFacts, question: string, label: string, brief?: CompanyBrief | null) {
   if (!facts.points.ok && !facts.staff.ok && !facts.orders.ok) {
     return "Data lapangan belum bisa dibaca. Coba muat ulang.";
   }
   const text = question.toLowerCase();
+  if (brief?.ok && /target|capaian/.test(text)) return formatTarget(brief);
+  if (brief?.ok && /follow/.test(text)) return formatFollowUps(brief);
+  if (/rute|perjalanan|jejak/.test(text)) return routeAnswer(facts, label);
   const out = facts.points.ok ? peopleOut(facts) : [];
   const late = facts.points.rows.filter((point) => point.late);
   const last = facts.points.rows[0];
@@ -350,9 +411,11 @@ function salesAnswer(facts: OfficeFacts, question: string, label: string) {
     if (!last) return `Belum ada titik tracking pada ${label}.`;
     const note = last.note ? ` Catatan: ${last.note}.` : "";
     const who = out.length ? `Yang tercatat: ${out.join(", ")}. ` : "";
-    return `${label}. ${who}Titik terakhir: ${staffName(facts, last.staff_id)}, ${kindLabel(last.kind)} pukul ${wibClock(last.recorded_at)}${last.late ? ", telat" : ""}. Koordinat ${last.lat.toFixed(5)}, ${last.lng.toFixed(5)}.${note}`;
+    const map = mapsUrl(last.lat, last.lng);
+    return `${label}. ${who}Titik terakhir: ${staffName(facts, last.staff_id)}, ${kindLabel(last.kind)} pukul ${wibClock(last.recorded_at)}${last.late ? ", telat" : ""}.${map ? ` Peta: ${map}.` : ""}${note}`;
   }
   if (text.includes("jual") || text.includes("order") || text.includes("penjualan") || text.includes("omzet")) {
+    if (brief?.ok) return `${formatRanking(brief)} ${formatCompanyReport(brief)}`;
     const money = periodSummary(facts, label);
     if (!sellers.length) return money;
     return `${money} Yang jual: ${sellers.join(", ")}.`;
@@ -367,6 +430,10 @@ function salesAnswer(facts: OfficeFacts, question: string, label: string) {
     );
   }
   if (sellers.length) parts.push(`Order Henima: ${sellers.join(", ")}.`);
+  if (brief?.ok) {
+    const tail = fieldTaskTail(brief);
+    if (tail) parts.push(tail);
+  }
   return parts.join(" ");
 }
 
@@ -407,10 +474,13 @@ export function parseStockInstruction(question: string): { direction: "masuk" | 
   };
 }
 
-function stockAnswer(facts: OfficeFacts, question: string) {
+function stockAnswer(facts: OfficeFacts, question: string, brief?: CompanyBrief | null) {
   if (!facts.products.ok) return facts.products.notice || "Stok belum bisa dibaca.";
   const products = facts.products.rows;
   const text = question.toLowerCase();
+  if (/produksi|diproduksi|racik|perlu dibuat|harus dibuat/.test(text)) {
+    return formatProduction(products, brief?.ok ? brief.products : [], question);
+  }
   const critical = products.filter(isCritical).sort((a, b) => a.stock - b.stock);
   const named = question.match(/stok\s+(.+?)(?:\s+berapa)?\s*$/i);
   if (named && !text.includes("kritis") && !text.includes("habis") && !text.includes("rendah")) {
@@ -440,15 +510,19 @@ export async function answerOfficeQuestion(businessId: string, agentId: string, 
   const db = await createClient();
   const facts = await officeRepository.loadFacts(db, businessId, range);
   await applyHenimaBook(facts, businessId, range);
-  const aboutField = /tracking|lapangan|check-?in|telat|titik|lokasi|di mana|dimana|kunjungan/.test(text.toLowerCase());
-  const aboutMoney = /jual|penjualan|omzet|order|pendapatan|pemasukan|kasir|uang/.test(text.toLowerCase());
-  const aboutStock = /stok|habis|inventory|produk/.test(text.toLowerCase()) && !aboutMoney;
-  if (aboutField && !aboutMoney && !aboutStock) return salesAnswer(facts, text, range.label);
-  if (aboutStock) return stockAnswer(facts, text);
-  if (aboutMoney || agentId === LAPORAN_AGENT_ID) return laporanAnswer(facts, text, range.label);
-  if (agentId === SALES_AGENT_ID) return salesAnswer(facts, text, range.label);
-  if (agentId === STOK_AGENT_ID) return stockAnswer(facts, text);
-  return laporanAnswer(facts, text, range.label);
+  const loaded = await loadCompanyBrief(businessId, range);
+  const brief = loaded.ok ? loaded : null;
+  const lower = text.toLowerCase();
+  const aboutProduction = /produksi|diproduksi|racik|perlu dibuat|harus dibuat/.test(lower);
+  const aboutStock = /stok|habis|inventory|produk/.test(lower);
+  const aboutField = /tracking|lapangan|check-?in|telat|titik|lokasi|di mana|dimana|kunjungan|rute|perjalanan|jejak|target|capaian|follow/.test(lower);
+  const aboutBook = /laba|hpp|biaya|laku|parfum|pelanggan|customer|piutang|belum lunas|nunggak|omzet|penjualan|order|pendapatan/.test(lower);
+  if (aboutProduction || (aboutStock && !aboutBook)) return stockAnswer(facts, text, brief);
+  if (aboutField && !aboutBook) return salesAnswer(facts, text, range.label, brief);
+  if (aboutBook || agentId === LAPORAN_AGENT_ID) return laporanAnswer(facts, text, range.label, brief);
+  if (agentId === SALES_AGENT_ID) return salesAnswer(facts, text, range.label, brief);
+  if (agentId === STOK_AGENT_ID) return stockAnswer(facts, text, brief);
+  return laporanAnswer(facts, text, range.label, brief);
 }
 
 export function stockChangeMessage(result: StockAdjustResult) {

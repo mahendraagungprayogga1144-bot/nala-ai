@@ -217,7 +217,19 @@ export default function OfficeWorkPanel({
           )}
         </form>
       ) : null}
-      {answer ? <p className="rounded-xl bg-[#0b0e14] px-3 py-2.5 text-sm leading-relaxed text-slate-100">{answer}</p> : null}
+      {answer ? (
+        <p className="whitespace-pre-wrap rounded-xl bg-[#0b0e14] px-3 py-2.5 text-sm leading-relaxed text-slate-100">
+          {answer.split(/(https:\/\/maps\.google\.com\/\?q=[0-9.,-]+)/).map((part, index) =>
+            part.startsWith("https://maps.google.com/") ? (
+              <a key={part} href={part} target="_blank" rel="noreferrer" className="text-[#2DD4BF] underline">
+                {part}
+              </a>
+            ) : (
+              <span key={`${index}-${part.slice(0, 12)}`}>{part}</span>
+            ),
+          )}
+        </p>
+      ) : null}
       {pending ? <p className="text-[11px] text-slate-500">Sedang membaca data…</p> : null}
     </div>
   );

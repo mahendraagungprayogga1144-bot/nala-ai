@@ -37,7 +37,7 @@ function rp(amount: number) {
 }
 
 export function defaultGreeting(brand: string) {
-  return `Halo, ini ${brand}. Ketik katalog, harga, atau stok. Saya balas otomatis.`;
+  return `Halo, saya ${brand}. Cerita saja mau parfum yang seperti apa, atau kalau lagi lamar kerja, sebut posisi yang kamu incar.`;
 }
 
 function productLine(item: CatalogItem) {
@@ -64,9 +64,12 @@ export function composeWaReply(text: string, brand: string, greeting: string, pr
     return `Katalog ${brand}:\n${list.map(productLine).join("\n")}\nMau yang mana?`;
   }
   if (/terima kasih|makasih|thanks|\bsiap\b|\boke\b|\bok\b/.test(q)) return `Siap. Sebut nama barangnya kalau mau lanjut.`;
-  if (/halo|hai|hei|pagi|siang|sore|malam|assalam|permisi/.test(q)) return greeting;
-  if (!list.length) return greeting;
-  return `${greeting}\n${list.map(productLine).join("\n")}`;
+  if (/halo|hai|hei|pagi|siang|sore|malam|assalam|permisi/.test(q)) {
+    if (greeting && !/ketik katalog|saya balas otomatis/i.test(greeting)) return greeting;
+    return `Halo, saya ${brand}. Lagi cari parfum, mau tanya harga, atau lagi lamar kerja? Cerita saja.`;
+  }
+  if (!list.length) return `Halo, saya ${brand}. Katalognya belum diisi, tapi pertanyaanmu tetap boleh disampaikan.`;
+  return `Halo, saya ${brand}. Yang lagi ada:\n${list.map(productLine).join("\n")}\nMau saya bantu pilihkan?`;
 }
 
 async function catalog(businessId: string, take = 6): Promise<CatalogItem[]> {

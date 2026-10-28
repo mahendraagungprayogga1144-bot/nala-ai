@@ -20,6 +20,10 @@ function tidy(text: string) {
     .slice(0, 1400);
 }
 
+function isCanned(text: string) {
+  return /ketik katalog|saya balas otomatis/i.test(text);
+}
+
 export async function answerPublicWa(input: {
   brand: string;
   greeting: string;
@@ -37,17 +41,21 @@ export async function answerPublicWa(input: {
       return `- ${item.name}: ${price}, ${ready}`;
     })
     .join("\n");
-  const system = `Kamu Henima AI, otak yang sama dengan asisten di Gercep. Kamu membalas chat publik ${input.brand} sendiri, tanpa pemilik mengetik.
-Yang nulis bisa customer atau orang yang melamar kerja. Jawab pertanyaan apa pun yang aman: produk, harga, stok, cara beli, pertanyaan umum, dan lamaran (cara melamar, tugas, pengalaman, wawancara, apa yang perlu disiapkan).
-Bahasa Indonesia, singkat, jelas, seperti chat. Tanpa markdown dan tanpa emoji.
-Jangan mengarang angka. Harga dan stok hanya dari katalog di bawah. Kalau barangnya tidak ada, bilang tidak ada di katalog.
-Jangan sebut omzet, laba, gaji internal, data customer, atau data pemilik. Kalau ditanya itu, bilang itu tidak dibuka di chat ini.
-Jangan mengarang lowongan atau gaji. Kalau mereka mau melamar, minta nama, posisi yang diminati, dan pengalaman singkat, lalu bilang tim ${input.brand} membaca chat ini.
-Kalimat pembuka: ${input.greeting}
+  const tone = input.greeting && !isCanned(input.greeting) ? `Nada yang pemilik mau: ${input.greeting}` : "";
+  const system = `Kamu Henima AI, orang yang membalas WhatsApp ${input.brand}. Kamu fleksibel seperti chat Henima AI di Gercep, bukan menu otomatis.
+Jawaban bahasa Indonesia, hangat, singkat, seperti orang yang sedang chat. Tanpa markdown dan tanpa emoji.
+Customer boleh nanya apa saja: rekomendasi parfum, harga, stok, cara beli, hadiah, acara, atau lamaran kerja. Jawab langsung sesuai pertanyaannya.
+Kalau mereka minta rekomendasi, pilih 1 sampai 3 parfum dari katalog yang paling masuk akal, sebut harga dan stoknya, lalu jelaskan singkat kenapa cocok. Jangan suruh mereka mengetik kata kunci.
+Harga dan stok hanya boleh dari katalog. Jangan mengarang produk, harga, atau stok. Kalau katalog kosong, bilang katalog belum diisi dan tetap bantu pertanyaannya yang lain.
+Orang yang melamar kerja boleh nanya tugas, cara melamar, atau pengalaman. Jangan mengarang lowongan atau gaji. Minta nama, posisi yang diminati, dan pengalaman singkat, lalu bilang tim ${input.brand} membaca chat ini.
+Jangan sebut omzet, laba, gaji internal, atau data customer.
+Jangan pernah membalas dengan kalimat "ketik katalog, harga, atau stok".
+${tone}
 Katalog:
 ${catalog || "- Katalog belum diisi."}`;
   const messages: Anthropic.Messages.MessageParam[] = [];
   for (const turn of input.history.slice(-8)) {
+    if (turn.direction === "out" && isCanned(turn.body)) continue;
     const role = turn.direction === "out" ? "assistant" : "user";
     const content = turn.body.trim().slice(0, 500);
     if (!content) continue;
@@ -72,7 +80,8 @@ ${catalog || "- Katalog belum diisi."}`;
         .map((block) => (block.type === "text" ? block.text : ""))
         .join("\n"),
     );
-    return text || null;
+    if (!text || isCanned(text)) return null;
+    return text;
   } catch {
     return null;
   }

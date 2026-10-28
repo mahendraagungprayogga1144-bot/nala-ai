@@ -5,12 +5,16 @@ import { useEffect, useState, type FormEvent } from "react";
 type Bubble = { id: string; direction: "in" | "out"; body: string };
 
 function visitorKey() {
-  const key = "gercep_wa_visitor";
-  const saved = window.localStorage.getItem(key);
-  if (saved && /^[a-zA-Z0-9_-]{8,40}$/.test(saved)) return saved;
-  const next = `v${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`.slice(0, 40);
-  window.localStorage.setItem(key, next);
-  return next;
+  const storageKey = "gercep_wa_visitor";
+  const fresh = `v${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`.slice(0, 40);
+  try {
+    const saved = window.localStorage.getItem(storageKey);
+    if (saved && /^[a-zA-Z0-9_-]{8,40}$/.test(saved)) return saved;
+    window.localStorage.setItem(storageKey, fresh);
+  } catch {
+    return fresh;
+  }
+  return fresh;
 }
 
 export default function WaChat({ token, brand, greeting }: { token: string; brand: string; greeting: string }) {

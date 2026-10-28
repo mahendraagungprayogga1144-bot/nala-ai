@@ -3,7 +3,7 @@ import {
   Wallet, Store, Calculator, FileText, Package, Receipt, QrCode, Camera, Activity,
   ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
-  Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target, Gauge, Sparkles,
+  Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target, Gauge, Sparkles, Building2,
 } from "lucide-react";
 import { normalizeBizType } from "@/lib/auth/post-login";
 
@@ -56,6 +56,7 @@ export const GERCEP_MODULES: DashboardModule[] = [
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },
   { id: "sales", name: "Henima Sales", desc: "Dashboard, KPI, CRM, Telegram, laporan khusus modul sales Henima.", href: "/dashboard/sales", icon: Target, category: "utama", status: "live" },
   { id: "henima-tracking", name: "Henima Tracking", desc: "Link lapangan sales: jejak GPS dan tempat mereka nawar.", href: "/dashboard/henima-tracking", icon: Activity, category: "utama", status: "live" },
+  { id: "kantor-ai", name: "Kantor AI", desc: "Kantor virtual agent: sales, operasional, founder, dan pantry.", href: "/office", icon: Building2, category: "utama", status: "beta" },
   { id: "henima-studio", name: "Studio Henima", desc: "Tukar botol ke foto referensi, atau ganti latar produk.", href: "/dashboard/studio", icon: Camera, category: "utama", status: "beta" },
   { id: "analitik", name: "Dashboard Analitik", desc: "KPI omzet, laba, beban, arus kas — satu layar.", href: "/dashboard/analitik", icon: BarChart3, category: "utama", status: "live" },
   { id: "trading-ai", name: "Otak MetaTrader", desc: "Trading AI Brain XAUUSD — M5 bias, M1 entry, bridge MT5.", href: "/dashboard/trading-ai", icon: Crosshair, category: "utama", status: "beta" },

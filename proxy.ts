@@ -13,14 +13,14 @@ import { getPlatformSettings } from "@/lib/admin/settings";
 import { homeForBizType } from "@/lib/auth/post-login";
 import { daysLeft, trialStillOpen } from "@/lib/auth/trial";
 
+function isSignedInSurface(pathname: string) {
+  return pathname.startsWith("/dashboard") || pathname.startsWith("/office");
+}
+
 function needsAuth(pathname: string) {
   // Public share surfaces (invoice printable for WA) must stay outside this list.
   if (pathname.startsWith("/invoice")) return false;
-  return (
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/admin") ||
-    pathname === "/onboarding"
-  );
+  return isSignedInSurface(pathname) || pathname.startsWith("/admin") || pathname === "/onboarding";
 }
 
 function isAuthPage(pathname: string) {
@@ -98,7 +98,7 @@ export async function proxy(request: NextRequest) {
     maintenance &&
     !userIsAdmin &&
     !pathname.startsWith("/maintenance") &&
-    (pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname.startsWith("/admin"))
+    (isSignedInSurface(pathname) || pathname === "/onboarding" || pathname.startsWith("/admin"))
   ) {
     return redirectTo(request, "/maintenance", response);
   }
@@ -118,7 +118,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Kasir role lock — cookie skips DB on every navigation after first check
-  if (pathname.startsWith("/dashboard") || pathname === "/onboarding") {
+  if (isSignedInSurface(pathname) || pathname === "/onboarding") {
     const roleCookie = request.cookies.get(ROLE_CHECKED_COOKIE)?.value;
 
     if (roleCookie === "kasir") {
@@ -178,7 +178,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  if (pathname.startsWith("/dashboard")) {
+  if (isSignedInSurface(pathname)) {
     const obDone = request.cookies.get(ONBOARDING_COOKIE)?.value === "1";
 
     if (!obDone) {

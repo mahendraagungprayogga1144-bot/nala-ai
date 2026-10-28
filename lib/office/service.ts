@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { todayWib } from "@/lib/date";
+import { loadTeamIds, resolveActorByUserId } from "@/lib/henima-sales/authz";
+import { salesDb } from "@/lib/henima-sales/db";
 import { namedMonthWindow, periodRange, type PeriodKind } from "@/lib/henima-sales/dates";
 import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
-import { officeRepository, type OfficeFacts, type OfficeProductRow, type StockAdjustResult } from "./repository";
+import { officeRepository, type OfficeFacts, type OfficeProductRow, type OfficeWindow, type StockAdjustResult } from "./repository";
 import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
 
 const KIND_LABEL: Record<string, string> = {
@@ -38,26 +41,25 @@ function isCritical(product: OfficeProductRow) {
 }
 
 function orderSummary(facts: OfficeFacts) {
-  const orders = facts.orders.ok ? facts.orders.rows : [];
-  const omzet = orders.reduce((sum, row) => sum + row.total, 0);
-  const henima = orders.filter((row) => row.source === SALES_ORDER_SOURCE);
-  const other = orders.length - henima.length;
-  const henimaOmzet = henima.reduce((sum, row) => sum + row.total, 0);
+  const rows = facts.orders.ok ? facts.orders.rows.filter((row) => row.payment_status !== "CANCELLED") : [];
+  const paid = rows.filter((row) => (row.payment_status || "PAID") === "PAID");
+  const omzet = paid.reduce((sum, row) => sum + row.total, 0);
+  const book = facts.salesBook ? `Henima Sales (${facts.salesBook})` : "Henima Sales";
   const pemasukan = facts.pemasukan.ok ? facts.pemasukan.rows : 0;
-  return { orders, omzet, henimaCount: henima.length, otherCount: other, henimaOmzet, pemasukan };
+  return { orders: paid, pending: rows.length - paid.length, omzet, book, pemasukan };
 }
 
 function laporanTask(facts: OfficeFacts) {
-  if (!facts.orders.ok && !facts.pemasukan.ok) return "Laporan hari ini belum terbaca.";
-  const { orders, omzet, henimaCount, otherCount, pemasukan } = orderSummary(facts);
-  if (orders.length === 0 && pemasukan <= 0) return "Belum ada order atau pemasukan hari ini.";
-  if (orders.length === 0) return `Pemasukan tercatat ${rp(pemasukan)}. Belum ada order hari ini.`;
-  return `Hari ini ${orders.length} order, omzet ${rp(omzet)}. Henima ${henimaCount}, lainnya ${otherCount}.`;
+  if (!facts.orders.ok) return facts.orders.notice || "Henima Sales belum terbaca.";
+  const { orders, pending, omzet, book } = orderSummary(facts);
+  if (!orders.length && !pending) return `${book}: belum ada order hari ini.`;
+  const unpaid = pending ? ` ${pending} belum lunas.` : "";
+  return `${book} hari ini: ${orders.length} order lunas, omzet ${rp(omzet)}.${unpaid}`;
 }
 
 function laporanWorking(facts: OfficeFacts) {
-  const { orders, pemasukan } = orderSummary(facts);
-  return orders.length > 0 || pemasukan > 0;
+  const { orders, pending } = orderSummary(facts);
+  return orders.length > 0 || pending > 0;
 }
 
 function staffName(facts: OfficeFacts, staffId: string) {
@@ -186,11 +188,67 @@ export function buildOfficeSnapshot(facts: OfficeFacts): OfficeSnapshot {
   };
 }
 
+async function applyHenimaBook(facts: OfficeFacts, preferredBusinessId: string, window: OfficeWindow) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    facts.orders = { ok: false, notice: "Masuk dulu untuk membaca Henima Sales.", rows: [] };
+    return;
+  }
+  try {
+    const admin = salesDb();
+    const actor = await resolveActorByUserId(admin, user.id, preferredBusinessId);
+    let query = admin
+      .from("orders")
+      .select("total, sales_id, payment_status")
+      .eq("business_id", actor.businessId)
+      .eq("source", SALES_ORDER_SOURCE)
+      .is("deleted_at", null)
+      .gte("order_date", window.from)
+      .lte("order_date", window.to)
+      .limit(1000);
+    if (actor.role === "SALES") query = query.eq("sales_id", actor.staffId);
+    else if (actor.role === "LEADER") {
+      const team = await loadTeamIds(admin, actor);
+      query = query.in("sales_id", [actor.staffId, ...team]);
+    }
+    const { data, error } = await query;
+    if (error) {
+      facts.orders = { ok: false, notice: "Henima Sales belum bisa dibaca. Coba muat ulang.", rows: [] };
+      return;
+    }
+    facts.orders = {
+      ok: true,
+      notice: null,
+      rows: (data || []).map((row) => ({
+        total: Number(row.total) || 0,
+        source: SALES_ORDER_SOURCE,
+        sales_id: row.sales_id ? String(row.sales_id) : null,
+        payment_status: row.payment_status ? String(row.payment_status) : "PAID",
+      })),
+    };
+    facts.salesBook = actor.businessName;
+    const { data: staff } = await admin.from("module_sales_staff").select("id, nama, role").eq("business_id", actor.businessId);
+    const known = new Set(facts.staff.rows.map((row) => row.id));
+    for (const row of staff || []) {
+      const id = String(row.id);
+      if (known.has(id)) continue;
+      facts.staff.rows.push({ id, nama: String(row.nama || "Sales"), role: String(row.role || "") });
+    }
+  } catch {
+    facts.orders = { ok: false, notice: "Henima Sales belum tersambung.", rows: [] };
+  }
+}
+
 export async function loadOfficeSnapshot(businessId: string): Promise<OfficeSnapshot> {
   const id = businessId.trim();
   if (!id) throw new Error("active_business_id kosong.");
   const db = await createClient();
   const facts = await officeRepository.loadFacts(db, id);
+  const today = todayWib();
+  await applyHenimaBook(facts, id, { from: today, to: today });
   return buildOfficeSnapshot(facts);
 }
 
@@ -231,32 +289,19 @@ export function askedRange(question: string) {
 }
 
 function periodSummary(facts: OfficeFacts, label: string) {
-  if (!facts.orders.ok && !facts.pemasukan.ok) {
-    return `${label}: laporan belum bisa dibaca. Coba muat ulang.`;
-  }
-  const { orders, omzet, henimaCount, henimaOmzet, otherCount, pemasukan } = orderSummary(facts);
-  const otherOmzet = omzet - henimaOmzet;
-  if (!facts.orders.ok) {
-    const income = facts.pemasukan.ok ? ` Pemasukan kasir/keuangan ${rp(pemasukan)}.` : "";
-    return `${facts.orders.notice || "Order belum terbaca."}${income}`;
-  }
-  const head = `${label}: ${orders.length} order. Henima ${henimaCount} (${rp(henimaOmzet)}), lainnya ${otherCount} (${rp(otherOmzet)}). Omzet ${rp(omzet)}.`;
-  if (orders.length === 0 && facts.pemasukan.ok) {
-    return `${head} Pemasukan kasir/keuangan yang tercatat ${rp(pemasukan)}.`;
-  }
-  return head;
+  if (!facts.orders.ok) return facts.orders.notice || `${label}: Henima Sales belum bisa dibaca.`;
+  const { orders, pending, omzet, book } = orderSummary(facts);
+  if (!orders.length && !pending) return `${label}, ${book}: belum ada order.`;
+  const unpaid = pending ? ` ${pending} order belum lunas.` : "";
+  return `${label}, ${book}: ${orders.length} order lunas, omzet ${rp(omzet)}.${unpaid}`;
 }
 
 function laporanAnswer(facts: OfficeFacts, question: string, label: string) {
-  const text = question.toLowerCase();
-  const { orders, omzet, henimaOmzet, pemasukan } = orderSummary(facts);
-  const otherOmzet = omzet - henimaOmzet;
-  if ((text.includes("omzet") || text.includes("uang") || text.includes("pendapatan")) && facts.orders.ok) {
-    return orders.length
-      ? `${label}: omzet order ${rp(omzet)}. Henima ${rp(henimaOmzet)}, lainnya ${rp(otherOmzet)}.`
-      : `${label}: belum ada order. Pemasukan kasir/keuangan ${rp(pemasukan)}.`;
+  const summary = periodSummary(facts, label);
+  if (/kasir|pemasukan/.test(question.toLowerCase()) && facts.pemasukan.ok) {
+    return `${summary} Pemasukan kasir/keuangan ${rp(facts.pemasukan.rows)}.`;
   }
-  return periodSummary(facts, label);
+  return summary;
 }
 
 function salesAnswer(facts: OfficeFacts, question: string, label: string) {
@@ -284,7 +329,7 @@ function salesAnswer(facts: OfficeFacts, question: string, label: string) {
   }
   if (text.includes("jual") || text.includes("order") || text.includes("penjualan") || text.includes("omzet")) {
     const money = periodSummary(facts, label);
-    if (!sellers.length) return `${money} Belum ada order Henima yang tercatat atas nama sales.`;
+    if (!sellers.length) return money;
     return `${money} Yang jual: ${sellers.join(", ")}.`;
   }
   const parts = [`${label}.`];
@@ -368,6 +413,7 @@ export async function answerOfficeQuestion(businessId: string, agentId: string, 
   const range = askedRange(text);
   const db = await createClient();
   const facts = await officeRepository.loadFacts(db, businessId, range);
+  await applyHenimaBook(facts, businessId, range);
   const aboutField = /tracking|lapangan|check-?in|telat|titik|lokasi|di mana|dimana|kunjungan/.test(text.toLowerCase());
   const aboutMoney = /jual|penjualan|omzet|order|pendapatan|pemasukan|kasir|uang/.test(text.toLowerCase());
   const aboutStock = /stok|habis|inventory|produk/.test(text.toLowerCase()) && !aboutMoney;

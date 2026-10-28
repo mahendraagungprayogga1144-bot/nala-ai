@@ -4,6 +4,7 @@ export type OfficeOrderRow = {
   total: number;
   source: string | null;
   sales_id: string | null;
+  payment_status?: string | null;
 };
 
 export type OfficeStaffRow = {
@@ -39,6 +40,8 @@ export type OfficeSlice<T> = {
 export type OfficeFacts = {
   businessId: string;
   orders: OfficeSlice<OfficeOrderRow[]>;
+  /** Nama buku Henima Sales yang dipakai untuk omzet. Kosong sebelum buku itu dibaca. */
+  salesBook: string | null;
   pemasukan: OfficeSlice<number>;
   staff: OfficeSlice<OfficeStaffRow[]>;
   points: OfficeSlice<OfficePointRow[]>;
@@ -222,7 +225,7 @@ export const officeRepository: OfficeRepository = {
     const points = staff.ok
       ? await loadPoints(db, staff.rows.map((row) => row.id), window)
       : { ok: false, notice: null, rows: [] as OfficePointRow[] };
-    return { businessId, orders, pemasukan, staff, points, products };
+    return { businessId, orders, salesBook: null, pemasukan, staff, points, products };
   },
 
   async adjustStock(db, input) {

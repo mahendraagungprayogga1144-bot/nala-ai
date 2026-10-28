@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import { loadOfficeSnapshot } from "@/lib/office/service";
+import { useState } from "react";
+import type { OfficeSnapshot } from "@/lib/office/types";
 
-export function useOfficeCrew(businessId: string) {
-  return useMemo(() => loadOfficeSnapshot(businessId), [businessId]);
+export function useOfficeCrew(initial: OfficeSnapshot) {
+  const [snapshot, setSnapshot] = useState(initial);
+  return { snapshot, setSnapshot };
 }

@@ -33,7 +33,7 @@ export default function OfficeScene({
 }) {
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const focus = selected
-    ? selected.status === "idle"
+    ? selected.at_pantry
       ? ([PANTRY_PARK[0], 0.7, PANTRY_PARK[1]] as const)
       : ([STATIONS[selected.room].chair[0], 0.7, STATIONS[selected.room].chair[1]] as const)
     : null;
@@ -72,7 +72,7 @@ export default function OfficeScene({
           return <WorkDesk key={room} station={STATIONS[room]} status={agent?.status ?? "idle"} />;
         })}
         {agents
-          .filter((agent) => agent.status === "idle")
+          .filter((agent) => agent.at_pantry)
           .map((agent) => (
             <FaceLabel
               key={`${agent.id}-desk`}

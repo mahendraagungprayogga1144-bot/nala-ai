@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
+import { loadOfficeSnapshot } from "@/lib/office/service";
 import { guardPage } from "@/app/dashboard/lib/page-guard";
 import OfficeClient from "./office-client";
 
@@ -22,6 +23,7 @@ export default async function OfficePage() {
       return <div className="px-6 py-10 text-sm text-[#8B8AA0]">Belum ada bisnis aktif.</div>;
     }
 
-    return <OfficeClient businessId={business.id} businessName={business.name} />;
+    const snapshot = await loadOfficeSnapshot(business.id);
+    return <OfficeClient key={business.id} businessName={business.name} initialSnapshot={snapshot} />;
   });
 }

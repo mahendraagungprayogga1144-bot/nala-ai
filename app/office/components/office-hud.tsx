@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import OfficeWorkPanel from "./office-work-panel";
 import { placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
 import type { AgentStatus, OfficeAgent, OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
 
@@ -20,6 +21,7 @@ export default function OfficeHud({
   onSelect,
   onMode,
   onReset,
+  onSnapshot,
 }: {
   snapshot: OfficeSnapshot;
   businessName: string;
@@ -30,6 +32,7 @@ export default function OfficeHud({
   onSelect: (id: string | null) => void;
   onMode: (mode: OfficeViewMode) => void;
   onReset: () => void;
+  onSnapshot: (snapshot: OfficeSnapshot) => void;
 }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -38,8 +41,15 @@ export default function OfficeHud({
           <p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 uppercase">Kantor AI</p>
           <h1 className="text-lg font-semibold text-white">{businessName}</h1>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">
-            Contoh, belum dari database. Klik nama untuk mendekat ke orangnya.
+            Data bisnis ini, hari ini. Klik nama untuk mendekat, lalu tanya atau suruh.
           </p>
+          {snapshot.notices.length ? (
+            <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-amber-200/90">
+              {snapshot.notices.map((notice) => (
+                <li key={notice}>{notice}</li>
+              ))}
+            </ul>
+          ) : null}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-white/[0.06] bg-[#0b0e14] p-3">
               <p className="text-[11px] text-slate-500">Sedang kerja</p>
@@ -101,19 +111,14 @@ export default function OfficeHud({
                 <X size={14} />
               </button>
             </div>
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-slate-500">Posisi</dt>
-                <dd className="mt-0.5 text-slate-100">{placeLine(selected)}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Tugas</dt>
-                <dd className="mt-0.5 text-slate-100">{taskLine(selected)}</dd>
-              </div>
-              <div className="rounded-xl bg-[#0b0e14] px-3 py-2 text-xs leading-relaxed text-slate-400">
-                {statusMeaning(selected.status)}
-              </div>
-            </dl>
+            <p className="text-xs leading-relaxed text-slate-300">{placeLine(selected)}</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">{taskLine(selected)}</p>
+            <p className="mt-2 rounded-xl bg-[#0b0e14] px-3 py-2 text-xs leading-relaxed text-slate-400">
+              {statusMeaning(selected)}
+            </p>
+            <div className="mt-3">
+              <OfficeWorkPanel key={selected.id} agent={selected} snapshot={snapshot} onSnapshot={onSnapshot} />
+            </div>
           </section>
         ) : (
           <p className="px-1 text-[11px] leading-relaxed text-slate-500">

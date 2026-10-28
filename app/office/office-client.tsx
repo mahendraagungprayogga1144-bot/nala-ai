@@ -6,7 +6,7 @@ import OfficeHud from "./components/office-hud";
 import OfficePlanFallback from "./components/office-plan-fallback";
 import { useOfficeCrew } from "./hooks/use-office-crew";
 import { useOfficeGraphics } from "./hooks/use-office-graphics";
-import type { OfficeViewMode } from "@/lib/office/types";
+import type { OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
 
 const OfficeScene = dynamic(() => import("./office-scene"), {
   ssr: false,
@@ -16,13 +16,13 @@ const OfficeScene = dynamic(() => import("./office-scene"), {
 });
 
 export default function OfficeClient({
-  businessId,
   businessName,
+  initialSnapshot,
 }: {
-  businessId: string;
   businessName: string;
+  initialSnapshot: OfficeSnapshot;
 }) {
-  const snapshot = useOfficeCrew(businessId);
+  const { snapshot, setSnapshot } = useOfficeCrew(initialSnapshot);
   const graphics = useOfficeGraphics();
   const [modeOverride, setModeOverride] = useState<OfficeViewMode | null>(null);
   const [resetToken, setResetToken] = useState(0);
@@ -66,6 +66,7 @@ export default function OfficeClient({
             setSelectedId(null);
             setResetToken((token) => token + 1);
           }}
+          onSnapshot={setSnapshot}
         />
       ) : null}
     </div>

@@ -28,7 +28,7 @@ export default function OfficeAgent({
   const beacon = useRef<Mesh>(null);
   const station = STATIONS[agent.room];
   const path = useMemo(() => salesPantryLoop(station.chair), [station]);
-  const seated = agent.status !== "idle";
+  const seated = !agent.at_pantry;
   const face = yawToward(station.chair, station.desk);
 
   useEffect(() => () => {
@@ -40,7 +40,7 @@ export default function OfficeAgent({
     if (!group) return;
     const t = clock.elapsedTime;
 
-    if (agent.status === "idle") {
+    if (agent.at_pantry) {
         if (reduceMotion) {
         group.position.set(PANTRY_PARK[0], 0, PANTRY_PARK[1]);
         group.rotation.y = yawToward(PANTRY_PARK, PANTRY_TABLE);
@@ -80,7 +80,7 @@ export default function OfficeAgent({
   return (
     <group
       ref={root}
-      position={[station.chair[0], 0, station.chair[1]]}
+      position={agent.at_pantry ? [PANTRY_PARK[0], 0, PANTRY_PARK[1]] : [station.chair[0], 0, station.chair[1]]}
       rotation={[0, face, 0]}
       onClick={(event) => {
         event.stopPropagation();

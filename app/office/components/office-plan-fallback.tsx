@@ -45,7 +45,7 @@ export default function OfficePlanFallback({
           aria-hidden
         />
         {agents.map((agent) => {
-          const spot = agent.status === "idle" ? PANTRY_PARK : STATIONS[agent.room].chair;
+          const spot = agent.at_pantry ? PANTRY_PARK : STATIONS[agent.room].chair;
           const left = ((spot[0] + FLOOR.width / 2) / FLOOR.width) * 100;
           const top = ((spot[1] + FLOOR.depth / 2) / FLOOR.depth) * 100;
           const selected = agent.id === selectedId;

@@ -1,9 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
 import OfficeWorkPanel from "./office-work-panel";
-import { placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
-import type { AgentStatus, OfficeAgent, OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
+import { DIVISION_LABEL, placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
+import type { AgentStatus, OfficeAgent, OfficeDivision, OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
+
+const DIVISIONS: { id: "semua" | OfficeDivision; label: string }[] = [
+  { id: "semua", label: "Ringkasan" },
+  { id: "kantor", label: "Kantor" },
+  { id: "software", label: "Software" },
+  { id: "sosmed", label: "Sosmed" },
+  { id: "marketing", label: "Marketing" },
+];
 
 const STATUS_CLASS: Record<AgentStatus, string> = {
   working: "bg-emerald-500/15 text-emerald-300",
@@ -34,6 +43,8 @@ export default function OfficeHud({
   onReset: () => void;
   onSnapshot: (snapshot: OfficeSnapshot) => void;
 }) {
+  const [division, setDivision] = useState<(typeof DIVISIONS)[number]["id"]>("semua");
+  const visible = division === "semua" ? snapshot.agents : snapshot.agents.filter((agent) => agent.division === division);
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
       <div className="pointer-events-auto m-3 flex items-start gap-3">
@@ -56,8 +67,28 @@ export default function OfficeHud({
               ))}
             </ul>
           ) : null}
+          <div className="mt-2 flex gap-1 overflow-x-auto pb-0.5">
+            {DIVISIONS.map((item) => {
+              const active = division === item.id;
+              const count = item.id === "semua" ? snapshot.agents.length : snapshot.agents.filter((agent) => agent.division === item.id).length;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setDivision(item.id)}
+                  className={[
+                    "shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold",
+                    active ? "bg-white text-[#0b0e14]" : "bg-[#0b0e14] text-slate-300",
+                  ].join(" ")}
+                >
+                  {item.label} {count}
+                </button>
+              );
+            })}
+          </div>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5">
-            {snapshot.agents.map((agent) => {
+            {visible.map((agent) => {
               const active = selected?.id === agent.id;
               return (
                 <button
@@ -138,9 +169,23 @@ export default function OfficeHud({
           <OfficeWorkPanel key={selected.id} agent={selected} snapshot={snapshot} onSnapshot={onSnapshot} />
         </section>
       ) : (
-        <p className="pointer-events-none px-4 pb-4 text-[11px] text-slate-500">
-          Pilih nama di atas, atau klik orang di dalam kantor, untuk bertanya.
-        </p>
+        <section className="pointer-events-auto dashboard-card mx-3 mb-3 max-h-[34vh] overflow-y-auto p-3 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
+          <p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 uppercase">Agen {visible.length}</p>
+          <ul className="mt-2 space-y-1.5">
+            {visible.map((agent) => (
+              <li key={agent.id}>
+                <button type="button" onClick={() => onSelect(agent.id)} className="w-full rounded-xl bg-[#0b0e14] px-3 py-2 text-left hover:bg-white/[0.04]">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: agent.color }} />
+                    <span className="text-xs font-semibold text-white">{agent.name}</span>
+                    <span className="text-[10px] text-slate-500">{DIVISION_LABEL[agent.division]}</span>
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-relaxed text-slate-300">{taskLine(agent)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

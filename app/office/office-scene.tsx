@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { NoToneMapping } from "three";
-import { PANTRY_PARK, STATIONS, WA_SPOT } from "@/lib/office/layout";
+import { crewSpot, PANTRY_PARK, STATIONS } from "@/lib/office/layout";
 import type { OfficeAgent, OfficeViewMode, WorkRoomId } from "@/lib/office/types";
 import OfficeAgentMesh from "./components/office-agent";
 import { PingPongTable, WorkDesk } from "./components/office-furniture";
@@ -33,8 +33,8 @@ export default function OfficeScene({
 }) {
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const anchor = selected
-    ? selected.place === "hall"
-      ? WA_SPOT
+      ? selected.place === "hall"
+      ? crewSpot(selected.id)
       : selected.at_pantry
         ? PANTRY_PARK
         : STATIONS[selected.room].chair

@@ -10,11 +10,17 @@ export const LAPORAN_AGENT_ID = "laporan-harian";
 export const SALES_AGENT_ID = "monitor-sales";
 export const STOK_AGENT_ID = "stok-produksi";
 export const WA_AGENT_ID = "balas-wa";
+export const SOFTWARE_AGENT_ID = "meja-software";
+export const SOSMED_AGENT_ID = "divisi-sosmed";
+export const MARKETING_AGENT_ID = "divisi-marketing";
+
+export type OfficeDivision = "kantor" | "software" | "sosmed" | "marketing";
 
 export type OfficeAgent = {
   id: string;
   business_id: string;
   name: string;
+  division: OfficeDivision;
   room: WorkRoomId;
   /** hall = berdiri di selasar, bukan duduk di meja ruangnya. */
   place: "desk" | "hall";

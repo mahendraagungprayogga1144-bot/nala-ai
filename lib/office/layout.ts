@@ -63,6 +63,17 @@ export const PANTRY_PARK: Vec2 = [2.45, 3.55];
 /** Balas WA berdiri di selasar, seperti penjaga tautan. */
 export const WA_SPOT: Vec2 = [0, 0];
 
+const CREW_SPOTS: Record<string, Vec2> = {
+  "balas-wa": WA_SPOT,
+  "meja-software": [-2.35, 0.15],
+  "divisi-sosmed": [2.35, 0.15],
+  "divisi-marketing": [0, 1.85],
+};
+
+export function crewSpot(agentId: string): Vec2 {
+  return CREW_SPOTS[agentId] ?? WA_SPOT;
+}
+
 export function roomById(id: OfficeRoomId) {
   const room = ROOMS.find((item) => item.id === id);
   if (!room) throw new Error(`Ruangan tidak dikenal: ${id}`);

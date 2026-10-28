@@ -5,7 +5,17 @@ import { namedMonthWindow, periodRange, type PeriodKind } from "@/lib/henima-sal
 import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
 import { getPublicShareOrigin } from "@/lib/auth/app-url";
 import { officeRepository, type OfficeFacts, type OfficeProductRow, type OfficeWindow, type StockAdjustResult } from "./repository";
-import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
+import {
+  LAPORAN_AGENT_ID,
+  MARKETING_AGENT_ID,
+  SALES_AGENT_ID,
+  SOFTWARE_AGENT_ID,
+  SOSMED_AGENT_ID,
+  STOK_AGENT_ID,
+  WA_AGENT_ID,
+  type OfficeAgent,
+  type OfficeSnapshot,
+} from "./types";
 import {
   companyTask,
   fieldTaskTail,
@@ -150,7 +160,70 @@ function stockStatus(facts: OfficeFacts): OfficeAgent["status"] {
   return "working";
 }
 
-export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brief?: CompanyBrief | null): OfficeSnapshot {
+export type OfficeDraft = { judul: string | null; caption: string; channel: string | null; jadwal: string | null };
+
+function channelLabel(channel: string | null) {
+  if (channel === "instagram") return "Instagram";
+  if (channel === "tiktok") return "TikTok";
+  if (channel === "whatsapp") return "WhatsApp";
+  return channel || "kanal lain";
+}
+
+function draftLine(draft: OfficeDraft) {
+  const title = draft.judul?.trim() || "Tanpa judul";
+  const when = draft.jadwal ? `, jadwal ${draft.jadwal}` : "";
+  return `${title} (${channelLabel(draft.channel)}${when})`;
+}
+
+export async function loadOfficeDrafts(db: Awaited<ReturnType<typeof createClient>>, businessId: string): Promise<OfficeDraft[] | null> {
+  const { data, error } = await db
+    .from("module_marketing_drafts")
+    .select("judul, caption, channel, jadwal, created_at")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (error) return null;
+  return (data || []).map((row) => ({
+    judul: row.judul ? String(row.judul) : null,
+    caption: String(row.caption || ""),
+    channel: row.channel ? String(row.channel) : null,
+    jadwal: row.jadwal ? String(row.jadwal) : null,
+  }));
+}
+
+function softwareTask(facts: OfficeFacts, drafts: OfficeDraft[] | null) {
+  const live = [
+    facts.orders.ok ? "penjualan" : null,
+    facts.products.ok ? "stok" : null,
+    facts.points.ok ? "lapangan" : null,
+    drafts ? "draft marketing" : null,
+  ].filter((item): item is string => Boolean(item));
+  if (!live.length) return "Software belum terbaca. Muat ulang kantor.";
+  return `Software hidup: ${live.join(", ")}.`;
+}
+
+function sosmedDrafts(drafts: OfficeDraft[]) {
+  return drafts.filter((draft) => draft.channel === "instagram" || draft.channel === "tiktok");
+}
+
+function marketingDrafts(drafts: OfficeDraft[]) {
+  return drafts.filter((draft) => draft.channel === "whatsapp" || Boolean(draft.jadwal));
+}
+
+function listDrafts(rows: OfficeDraft[], empty: string) {
+  if (!rows.length) return empty;
+  return rows
+    .slice(0, 5)
+    .map((draft) => draftLine(draft))
+    .join("; ");
+}
+
+export function buildOfficeSnapshot(
+  facts: OfficeFacts,
+  wa?: WaDesk | null,
+  brief?: CompanyBrief | null,
+  drafts: OfficeDraft[] | null = null,
+): OfficeSnapshot {
   const laporanBusy = brief ? brief.paidCount > 0 || brief.pendingCount > 0 : laporanWorking(facts);
   const salesBusy = salesWorking(facts);
   const jobs = brief && facts.products.ok ? productionQueue(facts.products.rows, brief.products) : [];
@@ -160,6 +233,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brie
       id: LAPORAN_AGENT_ID,
       business_id: facts.businessId,
       name: "Laporan Harian",
+      division: "kantor",
       room: "founder",
       place: "desk",
       status: laporanBusy ? "working" : "idle",
@@ -171,6 +245,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brie
       id: SALES_AGENT_ID,
       business_id: facts.businessId,
       name: "Monitor Sales",
+      division: "kantor",
       room: "sales",
       place: "desk",
       status: salesBusy ? "working" : "idle",
@@ -182,6 +257,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brie
       id: STOK_AGENT_ID,
       business_id: facts.businessId,
       name: "Stok & Produksi",
+      division: "kantor",
       room: "ops",
       place: "desk",
       status: stock,
@@ -193,6 +269,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brie
       id: WA_AGENT_ID,
       business_id: facts.businessId,
       name: "Balas WA",
+      division: "kantor",
       room: "sales",
       place: "hall",
       status: wa?.today ? "working" : "idle",
@@ -205,6 +282,50 @@ export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null, brie
             ? `${wa.today} chat masuk hari ini. Balasan otomatis menyala.`
             : "Tautan siap. Belum ada chat hari ini.",
       color: "#25D366",
+    },
+    {
+      id: SOFTWARE_AGENT_ID,
+      business_id: facts.businessId,
+      name: "Meja Software",
+      division: "software",
+      room: "founder",
+      place: "hall",
+      status: facts.orders.ok && facts.products.ok ? "working" : "idle",
+      at_pantry: false,
+      current_task: softwareTask(facts, drafts),
+      color: "#38BDF8",
+    },
+    {
+      id: SOSMED_AGENT_ID,
+      business_id: facts.businessId,
+      name: "Divisi Sosmed",
+      division: "sosmed",
+      room: "sales",
+      place: "hall",
+      status: drafts && sosmedDrafts(drafts).length ? "working" : "idle",
+      at_pantry: false,
+      current_task: drafts
+        ? sosmedDrafts(drafts).length
+          ? `${sosmedDrafts(drafts).length} draft sosmed menunggu. ${draftLine(sosmedDrafts(drafts)[0])}.`
+          : "Belum ada draft Instagram atau TikTok."
+        : "Draft sosmed belum terbaca.",
+      color: "#F472B6",
+    },
+    {
+      id: MARKETING_AGENT_ID,
+      business_id: facts.businessId,
+      name: "Divisi Marketing",
+      division: "marketing",
+      room: "ops",
+      place: "hall",
+      status: drafts && marketingDrafts(drafts).length ? "working" : "idle",
+      at_pantry: false,
+      current_task: drafts
+        ? marketingDrafts(drafts).length
+          ? `${marketingDrafts(drafts).length} kampanye tersimpan. ${draftLine(marketingDrafts(drafts)[0])}.`
+          : "Belum ada draft kampanye."
+        : "Draft marketing belum terbaca.",
+      color: "#FB7185",
     },
   ];
   const working = agents.filter((agent) => agent.status === "working");
@@ -292,7 +413,8 @@ export async function loadOfficeSnapshot(businessId: string): Promise<OfficeSnap
   await applyHenimaBook(facts, id, { from: today.from, to: today.to });
   const wa = await loadWaDesk(id);
   const brief = await loadCompanyBrief(id, today);
-  return buildOfficeSnapshot(facts, wa, brief.ok ? brief : null);
+  const drafts = await loadOfficeDrafts(db, id);
+  return buildOfficeSnapshot(facts, wa, brief.ok ? brief : null, drafts);
 }
 
 const MONTH_NAMES: readonly { month: number; names: readonly string[] }[] = [
@@ -506,6 +628,21 @@ export async function answerOfficeQuestion(businessId: string, agentId: string, 
   const text = question.trim();
   if (!text) return "Tulis pertanyaan atau instruksi dulu.";
   if (agentId === WA_AGENT_ID) return describeWa(businessId, text);
+  if (agentId === SOFTWARE_AGENT_ID || agentId === SOSMED_AGENT_ID || agentId === MARKETING_AGENT_ID) {
+    const db = await createClient();
+    const facts = await officeRepository.loadFacts(db, businessId, askedRange(text));
+    const drafts = await loadOfficeDrafts(db, businessId);
+    if (agentId === SOFTWARE_AGENT_ID) {
+      const broken = [facts.orders, facts.products, facts.points, facts.staff].filter((slice) => slice.notice).map((slice) => slice.notice);
+      const head = softwareTask(facts, drafts);
+      return broken.length ? `${head} Yang belum beres: ${broken.join(" ")}` : head;
+    }
+    if (!drafts) return "Draft marketing belum terbaca.";
+    if (agentId === SOSMED_AGENT_ID) {
+      return listDrafts(sosmedDrafts(drafts), "Belum ada draft Instagram atau TikTok.");
+    }
+    return listDrafts(marketingDrafts(drafts), "Belum ada draft kampanye atau jadwal.");
+  }
   const range = askedRange(text);
   const db = await createClient();
   const facts = await officeRepository.loadFacts(db, businessId, range);

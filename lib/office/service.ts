@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { namedMonthWindow, periodRange, type PeriodKind } from "@/lib/henima-sales/dates";
 import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
 import { officeRepository, type OfficeFacts, type OfficeProductRow, type StockAdjustResult } from "./repository";
 import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
@@ -63,7 +64,7 @@ function staffName(facts: OfficeFacts, staffId: string) {
   return facts.staff.rows.find((row) => row.id === staffId)?.nama || "Sales";
 }
 
-function sellersToday(facts: OfficeFacts) {
+function sellersInRange(facts: OfficeFacts) {
   const ids = new Set(
     facts.orders.rows.filter((row) => row.source === SALES_ORDER_SOURCE && row.sales_id).map((row) => row.sales_id as string),
   );
@@ -84,7 +85,7 @@ function peopleOut(facts: OfficeFacts) {
 function salesTask(facts: OfficeFacts) {
   if (!facts.points.ok && !facts.orders.ok) return "Kondisi lapangan belum terbaca.";
   if (!facts.points.ok) {
-    const sellers = facts.orders.ok ? sellersToday(facts) : [];
+    const sellers = facts.orders.ok ? sellersInRange(facts) : [];
     const unread = facts.points.notice || "Tracking hari ini belum terbaca.";
     if (sellers.length) return `${sellers.join(", ")} ada order Henima hari ini. ${unread}`;
     if (facts.orders.ok && facts.orders.rows.some((row) => row.source === SALES_ORDER_SOURCE)) {
@@ -98,7 +99,7 @@ function salesTask(facts: OfficeFacts) {
     const late = last.late ? ", telat" : "";
     return `${out.join(", ")} di lapangan. Terakhir ${staffName(facts, last.staff_id)} ${kindLabel(last.kind)} pukul ${wibClock(last.recorded_at)}${late}.`;
   }
-  const sellers = facts.orders.ok ? sellersToday(facts) : [];
+  const sellers = facts.orders.ok ? sellersInRange(facts) : [];
   if (sellers.length) return `${sellers.join(", ")} ada order Henima hari ini. Belum ada titik tracking.`;
   if (facts.orders.ok && facts.orders.rows.some((row) => row.source === SALES_ORDER_SOURCE)) {
     return "Ada order Henima hari ini. Belum ada titik tracking.";
@@ -193,34 +194,72 @@ export async function loadOfficeSnapshot(businessId: string): Promise<OfficeSnap
   return buildOfficeSnapshot(facts);
 }
 
-function laporanAnswer(facts: OfficeFacts, question: string) {
+const MONTH_NAMES: readonly { month: number; names: readonly string[] }[] = [
+  { month: 1, names: ["januari"] },
+  { month: 2, names: ["februari"] },
+  { month: 3, names: ["maret"] },
+  { month: 4, names: ["april"] },
+  { month: 5, names: ["mei"] },
+  { month: 6, names: ["juni"] },
+  { month: 7, names: ["juli"] },
+  { month: 8, names: ["agustus", "ags"] },
+  { month: 9, names: ["september", "sep"] },
+  { month: 10, names: ["oktober", "okt"] },
+  { month: 11, names: ["november", "nov"] },
+  { month: 12, names: ["desember", "des"] },
+];
+
+export function askedRange(question: string) {
+  const text = question.toLowerCase();
+  const yearHit = text.match(/\b(20\d{2})\b/);
+  const year = yearHit ? Number(yearHit[1]) : undefined;
+  if (!/bulan ini/.test(text)) {
+    for (const item of MONTH_NAMES) {
+      if (item.names.some((name) => new RegExp(`\\b${name}\\b`).test(text))) {
+        return namedMonthWindow(item.month, year);
+      }
+    }
+  }
+  let kind: PeriodKind = "today";
+  if (/bulan lalu|bulan kemarin/.test(text)) kind = "last_month";
+  else if (/minggu lalu|minggu kemarin/.test(text)) kind = "last_week";
+  else if (/\bkemarin\b/.test(text)) kind = "yesterday";
+  else if (/minggu/.test(text)) kind = "this_week";
+  else if (/tahun/.test(text)) kind = "this_year";
+  else if (/bulan/.test(text)) kind = "this_month";
+  return periodRange(kind);
+}
+
+function periodSummary(facts: OfficeFacts, label: string) {
   if (!facts.orders.ok && !facts.pemasukan.ok) {
-    return "Laporan hari ini belum bisa dibaca. Coba muat ulang.";
+    return `${label}: laporan belum bisa dibaca. Coba muat ulang.`;
   }
   const { orders, omzet, henimaCount, henimaOmzet, otherCount, pemasukan } = orderSummary(facts);
   const otherOmzet = omzet - henimaOmzet;
-  const text = question.toLowerCase();
-  const lines = [
-    `Hari ini ada ${orders.length} order.`,
-    `Omzet dari order ${rp(omzet)}.`,
-    `Henima ${henimaCount} order (${rp(henimaOmzet)}).`,
-    `Selain Henima ${otherCount} order (${rp(otherOmzet)}).`,
-  ];
+  if (!facts.orders.ok) {
+    const income = facts.pemasukan.ok ? ` Pemasukan kasir/keuangan ${rp(pemasukan)}.` : "";
+    return `${facts.orders.notice || "Order belum terbaca."}${income}`;
+  }
+  const head = `${label}: ${orders.length} order. Henima ${henimaCount} (${rp(henimaOmzet)}), lainnya ${otherCount} (${rp(otherOmzet)}). Omzet ${rp(omzet)}.`;
   if (orders.length === 0 && facts.pemasukan.ok) {
-    lines.push(`Pemasukan yang tercatat di kasir/keuangan ${rp(pemasukan)}.`);
+    return `${head} Pemasukan kasir/keuangan yang tercatat ${rp(pemasukan)}.`;
   }
-  if (text.includes("omzet") || text.includes("uang") || text.includes("pendapatan")) {
-    return orders.length
-      ? `Omzet order hari ini ${rp(omzet)}. Henima ${rp(henimaOmzet)}, lainnya ${rp(otherOmzet)}.`
-      : `Belum ada order hari ini. Pemasukan kasir/keuangan yang tercatat ${rp(pemasukan)}.`;
-  }
-  if (text.includes("order") || text.includes("berapa")) {
-    return `Hari ini ${orders.length} order. Henima ${henimaCount}, lainnya ${otherCount}. Omzet ${rp(omzet)}.`;
-  }
-  return lines.join(" ");
+  return head;
 }
 
-function salesAnswer(facts: OfficeFacts, question: string) {
+function laporanAnswer(facts: OfficeFacts, question: string, label: string) {
+  const text = question.toLowerCase();
+  const { orders, omzet, henimaOmzet, pemasukan } = orderSummary(facts);
+  const otherOmzet = omzet - henimaOmzet;
+  if ((text.includes("omzet") || text.includes("uang") || text.includes("pendapatan")) && facts.orders.ok) {
+    return orders.length
+      ? `${label}: omzet order ${rp(omzet)}. Henima ${rp(henimaOmzet)}, lainnya ${rp(otherOmzet)}.`
+      : `${label}: belum ada order. Pemasukan kasir/keuangan ${rp(pemasukan)}.`;
+  }
+  return periodSummary(facts, label);
+}
+
+function salesAnswer(facts: OfficeFacts, question: string, label: string) {
   if (!facts.points.ok && !facts.staff.ok && !facts.orders.ok) {
     return "Data lapangan belum bisa dibaca. Coba muat ulang.";
   }
@@ -228,28 +267,29 @@ function salesAnswer(facts: OfficeFacts, question: string) {
   const out = facts.points.ok ? peopleOut(facts) : [];
   const late = facts.points.rows.filter((point) => point.late);
   const last = facts.points.rows[0];
-  const sellers = facts.orders.ok ? sellersToday(facts) : [];
+  const sellers = facts.orders.ok ? sellersInRange(facts) : [];
 
   if (text.includes("telat")) {
-    if (!facts.points.ok) return facts.points.notice || "Tracking hari ini belum bisa dibaca.";
-    if (!late.length) return out.length ? "Tidak ada titik yang ditandai telat hari ini." : "Belum ada check-in hari ini, jadi belum ada yang telat.";
+    if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+    if (!late.length) return out.length ? `Tidak ada titik yang ditandai telat pada ${label}.` : `Belum ada check-in pada ${label}, jadi belum ada yang telat.`;
     const names = [...new Set(late.map((point) => staffName(facts, point.staff_id)))];
-    return `Yang telat hari ini: ${names.join(", ")}.`;
+    return `Yang telat pada ${label}: ${names.join(", ")}.`;
   }
-  if (text.includes("di mana") || text.includes("dimana") || text.includes("titik") || text.includes("lokasi")) {
-    if (!facts.points.ok) return facts.points.notice || "Tracking hari ini belum bisa dibaca.";
-    if (!last) return "Belum ada titik tracking hari ini.";
+  if (text.includes("di mana") || text.includes("dimana") || text.includes("titik") || text.includes("lokasi") || text.includes("tracking")) {
+    if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+    if (!last) return `Belum ada titik tracking pada ${label}.`;
     const note = last.note ? ` Catatan: ${last.note}.` : "";
-    return `Titik terakhir: ${staffName(facts, last.staff_id)}, ${kindLabel(last.kind)} pukul ${wibClock(last.recorded_at)}${last.late ? ", telat" : ""}. Koordinat ${last.lat.toFixed(5)}, ${last.lng.toFixed(5)}.${note}`;
+    const who = out.length ? `Yang tercatat: ${out.join(", ")}. ` : "";
+    return `${label}. ${who}Titik terakhir: ${staffName(facts, last.staff_id)}, ${kindLabel(last.kind)} pukul ${wibClock(last.recorded_at)}${last.late ? ", telat" : ""}. Koordinat ${last.lat.toFixed(5)}, ${last.lng.toFixed(5)}.${note}`;
   }
-  if (text.includes("jual") || text.includes("order")) {
-    if (!sellers.length) return "Belum ada order Henima yang tercatat atas nama sales hari ini.";
-    return `Yang punya order Henima hari ini: ${sellers.join(", ")}.`;
+  if (text.includes("jual") || text.includes("order") || text.includes("penjualan") || text.includes("omzet")) {
+    const money = periodSummary(facts, label);
+    if (!sellers.length) return `${money} Belum ada order Henima yang tercatat atas nama sales.`;
+    return `${money} Yang jual: ${sellers.join(", ")}.`;
   }
-  if (!out.length && !sellers.length) return salesTask(facts);
-  const parts = [];
+  const parts = [`${label}.`];
   if (facts.points.ok) {
-    parts.push(out.length ? `Di lapangan: ${out.join(", ")}.` : "Belum ada titik tracking hari ini.");
+    parts.push(out.length ? `Di lapangan: ${out.join(", ")}.` : "Belum ada titik tracking.");
   } else if (facts.points.notice) parts.push(facts.points.notice);
   if (last) {
     parts.push(
@@ -325,12 +365,18 @@ function stockAnswer(facts: OfficeFacts, question: string) {
 export async function answerOfficeQuestion(businessId: string, agentId: string, question: string) {
   const text = question.trim();
   if (!text) return "Tulis pertanyaan atau instruksi dulu.";
+  const range = askedRange(text);
   const db = await createClient();
-  const facts = await officeRepository.loadFacts(db, businessId);
-  if (agentId === LAPORAN_AGENT_ID) return laporanAnswer(facts, text);
-  if (agentId === SALES_AGENT_ID) return salesAnswer(facts, text);
+  const facts = await officeRepository.loadFacts(db, businessId, range);
+  const aboutField = /tracking|lapangan|check-?in|telat|titik|lokasi|di mana|dimana|kunjungan/.test(text.toLowerCase());
+  const aboutMoney = /jual|penjualan|omzet|order|pendapatan|pemasukan|kasir|uang/.test(text.toLowerCase());
+  const aboutStock = /stok|habis|inventory|produk/.test(text.toLowerCase()) && !aboutMoney;
+  if (aboutField && !aboutMoney && !aboutStock) return salesAnswer(facts, text, range.label);
+  if (aboutStock) return stockAnswer(facts, text);
+  if (aboutMoney || agentId === LAPORAN_AGENT_ID) return laporanAnswer(facts, text, range.label);
+  if (agentId === SALES_AGENT_ID) return salesAnswer(facts, text, range.label);
   if (agentId === STOK_AGENT_ID) return stockAnswer(facts, text);
-  return "Orang ini tidak punya tugas yang bisa dijawab dari data hari ini.";
+  return laporanAnswer(facts, text, range.label);
 }
 
 export function stockChangeMessage(result: StockAdjustResult) {

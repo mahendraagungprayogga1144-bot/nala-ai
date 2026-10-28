@@ -34,8 +34,8 @@ export default function OfficeScene({
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const focus = selected
     ? selected.at_pantry
-      ? ([PANTRY_PARK[0], 0.7, PANTRY_PARK[1]] as const)
-      : ([STATIONS[selected.room].chair[0], 0.7, STATIONS[selected.room].chair[1]] as const)
+      ? ([PANTRY_PARK[0] + 1.6, 0.2, PANTRY_PARK[1] + 1.6] as const)
+      : ([STATIONS[selected.room].chair[0] + 1.6, 0.2, STATIONS[selected.room].chair[1] + 1.6] as const)
     : null;
 
   return (
@@ -46,7 +46,7 @@ export default function OfficeScene({
         dpr={antialias ? [1, maxDpr] : 1}
         camera={{
           position: mode === "2d" ? [0, 20, 0.02] : [13.5, 12, 13.5],
-          zoom: mode === "2d" ? 50 : 36,
+          zoom: mode === "2d" ? 42 : 28,
           near: -40,
           far: 90,
         }}

@@ -9,16 +9,16 @@ export const STATUS_LABEL: Record<AgentStatus, string> = {
 
 const SUGGESTIONS: Record<string, readonly string[]> = {
   [LAPORAN_AGENT_ID]: [
+    "Berapa penjualan bulan ini?",
     "Berapa omzet hari ini?",
-    "Berapa order hari ini?",
+    "Berapa order minggu ini?",
     "Berapa yang dari Henima dan berapa dari kasir?",
-    "Ringkas penjualan hari ini.",
   ],
   [SALES_AGENT_ID]: [
     "Siapa yang ada di lapangan hari ini?",
     "Ada yang telat check-in?",
     "Di mana titik terakhir?",
-    "Siapa yang sudah jualan hari ini?",
+    "Siapa yang jualan bulan ini?",
   ],
   [STOK_AGENT_ID]: [
     "Produk apa yang stoknya kritis?",

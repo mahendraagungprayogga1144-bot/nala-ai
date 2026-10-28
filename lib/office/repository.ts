@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { todayWib } from "@/lib/date";
-import { wibDayWindow } from "@/lib/henima-tracking/shared";
 export type OfficeOrderRow = {
   total: number;
   source: string | null;
@@ -74,24 +73,45 @@ function sliceError<T>(empty: T, error: { message?: string } | null, label: stri
   return { ok: false, notice: `${label} belum bisa dibaca. Coba muat ulang.`, rows: empty };
 }
 
+export type OfficeWindow = { from: string; to: string };
+
 export type OfficeRepository = {
-  loadFacts(db: SupabaseClient, businessId: string): Promise<OfficeFacts>;
+  loadFacts(db: SupabaseClient, businessId: string, window?: OfficeWindow): Promise<OfficeFacts>;
   adjustStock(db: SupabaseClient, input: StockAdjustInput): Promise<StockAdjustResult>;
 };
 
-async function loadOrders(db: SupabaseClient, businessId: string): Promise<OfficeSlice<OfficeOrderRow[]>> {
+function todayWindow(): OfficeWindow {
   const today = todayWib();
+  return { from: today, to: today };
+}
+
+function pointWindow(window: OfficeWindow) {
+  const [year, month, day] = window.to.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day));
+  next.setUTCDate(next.getUTCDate() + 1);
+  const nextYmd = next.toISOString().slice(0, 10);
+  return { from: `${window.from}T00:00:00+07:00`, to: `${nextYmd}T00:00:00+07:00` };
+}
+
+async function loadOrders(db: SupabaseClient, businessId: string, window: OfficeWindow): Promise<OfficeSlice<OfficeOrderRow[]>> {
   const first = await db
     .from("orders")
     .select("total, source, sales_id")
     .eq("business_id", businessId)
-    .eq("order_date", today)
+    .gte("order_date", window.from)
+    .lte("order_date", window.to)
     .is("deleted_at", null)
     .limit(ORDER_CAP);
   const query = first.error?.message?.toLowerCase().includes("deleted_at")
-    ? await db.from("orders").select("total, source, sales_id").eq("business_id", businessId).eq("order_date", today).limit(ORDER_CAP)
+    ? await db
+        .from("orders")
+        .select("total, source, sales_id")
+        .eq("business_id", businessId)
+        .gte("order_date", window.from)
+        .lte("order_date", window.to)
+        .limit(ORDER_CAP)
     : first;
-  if (query.error) return sliceError([], query.error, "Order hari ini");
+  if (query.error) return sliceError([], query.error, "Order");
   return {
     ok: true,
     notice: null,
@@ -103,14 +123,14 @@ async function loadOrders(db: SupabaseClient, businessId: string): Promise<Offic
   };
 }
 
-async function loadPemasukan(db: SupabaseClient, businessId: string): Promise<OfficeSlice<number>> {
-  const today = todayWib();
+async function loadPemasukan(db: SupabaseClient, businessId: string, window: OfficeWindow): Promise<OfficeSlice<number>> {
   const { data, error } = await db
     .from("transactions")
     .select("amount")
     .eq("business_id", businessId)
     .eq("type", "pemasukan")
-    .eq("transaction_date", today)
+    .gte("transaction_date", window.from)
+    .lte("transaction_date", window.to)
     .limit(ORDER_CAP);
   if (error) return sliceError(0, error, "Pemasukan kasir");
   const sum = (data || []).reduce((total, row) => total + (Number(row.amount) || 0), 0);
@@ -139,9 +159,10 @@ async function loadStaff(db: SupabaseClient, businessId: string): Promise<Office
 async function loadPoints(
   db: SupabaseClient,
   staffIds: string[],
+  window: OfficeWindow,
 ): Promise<OfficeSlice<OfficePointRow[]>> {
   if (!staffIds.length) return { ok: true, notice: null, rows: [] };
-  const win = wibDayWindow();
+  const win = pointWindow(window);
   const { data, error } = await db
     .from("module_henima_tracking_points")
     .select("staff_id, kind, lat, lng, late, note, recorded_at")
@@ -149,8 +170,8 @@ async function loadPoints(
     .gte("recorded_at", win.from)
     .lt("recorded_at", win.to)
     .order("recorded_at", { ascending: false })
-    .limit(300);
-  if (error) return sliceError([], error, "Tracking hari ini");
+    .limit(ORDER_CAP);
+  if (error) return sliceError([], error, "Tracking");
   return {
     ok: true,
     notice: null,
@@ -191,15 +212,15 @@ async function loadProducts(db: SupabaseClient, businessId: string): Promise<Off
 }
 
 export const officeRepository: OfficeRepository = {
-  async loadFacts(db, businessId) {
+  async loadFacts(db, businessId, window = todayWindow()) {
     const [orders, pemasukan, staff, products] = await Promise.all([
-      loadOrders(db, businessId),
-      loadPemasukan(db, businessId),
+      loadOrders(db, businessId, window),
+      loadPemasukan(db, businessId, window),
       loadStaff(db, businessId),
       loadProducts(db, businessId),
     ]);
     const points = staff.ok
-      ? await loadPoints(db, staff.rows.map((row) => row.id))
+      ? await loadPoints(db, staff.rows.map((row) => row.id), window)
       : { ok: false, notice: null, rows: [] as OfficePointRow[] };
     return { businessId, orders, pemasukan, staff, points, products };
   },

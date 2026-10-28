@@ -152,7 +152,7 @@ export default function OfficeWorkPanel({
           )}
         </form>
       ) : null}
-      {answer ? <p className="rounded-xl bg-[#0b0e14] px-3 py-2 text-xs leading-relaxed text-slate-100">{answer}</p> : null}
+      {answer ? <p className="rounded-xl bg-[#0b0e14] px-3 py-2.5 text-sm leading-relaxed text-slate-100">{answer}</p> : null}
       {pending ? <p className="text-[11px] text-slate-500">Sedang membaca data…</p> : null}
     </div>
   );

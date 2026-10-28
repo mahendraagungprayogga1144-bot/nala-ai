@@ -10,8 +10,8 @@ import type { OfficeViewMode } from "@/lib/office/types";
 const HOME_TARGET = new Vector3(0, 0.35, 0);
 
 const PRESET: Record<OfficeViewMode, { position: Vector3; zoom: number }> = {
-  "3d": { position: new Vector3(13.5, 12, 13.5), zoom: 36 },
-  "2d": { position: new Vector3(0, 20, 0.02), zoom: 50 },
+  "3d": { position: new Vector3(13.5, 12, 13.5), zoom: 28 },
+  "2d": { position: new Vector3(0, 20, 0.02), zoom: 42 },
 };
 
 export default function ViewRig({
@@ -51,7 +51,7 @@ export default function ViewRig({
     else look.copy(HOME_TARGET);
 
     const dest = destPos.current.copy(preset.position).sub(HOME_TARGET).add(look);
-    const zoom = focus ? preset.zoom * 1.45 : preset.zoom;
+    const zoom = focus ? preset.zoom * 1.2 : preset.zoom;
     const cam = state.camera;
     cam.position.lerp(dest, 0.16);
     ctrl.target.lerp(look, 0.16);

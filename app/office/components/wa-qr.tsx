@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
+export function waMeLink(pageUrl: string) {
+  return `https://wa.me/?text=${encodeURIComponent(pageUrl)}`;
+}
+
 export default function WaQr({ url }: { url: string }) {
   const [src, setSrc] = useState("");
 
@@ -25,21 +29,18 @@ export default function WaQr({ url }: { url: string }) {
 
   return (
     <div className="space-y-2">
-      <img src={src} alt="Kode QR tautan balasan WhatsApp" className="mx-auto h-56 w-56 rounded-lg bg-white p-2" />
-      <p className="text-[11px] leading-relaxed text-slate-400">
-        Pindai dengan kamera HP. Kameranya membuka halaman chat. Menu Tautkan perangkat di WhatsApp menolak kode ini, karena yang diterima di sana hanya kode login WhatsApp.
-      </p>
+      <img src={src} alt="Kode QR tautan balasan WhatsApp" className="mx-auto h-40 w-40 rounded-lg bg-white p-2" />
       <div className="flex flex-wrap gap-2">
         <a href={src} download="qr-wa-henima.png" className="rounded-lg bg-[#25D366] px-3 py-2 text-xs font-semibold text-[#052e16]">
           Unduh QR
         </a>
         <a
-          href={url ? `https://wa.me/?text=${encodeURIComponent(`Balasan otomatis Henima:\n${url}`)}` : undefined}
+          href={waMeLink(url)}
           target="_blank"
           rel="noreferrer"
           className="rounded-lg border border-[#25D366]/40 px-3 py-2 text-xs font-semibold text-[#25D366]"
         >
-          Kirim ke WhatsApp
+          Buka di WhatsApp
         </a>
       </div>
     </div>

@@ -185,6 +185,55 @@ export async function publicWaLink(token: string): Promise<WaPublicLink | null> 
   }
 }
 
+export async function answerWaVisitor(input: {
+  businessId: string;
+  linkId: string;
+  brand: string;
+  greeting: string;
+  visitor: string;
+  text: string;
+  persist?: boolean;
+}) {
+  const clean = input.text.trim().slice(0, 500);
+  if (!VISITOR.test(input.visitor) || !clean) return { ok: false as const, message: "Pesan tidak berlaku." };
+  const admin = salesDb();
+  const today = todayWib();
+  const { count } = await admin
+    .from("module_wa_reply_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("link_id", input.linkId)
+    .eq("visitor_key", input.visitor)
+    .eq("direction", "in")
+    .gte("created_at", `${today}T00:00:00+07:00`);
+  if ((count || 0) >= 40) return { ok: false as const, message: "Kuota chat hari ini sudah penuh." };
+  const products = await catalog(input.businessId, 15);
+  const { count: aiToday } = await admin
+    .from("module_wa_reply_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("link_id", input.linkId)
+    .eq("direction", "out")
+    .gte("created_at", `${today}T00:00:00+07:00`);
+  const { data: earlier } = await admin
+    .from("module_wa_reply_messages")
+    .select("direction, body")
+    .eq("link_id", input.linkId)
+    .eq("visitor_key", input.visitor)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  const history = (earlier || [])
+    .reverse()
+    .map((row) => ({ direction: row.direction === "out" ? ("out" as const) : ("in" as const), body: String(row.body || "") }));
+  const aiReply = (aiToday || 0) < 120 ? await answerPublicWa({ brand: input.brand, greeting: input.greeting, products, history, question: clean }) : null;
+  const reply = aiReply || composeWaReply(clean, input.brand, input.greeting, products);
+  if (input.persist !== false) {
+    await admin.from("module_wa_reply_messages").insert([
+      { business_id: input.businessId, link_id: input.linkId, visitor_key: input.visitor, direction: "in", body: clean },
+      { business_id: input.businessId, link_id: input.linkId, visitor_key: input.visitor, direction: "out", body: reply },
+    ]);
+  }
+  return { ok: true as const, reply };
+}
+
 export async function replyOnWaLink(token: string, visitor: string, text: string) {
   const clean = text.trim().slice(0, 500);
   if (!TOKEN.test(token) || !VISITOR.test(visitor)) return { ok: false as const, message: "Tautan tidak berlaku." };
@@ -197,45 +246,17 @@ export async function replyOnWaLink(token: string, visitor: string, text: string
       .eq("token", token.toLowerCase())
       .maybeSingle();
     if (error || !link) return { ok: false as const, message: "Tautan tidak berlaku." };
-    const today = todayWib();
-    const { count } = await admin
-      .from("module_wa_reply_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("link_id", link.id)
-      .eq("visitor_key", visitor)
-      .eq("direction", "in")
-      .gte("created_at", `${today}T00:00:00+07:00`);
-    if ((count || 0) >= 40) return { ok: false as const, message: "Kuota chat hari ini sudah penuh. Lanjut besok atau hubungi sales." };
     const { data: business } = await admin.from("businesses").select("name").eq("id", link.business_id).maybeSingle();
     const brand = String(business?.name || "Henima");
     const greeting = String(link.greeting || defaultGreeting(brand));
-    const products = await catalog(String(link.business_id), 15);
-    const { count: aiToday } = await admin
-      .from("module_wa_reply_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("link_id", link.id)
-      .eq("direction", "out")
-      .gte("created_at", `${today}T00:00:00+07:00`);
-    const { data: earlier } = await admin
-      .from("module_wa_reply_messages")
-      .select("direction, body")
-      .eq("link_id", link.id)
-      .eq("visitor_key", visitor)
-      .order("created_at", { ascending: false })
-      .limit(8);
-    const history = (earlier || [])
-      .reverse()
-      .map((row) => ({ direction: row.direction === "out" ? ("out" as const) : ("in" as const), body: String(row.body || "") }));
-    const aiReply =
-      (aiToday || 0) < 120
-        ? await answerPublicWa({ brand, greeting, products, history, question: clean })
-        : null;
-    const reply = aiReply || composeWaReply(clean, brand, greeting, products);
-    await admin.from("module_wa_reply_messages").insert([
-      { business_id: link.business_id, link_id: link.id, visitor_key: visitor, direction: "in", body: clean },
-      { business_id: link.business_id, link_id: link.id, visitor_key: visitor, direction: "out", body: reply },
-    ]);
-    return { ok: true as const, reply };
+    return answerWaVisitor({
+      businessId: String(link.business_id),
+      linkId: String(link.id),
+      brand,
+      greeting,
+      visitor,
+      text: clean,
+    });
   } catch {
     return { ok: false as const, message: "Balasan belum terkirim. Coba lagi." };
   }
@@ -274,7 +295,7 @@ export async function loadWaInbox(preferredBusinessId: string): Promise<WaInboxT
       const last = ordered[ordered.length - 1];
       return {
         visitor,
-        label: `Chat ${index + 1}`,
+        label: /^\d{8,16}$/.test(visitor) ? `+${visitor}` : `Chat ${index + 1}`,
         preview: last?.body || "",
         at: last?.at || "",
         messages: ordered.slice(-20),
@@ -331,7 +352,8 @@ export async function describeWa(preferredBusinessId: string, question: string) 
   const text = question.toLowerCase();
   if (/tautan|link|salin|bagi/.test(text)) {
     const url = `${getPublicShareOrigin()}${desk.path}`;
-    return `Tautan balasan WA ${desk.brand}: ${url}. Buka alamat itu, atau salin dari panel. Henima AI yang membalas sendiri.`;
+    const wa = `https://wa.me/?text=${encodeURIComponent(url)}`;
+    return `Tautan WhatsApp ${desk.brand}: ${wa}. Ketuk tautan itu supaya WhatsApp terbuka dengan alamat chat.`;
   }
   if (/chat|pesan|masuk|baca/.test(text)) {
     return desk.today

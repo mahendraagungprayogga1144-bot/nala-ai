@@ -6,6 +6,7 @@ import { officeRepository } from "./repository";
 import { answerOfficeQuestion, loadOfficeSnapshot, resolveStockInstruction, stockChangeMessage } from "./service";
 import { STOK_AGENT_ID, type OfficeSnapshot, type WaInboxThread } from "./types";
 import { loadWaInbox, saveWaGreeting } from "./wa-reply";
+import { ensureFonnteKey, saveFonnteToken } from "./fonnte";
 
 async function ownedBusiness(businessId: string) {
   const supabase = await createClient();
@@ -69,6 +70,25 @@ export async function loadOfficeWaInbox(businessId: string): Promise<{ threads: 
   const gate = await ownedBusiness(businessId);
   if (!gate.ok) return { threads: [], message: gate.message };
   return { threads: await loadWaInbox(businessId), message: null };
+}
+
+export async function loadOfficeFonnte(businessId: string) {
+  const gate = await ownedBusiness(businessId);
+  if (!gate.ok) return { ok: false as const, message: gate.message, webhook: null, device: null, hasToken: false };
+  const ready = await ensureFonnteKey(businessId);
+  return {
+    ok: ready.ok,
+    message: ready.message,
+    webhook: ready.webhook,
+    device: ready.device,
+    hasToken: ready.hasToken,
+  };
+}
+
+export async function saveOfficeFonnte(businessId: string, token: string) {
+  const gate = await ownedBusiness(businessId);
+  if (!gate.ok) return { ok: false as const, message: gate.message, webhook: null, device: null };
+  return saveFonnteToken(businessId, token);
 }
 
 export async function saveOfficeWaGreeting(businessId: string, greeting: string) {

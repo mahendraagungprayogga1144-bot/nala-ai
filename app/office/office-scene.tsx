@@ -59,12 +59,12 @@ export default function OfficeScene({
         onCreated={({ gl }) => {
           gl.shadowMap.enabled = false;
           gl.toneMapping = NoToneMapping;
-          gl.setClearColor("#0b0e14", 1);
+          gl.setClearColor("#FFFFFF", 1);
         }}
       >
-        <ambientLight intensity={0.72} />
-        <hemisphereLight color="#fff7ed" groundColor="#b45309" intensity={0.4} />
-        <directionalLight position={[8, 14, 6]} intensity={0.48} />
+        <ambientLight intensity={0.74} />
+        <hemisphereLight color="#FFFFFF" groundColor="#F1F5F9" intensity={0.32} />
+        <directionalLight position={[8, 16, 6]} intensity={0.7} />
         <OfficeStructure />
         <PingPongTable />
         {WORK_ROOMS.map((room) => {

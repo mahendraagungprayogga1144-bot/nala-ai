@@ -34,7 +34,7 @@ export function WorkDesk({ station, status }: { station: Station; status: AgentS
     <group>
       <mesh position={[deskX, DESK_TOP, deskZ]}>
         <boxGeometry args={[1.2, 0.07, 0.64]} />
-        <meshLambertMaterial color="#6B3F24" />
+        <meshLambertMaterial color="#E7D3B4" />
       </mesh>
       {[
         [0.5, 0.24],
@@ -44,7 +44,7 @@ export function WorkDesk({ station, status }: { station: Station; status: AgentS
       ].map(([ox, oz]) => (
         <mesh key={`${ox}-${oz}`} position={[deskX + ox, legY, deskZ + oz]}>
           <boxGeometry args={[0.06, 0.62, 0.06]} />
-          <meshLambertMaterial color="#3F2A1D" />
+          <meshLambertMaterial color="#C4B29A" />
         </mesh>
       ))}
       <mesh position={[deskX - fx * 0.12, DESK_TOP + 0.045, deskZ - fz * 0.12]}>
@@ -66,11 +66,11 @@ export function WorkDesk({ station, status }: { station: Station; status: AgentS
 
       <mesh position={[chairX, 0.46, chairZ]}>
         <boxGeometry args={[0.42, 0.06, 0.4]} />
-        <meshLambertMaterial color="#334155" />
+        <meshLambertMaterial color="#E2E8F0" />
       </mesh>
       <mesh position={[chairX - fx * 0.18, 0.7, chairZ - fz * 0.18]}>
         <boxGeometry args={[0.42, 0.36, 0.06]} />
-        <meshLambertMaterial color="#334155" />
+        <meshLambertMaterial color="#CBD5E1" />
       </mesh>
       {[
         [0.16, 0.14],

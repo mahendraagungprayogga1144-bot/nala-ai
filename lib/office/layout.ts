@@ -15,10 +15,10 @@ export type RoomLayout = {
 };
 
 export const ROOMS: readonly RoomLayout[] = [
-  { id: "sales", label: "Ruang Sales", center: [-4.55, -3.6], size: [6.8, 4.85], floor: "#C4A574" },
-  { id: "ops", label: "Ruang Operasional", center: [4.55, -3.6], size: [6.8, 4.85], floor: "#B8956A" },
-  { id: "founder", label: "Ruang Founder", center: [-4.55, 3.6], size: [6.8, 4.85], floor: "#D2B48C" },
-  { id: "pantry", label: "Pantry", center: [4.55, 3.6], size: [6.8, 4.85], floor: "#C9A27C" },
+  { id: "sales", label: "Ruang Sales", center: [-4.55, -3.6], size: [6.8, 4.85], floor: "#D7E6F5" },
+  { id: "ops", label: "Ruang Operasional", center: [4.55, -3.6], size: [6.8, 4.85], floor: "#DCE8E3" },
+  { id: "founder", label: "Ruang Founder", center: [-4.55, 3.6], size: [6.8, 4.85], floor: "#F0E2CC" },
+  { id: "pantry", label: "Pantry", center: [4.55, 3.6], size: [6.8, 4.85], floor: "#F6EFE6" },
 ];
 
 export type WallSegment = {

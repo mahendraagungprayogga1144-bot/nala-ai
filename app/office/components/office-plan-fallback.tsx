@@ -27,8 +27,7 @@ export default function OfficePlanFallback({
   return (
     <div className="absolute inset-0 grid place-items-center p-4 pt-24 md:p-28">
       <div
-        className="relative aspect-[16.2/12.4] w-full max-w-3xl overflow-hidden rounded-2xl shadow-[inset_0_0_0_8px_#F4F0E6]"
-        style={{ background: "#A67C52" }}
+        className="relative aspect-[16.2/12.4] w-full max-w-3xl overflow-hidden rounded-2xl border border-[#E2E8F0] bg-[#F7F5F2] shadow-[0_18px_50px_rgba(15,23,42,0.08)]"
       >
         {ROOMS.map((room) => (
           <div

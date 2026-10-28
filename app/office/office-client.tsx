@@ -11,7 +11,7 @@ import type { OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
 const OfficeScene = dynamic(() => import("./office-scene"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center text-sm text-slate-400">Menyiapkan kantor…</div>
+    <div className="absolute inset-0 grid place-items-center text-sm text-slate-500">Menyiapkan kantor…</div>
   ),
 });
 
@@ -33,7 +33,7 @@ export default function OfficeClient({
   const selected = snapshot.agents.find((agent) => agent.id === selectedId) ?? null;
 
   return (
-    <div className="relative h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] overflow-hidden bg-[#0b0e14] text-slate-100 md:h-dvh">
+    <div className="relative h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] overflow-hidden bg-white text-slate-100 md:h-dvh">
       {mode && graphics.webgl ? (
         <OfficeScene
           agents={snapshot.agents}
@@ -50,7 +50,7 @@ export default function OfficeClient({
         <OfficePlanFallback agents={snapshot.agents} selectedId={selectedId} onSelect={setSelectedId} />
       ) : null}
       {!graphics.ready ? (
-        <div className="absolute inset-0 grid place-items-center text-sm text-slate-400">Menyiapkan kantor…</div>
+        <div className="absolute inset-0 grid place-items-center text-sm text-slate-500">Menyiapkan kantor…</div>
       ) : null}
       {mode ? (
         <OfficeHud

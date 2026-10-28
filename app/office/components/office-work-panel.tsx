@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { adjustOfficeStock, askOfficeAgent } from "@/lib/office/actions";
+import { adjustOfficeStock, askOfficeAgent, saveOfficeWaGreeting } from "@/lib/office/actions";
 import { suggestionsFor } from "@/lib/office/present";
-import { STOK_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "@/lib/office/types";
+import { STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "@/lib/office/types";
 
 export default function OfficeWorkPanel({
   agent,
@@ -21,6 +21,8 @@ export default function OfficeWorkPanel({
   const [productId, setProductId] = useState(snapshot.products[0]?.id ?? "");
   const [direction, setDirection] = useState<"masuk" | "keluar">("masuk");
   const [quantity, setQuantity] = useState("1");
+  const [copied, setCopied] = useState(false);
+  const [greeting, setGreeting] = useState("");
   const chosen = snapshot.products.some((product) => product.id === productId) ? productId : (snapshot.products[0]?.id ?? "");
 
   async function ask(text: string) {
@@ -61,8 +63,55 @@ export default function OfficeWorkPanel({
     }
   }
 
+  async function copyLink() {
+    if (!snapshot.wa_path) return;
+    await navigator.clipboard.writeText(`${window.location.origin}${snapshot.wa_path}`);
+    setCopied(true);
+  }
+
+  async function saveGreeting(event: FormEvent) {
+    event.preventDefault();
+    if (pending) return;
+    setPending(true);
+    setAnswer(null);
+    try {
+      const result = await saveOfficeWaGreeting(snapshot.business_id, greeting);
+      setAnswer(result.message);
+      onSnapshot(result.snapshot);
+    } catch {
+      setAnswer("Balasan belum tersimpan.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
+      {agent.id === WA_AGENT_ID ? (
+        <div className="space-y-2 rounded-xl border border-white/[0.06] bg-[#0b0e14] p-3">
+          <p className="text-[11px] font-semibold text-slate-500">Tautan balasan</p>
+          <p className="break-all text-xs text-slate-200">{snapshot.wa_path ? snapshot.wa_path : "Tautan belum siap."}</p>
+          <button
+            type="button"
+            disabled={!snapshot.wa_path}
+            onClick={() => void copyLink()}
+            className="rounded-lg border border-[#25D366]/40 px-3 py-2 text-xs font-semibold text-[#25D366] disabled:opacity-50"
+          >
+            {copied ? "Tersalin" : "Salin tautan"}
+          </button>
+          <form onSubmit={saveGreeting} className="space-y-2">
+            <input
+              value={greeting}
+              onChange={(event) => setGreeting(event.target.value)}
+              placeholder="Ubah kalimat pembuka"
+              className="w-full rounded-lg border border-white/10 bg-[#151921] px-2 py-2 text-xs text-white"
+            />
+            <button type="submit" disabled={pending || greeting.trim().length < 8} className="rounded-lg bg-[#25D366] px-3 py-2 text-xs font-semibold text-[#052e16] disabled:opacity-50">
+              Simpan balasan
+            </button>
+          </form>
+        </div>
+      ) : null}
       <div>
         <p className="text-[11px] font-semibold text-slate-500">Tanya atau suruh</p>
         <div className="mt-2 flex flex-wrap gap-1.5">

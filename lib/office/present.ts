@@ -1,5 +1,5 @@
 import { roomById } from "./layout";
-import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, type AgentStatus, type OfficeAgent } from "./types";
+import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, WA_AGENT_ID, type AgentStatus, type OfficeAgent } from "./types";
 
 export const STATUS_LABEL: Record<AgentStatus, string> = {
   working: "Sedang kerja",
@@ -26,6 +26,12 @@ const SUGGESTIONS: Record<string, readonly string[]> = {
     "Produk mana yang stoknya paling rendah?",
     "Daftar produk yang habis.",
   ],
+  [WA_AGENT_ID]: [
+    "Di mana tautan WA?",
+    "Berapa chat hari ini?",
+    "Apa balasan otomatisnya?",
+    "Produk apa yang disebut ke customer?",
+  ],
 };
 
 export function suggestionsFor(agentId: string) {
@@ -38,12 +44,14 @@ export function taskLine(agent: OfficeAgent) {
 
 export function placeLine(agent: OfficeAgent) {
   const home = roomById(agent.room).label;
+  if (agent.place === "hall") return "Berdiri di selasar, menjaga tautan WhatsApp.";
   if (agent.at_pantry) return `Sekarang di Pantry. Meja asalnya ${home}.`;
   if (agent.status === "error") return `Masih duduk di ${home}.`;
   return `Duduk di meja ${home}.`;
 }
 
 export function statusMeaning(agent: OfficeAgent) {
+  if (agent.id === WA_AGENT_ID) return "Customer yang membuka tautan langsung dapat balasan katalog, harga, atau stok.";
   if (agent.status === "working") return "Ada data hari ini yang sedang dia pegang.";
   if (agent.at_pantry) return "Tidak ada yang di lapangan. Dia jalan ke Pantry dan mejanya dikosongkan.";
   if (agent.status === "idle") return "Hari ini belum ada yang perlu dikerjakan di bagian ini.";

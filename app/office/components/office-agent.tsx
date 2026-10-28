@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import { PANTRY_PARK, PANTRY_TABLE, STATIONS, salesPantryLoop } from "@/lib/office/layout";
+import { PANTRY_PARK, PANTRY_TABLE, STATIONS, WA_SPOT, salesPantryLoop } from "@/lib/office/layout";
 import { loopPoint, yawToward } from "@/lib/office/motion";
 import { STATUS_LABEL } from "@/lib/office/present";
 import type { OfficeAgent } from "@/lib/office/types";
@@ -35,7 +35,8 @@ export default function OfficeAgent({
   const beacon = useRef<Group>(null);
   const station = STATIONS[agent.room];
   const path = useMemo(() => salesPantryLoop(station.chair), [station]);
-  const seated = !agent.at_pantry;
+  const hall = agent.place === "hall";
+  const seated = !hall && !agent.at_pantry;
   const face = yawToward(station.chair, station.desk);
 
   useEffect(() => () => {
@@ -53,6 +54,14 @@ export default function OfficeAgent({
       if (legL.current) legL.current.rotation.x = leftLeg;
       if (legR.current) legR.current.rotation.x = rightLeg;
     };
+
+    if (hall) {
+      const bob = !reduceMotion ? Math.sin(t * 2) * 0.015 : 0;
+      group.position.set(WA_SPOT[0], bob, WA_SPOT[1]);
+      group.rotation.y = 0.6;
+      pose(0.15, 0.15, 0, 0);
+      return;
+    }
 
     if (agent.at_pantry) {
       if (reduceMotion) {
@@ -90,7 +99,7 @@ export default function OfficeAgent({
   return (
     <group
       ref={root}
-      position={agent.at_pantry ? [PANTRY_PARK[0], 0, PANTRY_PARK[1]] : [station.chair[0], 0, station.chair[1]]}
+      position={hall ? [WA_SPOT[0], 0, WA_SPOT[1]] : agent.at_pantry ? [PANTRY_PARK[0], 0, PANTRY_PARK[1]] : [station.chair[0], 0, station.chair[1]]}
       rotation={[0, face, 0]}
       onClick={(event) => {
         event.stopPropagation();

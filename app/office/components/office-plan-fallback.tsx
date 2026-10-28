@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { FLOOR, PANTRY_PARK, PANTRY_TABLE, ROOMS, STATIONS } from "@/lib/office/layout";
+import { FLOOR, PANTRY_PARK, PANTRY_TABLE, ROOMS, STATIONS, WA_SPOT } from "@/lib/office/layout";
 import type { OfficeAgent } from "@/lib/office/types";
 
 function worldStyle(x: number, z: number, width: number, depth: number): CSSProperties {
@@ -44,7 +44,7 @@ export default function OfficePlanFallback({
           aria-hidden
         />
         {agents.map((agent) => {
-          const spot = agent.at_pantry ? PANTRY_PARK : STATIONS[agent.room].chair;
+          const spot = agent.place === "hall" ? WA_SPOT : agent.at_pantry ? PANTRY_PARK : STATIONS[agent.room].chair;
           const left = ((spot[0] + FLOOR.width / 2) / FLOOR.width) * 100;
           const top = ((spot[1] + FLOOR.depth / 2) / FLOOR.depth) * 100;
           const selected = agent.id === selectedId;

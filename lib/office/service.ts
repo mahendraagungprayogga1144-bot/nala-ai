@@ -5,7 +5,8 @@ import { salesDb } from "@/lib/henima-sales/db";
 import { namedMonthWindow, periodRange, type PeriodKind } from "@/lib/henima-sales/dates";
 import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
 import { officeRepository, type OfficeFacts, type OfficeProductRow, type OfficeWindow, type StockAdjustResult } from "./repository";
-import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
+import { LAPORAN_AGENT_ID, SALES_AGENT_ID, STOK_AGENT_ID, WA_AGENT_ID, type OfficeAgent, type OfficeSnapshot } from "./types";
+import { describeWa, loadWaDesk, type WaDesk } from "./wa-reply";
 
 const KIND_LABEL: Record<string, string> = {
   checkin_pagi: "check-in pagi",
@@ -132,7 +133,7 @@ function stockStatus(facts: OfficeFacts): OfficeAgent["status"] {
   return "working";
 }
 
-export function buildOfficeSnapshot(facts: OfficeFacts): OfficeSnapshot {
+export function buildOfficeSnapshot(facts: OfficeFacts, wa?: WaDesk | null): OfficeSnapshot {
   const laporanBusy = laporanWorking(facts);
   const salesBusy = salesWorking(facts);
   const stock = stockStatus(facts);
@@ -142,6 +143,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts): OfficeSnapshot {
       business_id: facts.businessId,
       name: "Laporan Harian",
       room: "founder",
+      place: "desk",
       status: laporanBusy ? "working" : "idle",
       at_pantry: false,
       current_task: laporanTask(facts),
@@ -152,6 +154,7 @@ export function buildOfficeSnapshot(facts: OfficeFacts): OfficeSnapshot {
       business_id: facts.businessId,
       name: "Monitor Sales",
       room: "sales",
+      place: "desk",
       status: salesBusy ? "working" : "idle",
       at_pantry: facts.staff.ok && facts.points.ok && !salesBusy,
       current_task: salesTask(facts),
@@ -162,10 +165,28 @@ export function buildOfficeSnapshot(facts: OfficeFacts): OfficeSnapshot {
       business_id: facts.businessId,
       name: "Stok & Produksi",
       room: "ops",
+      place: "desk",
       status: stock,
       at_pantry: false,
       current_task: stockTask(facts),
       color: "#F59E0B",
+    },
+    {
+      id: WA_AGENT_ID,
+      business_id: facts.businessId,
+      name: "Balas WA",
+      room: "sales",
+      place: "hall",
+      status: wa?.today ? "working" : "idle",
+      at_pantry: false,
+      current_task: wa?.notice
+        ? wa.notice
+        : !wa?.path
+          ? "Tautan WA belum siap."
+          : wa.today
+            ? `${wa.today} chat masuk hari ini. Balasan otomatis menyala.`
+            : "Tautan siap. Belum ada chat hari ini.",
+      color: "#25D366",
     },
   ];
   const working = agents.filter((agent) => agent.status === "working");
@@ -175,7 +196,8 @@ export function buildOfficeSnapshot(facts: OfficeFacts): OfficeSnapshot {
     crew_active: working.length,
     crew_total: agents.length,
     tasks_running: working.filter((agent) => agent.current_task).length,
-    notices: noticesOf(facts),
+    notices: [...noticesOf(facts), ...(wa?.notice ? [wa.notice] : [])],
+    wa_path: wa?.path ?? null,
     products: facts.products.ok
       ? facts.products.rows.map((row) => ({
           id: row.id,
@@ -249,7 +271,8 @@ export async function loadOfficeSnapshot(businessId: string): Promise<OfficeSnap
   const facts = await officeRepository.loadFacts(db, id);
   const today = todayWib();
   await applyHenimaBook(facts, id, { from: today, to: today });
-  return buildOfficeSnapshot(facts);
+  const wa = await loadWaDesk(id);
+  return buildOfficeSnapshot(facts, wa);
 }
 
 const MONTH_NAMES: readonly { month: number; names: readonly string[] }[] = [
@@ -410,6 +433,7 @@ function stockAnswer(facts: OfficeFacts, question: string) {
 export async function answerOfficeQuestion(businessId: string, agentId: string, question: string) {
   const text = question.trim();
   if (!text) return "Tulis pertanyaan atau instruksi dulu.";
+  if (agentId === WA_AGENT_ID) return describeWa(businessId, text);
   const range = askedRange(text);
   const db = await createClient();
   const facts = await officeRepository.loadFacts(db, businessId, range);

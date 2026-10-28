@@ -5,6 +5,7 @@ import { getActiveBusiness } from "@/lib/dashboard/get-active-business";
 import { officeRepository } from "./repository";
 import { answerOfficeQuestion, loadOfficeSnapshot, resolveStockInstruction, stockChangeMessage } from "./service";
 import { STOK_AGENT_ID, type OfficeSnapshot } from "./types";
+import { saveWaGreeting } from "./wa-reply";
 
 async function ownedBusiness(businessId: string) {
   const supabase = await createClient();
@@ -31,6 +32,7 @@ async function freshOrEmpty(businessId: string): Promise<OfficeSnapshot> {
       tasks_running: 0,
       notices: ["Data kantor belum bisa dimuat. Coba muat ulang."],
       products: [],
+      wa_path: null,
     };
   }
 }
@@ -60,6 +62,13 @@ export async function askOfficeAgent(businessId: string, agentId: string, questi
 
   const message = await answerOfficeQuestion(businessId, agentId, question);
   return { message, snapshot: await loadOfficeSnapshot(businessId) };
+}
+
+export async function saveOfficeWaGreeting(businessId: string, greeting: string) {
+  const gate = await ownedBusiness(businessId);
+  if (!gate.ok) return { message: gate.message, snapshot: await freshOrEmpty(businessId) };
+  const saved = await saveWaGreeting(businessId, greeting);
+  return { message: saved.message, snapshot: await loadOfficeSnapshot(businessId) };
 }
 
 export async function adjustOfficeStock(input: {

@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { NoToneMapping } from "three";
-import { PANTRY_PARK, STATIONS } from "@/lib/office/layout";
+import { PANTRY_PARK, STATIONS, WA_SPOT } from "@/lib/office/layout";
 import type { OfficeAgent, OfficeViewMode, WorkRoomId } from "@/lib/office/types";
 import OfficeAgentMesh from "./components/office-agent";
 import { PingPongTable, WorkDesk } from "./components/office-furniture";
@@ -32,11 +32,14 @@ export default function OfficeScene({
   reduceMotion: boolean;
 }) {
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
-  const focus = selected
-    ? selected.at_pantry
-      ? ([PANTRY_PARK[0] + 1.6, 0.2, PANTRY_PARK[1] + 1.6] as const)
-      : ([STATIONS[selected.room].chair[0] + 1.6, 0.2, STATIONS[selected.room].chair[1] + 1.6] as const)
+  const anchor = selected
+    ? selected.place === "hall"
+      ? WA_SPOT
+      : selected.at_pantry
+        ? PANTRY_PARK
+        : STATIONS[selected.room].chair
     : null;
+  const focus = anchor ? ([anchor[0] + 1.6, 0.2, anchor[1] + 1.6] as const) : null;
 
   return (
     <div className="absolute inset-0">
@@ -68,7 +71,7 @@ export default function OfficeScene({
         <OfficeStructure />
         <PingPongTable />
         {WORK_ROOMS.map((room) => {
-          const agent = agents.find((item) => item.room === room);
+          const agent = agents.find((item) => item.room === room && item.place !== "hall");
           return <WorkDesk key={room} station={STATIONS[room]} status={agent?.status ?? "idle"} />;
         })}
         {agents

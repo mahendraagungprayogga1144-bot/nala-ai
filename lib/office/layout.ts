@@ -60,6 +60,9 @@ export const PANTRY_TABLE: Vec2 = [4.55, 3.55];
 /** Titik statis di pantry untuk perangkat yang mematikan animasi. */
 export const PANTRY_PARK: Vec2 = [2.45, 3.55];
 
+/** Balas WA berdiri di selasar, seperti penjaga tautan. */
+export const WA_SPOT: Vec2 = [0, 0];
+
 export function roomById(id: OfficeRoomId) {
   const room = ROOMS.find((item) => item.id === id);
   if (!room) throw new Error(`Ruangan tidak dikenal: ${id}`);

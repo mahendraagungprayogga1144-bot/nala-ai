@@ -577,6 +577,9 @@ test("shopee screenshot uses buyer name and net payout for one duo", () => {
   const duo = parseShopeeShotJson('{"buyer":"yofitann","net":190819,"product":"HENIMA Duo Set Parfum Pria – Afternoon","mark":"x1","afternoon":1,"distance":0}');
   assert.equal(duo?.afternoonQty, 1);
   assert.equal(duo?.distanceQty, 1);
+  const both = parseShopeeShotJson('{"buyer":"","net":209010,"items":[{"name":"HENIMA Afternoon","mark":"x2"},{"name":"HENIMA The Distance","mark":"x2"}]}');
+  assert.equal(both?.afternoonQty, 2);
+  assert.equal(both?.distanceQty, 2);
   const products = [
     { id: "a", name: "Afternoon", price: 199999, cost: 64500, stock: 948, unit: "pcs" },
     { id: "d", name: "The Distance", price: 199999, cost: 64500, stock: 945, unit: "pcs" },

@@ -21,6 +21,32 @@ function idr(value: unknown) {
   return Math.round(Number(digits) || 0);
 }
 
+function cardQty(item: Record<string, unknown>) {
+  const mark = String(item.mark || item.label || "");
+  const marked = Number((mark.match(/x\s*(\d+)/i) || [])[1] || 0);
+  return marked || Math.max(1, Math.round(Number(item.qty || item.jumlah) || 1));
+}
+
+function readShopeeCards(raw: unknown) {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  let afternoonQty = 0;
+  let distanceQty = 0;
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const name = String(row.name || row.product || row.produk || "").toLowerCase();
+    const qty = cardQty(row);
+    const both = /duo|paket/.test(name) || (/afternoon/.test(name) && /distance/.test(name));
+    if (both) {
+      afternoonQty += qty;
+      distanceQty += qty;
+    } else if (/distance/.test(name)) distanceQty += qty;
+    else if (/afternoon/.test(name)) afternoonQty += qty;
+  }
+  if (afternoonQty + distanceQty < 1) return null;
+  return { afternoonQty, distanceQty };
+}
+
 export function parseShopeeShotJson(raw: string): ShopeeShot | null {
   const trimmed = (raw || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const slice = trimmed.match(/\{[\s\S]*\}/)?.[0] || trimmed;
@@ -38,10 +64,14 @@ export function parseShopeeShotJson(raw: string): ShopeeShot | null {
   const mark = String(data.mark || data.label || "");
   const marked = Number((mark.match(/x\s*(\d+)/i) || [])[1] || 0);
   const jumlah = marked || Math.max(1, Math.round(Number(data.qty || data.jumlah) || 1));
+  const cards = readShopeeCards(data.items);
   const hasAfternoon = /afternoon/.test(product) || afternoonQty > 0;
   const hasDistance = /distance/.test(product) || distanceQty > 0;
   const duo = /duo|paket/.test(product) || (/afternoon/.test(product) && /distance/.test(product));
-  if (duo) {
+  if (cards) {
+    afternoonQty = cards.afternoonQty;
+    distanceQty = cards.distanceQty;
+  } else if (duo) {
     const each = marked || Math.max(afternoonQty, distanceQty, 1);
     afternoonQty = each;
     distanceQty = each;
@@ -112,14 +142,16 @@ export async function readShopeeScreenshot(bytes: Uint8Array, mime: string): Pro
                 type: "text",
                 text: [
                   "Baca screenshot Rincian Pesanan Shopee seller. Balas JSON saja:",
-                  '{"buyer":"","net":0,"mark":"x1","product":"","afternoon":0,"distance":0}',
+                  '{"buyer":"","net":0,"items":[{"name":"","mark":"x1"}]}',
                   "buyer = username pembeli, bukan nama toko.",
                   "net = Penghasilan Akhir atau Estimasi Total Penghasilan. Bukan harga satuan.",
-                  "product = salinan judul lengkap, termasuk kata Duo dan kedua nama parfum.",
-                  "Di kartu produk paling bawah ada judul besar. Tepat di bawah judul itu ada tulisan kecil x1 atau x2. Itu jumlahnya. Isi mark dengan tulisan kecil itu, misalnya x2.",
-                  "Judul The Distance saja dengan tulisan kecil x2 berarti distance 2 dan afternoon 0.",
-                  "Judul Duo, atau judul yang memuat Afternoon dan The Distance, berarti satu paket berisi keduanya. Tulisan kecil x1 berarti afternoon 1 dan distance 1. Jangan isi afternoon saja.",
-                  "Jangan mengambil jumlah dari judul. Kalau bukan pesanan Shopee, net 0.",
+                  "items = SEMUA kartu produk, dari atas sampai bawah. Jangan cuma kartu paling bawah.",
+                  "name = judul lengkap kartu itu.",
+                  "mark = tulisan kecil x1 atau x2 tepat di bawah judul kartu itu, bukan angka di judul.",
+                  "Kartu Afternoon saja dengan x2 adalah satu item. Kartu The Distance saja dengan x2 adalah item lain.",
+                  "Kalau ada dua kartu, Afternoon x2 dan The Distance x2, masukkan keduanya. Jangan buang yang di atas.",
+                  "Satu kartu Duo, atau judul yang memuat Afternoon dan The Distance, dengan x2 tetap satu item dan namanya harus memuat kedua parfum.",
+                  "Kalau bukan pesanan Shopee, net 0.",
                 ].join("\n"),
               },
               { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },

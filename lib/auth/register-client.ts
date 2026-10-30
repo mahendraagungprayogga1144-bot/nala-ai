@@ -37,12 +37,14 @@ export async function registerAccount(
   }
 
   // Fallback: Supabase client signUp (butuh Confirm Email = OFF di dashboard Supabase)
+  const nextRaw = new URLSearchParams(window.location.search).get("next");
+  const nextPath = nextRaw && nextRaw.startsWith("/t/") && !nextRaw.startsWith("//") ? nextRaw : "/onboarding";
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: name },
-      emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
     },
   });
 

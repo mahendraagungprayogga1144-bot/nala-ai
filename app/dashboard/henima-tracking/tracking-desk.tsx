@@ -276,7 +276,7 @@ export default function TrackingDesk({
       {navOpen && <button type="button" aria-label="Tutup menu" className="absolute inset-0 z-20 bg-black/50 md:hidden" onClick={() => setNavOpen(false)} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center gap-2 border-b border-[#243247]/80 bg-[#080D18]/35 px-3 py-2.5 backdrop-blur-md md:px-4">
+        <header className="relative z-40 flex flex-wrap items-center gap-2 border-b border-[#243247]/80 bg-[#080D18]/35 px-3 py-2.5 backdrop-blur-md md:px-4">
           <button type="button" onClick={() => setNavOpen(true)} className="rounded-lg border border-[#243247] px-2 py-1.5 text-xs font-semibold md:hidden">
             Menu
           </button>
@@ -628,17 +628,39 @@ function DayCalendar({
   onPick: (ymd: string) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(date.slice(0, 7));
+  const [place, setPlace] = useState({ top: 0, left: 0 });
   const markedSet = useMemo(() => new Set(marked), [marked]);
+
+  function placePanel() {
+    const box = root.current?.getBoundingClientRect();
+    if (!box) return;
+    const width = 292;
+    const left = Math.min(Math.max(12, box.right - width), window.innerWidth - width - 12);
+    setPlace({ top: box.bottom + 8, left });
+  }
 
   useEffect(() => {
     if (!open) return;
+    placePanel();
     function close(event: MouseEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (root.current?.contains(target) || panel.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onMove() {
+      placePanel();
     }
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
+    };
   }, [open]);
 
   const [year, mon] = month.split("-").map(Number);
@@ -653,7 +675,10 @@ function DayCalendar({
         type="button"
         onClick={() => {
           setMonth(date.slice(0, 7));
-          setOpen((value) => !value);
+          setOpen((value) => {
+            if (!value) placePanel();
+            return !value;
+          });
         }}
         className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-semibold"
       >
@@ -661,59 +686,65 @@ function DayCalendar({
         {longDate(date)}
         <ChevronDown size={14} className={`text-[#94A3B8] transition ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[292px] rounded-2xl border border-[#243247] bg-[#101827] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
-          <div className="mb-3 flex items-center justify-between">
-            <button type="button" onClick={() => setMonth((value) => shiftMonth(value, -1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9]" aria-label="Bulan sebelumnya">
-              ‹
-            </button>
-            <p className="text-sm font-bold capitalize">{title}</p>
-            <button
-              type="button"
-              disabled={!canNext}
-              onClick={() => canNext && setMonth((value) => shiftMonth(value, 1))}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9] disabled:opacity-30"
-              aria-label="Bulan berikutnya"
-            >
-              ›
-            </button>
-          </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[#94A3B8]">
-            {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((label) => (
-              <span key={label} className="py-1">{label}</span>
-            ))}
-          </div>
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {monthCells(year, mon).map((ymd, index) => {
-              if (!ymd) return <span key={`empty-${index}`} />;
-              const disabled = ymd > today;
-              const selected = ymd === date;
-              const isToday = ymd === today;
-              return (
-                <button
-                  key={ymd}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    onPick(ymd);
-                    setOpen(false);
-                  }}
-                  className={`relative flex h-9 items-center justify-center rounded-lg text-sm font-semibold ${
-                    selected
-                      ? "bg-[#06D6D6] text-[#080D18]"
-                      : isToday
-                        ? "border border-[#FFD34D] text-[#FFD34D]"
-                        : "text-[#F1F5F9] hover:bg-white/5"
-                  } disabled:cursor-default disabled:text-[#475569] disabled:hover:bg-transparent`}
-                >
-                  {Number(ymd.slice(8))}
-                  {markedSet.has(ymd) && !selected && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#FFD34D]" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panel}
+            style={{ top: place.top, left: place.left }}
+            className="fixed z-[5000] w-[292px] rounded-2xl border border-[#243247] bg-[#101827] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <button type="button" onClick={() => setMonth((value) => shiftMonth(value, -1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9]" aria-label="Bulan sebelumnya">
+                ‹
+              </button>
+              <p className="text-sm font-bold capitalize">{title}</p>
+              <button
+                type="button"
+                disabled={!canNext}
+                onClick={() => canNext && setMonth((value) => shiftMonth(value, 1))}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9] disabled:opacity-30"
+                aria-label="Bulan berikutnya"
+              >
+                ›
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[#94A3B8]">
+              {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((label) => (
+                <span key={label} className="py-1">{label}</span>
+              ))}
+            </div>
+            <div className="mt-1 grid grid-cols-7 gap-1">
+              {monthCells(year, mon).map((ymd, index) => {
+                if (!ymd) return <span key={`empty-${index}`} />;
+                const disabled = ymd > today;
+                const selected = ymd === date;
+                const isToday = ymd === today;
+                return (
+                  <button
+                    key={ymd}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      onPick(ymd);
+                      setOpen(false);
+                    }}
+                    className={`relative flex h-9 items-center justify-center rounded-lg text-sm font-semibold ${
+                      selected
+                        ? "bg-[#06D6D6] text-[#080D18]"
+                        : isToday
+                          ? "border border-[#FFD34D] text-[#FFD34D]"
+                          : "text-[#F1F5F9] hover:bg-white/5"
+                    } disabled:cursor-default disabled:text-[#475569] disabled:hover:bg-transparent`}
+                  >
+                    {Number(ymd.slice(8))}
+                    {markedSet.has(ymd) && !selected && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#FFD34D]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

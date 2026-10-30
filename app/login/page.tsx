@@ -1,5 +1,6 @@
 "use client";
 import { useState, Suspense, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { homeForBizType, setFastGateCookies, clearFastGateCookies } from "@/lib/auth/post-login";
@@ -78,6 +79,7 @@ async function resolvePostLoginPath(
 function LoginForm() {
   const searchParams = useSearchParams();
   const preferredNext = safeNext(searchParams.get("next"));
+  const trackingNext = preferredNext?.startsWith("/t/") ? preferredNext : null;
   const urlError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
@@ -143,15 +145,19 @@ function LoginForm() {
     <main className="flex min-h-[100dvh] items-center justify-center bg-[#0A0A12] px-6 text-[#F2F1F8]">
       <div className="w-full max-w-[400px]">
         <div className="mb-8 text-center">
-          <a href="/" className="inline-flex items-center gap-2 text-lg font-semibold">
+          <Link href="/" className="inline-flex items-center gap-2 text-lg font-semibold">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-gercep.png" alt="Gercep AI" className="h-10 w-10 rounded-xl object-cover" />
             <span>
               Gercep<span className="holo-text">AI</span>
             </span>
-          </a>
-          <h1 className="mt-6 mb-2 text-2xl font-semibold">Selamat datang lagi</h1>
-          <p className="text-sm text-[#8B8AA0]">Masuk buat kelola semua bisnis kamu.</p>
+          </Link>
+          <h1 className="mt-6 mb-2 text-2xl font-semibold">{trackingNext ? "Masuk untuk check-in" : "Selamat datang lagi"}</h1>
+          <p className="text-sm text-[#8B8AA0]">
+            {trackingNext
+              ? "Pakai akun HP sales kamu. Setelah masuk, kamu kembali ke halaman check-in."
+              : "Masuk buat kelola semua bisnis kamu."}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -199,10 +205,10 @@ function LoginForm() {
         <p className="mt-6 text-center text-sm text-[#8B8AA0]">
           Belum punya akun?{" "}
           <a
-            href={preferredNext?.startsWith("/t/") ? `/signup?next=${encodeURIComponent(preferredNext)}` : "/signup"}
+            href={trackingNext ? `/signup?next=${encodeURIComponent(trackingNext)}` : "/signup"}
             className="text-[#2DD4BF]"
           >
-            Daftar gratis · trial {trialDays} hari
+            {trackingNext ? "Daftar sekali untuk check-in" : `Daftar gratis · trial ${trialDays} hari`}
           </a>
         </p>
         <p className="mt-3 text-center text-[10px] text-[#5A5B7A]">

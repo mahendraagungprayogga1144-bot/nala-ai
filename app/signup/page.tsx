@@ -1,15 +1,27 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { registerAccount } from "@/lib/auth/register-client";
 import { clearFastGateCookies } from "@/lib/auth/post-login";
 import { TRIAL_DAYS } from "@/lib/auth/trial";
 import { Check, Eye, EyeOff } from "lucide-react";
 
-export default function SignupPage() {
+function safeNext(raw: string | null) {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  if (raw.startsWith("/login") || raw.startsWith("/signup")) return null;
+  return raw;
+}
+
+function SignupForm() {
   const supabase = createClient();
-  const [name, setName] = useState("");
+  const searchParams = useSearchParams();
+  const preferredNext = safeNext(searchParams.get("next"));
+  const trackingNext = preferredNext?.startsWith("/t/") ? preferredNext : null;
+  const prefillNama = (searchParams.get("nama") || "").trim();
+  const [name, setName] = useState(prefillNama);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -59,8 +71,7 @@ export default function SignupPage() {
     }
 
     clearFastGateCookies();
-    const next = new URLSearchParams(window.location.search).get("next");
-    window.location.assign(next && next.startsWith("/t/") && !next.startsWith("//") ? next : "/onboarding");
+    window.location.assign(trackingNext || "/onboarding");
   };
 
   return (
@@ -74,29 +85,41 @@ export default function SignupPage() {
               Gercep<span className="holo-text">AI</span>
             </span>
           </Link>
-          <h1 className="mt-6 mb-2 text-2xl font-semibold">Buat akun bisnis</h1>
+          <h1 className="mt-6 mb-2 text-2xl font-semibold">{trackingNext ? "Buat akun check-in" : "Buat akun bisnis"}</h1>
           <p className="text-sm text-[#8B8AA0]">
-            Daftar gratis · trial penuh <span className="font-medium text-[#2DD4BF]">{trialDays} hari</span>
+            {trackingNext ? (
+              <>Daftar sekali di HP sales. Setelah itu langsung kembali ke halaman check-in.</>
+            ) : (
+              <>
+                Daftar gratis · trial penuh <span className="font-medium text-[#2DD4BF]">{trialDays} hari</span>
+              </>
+            )}
           </p>
         </div>
 
-        <div className="mb-5 rounded-2xl border border-[#2DD4BF]/20 bg-[#2DD4BF]/[0.06] px-4 py-3">
-          <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#2DD4BF] uppercase">
-            Termasuk trial {trialDays} hari
-          </p>
-          <ul className="space-y-1.5 text-[12px] text-[#8B8AA0]">
-            {[
-              "Inventory & kasir sesuai jenis bisnis",
-              "Keuangan bisnis otomatis tercatat",
-              "Bisa upgrade kapan saja sebelum trial habis",
-            ].map((t) => (
-              <li key={t} className="flex items-start gap-2">
-                <Check size={14} className="mt-0.5 shrink-0 text-[#2DD4BF]" />
-                <span>{t}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {trackingNext ? (
+          <div className="mb-5 rounded-2xl border border-[#d4af37]/25 bg-[#d4af37]/[0.08] px-4 py-3 text-[12px] leading-5 text-[#8B8AA0]">
+            Ini akun sales lapangan, bukan akun owner. Pakai email HP sendiri. Setelah daftar, buka lagi link check-in dari founder.
+          </div>
+        ) : (
+          <div className="mb-5 rounded-2xl border border-[#2DD4BF]/20 bg-[#2DD4BF]/[0.06] px-4 py-3">
+            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#2DD4BF] uppercase">
+              Termasuk trial {trialDays} hari
+            </p>
+            <ul className="space-y-1.5 text-[12px] text-[#8B8AA0]">
+              {[
+                "Inventory & kasir sesuai jenis bisnis",
+                "Keuangan bisnis otomatis tercatat",
+                "Bisa upgrade kapan saja sebelum trial habis",
+              ].map((t) => (
+                <li key={t} className="flex items-start gap-2">
+                  <Check size={14} className="mt-0.5 shrink-0 text-[#2DD4BF]" />
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           <div>
@@ -167,13 +190,16 @@ export default function SignupPage() {
             disabled={loading}
             className="mt-1 w-full rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] py-3.5 font-semibold text-[#0A0A12] disabled:opacity-50"
           >
-            {loading ? "Membuat akun..." : `Daftar · Trial ${trialDays} hari`}
+            {loading ? "Membuat akun..." : trackingNext ? "Daftar · lanjut check-in" : `Daftar · Trial ${trialDays} hari`}
           </button>
         </form>
 
         <p className="mt-5 text-center text-sm text-[#8B8AA0]">
           Sudah punya akun?{" "}
-          <Link href="/login" className="text-[#2DD4BF] hover:underline">
+          <Link
+            href={trackingNext ? `/login?next=${encodeURIComponent(trackingNext)}` : "/login"}
+            className="text-[#2DD4BF] hover:underline"
+          >
             Masuk di sini
           </Link>
         </p>
@@ -185,5 +211,19 @@ export default function SignupPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-[100dvh] items-center justify-center bg-[#0A0A12] px-6 text-[#F2F1F8]">
+          <p className="text-sm text-[#8B8AA0]">Memuat...</p>
+        </main>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }

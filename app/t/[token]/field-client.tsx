@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { mapsUrl, wibDayWindow, type TrackingKind } from "@/lib/henima-tracking/shared";
+import { mapsUrl } from "@/lib/henima-tracking/shared";
 
 export type FieldPoint = {
   id: string;
@@ -47,10 +47,11 @@ function clock(iso: string) {
 function pesanDb(message: string) {
   if (message.includes("BELUM_CHECKIN")) return "Belum check-in. Jejak dan kunjungan belum bisa dicatat.";
   if (message.includes("SUDAH_CHECKOUT")) return "Sudah check-out. Hari ini tidak bisa check-in lagi.";
-  if (message.includes("TIDAK_LOGIN")) return "Masuk dulu dengan akun sales, leader, atau founder.";
+  if (message.includes("TIDAK_LOGIN")) return "Link ini belum aktif di database. Minta founder paste SQL field token.";
   if (message.includes("DATA_TIDAK_VALID")) return "Data tidak valid. Cek foto, GPS, atau apakah check-in hari ini sudah ada.";
-  if (message.includes("LINK_SUDAH_DIPAKAI")) return "Link ini sudah terhubung ke akun lain.";
-  if (message.includes("AKUN_SUDAH_TERHUBUNG")) return "Akun ini sudah terhubung ke sales lain.";
+  if (message.includes("Could not find the function") || message.includes("schema cache")) {
+    return "Sistem lapangan belum aktif. Minta founder jalankan SQL henima_tracking_field di Supabase.";
+  }
   return message;
 }
 
@@ -64,130 +65,55 @@ export default function FieldClient({ token, initial }: { token: string; initial
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [watching, setWatching] = useState(false);
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const lastSent = useRef(0);
   const lastPos = useRef<GpsFix | null>(null);
 
   useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      const ok = Boolean(data.user);
-      setSignedIn(ok);
-      if (!ok) return;
-      void (async () => {
-        const claim = await supabase.rpc("henima_tracking_klaim", { p_token: token });
-        const saya = await identitas();
-        if (saya) {
-          setState((prev) => ({
-            ...prev,
-            staffId: saya.staff_id,
-            businessId: saya.business_id,
-            nama: saya.nama,
-          }));
-          if (saya.staff_id !== initial.staffId) {
-            setError(`Kamu masuk sebagai ${saya.nama}. Check-in tercatat untuk nama itu, bukan ${initial.nama}.`);
-          } else if (claim.error) setError(pesanDb(claim.error.message));
-          await refresh(saya.staff_id);
-          return;
-        }
-        if (claim.error) setError(pesanDb(claim.error.message));
-        await refresh();
-      })().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
-    });
-  }, []);
+    void refresh().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-  async function identitas() {
-    const supabase = createClient();
-    const { data, error: identError } = await supabase.rpc("henima_tracking_identitas");
-    if (identError) {
-      if (identError.message.includes("henima_tracking_identitas")) return null;
-      throw new Error(pesanDb(identError.message));
-    }
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row?.staff_id || !row.business_id) throw new Error("Akun ini belum terhubung ke sales.");
-    return row as { staff_id: string; business_id: string; nama: string };
-  }
-
-  async function refresh(staffId = state.staffId) {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      setSignedIn(false);
-      return;
-    }
-    const win = wibDayWindow();
-    const { data, error: readError } = await supabase
-      .from("module_henima_tracking_points")
-      .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
-      .eq("staff_id", staffId)
-      .gte("recorded_at", win.from)
-      .lt("recorded_at", win.to)
-      .order("recorded_at", { ascending: false })
-      .limit(200);
-    if (readError) throw new Error(readError.message);
-    const points: FieldPoint[] = await Promise.all(
-      (data || []).map(async (row) => {
-        let photo_url: string | null = null;
-        if (row.photo_path && row.kind !== "ping") {
-          const signed = await supabase.storage.from("henima-tracking").createSignedUrl(row.photo_path, 60 * 60);
-          photo_url = signed.data?.signedUrl || null;
-        }
-        return {
-          id: row.id,
-          kind: row.kind as TrackingKind,
-          lat: Number(row.lat),
-          lng: Number(row.lng),
-          accuracy_m: row.accuracy_m,
-          note: row.note,
-          late: Boolean(row.late),
-          recorded_at: row.recorded_at,
-          maps: mapsUrl(Number(row.lat), Number(row.lng)),
-          photo_url,
-        };
-      }),
-    );
+  async function refresh() {
+    const response = await fetch(`/api/henima-tracking/field/${token}`, { cache: "no-store" });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(json.error || "Gagal memuat jejak hari ini.");
     setState((prev) => ({
       ...prev,
-      date: win.ymd,
-      points,
-      checkedIn: points.some((point) => point.kind === "checkin_pagi"),
-      checkedOut: points.some((point) => point.kind === "checkin_sore"),
+      date: json.date || prev.date,
+      points: (json.points || []) as FieldPoint[],
+      checkedIn: Boolean(json.checkedIn),
+      checkedOut: Boolean(json.checkedOut),
     }));
+  }
+
+  async function uploadPhoto(file: File) {
+    const type = file.type || "image/jpeg";
+    if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(type)) {
+      throw new Error("Foto harus JPG, PNG, atau WEBP.");
+    }
+    if (file.size > 5 * 1024 * 1024) throw new Error("Foto maksimal 5MB.");
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`/api/henima-tracking/field/${token}/photo`, { method: "POST", body: form });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(json.error || "Upload foto gagal.");
+    return String(json.path);
   }
 
   async function send(kind: FieldPoint["kind"], fix: GpsFix, file?: File | null, place?: string) {
     if (fix.acc > 250 && kind !== "ping") {
       throw new Error("Sinyal GPS masih kasar. Ambil lokasi lagi di tempat terbuka.");
     }
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      setSignedIn(false);
-      throw new Error("Masuk dulu dengan akun sales, leader, atau founder.");
-    }
-    const saya = await identitas();
-    const businessId = saya?.business_id || state.businessId;
-    const staffId = saya?.staff_id || state.staffId;
     let photoPath: string | null = null;
-    if (file) {
-      const type = file.type || "image/jpeg";
-      if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(type)) {
-        throw new Error("Foto harus JPG, PNG, atau WEBP.");
-      }
-      if (file.size > 5 * 1024 * 1024) throw new Error("Foto maksimal 5MB.");
-      const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
-      photoPath = `${businessId}/${staffId}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("henima-tracking").upload(photoPath, file, {
-        contentType: type,
-        upsert: false,
-      });
-      if (upErr) throw new Error("Upload foto gagal. Coba lagi.");
-    }
+    if (file) photoPath = await uploadPhoto(file);
+
+    const supabase = createClient();
     const accuracy = Math.round(fix.acc);
     const error =
       kind === "checkin_pagi"
         ? (
-            await supabase.rpc("henima_tracking_checkin", {
+            await supabase.rpc("henima_tracking_field_checkin", {
+              p_token: token,
               p_lat: fix.lat,
               p_lng: fix.lng,
               p_accuracy_m: accuracy,
@@ -196,7 +122,8 @@ export default function FieldClient({ token, initial }: { token: string; initial
           ).error
         : kind === "checkin_sore"
           ? (
-              await supabase.rpc("henima_tracking_checkout", {
+              await supabase.rpc("henima_tracking_field_checkout", {
+                p_token: token,
                 p_lat: fix.lat,
                 p_lng: fix.lng,
                 p_accuracy_m: accuracy,
@@ -205,7 +132,8 @@ export default function FieldClient({ token, initial }: { token: string; initial
             ).error
           : kind === "visit"
             ? (
-                await supabase.rpc("henima_tracking_catat_kunjungan", {
+                await supabase.rpc("henima_tracking_field_kunjungan", {
+                  p_token: token,
                   p_lat: fix.lat,
                   p_lng: fix.lng,
                   p_accuracy_m: accuracy,
@@ -214,17 +142,15 @@ export default function FieldClient({ token, initial }: { token: string; initial
                 })
               ).error
             : (
-                await supabase.rpc("henima_tracking_catat_titik", {
+                await supabase.rpc("henima_tracking_field_titik", {
+                  p_token: token,
                   p_lat: fix.lat,
                   p_lng: fix.lng,
                   p_accuracy_m: accuracy,
                 })
               ).error;
     if (error) throw new Error(pesanDb(error.message));
-    if (saya) {
-      setState((prev) => ({ ...prev, staffId: saya.staff_id, businessId: saya.business_id, nama: saya.nama }));
-    }
-    await refresh(staffId);
+    await refresh();
     lastSent.current = Date.now();
     lastPos.current = fix;
   }
@@ -261,7 +187,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
   }
 
   useEffect(() => {
-    if (!state.checkedIn || state.checkedOut || !signedIn) return;
+    if (!state.checkedIn || state.checkedOut) return;
     if (!navigator.geolocation) return;
     const watch = navigator.geolocation.watchPosition(
       (pos) => {
@@ -283,9 +209,8 @@ export default function FieldClient({ token, initial }: { token: string; initial
       { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 },
     );
     return () => navigator.geolocation.clearWatch(watch);
-    // send closes over token only
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.checkedIn, state.checkedOut, signedIn, token]);
+  }, [state.checkedIn, state.checkedOut, token]);
 
   async function onCheckin() {
     if (!gps || !photo) {
@@ -352,7 +277,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
               HENIMA <span className="text-[#d4af37]">Tracking</span>
             </p>
             <p className="text-[11px] text-white/45">
-              {state.nama} · {state.role}
+              {state.nama} · tanpa login
             </p>
           </div>
         </div>
@@ -362,6 +287,9 @@ export default function FieldClient({ token, initial }: { token: string; initial
       </header>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] leading-5 text-white/65">
+          Buka link ini di HP, izinkan GPS, lalu check-in. Tidak perlu masuk akun Gercep.
+        </p>
         {state.lateWindow && !state.checkedIn && (
           <p className="rounded-xl border border-red-500/30 bg-red-950/50 px-3 py-2 text-center text-xs text-red-200">
             Kamu telat check-in. Batas jam 09:00. Tetap lakukan check-in sekarang.
@@ -369,24 +297,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
         )}
         {error && <p className="rounded-xl border border-red-500/30 bg-red-950/40 px-3 py-2 text-xs text-red-200">{error}</p>}
 
-        {signedIn === false && (
-          <div className="space-y-2">
-            <a
-              href={`/login?next=${encodeURIComponent(`/t/${token}`)}`}
-              className="block rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-center text-sm font-semibold text-[#08080f]"
-            >
-              Masuk untuk check-in
-            </a>
-            <a
-              href={`/signup?next=${encodeURIComponent(`/t/${token}`)}`}
-              className="block rounded-xl border border-white/15 py-3 text-center text-sm text-white/80"
-            >
-              Belum punya akun? Daftar, lalu kembali ke sini
-            </a>
-          </div>
-        )}
-
-        {!state.checkedIn && signedIn && (
+        {!state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-center text-sm font-semibold">Check-in pagi</p>
             <p className="mt-1 text-center text-[11px] text-white/40">Wajib sebelum jam 07:00. Batas jam 09:00.</p>
@@ -423,7 +334,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && signedIn && (
+        {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
             <p className="text-sm font-semibold text-emerald-200">Jejak aktif</p>
             <p className="mt-1 text-xs text-white/60">
@@ -434,7 +345,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && signedIn && (
+        {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-semibold">Nawar di sini</p>
             <p className="mt-1 text-[11px] text-white/40">Tap saat kamu sedang menawarkan, supaya tempatnya tercatat.</p>
@@ -483,7 +394,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && signedIn && (
+        {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 p-4">
             <p className="text-sm font-semibold">Check-in sore</p>
             <p className="mt-1 text-[11px] text-white/40">Saat pulang. Setelah check-out, hari ini tidak bisa check-in lagi.</p>
@@ -516,7 +427,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
                   {point.note && <p className="mt-1 text-xs text-white/60">{point.note}</p>}
                   {point.photo_url && <img src={point.photo_url} alt="" className="mt-2 max-h-40 w-full rounded-lg object-cover" />}
                   {point.late && <p className="mt-1 text-[11px] text-red-300">Lewat batas 09:00</p>}
-                  <a href={point.maps} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#d4af37]">
+                  <a href={point.maps || mapsUrl(point.lat, point.lng)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#d4af37]">
                     Lihat di Maps
                   </a>
                 </li>

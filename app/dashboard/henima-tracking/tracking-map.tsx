@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type { TrackingPoint } from "@/lib/henima-tracking/shared";
 
-const COLORS = ["#00f0ff", "#d4af37", "#ff2bd6", "#7CFF6B", "#8B5CF6"];
+const COLORS = ["#2563EB", "#0EA5E9", "#6366F1", "#0284C7", "#3B82F6"];
 
 export default function TrackingMap({
   points,
@@ -68,7 +68,7 @@ export default function TrackingMap({
     const L = LRef.current;
     if (!map || !L || !ready) return;
     const key = process.env.NEXT_PUBLIC_MAPTILER_KEY || "w5GCpH0T3D6oGpmDyI29";
-    const style = basemap === "satelit" ? "satellite" : "streets-v2-dark";
+    const style = basemap === "satelit" ? "satellite" : "streets-v2";
     const ext = basemap === "satelit" ? "jpg" : "png";
     if (tilesRef.current) {
       map.removeLayer(tilesRef.current);
@@ -119,9 +119,9 @@ export default function TrackingMap({
           weight: 2,
           fillColor:
             point.kind === "visit" || point.kind === "qris"
-              ? "#FFD34D"
+              ? "#F59E0B"
               : point.kind === "checkin_sore"
-                ? "#fb7185"
+                ? "#F43F5E"
                 : color,
           fillOpacity: 0.95,
         }).addTo(layer);
@@ -155,24 +155,24 @@ export default function TrackingMap({
   return (
     <>
       <div ref={host} className="henima-track-map absolute inset-0" />
-      <div className="absolute right-3 top-3 z-[400] flex overflow-hidden rounded-xl border border-[#243247] bg-[#101827] text-xs font-semibold">
-        <button type="button" onClick={() => setBasemap("peta")} className={`px-3 py-1.5 ${basemap === "peta" ? "bg-[#06D6D6] text-[#080D18]" : "text-[#94A3B8]"}`}>
+      <div className="absolute right-3 top-3 z-[400] flex overflow-hidden rounded-xl border border-[#E2E8F0] bg-white text-xs font-semibold shadow-sm">
+        <button type="button" onClick={() => setBasemap("peta")} className={`px-3 py-1.5 ${basemap === "peta" ? "bg-[#2563EB] text-white" : "text-[#64748B]"}`}>
           Peta
         </button>
-        <button type="button" onClick={() => setBasemap("satelit")} className={`px-3 py-1.5 ${basemap === "satelit" ? "bg-[#06D6D6] text-[#080D18]" : "text-[#94A3B8]"}`}>
+        <button type="button" onClick={() => setBasemap("satelit")} className={`px-3 py-1.5 ${basemap === "satelit" ? "bg-[#2563EB] text-white" : "text-[#64748B]"}`}>
           Satelit
         </button>
       </div>
-      <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded-xl border border-[#243247] bg-[#101827]/95 px-3 py-2 text-[11px] font-medium text-[#94A3B8]">
-        <p className="mb-1 font-semibold text-[#F1F5F9]">Keterangan</p>
-        <p><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#22E6A8]" />Posisi terakhir</p>
-        <p className="mt-1"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#FFD34D]" />Tempat nawar</p>
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded-xl border border-[#E2E8F0] bg-white/95 px-3 py-2 text-[11px] font-medium text-[#64748B] shadow-sm">
+        <p className="mb-1 font-semibold text-[#0F172A]">Keterangan</p>
+        <p><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#10B981]" />Posisi terakhir</p>
+        <p className="mt-1"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#F59E0B]" />Tempat nawar</p>
         <p className="mt-1">Garis warna = rute orang itu</p>
       </div>
-      <button type="button" onClick={locateMe} className="absolute bottom-3 right-3 z-[400] rounded-full border border-[#243247] bg-[#101827] px-3 py-2 text-xs font-semibold text-[#F1F5F9]">
+      <button type="button" onClick={locateMe} className="absolute bottom-3 right-3 z-[400] rounded-full border border-[#E2E8F0] bg-white px-3 py-2 text-xs font-semibold text-[#0F172A] shadow-sm">
         Lokasi saya
       </button>
-      {locateNote && <p className="absolute bottom-14 right-3 z-[400] rounded-lg bg-[#101827] px-2 py-1 text-[11px] text-[#FFD34D]">{locateNote}</p>}
+      {locateNote && <p className="absolute bottom-14 right-3 z-[400] rounded-lg border border-[#E2E8F0] bg-white px-2 py-1 text-[11px] text-[#B45309] shadow-sm">{locateNote}</p>}
     </>
   );
 }

@@ -33,13 +33,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
         ownerName = profile?.full_name || auth.user.email?.split("@")[0] || "Owner";
       }
       return (
-        <div
-          className={`${jakarta.className} flex h-full min-h-0 flex-col bg-[#080D18] bg-cover bg-center`}
-          style={{
-            backgroundImage:
-              "linear-gradient(180deg, rgba(8,13,24,0.55), rgba(8,13,24,0.72)), url(/henima-tracking-bg.jpg)",
-          }}
-        >
+        <div className={`${jakarta.className} flex h-full min-h-0 flex-col bg-[#F8FAFC] text-[#0F172A]`}>
           <TrackingDesk
             date={desk.date}
             today={desk.today}

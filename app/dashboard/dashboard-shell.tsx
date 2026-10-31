@@ -91,7 +91,7 @@ export default function DashboardShell({
 
   if (pathname?.startsWith("/dashboard/henima-tracking")) {
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[#080D18] text-[#F1F5F9]">
+      <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[#F8FAFC] text-[#0F172A]">
         <SyncActiveBusiness businessId={activeBusiness?.id} />
         <TrialBanner />
         <div className="min-h-0 flex-1">{children}</div>

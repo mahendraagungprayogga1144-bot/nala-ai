@@ -41,18 +41,20 @@ export function TrackingSidebar({
   return (
     <>
       <aside
-        className={`${open ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[220px] flex-col border-r border-[#243247] bg-[#0B1220]/80 backdrop-blur-md md:static md:flex`}
+        className={`${open ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[232px] flex-col border-r border-[#E2E8F0] bg-white md:static md:flex`}
       >
-        <div className="px-4 pb-3 pt-5">
-          <p className="text-[11px] font-bold tracking-[0.22em] text-[#06D6D6]">HENIMA</p>
-          <p className="text-sm font-bold">Tracking</p>
+        <div className="border-b border-[#E2E8F0] px-5 pb-4 pt-6">
+          <p className="font-serif text-[22px] font-semibold leading-none tracking-tight text-[#0F172A]">HENIMA</p>
+          <p className="mt-1 text-xs font-medium text-[#64748B]">Signature Scent</p>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
           {ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = item.key === active;
-            const className = `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold ${
-              isActive ? "bg-[#06D6D6]/12 text-[#06D6D6]" : "text-[#94A3B8] hover:bg-white/[0.04]"
+            const className = `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+              isActive
+                ? "bg-[#2563EB] text-white shadow-sm shadow-blue-600/20"
+                : "text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#0F172A]"
             }`;
             if (item.hash) {
               return (
@@ -82,16 +84,16 @@ export function TrackingSidebar({
             );
           })}
         </nav>
-        <div className="m-3 flex items-center gap-2 rounded-xl border border-[#243247] px-3 py-2">
+        <div className="m-3 flex items-center gap-2 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-gercep.png" alt="" className="h-8 w-8 rounded-lg object-cover" />
           <div>
-            <p className="text-xs font-bold">GercepAI</p>
-            <p className="text-[10px] font-medium text-[#94A3B8]">Henima Tracking</p>
+            <p className="text-xs font-bold text-[#0F172A]">GercepAI</p>
+            <p className="text-[10px] font-medium text-[#64748B]">Henima Tracking</p>
           </div>
         </div>
       </aside>
-      {open && <button type="button" aria-label="Tutup menu" className="absolute inset-0 z-20 bg-black/50 md:hidden" onClick={onClose} />}
+      {open && <button type="button" aria-label="Tutup menu" className="absolute inset-0 z-20 bg-slate-900/30 md:hidden" onClick={onClose} />}
     </>
   );
 }

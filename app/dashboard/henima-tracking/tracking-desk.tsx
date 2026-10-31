@@ -137,7 +137,7 @@ export default function TrackingDesk({
 
   const colorOf = useMemo(() => {
     const map = new Map(links.map((link, index) => [link.staffId, staffColor(index)]));
-    return (staffId: string) => map.get(staffId) || "#06D6D6";
+    return (staffId: string) => map.get(staffId) || "#2563EB";
   }, [links]);
   const nameOf = useMemo(() => {
     const map = new Map(links.map((link) => [link.staffId, link.nama]));
@@ -292,12 +292,12 @@ export default function TrackingDesk({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 text-[#F1F5F9]">
+    <div className="relative flex h-full min-h-0 text-[#0F172A]">
       <style>{`
-        .henima-track-map .leaflet-control-zoom { border: 0; margin-top: 12px !important; margin-left: 12px !important; }
-        .henima-track-map .leaflet-control-zoom a { background:#101827; color:#F1F5F9; border-color:#243247; width: 32px; height: 32px; line-height: 32px; }
-        .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip { background:#101827; color:#F1F5F9; }
-        .henima-track-map .leaflet-container { background:#080D18; font-family: inherit; }
+        .henima-track-map .leaflet-control-zoom { border: 0; margin-top: 12px !important; margin-left: 12px !important; box-shadow: 0 1px 3px rgba(15,23,42,0.08); }
+        .henima-track-map .leaflet-control-zoom a { background:#FFFFFF; color:#0F172A; border-color:#E2E8F0; width: 32px; height: 32px; line-height: 32px; }
+        .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip { background:#FFFFFF; color:#0F172A; }
+        .henima-track-map .leaflet-container { background:#F8FAFC; font-family: inherit; }
         .henima-track-map .leaflet-interactive { cursor: pointer; }
         .henima-track-map .leaflet-control-attribution { display: none !important; }
       `}</style>
@@ -305,56 +305,56 @@ export default function TrackingDesk({
       <TrackingSidebar active="tracking" open={navOpen} onClose={() => setNavOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="relative z-40 flex flex-wrap items-center gap-2 border-b border-[#243247]/80 bg-[#080D18]/35 px-3 py-2.5 backdrop-blur-md md:px-4">
-          <button type="button" onClick={() => setNavOpen(true)} className="rounded-lg border border-[#243247] px-2 py-1.5 text-xs font-semibold md:hidden">
+        <header className="relative z-40 flex flex-wrap items-center gap-2 border-b border-[#E2E8F0] bg-white px-3 py-3 md:px-5">
+          <button type="button" onClick={() => setNavOpen(true)} className="rounded-lg border border-[#E2E8F0] px-2 py-1.5 text-xs font-semibold md:hidden">
             Menu
           </button>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Cari nama sales, lokasi atau tanggal..."
-            className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-medium outline-none placeholder:text-[#64748B]"
+            className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-medium outline-none placeholder:text-[#94A3B8]"
           />
           <DayCalendar date={viewDate} today={today} marked={memory} onPick={(ymd) => void openDay(ymd)} />
-          <span className={`inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold ${viewDate === today ? "border-[#22E6A8]/40 text-[#22E6A8]" : "border-[#243247] text-[#94A3B8]"}`}>
+          <span className={`inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold ${viewDate === today ? "border-emerald-300 text-emerald-600" : "border-[#E2E8F0] text-[#64748B]"}`}>
             <Wifi size={15} />
             <span className="leading-tight">
               {dayBusy ? "Memuat..." : viewDate === today ? "Live Tracking" : "Arsip"}
-              <span className="block text-[10px] font-medium text-[#94A3B8]">{aktif} sales aktif</span>
+              <span className="block text-[10px] font-medium text-[#64748B]">{aktif} sales aktif</span>
             </span>
           </span>
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#243247] bg-[#101827] text-[#94A3B8]" title="Belum ada notifikasi">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B]" title="Belum ada notifikasi">
             <Bell size={16} />
           </span>
-          <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#243247] bg-[#101827] px-2 pr-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#06D6D6] text-xs font-bold text-[#080D18]">{initials(ownerName)}</span>
+          <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-2 pr-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2563EB] text-xs font-bold text-white">{initials(ownerName)}</span>
             <span className="hidden text-left leading-tight sm:block">
               <span className="block max-w-[120px] truncate text-xs font-bold">{ownerName}</span>
-              <span className="block text-[10px] font-medium text-[#94A3B8]">Owner</span>
+              <span className="block text-[10px] font-medium text-[#64748B]">Owner</span>
             </span>
           </span>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-3 pt-3 md:px-4">
+        <div className="flex flex-wrap items-end justify-between gap-4 px-3 pt-5 md:px-5">
           <div>
-            <h1 className="text-[22px] font-bold tracking-tight">Henima Tracking</h1>
-            <p className="mt-0.5 text-sm font-medium text-[#94A3B8]">Pantau lokasi sales, rute perjalanan, dan foto check-in secara real-time.</p>
+            <h1 className="text-[26px] font-bold tracking-tight text-[#0F172A]">Henima Tracking</h1>
+            <p className="mt-1 text-sm font-medium text-[#64748B]">Pantau lokasi sales, rute perjalanan, dan foto check-in secara real-time.</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat icon={<Users size={16} />} label="Total Sales" value={String(links.length)} hint="Orang" />
-            <Stat icon={<span className="h-2.5 w-2.5 rounded-full bg-[#22E6A8]" />} label="Aktif" value={String(aktif)} hint="Sedang bekerja" tone="ok" />
-            <Stat icon={<span className="text-sm font-bold text-[#FFD34D]">!</span>} label="Terlambat" value={String(late)} hint="Lewat 09:00" tone="late" />
+            <Stat icon={<span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />} label="Aktif" value={String(aktif)} hint="Sedang bekerja" tone="ok" />
+            <Stat icon={<span className="text-sm font-bold text-amber-500">!</span>} label="Terlambat" value={String(late)} hint="Lewat 09:00" tone="late" />
             <Stat icon={<Camera size={16} />} label="Total Check-in" value={String(checkins)} hint={viewDate === today ? "Hari ini" : longDate(viewDate)} tone="photo" />
           </div>
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto px-3 pt-2 md:px-4">
-          <button type="button" disabled={dayBusy} onClick={() => void openDay(shiftDay(viewDate, -1))} className="shrink-0 rounded-full border border-[#243247] px-2.5 py-1 text-xs font-semibold text-[#94A3B8] disabled:opacity-40">
+          <button type="button" disabled={dayBusy} onClick={() => void openDay(shiftDay(viewDate, -1))} className="shrink-0 rounded-full border border-[#E2E8F0] px-2.5 py-1 text-xs font-semibold text-[#64748B] disabled:opacity-40">
             Sebelumnya
           </button>
           {viewDate !== today && (
-            <button type="button" disabled={dayBusy} onClick={() => void openDay(today)} className="shrink-0 rounded-full border border-[#06D6D6]/40 px-2.5 py-1 text-xs font-semibold text-[#06D6D6] disabled:opacity-40">
+            <button type="button" disabled={dayBusy} onClick={() => void openDay(today)} className="shrink-0 rounded-full border border-[#2563EB]/40 px-2.5 py-1 text-xs font-semibold text-[#2563EB] disabled:opacity-40">
               Hari ini
             </button>
           )}
@@ -364,19 +364,19 @@ export default function TrackingDesk({
               type="button"
               disabled={dayBusy}
               onClick={() => void openDay(ymd)}
-              className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-40 ${ymd === viewDate ? "border-[#FFD34D] text-[#FFD34D]" : "border-[#243247] text-[#94A3B8]"}`}
+              className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-40 ${ymd === viewDate ? "border-[#2563EB] text-[#2563EB]" : "border-[#E2E8F0] text-[#64748B]"}`}
             >
               {ymd === today ? "Hari ini" : longDate(ymd).replace(/ \d{4}$/, "")}
             </button>
           ))}
-          {dayBusy && <span className="text-xs font-medium text-[#94A3B8]">Memuat tanggal...</span>}
+          {dayBusy && <span className="text-xs font-medium text-[#64748B]">Memuat tanggal...</span>}
         </div>
-        {(notice || formError) && <p className="mx-3 mt-2 rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200 md:mx-4">{notice || formError}</p>}
+        {(notice || formError) && <p className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 md:mx-4">{notice || formError}</p>}
 
-        <div className="mx-3 mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-[#FFD34D]/40 bg-[#FFD34D]/10 px-3 py-3 md:mx-4">
+        <div className="mx-3 mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm md:mx-5">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-[#FFD34D]">QRIS toko</p>
-            <p className="text-xs font-medium text-[#F1F5F9]/90">
+            <p className="text-sm font-bold text-[#0F172A]">QRIS toko</p>
+            <p className="text-xs font-medium text-[#64748B]">
               {qrisUrl
                 ? "Sudah aktif di semua link sales lama. Sales check-in dulu, lalu tampilkan QRIS ke pelanggan."
                 : "Wajib upload di sini dulu. Tanpa ini, link HP sales belum menampilkan QRIS."}
@@ -384,11 +384,11 @@ export default function TrackingDesk({
           </div>
           {qrisUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrisUrl} alt="QRIS" className="h-14 w-14 rounded-lg bg-white object-contain p-1" />
+            <img src={qrisUrl} alt="QRIS" className="h-14 w-14 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] object-contain p-1" />
           ) : (
-            <span className="rounded-lg border border-dashed border-[#FFD34D]/50 px-3 py-2 text-xs text-[#FFD34D]">Belum diunggah</span>
+            <span className="rounded-lg border border-dashed border-[#93C5FD] bg-[#EFF6FF] px-3 py-2 text-xs font-semibold text-[#2563EB]">Belum diunggah</span>
           )}
-          <label className="cursor-pointer rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]">
+          <label className="cursor-pointer rounded-xl bg-[#2563EB] px-3 py-2 text-xs font-bold text-white shadow-sm shadow-blue-600/20">
             {qrisBusy ? "..." : qrisUrl ? "Ganti QRIS" : "Upload QRIS"}
             <input
               type="file"
@@ -399,14 +399,14 @@ export default function TrackingDesk({
             />
           </label>
           {qrisUrl && (
-            <button type="button" disabled={qrisBusy} onClick={() => void removeQris()} className="rounded-xl border border-[#243247] px-3 py-2 text-xs font-semibold text-red-300">
+            <button type="button" disabled={qrisBusy} onClick={() => void removeQris()} className="rounded-xl border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-rose-600">
               Hapus
             </button>
           )}
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-3 px-3 py-3 lg:grid-cols-[340px_1fr] md:px-4">
-          <section className="flex max-h-[48vh] min-h-0 flex-col rounded-2xl border border-[#243247] bg-[#0B1220]/75 backdrop-blur-md lg:max-h-none">
+        <div className="grid min-h-0 flex-1 gap-4 px-3 py-4 lg:grid-cols-[340px_1fr] md:px-5">
+          <section className="flex max-h-[48vh] min-h-0 flex-col rounded-2xl border border-[#E2E8F0] bg-white shadow-sm lg:max-h-none">
             <div className="flex items-center justify-between px-3 pt-3">
               <p className="text-sm font-bold">Filter Sales</p>
               <button
@@ -415,7 +415,7 @@ export default function TrackingDesk({
                   setQuery("");
                   setFocus("all");
                 }}
-                className="text-xs font-semibold text-[#94A3B8]"
+                className="text-xs font-semibold text-[#64748B]"
               >
                 Reset
               </button>
@@ -424,7 +424,7 @@ export default function TrackingDesk({
               <button
                 type="button"
                 onClick={() => setFocus("all")}
-                className={`rounded-full px-3 py-1 text-xs font-bold ${focus === "all" ? "bg-[#22E6A8] text-[#080D18]" : "border border-[#243247] text-[#94A3B8]"}`}
+                className={`rounded-full px-3 py-1 text-xs font-bold ${focus === "all" ? "bg-[#2563EB] text-white" : "border border-[#E2E8F0] text-[#64748B]"}`}
               >
                 Semua
               </button>
@@ -436,7 +436,7 @@ export default function TrackingDesk({
                   className="rounded-full border px-3 py-1 text-xs font-bold"
                   style={{
                     borderColor: colorOf(link.staffId),
-                    color: focus === link.staffId ? "#080D18" : colorOf(link.staffId),
+                    color: focus === link.staffId ? "#FFFFFF" : colorOf(link.staffId),
                     background: focus === link.staffId ? colorOf(link.staffId) : "transparent",
                   }}
                 >
@@ -444,29 +444,29 @@ export default function TrackingDesk({
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs font-medium text-[#94A3B8]">
+            <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs font-medium text-[#64748B]">
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Cari nama sales..."
-                className="h-8 min-w-0 flex-1 rounded-lg border border-[#243247] bg-[#101827] px-2 text-xs font-medium text-[#F1F5F9] outline-none placeholder:text-[#64748B]"
+                className="h-8 min-w-0 flex-1 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs font-medium text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
               />
               <label className="inline-flex items-center gap-1">
                 Urutkan
-                <select value={sort} onChange={(event) => setSort(event.target.value as "nama" | "terakhir")} className="bg-transparent font-semibold text-[#F1F5F9] outline-none">
+                <select value={sort} onChange={(event) => setSort(event.target.value as "nama" | "terakhir")} className="bg-transparent font-semibold text-[#0F172A] outline-none">
                   <option value="nama">Nama</option>
                   <option value="terakhir">Terakhir</option>
                 </select>
               </label>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
-              {people.length === 0 && <p className="rounded-xl border border-[#243247] bg-[#101827] p-3 text-sm text-[#94A3B8]">Tidak ada sales dengan nama itu.</p>}
+              {people.length === 0 && <p className="rounded-xl border border-[#E2E8F0] bg-white p-3 text-sm text-[#64748B]">Tidak ada sales dengan nama itu.</p>}
               {people.map((link) => {
                 const card = snapshot(link, viewPoints);
                 return (
-                  <article key={link.staffId} className="rounded-2xl border border-[#243247] bg-[#101827]/85 p-3">
+                  <article key={link.staffId} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                     <div className="flex gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-[#080D18]" style={{ background: colorOf(link.staffId) }}>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: colorOf(link.staffId) }}>
                         {initials(link.nama)}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -474,22 +474,22 @@ export default function TrackingDesk({
                           <p className="truncate text-sm font-bold">{link.nama}</p>
                           <div className="flex shrink-0 items-center gap-2">
                             <StatusBadge status={card.status} />
-                            <button type="button" onClick={() => setDetail(detail === link.staffId ? "" : link.staffId)} className="text-[11px] font-semibold text-[#06D6D6]">
+                            <button type="button" onClick={() => setDetail(detail === link.staffId ? "" : link.staffId)} className="text-[11px] font-semibold text-[#2563EB]">
                               {detail === link.staffId ? "Tutup" : "Lihat Detail"}
                             </button>
                           </div>
                         </div>
-                        <p className="mt-1 text-xs font-medium text-[#94A3B8]">
+                        <p className="mt-1 text-xs font-medium text-[#64748B]">
                           {card.last ? `Sampai ${clock(card.last.recorded_at)} · ${card.visits.length} tempat` : "Belum ada titik"}
                         </p>
                         <div className="mt-2 flex items-end justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-[11px] font-semibold text-[#94A3B8]">Posisi terakhir</p>
+                            <p className="text-[11px] font-semibold text-[#64748B]">Posisi terakhir</p>
                             <p className="truncate text-xs font-semibold">{card.last?.note || (card.last ? "Titik GPS tersimpan" : "Belum berangkat")}</p>
-                            {card.last && <p className="text-[11px] font-medium text-[#94A3B8]">{ago(card.last.recorded_at)}</p>}
+                            {card.last && <p className="text-[11px] font-medium text-[#64748B]">{ago(card.last.recorded_at)}</p>}
                           </div>
                           <div className="text-right">
-                            <p className="text-[11px] font-semibold text-[#94A3B8]">Status</p>
+                            <p className="text-[11px] font-semibold text-[#64748B]">Status</p>
                             <p className="text-xs font-bold">{card.out ? "Di Jalan" : "Offline"}</p>
                           </div>
                         </div>
@@ -502,22 +502,22 @@ export default function TrackingDesk({
                           setFocus(link.staffId);
                           setFocusPointId(undefined);
                         }}
-                        className="rounded-xl bg-[#FFD34D] py-2 text-xs font-bold text-[#080D18]"
+                        className="rounded-xl bg-[#2563EB] py-2 text-xs font-bold text-white shadow-sm shadow-blue-600/20"
                       >
                         Lihat di Peta
                       </button>
-                      <button type="button" onClick={() => void copy(link)} className="rounded-xl border border-[#243247] bg-[#0B1220] py-2 text-xs font-semibold text-[#F1F5F9]">
+                      <button type="button" onClick={() => void copy(link)} className="rounded-xl border border-[#E2E8F0] bg-white py-2 text-xs font-semibold text-[#0F172A]">
                         {copied === link.staffId ? "Tersalin" : "Salin Link HP"}
                       </button>
                     </div>
                     {detail === link.staffId && (
-                      <div className="mt-3 border-t border-[#243247] pt-2 text-xs text-[#94A3B8]">
+                      <div className="mt-3 border-t border-[#E2E8F0] pt-2 text-xs text-[#64748B]">
                         {link.status !== "active" ? (
-                          <button type="button" onClick={() => void activate(link.staffId)} className="mb-2 w-full rounded-xl border border-[#243247] py-2 font-semibold text-[#F1F5F9]">
+                          <button type="button" onClick={() => void activate(link.staffId)} className="mb-2 w-full rounded-xl border border-[#E2E8F0] py-2 font-semibold text-[#0F172A]">
                             Aktifkan untuk check-in
                           </button>
                         ) : link.token ? (
-                          <a href={link.path} target="_blank" rel="noreferrer" className="mb-2 block text-center font-semibold text-[#06D6D6]">
+                          <a href={link.path} target="_blank" rel="noreferrer" className="mb-2 block text-center font-semibold text-[#2563EB]">
                             Coba di HP saya
                           </a>
                         ) : null}
@@ -533,7 +533,7 @@ export default function TrackingDesk({
                             ))}
                         </ul>
                         {link.role !== "FOUNDER" && (
-                          <button type="button" onClick={() => void remove(link)} className="mt-2 font-semibold text-red-300">
+                          <button type="button" onClick={() => void remove(link)} className="mt-2 font-semibold text-rose-600">
                             Hapus
                           </button>
                         )}
@@ -554,9 +554,9 @@ export default function TrackingDesk({
                   value={nama}
                   onChange={(event) => setNama(event.target.value)}
                   placeholder="Nama sales baru"
-                  className="h-10 min-w-0 flex-1 rounded-xl border border-[#243247] bg-[#080D18] px-3 text-sm outline-none"
+                  className="h-10 min-w-0 flex-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm outline-none"
                 />
-                <button type="submit" disabled={adding || !nama.trim()} className="rounded-xl bg-[#FFD34D] px-3 text-xs font-bold text-[#080D18] disabled:opacity-40">
+                <button type="submit" disabled={adding || !nama.trim()} className="rounded-xl bg-[#2563EB] px-3 text-xs font-bold text-white disabled:opacity-40">
                   {adding ? "..." : "Tambah"}
                 </button>
               </form>
@@ -564,7 +564,7 @@ export default function TrackingDesk({
           </section>
 
           <section className="flex min-h-0 flex-col gap-3">
-            <div id="peta-tracking" className="relative min-h-[320px] flex-1 overflow-hidden rounded-2xl border border-[#243247] bg-[#080D18]">
+            <div id="peta-tracking" className="relative min-h-[360px] flex-1 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
               <TrackingMap
                 points={visible}
                 colorOf={colorOf}
@@ -574,7 +574,7 @@ export default function TrackingDesk({
                 onPoint={setViewer}
               />
               {visible.length === 0 && (
-                <p className="pointer-events-none absolute left-1/2 top-16 z-[400] w-[min(280px,80%)] -translate-x-1/2 rounded-xl border border-[#243247] bg-[#101827]/95 px-3 py-2 text-center text-xs font-medium text-[#94A3B8]">
+                <p className="pointer-events-none absolute left-1/2 top-16 z-[400] w-[min(280px,80%)] -translate-x-1/2 rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-center text-xs font-medium text-[#64748B] shadow-sm">
                   Belum ada jejak pada tanggal ini.
                 </p>
               )}
@@ -582,25 +582,25 @@ export default function TrackingDesk({
             <div id="foto-checkin" className="scroll-mt-3">
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-sm font-bold">{viewDate === today ? "Foto Check-in Hari Ini" : `Foto ${longDate(viewDate)}`}</h2>
-                <button type="button" onClick={() => setFocus("all")} className="text-xs font-semibold text-[#06D6D6]">
+                <button type="button" onClick={() => setFocus("all")} className="text-xs font-semibold text-[#2563EB]">
                   Lihat semua
                 </button>
               </div>
               {photos.length === 0 ? (
-                <p className="rounded-2xl border border-[#243247] bg-[#101827] px-3 py-3 text-sm text-[#94A3B8]">
+                <p className="rounded-2xl border border-[#E2E8F0] bg-white px-3 py-3 text-sm text-[#64748B] shadow-sm">
                   {viewDate === today ? "Foto muncul di sini setelah sales check-in atau mencatat tempat nawar." : "Tanggal ini belum ada foto."}
                 </p>
               ) : (
                 <ul className="flex gap-2 overflow-x-auto pb-1">
                   {photos.map((point) => (
-                    <li key={point.id} className="w-44 shrink-0 overflow-hidden rounded-2xl border border-[#243247] bg-[#101827]">
+                    <li key={point.id} className="w-44 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
                       <button type="button" onClick={() => setViewer(point)} className="block w-full text-left">
                         <Thumb src={point.photo_url || ""} />
                       </button>
                       <div className="p-2">
                         <p className="truncate text-xs font-bold">{nameOf(point.staff_id)}</p>
-                        <p className="text-[11px] font-medium text-[#94A3B8]">{clock(point.recorded_at)} · {KIND[point.kind]}</p>
-                        <p className="truncate text-[11px] text-[#94A3B8]">{point.note || "Titik GPS"}</p>
+                        <p className="text-[11px] font-medium text-[#64748B]">{clock(point.recorded_at)} · {KIND[point.kind]}</p>
+                        <p className="truncate text-[11px] text-[#64748B]">{point.note || "Titik GPS"}</p>
                         <button
                           type="button"
                           onClick={() => {
@@ -608,7 +608,7 @@ export default function TrackingDesk({
                             setFocusPointId(point.id);
                             document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
                           }}
-                          className="mt-1 text-[11px] font-semibold text-[#06D6D6]"
+                          className="mt-1 text-[11px] font-semibold text-[#2563EB]"
                         >
                           Lihat di peta
                         </button>
@@ -624,19 +624,19 @@ export default function TrackingDesk({
       </div>
       {viewer &&
         createPortal(
-          <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 p-4" onClick={() => setViewer(null)}>
-            <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#243247] bg-[#101827] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setViewer(null)}>
+            <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
               {viewer.photo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={viewer.photo_url} alt="" className="max-h-[70vh] w-full bg-black object-contain" />
               ) : (
-                <p className="px-4 py-10 text-center text-sm text-[#94A3B8]">Titik ini belum ada foto.</p>
+                <p className="px-4 py-10 text-center text-sm text-[#64748B]">Titik ini belum ada foto.</p>
               )}
               <div className="flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-bold">{nameOf(viewer.staff_id)}</p>
-                  <p className="text-xs font-medium text-[#94A3B8]">{clock(viewer.recorded_at)} · {KIND[viewer.kind]}</p>
-                  <p className="mt-1 text-xs text-[#94A3B8]">{viewer.note || "Titik GPS tersimpan"}</p>
+                  <p className="text-xs font-medium text-[#64748B]">{clock(viewer.recorded_at)} · {KIND[viewer.kind]}</p>
+                  <p className="mt-1 text-xs text-[#64748B]">{viewer.note || "Titik GPS tersimpan"}</p>
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <button
@@ -647,11 +647,11 @@ export default function TrackingDesk({
                       setViewer(null);
                       document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
                     }}
-                    className="rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]"
+                    className="rounded-xl bg-[#2563EB] px-3 py-2 text-xs font-bold text-white"
                   >
                     Lihat di peta
                   </button>
-                  <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#243247] px-3 py-2 text-xs font-semibold">
+                  <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#E2E8F0] px-3 py-2 text-xs font-semibold">
                     Tutup
                   </button>
                 </div>
@@ -745,21 +745,21 @@ function DayCalendar({
             return !value;
           });
         }}
-        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-semibold"
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold"
       >
-        <CalendarDays size={15} className="text-[#94A3B8]" />
+        <CalendarDays size={15} className="text-[#64748B]" />
         {longDate(date)}
-        <ChevronDown size={14} className={`text-[#94A3B8] transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-[#64748B] transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open &&
         createPortal(
           <div
             ref={panel}
             style={{ top: place.top, left: place.left }}
-            className="fixed z-[5000] w-[292px] rounded-2xl border border-[#243247] bg-[#101827] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+            className="fixed z-[5000] w-[292px] rounded-2xl border border-[#E2E8F0] bg-white p-3 text-[#0F172A] shadow-[0_16px_40px_rgba(15,23,42,0.12)]"
           >
             <div className="mb-3 flex items-center justify-between">
-              <button type="button" onClick={() => setMonth((value) => shiftMonth(value, -1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9]" aria-label="Bulan sebelumnya">
+              <button type="button" onClick={() => setMonth((value) => shiftMonth(value, -1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] text-[#0F172A]" aria-label="Bulan sebelumnya">
                 ‹
               </button>
               <p className="text-sm font-bold capitalize">{title}</p>
@@ -767,13 +767,13 @@ function DayCalendar({
                 type="button"
                 disabled={!canNext}
                 onClick={() => canNext && setMonth((value) => shiftMonth(value, 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#243247] text-[#F1F5F9] disabled:opacity-30"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] text-[#0F172A] disabled:opacity-30"
                 aria-label="Bulan berikutnya"
               >
                 ›
               </button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[#94A3B8]">
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[#64748B]">
               {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((label) => (
                 <span key={label} className="py-1">{label}</span>
               ))}
@@ -795,14 +795,14 @@ function DayCalendar({
                     }}
                     className={`relative flex h-9 items-center justify-center rounded-lg text-sm font-semibold ${
                       selected
-                        ? "bg-[#06D6D6] text-[#080D18]"
+                        ? "bg-[#2563EB] text-white"
                         : isToday
-                          ? "border border-[#FFD34D] text-[#FFD34D]"
-                          : "text-[#F1F5F9] hover:bg-white/5"
+                          ? "border border-[#2563EB] text-[#2563EB]"
+                          : "text-[#0F172A] hover:bg-[#EFF6FF]"
                     } disabled:cursor-default disabled:text-[#475569] disabled:hover:bg-transparent`}
                   >
                     {Number(ymd.slice(8))}
-                    {markedSet.has(ymd) && !selected && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#FFD34D]" />}
+                    {markedSet.has(ymd) && !selected && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#2563EB]" />}
                   </button>
                 );
               })}
@@ -816,7 +816,7 @@ function DayCalendar({
 
 function Thumb({ src }: { src: string }) {
   const [bad, setBad] = useState(false);
-  if (!src || bad) return <div className="flex h-[88px] items-center justify-center bg-[#080D18] text-[11px] text-[#94A3B8]">Foto tidak tampil</div>;
+  if (!src || bad) return <div className="flex h-[88px] items-center justify-center bg-[#F8FAFC] text-[11px] text-[#64748B]">Foto tidak tampil</div>;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt="" onError={() => setBad(true)} className="h-[88px] w-full object-cover" />
@@ -836,13 +836,22 @@ function Stat({
   hint: string;
   tone?: "ok" | "late" | "photo";
 }) {
-  const iconBg = tone === "ok" ? "bg-[#22E6A8]/15 text-[#22E6A8]" : tone === "late" ? "bg-[#FFD34D]/15 text-[#FFD34D]" : tone === "photo" ? "bg-[#fb7185]/15 text-[#fb7185]" : "bg-[#06D6D6]/10 text-[#06D6D6]";
+  const iconBg =
+    tone === "ok"
+      ? "bg-emerald-50 text-emerald-600"
+      : tone === "late"
+        ? "bg-amber-50 text-amber-600"
+        : tone === "photo"
+          ? "bg-rose-50 text-rose-500"
+          : "bg-[#EFF6FF] text-[#2563EB]";
   return (
-    <div className="flex min-w-[148px] items-center gap-2.5 rounded-2xl border border-[#243247] bg-[#101827]/80 px-3 py-2 backdrop-blur-md">
+    <div className="flex min-w-[148px] items-center gap-2.5 rounded-2xl border border-[#E2E8F0] bg-white px-3 py-2.5 shadow-sm">
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconBg}`}>{icon}</span>
       <span>
-        <span className="block text-[11px] font-semibold text-[#94A3B8]">{label}</span>
-        <span className="block text-lg font-bold leading-5">{value} <span className="text-[11px] font-medium text-[#94A3B8]">{hint}</span></span>
+        <span className="block text-[11px] font-semibold text-[#64748B]">{label}</span>
+        <span className="block text-lg font-bold leading-5 text-[#0F172A]">
+          {value} <span className="text-[11px] font-medium text-[#64748B]">{hint}</span>
+        </span>
       </span>
     </div>
   );
@@ -851,9 +860,9 @@ function Stat({
 function StatusBadge({ status }: { status: { label: string; tone: "off" | "road" | "late" } }) {
   const cls =
     status.tone === "road"
-      ? "bg-[#22E6A8]/15 text-[#22E6A8]"
+      ? "bg-emerald-50 text-emerald-600"
       : status.tone === "late"
-        ? "bg-[#FFD34D]/15 text-[#FFD34D]"
-        : "bg-white/5 text-[#94A3B8]";
+        ? "bg-amber-50 text-amber-600"
+        : "bg-[#F1F5F9] text-[#64748B]";
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cls}`}>{status.label}</span>;
 }

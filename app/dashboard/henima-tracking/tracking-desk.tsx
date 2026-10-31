@@ -131,7 +131,7 @@ export default function TrackingDesk({
           if (Array.isArray(json.points)) setClientDay({ date: json.date || today, points: json.points });
         })
         .catch(() => undefined);
-    }, 25000);
+    }, 15000);
     return () => window.clearInterval(timer);
   }, [viewDate, today]);
 

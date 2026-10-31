@@ -203,26 +203,92 @@ export default function FieldClient({ token, initial }: { token: string; initial
   useEffect(() => {
     if (!state.checkedIn || state.checkedOut) return;
     if (!navigator.geolocation) return;
+
+    // Setelah check-in sekali, lokasi ikut otomatis selama halaman terbuka.
+    let wake: WakeLockSentinel | null = null;
+    void navigator.wakeLock
+      ?.request("screen")
+      .then((lock) => {
+        wake = lock;
+      })
+      .catch(() => undefined);
+
+    const pushPing = (fix: GpsFix, force = false) => {
+      setGps(fix);
+      setWatching(true);
+      const prev = lastPos.current;
+      // ~25 m dalam derajat lintang kasar.
+      const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
+      const age = Date.now() - lastSent.current;
+      const stale = age > 45_000;
+      // Longgar: HP di jalan sering 40–120 m; jangan putus jejak.
+      if (!force && fix.acc > 180) return;
+      if (!force && !stale && moved < 0.00022) return;
+      void send("ping", fix).catch(() => undefined);
+    };
+
     const watch = navigator.geolocation.watchPosition(
       (pos) => {
-        const fix = {
+        pushPing({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           acc: Math.round(pos.coords.accuracy),
-        };
-        setGps(fix);
-        setWatching(true);
-        const prev = lastPos.current;
-        const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-        const stale = Date.now() - lastSent.current > 90_000;
-        if (fix.acc > 80) return;
-        if (!stale && moved < 0.0004) return;
-        void send("ping", fix).catch(() => undefined);
+        });
       },
       () => setWatching(false),
-      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 },
     );
-    return () => navigator.geolocation.clearWatch(watch);
+
+    // Backup timer: kalau diam di satu tempat tetap kirim tiap 60 dtk.
+    const heartbeat = window.setInterval(() => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          pushPing(
+            {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              acc: Math.round(pos.coords.accuracy),
+            },
+            Date.now() - lastSent.current > 55_000,
+          );
+        },
+        () => undefined,
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
+      );
+    }, 60_000);
+
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          pushPing(
+            {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              acc: Math.round(pos.coords.accuracy),
+            },
+            true,
+          );
+        },
+        () => undefined,
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+      );
+      void navigator.wakeLock
+        ?.request("screen")
+        .then((lock) => {
+          wake = lock;
+        })
+        .catch(() => undefined);
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      navigator.geolocation.clearWatch(watch);
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", onVisible);
+      void wake?.release().catch(() => undefined);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.checkedIn, state.checkedOut, token]);
 
@@ -367,17 +433,25 @@ export default function FieldClient({ token, initial }: { token: string; initial
             >
               {busy === "pagi" ? "Menyimpan..." : "Check-in pagi"}
             </button>
+            <p className="mt-2 text-center text-[11px] text-white/45">
+              Cukup sekali. Setelah itu GPS ikut otomatis ke mana saja kamu pergi.
+            </p>
           </section>
         )}
 
         {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <p className="text-sm font-semibold text-emerald-200">Jejak aktif</p>
+            <p className="text-sm font-semibold text-emerald-200">Check-in aktif · ikut otomatis</p>
             <p className="mt-1 text-xs text-white/60">
               {watching
-                ? "Halaman ini terbuka, lokasi ikut tercatat otomatis. Jangan ditutup saat di jalan."
-                : "Izinkan GPS dan biarkan halaman ini terbuka supaya kantor tahu kamu kemana."}
+                ? "Sudah check-in. Tidak perlu check-in lagi tiap pindah tempat — GPS ikut kemana kamu pergi selama halaman ini tetap terbuka."
+                : "Izinkan GPS. Setelah check-in sekali, lokasi otomatis ikut bergerak. Jangan tutup halaman saat di jalan."}
             </p>
+            {gps && (
+              <p className="mt-2 text-[11px] font-medium text-emerald-100/80">
+                Posisi live · akurasi ±{gps.acc} m{gpsText ? ` · ${gpsText}` : ""}
+              </p>
+            )}
           </section>
         )}
 

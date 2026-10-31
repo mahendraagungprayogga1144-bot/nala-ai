@@ -126,6 +126,7 @@ export default function TrackingDesk({
   const [dayBusy, setDayBusy] = useState(false);
   const [qrisUrl, setQrisUrl] = useState(initialQrisUrl || "");
   const [qrisBusy, setQrisBusy] = useState(false);
+  const [historyKind, setHistoryKind] = useState<"all" | "qris" | "foto" | "checkin" | "visit">("all");
   const viewDate = clientDay?.date ?? date;
   const viewPoints = clientDay?.points ?? points;
 
@@ -169,6 +170,19 @@ export default function TrackingDesk({
   );
   // QRIS tetap di riwayat kartu sales, jangan campur ke strip foto di bawah peta.
   const photos = visible.filter((point) => point.photo_url && point.kind !== "qris");
+  const historyRows = visible
+    .filter((point) => point.kind !== "ping")
+    .filter((point) => {
+      if (historyKind === "all") return true;
+      if (historyKind === "qris") return point.kind === "qris";
+      if (historyKind === "foto") return Boolean(point.photo_url) && point.kind !== "qris";
+      if (historyKind === "checkin") return point.kind === "checkin_pagi" || point.kind === "checkin_sore";
+      return point.kind === "visit";
+    });
+  const historyQris = visible.filter((point) => point.kind === "qris").length;
+  const historyFoto = visible.filter((point) => point.photo_url && point.kind !== "qris").length;
+  const historyCheckin = visible.filter((point) => point.kind === "checkin_pagi" || point.kind === "checkin_sore").length;
+  const historyVisit = visible.filter((point) => point.kind === "visit").length;
   const aktif = links.filter((link) => snapshot(link, viewPoints).out).length;
   const late = links.filter((link) => snapshot(link, viewPoints).status.tone === "late").length;
   const checkins = viewPoints.filter((point) => point.kind === "checkin_pagi").length;
@@ -319,8 +333,21 @@ export default function TrackingDesk({
             const Icon = item.icon;
             const className = `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold ${item.active ? "bg-[#06D6D6]/12 text-[#06D6D6]" : "text-[#94A3B8] hover:bg-white/[0.04]"}`;
             if (item.href.startsWith("#")) {
+              const targetId = item.href.slice(1);
               return (
-                <a key={item.label} href={item.href} onClick={() => setNavOpen(false)} className={className}>
+                <a
+                  key={item.label}
+                  href={item.href}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setNavOpen(false);
+                    // Shell tracking overflow-hidden — hash native tidak scroll; pakai scrollIntoView.
+                    window.requestAnimationFrame(() => {
+                      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    });
+                  }}
+                  className={className}
+                >
                   <Icon size={16} />
                   {item.label}
                 </a>
@@ -345,7 +372,7 @@ export default function TrackingDesk({
       </aside>
       {navOpen && <button type="button" aria-label="Tutup menu" className="absolute inset-0 z-20 bg-black/50 md:hidden" onClick={() => setNavOpen(false)} />}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="relative z-40 flex flex-wrap items-center gap-2 border-b border-[#243247]/80 bg-[#080D18]/35 px-3 py-2.5 backdrop-blur-md md:px-4">
           <button type="button" onClick={() => setNavOpen(true)} className="rounded-lg border border-[#243247] px-2 py-1.5 text-xs font-semibold md:hidden">
             Menu
@@ -376,6 +403,7 @@ export default function TrackingDesk({
           </span>
         </header>
 
+        <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-wrap items-end justify-between gap-3 px-3 pt-3 md:px-4">
           <div>
             <h1 className="text-[22px] font-bold tracking-tight">Henima Tracking</h1>
@@ -389,7 +417,7 @@ export default function TrackingDesk({
           </div>
         </div>
 
-        <div id="riwayat" className="flex items-center gap-2 overflow-x-auto px-3 pt-2 md:px-4">
+        <div className="flex items-center gap-2 overflow-x-auto px-3 pt-2 md:px-4">
           <button type="button" disabled={dayBusy} onClick={() => void openDay(shiftDay(viewDate, -1))} className="shrink-0 rounded-full border border-[#243247] px-2.5 py-1 text-xs font-semibold text-[#94A3B8] disabled:opacity-40">
             Sebelumnya
           </button>
@@ -584,7 +612,7 @@ export default function TrackingDesk({
               })}
               <form
                 id="tambah-sales"
-                className="flex gap-2"
+                className="flex scroll-mt-3 gap-2"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void addSales();
@@ -619,7 +647,7 @@ export default function TrackingDesk({
                 </p>
               )}
             </div>
-            <div id="foto-checkin">
+            <div id="foto-checkin" className="scroll-mt-3">
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-sm font-bold">{viewDate === today ? "Foto Check-in Hari Ini" : `Foto ${longDate(viewDate)}`}</h2>
                 <button type="button" onClick={() => setFocus("all")} className="text-xs font-semibold text-[#06D6D6]">
@@ -659,6 +687,128 @@ export default function TrackingDesk({
               )}
             </div>
           </section>
+        </div>
+
+        <section id="riwayat" className="mx-3 mb-4 scroll-mt-3 rounded-2xl border border-[#243247] bg-[#0B1220]/75 backdrop-blur-md md:mx-4">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#243247] px-4 py-3">
+            <div>
+              <p className="text-[11px] font-bold tracking-[0.18em] text-[#06D6D6]">RIWAYAT PERUSAHAAN</p>
+              <h2 className="mt-1 text-base font-bold">{longDate(viewDate)}</h2>
+              <p className="mt-0.5 text-xs font-medium text-[#94A3B8]">
+                Lengkap: pembayaran QRIS, foto sales, check-in, tempat nawar, dan nama petugas.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+              <span className="rounded-full border border-[#FFD34D]/35 px-2.5 py-1 text-[#FFD34D]">{historyQris} QRIS</span>
+              <span className="rounded-full border border-[#fb7185]/35 px-2.5 py-1 text-[#fb7185]">{historyFoto} foto</span>
+              <span className="rounded-full border border-[#22E6A8]/35 px-2.5 py-1 text-[#22E6A8]">{historyCheckin} check-in</span>
+              <span className="rounded-full border border-[#06D6D6]/35 px-2.5 py-1 text-[#06D6D6]">{historyVisit} nawar</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 px-4 py-3">
+            {(
+              [
+                { id: "all", label: "Semua" },
+                { id: "qris", label: "Pembayaran QRIS" },
+                { id: "foto", label: "Foto" },
+                { id: "checkin", label: "Check-in" },
+                { id: "visit", label: "Nawar" },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setHistoryKind(item.id)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                  historyKind === item.id ? "bg-[#06D6D6] text-[#080D18]" : "border border-[#243247] text-[#94A3B8]"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {historyRows.length === 0 ? (
+            <p className="px-4 pb-4 text-sm text-[#94A3B8]">
+              {viewDate === today
+                ? "Belum ada aktivitas untuk filter ini. Setelah sales check-in, tampilkan QRIS, atau foto nawar, datanya muncul di sini."
+                : `Tanggal ${longDate(viewDate)} belum ada data untuk filter ini.`}
+            </p>
+          ) : (
+            <ul className="divide-y divide-[#243247] px-2 pb-2">
+              {historyRows.map((point) => {
+                const thumb = point.kind === "qris" ? point.photo_url || qrisUrl : point.photo_url;
+                return (
+                  <li key={point.id} className="flex gap-3 px-2 py-3">
+                    <button
+                      type="button"
+                      disabled={!thumb}
+                      onClick={() => thumb && setViewer({ ...point, photo_url: thumb })}
+                      className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-[#243247] bg-[#101827] disabled:cursor-default"
+                    >
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="flex h-full items-center justify-center text-[10px] font-semibold text-[#64748B]">GPS</span>
+                      )}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-[#080D18]"
+                          style={{ background: colorOf(point.staff_id) }}
+                        >
+                          {initials(nameOf(point.staff_id))}
+                        </span>
+                        <p className="truncate text-sm font-bold">{nameOf(point.staff_id)}</p>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            point.kind === "qris"
+                              ? "bg-[#FFD34D]/15 text-[#FFD34D]"
+                              : point.kind === "visit"
+                                ? "bg-[#06D6D6]/15 text-[#06D6D6]"
+                                : point.kind.startsWith("checkin")
+                                  ? "bg-[#22E6A8]/15 text-[#22E6A8]"
+                                  : "bg-white/5 text-[#94A3B8]"
+                          }`}
+                        >
+                          {point.kind === "qris" ? "Pembayaran QRIS" : KIND[point.kind]}
+                        </span>
+                        {point.late && <span className="text-[10px] font-semibold text-red-300">Telat</span>}
+                      </div>
+                      <p className="mt-1 text-xs font-medium text-[#F1F5F9]/90">
+                        {point.kind === "qris"
+                          ? `QRIS ditampilkan ke pembeli · atas nama ${nameOf(point.staff_id)}`
+                          : point.note || "Titik GPS tersimpan"}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-[#94A3B8]">
+                        <span>
+                          {longDate(viewDate)} · {clock(point.recorded_at)} WIB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFocus(point.staff_id);
+                            setFocusPointId(point.id);
+                            document.getElementById("peta-tracking")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                          }}
+                          className="font-semibold text-[#06D6D6]"
+                        >
+                          Lihat di peta
+                        </button>
+                        {thumb && (
+                          <button type="button" onClick={() => setViewer({ ...point, photo_url: thumb })} className="font-semibold text-[#FFD34D]">
+                            Lihat gambar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
         </div>
       </div>
       {viewer &&

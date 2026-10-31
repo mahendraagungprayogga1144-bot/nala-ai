@@ -412,16 +412,20 @@ export default function TrackingDesk({
         </div>
         {(notice || formError) && <p className="mx-3 mt-2 rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200 md:mx-4">{notice || formError}</p>}
 
-        <div className="mx-3 mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-[#243247] bg-[#101827]/80 px-3 py-2 md:mx-4">
+        <div className="mx-3 mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-[#FFD34D]/40 bg-[#FFD34D]/10 px-3 py-3 md:mx-4">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold">QRIS toko</p>
-            <p className="text-xs font-medium text-[#94A3B8]">Gambar ini muncul di link sales. Saat mereka tampilkan, riwayat tercatat atas nama sales itu.</p>
+            <p className="text-sm font-bold text-[#FFD34D]">QRIS toko</p>
+            <p className="text-xs font-medium text-[#F1F5F9]/90">
+              {qrisUrl
+                ? "Sudah aktif di semua link sales lama. Sales check-in dulu, lalu tampilkan QRIS ke pelanggan."
+                : "Wajib upload di sini dulu. Tanpa ini, link HP sales belum menampilkan QRIS."}
+            </p>
           </div>
           {qrisUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrisUrl} alt="QRIS" className="h-14 w-14 rounded-lg object-cover" />
+            <img src={qrisUrl} alt="QRIS" className="h-14 w-14 rounded-lg bg-white object-contain p-1" />
           ) : (
-            <span className="rounded-lg border border-dashed border-[#243247] px-3 py-2 text-xs text-[#94A3B8]">Belum ada gambar</span>
+            <span className="rounded-lg border border-dashed border-[#FFD34D]/50 px-3 py-2 text-xs text-[#FFD34D]">Belum diunggah</span>
           )}
           <label className="cursor-pointer rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]">
             {qrisBusy ? "..." : qrisUrl ? "Ganti QRIS" : "Upload QRIS"}

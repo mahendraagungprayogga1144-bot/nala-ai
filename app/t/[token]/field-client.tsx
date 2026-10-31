@@ -379,25 +379,33 @@ export default function FieldClient({ token, initial }: { token: string; initial
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && qrisUrl && (
+        {qrisUrl && (
           <section className="rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 p-4">
             <p className="text-sm font-semibold text-[#f5d98a]">Bayar QRIS</p>
             <p className="mt-1 text-[11px] text-white/60">
-              Tampilkan ke pelanggan. Tercatat di riwayat atas nama {state.nama}.
+              {state.checkedOut
+                ? "Sudah check-out. QRIS hari ini tidak dicatat lagi."
+                : state.checkedIn
+                  ? `Tampilkan ke pelanggan. Tercatat di riwayat atas nama ${state.nama}.`
+                  : "Check-in pagi dulu, baru QRIS bisa ditampilkan dan masuk riwayat."}
             </p>
-            <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
-              Ambil Lokasi GPS
-            </button>
-            <p className="mt-2 text-center text-xs text-white/50">{gpsText}</p>
-            <button
-              type="button"
-              disabled={!gps || busy === "qris"}
-              onClick={() => void onQris()}
-              className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
-            >
-              {busy === "qris" ? "Menyimpan..." : showQris ? "Tampilkan lagi · catat riwayat" : "Tampilkan QRIS"}
-            </button>
-            {showQris && (
+            {state.checkedIn && !state.checkedOut && (
+              <>
+                <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
+                  Ambil Lokasi GPS
+                </button>
+                <p className="mt-2 text-center text-xs text-white/50">{gpsText}</p>
+                <button
+                  type="button"
+                  disabled={!gps || busy === "qris"}
+                  onClick={() => void onQris()}
+                  className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
+                >
+                  {busy === "qris" ? "Menyimpan..." : showQris ? "Tampilkan lagi · catat riwayat" : "Tampilkan QRIS"}
+                </button>
+              </>
+            )}
+            {(showQris || (!state.checkedIn && !state.checkedOut)) && (
               <div className="mt-3 overflow-hidden rounded-xl bg-white p-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrisUrl} alt="QRIS" className="mx-auto max-h-72 w-full object-contain" />

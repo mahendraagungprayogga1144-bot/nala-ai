@@ -229,7 +229,6 @@ export default function FieldClient({ token, initial }: { token: string; initial
         await reg.showNotification("Henima · auto track aktif", {
           body: "Boleh buka WhatsApp/app lain. Jangan tutup atau hapus tab ini sampai check-out.",
           tag: "henima-auto-track",
-          renotify: false,
           requireInteraction: true,
           silent: true,
           data: { url: trackUrl },
@@ -327,18 +326,15 @@ export default function FieldClient({ token, initial }: { token: string; initial
       void holdWake();
     }
 
-    function onResume() {
+    function onFreeze() {
       readGps(true, 0);
-      void holdWake();
     }
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
-    // Page Lifecycle (Chrome Android): lanjut setelah tab di-freeze.
-    // @ts-expect-error freeze/resume belum di semua lib DOM
-    document.addEventListener("resume", onResume);
-    // @ts-expect-error freeze/resume belum di semua lib DOM
-    document.addEventListener("freeze", () => readGps(true, 0));
+    // Page Lifecycle (Chrome Android) — cast karena belum di semua lib DOM.
+    document.addEventListener("resume", onPageShow as EventListener);
+    document.addEventListener("freeze", onFreeze as EventListener);
 
     return () => {
       alive = false;
@@ -347,8 +343,8 @@ export default function FieldClient({ token, initial }: { token: string; initial
       window.clearInterval(backgroundBeat);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
-      // @ts-expect-error freeze/resume belum di semua lib DOM
-      document.removeEventListener("resume", onResume);
+      document.removeEventListener("resume", onPageShow as EventListener);
+      document.removeEventListener("freeze", onFreeze as EventListener);
       void wake?.release().catch(() => undefined);
       void clearTrackNotice();
     };

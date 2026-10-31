@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import {
   Camera,
   FileBarChart,
@@ -28,6 +29,16 @@ const ITEMS: Array<{
   { href: "/dashboard/sales/reports", label: "Laporan", icon: FileBarChart },
   { href: "/dashboard/henima-tracking#tambah-sales", label: "Pengaturan", icon: Settings, hash: "tambah-sales" },
 ];
+
+function NavPendingHint() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden
+      className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current transition ${pending ? "animate-pulse opacity-100" : "opacity-0"}`}
+    />
+  );
+}
 
 export function TrackingSidebar({
   active,
@@ -77,9 +88,12 @@ export function TrackingSidebar({
               );
             }
             return (
-              <Link key={item.label} href={item.href} onClick={onClose} className={className}>
+              <Link key={item.label} href={item.href} onClick={onClose} className={className} prefetch>
                 <Icon size={16} />
-                {item.label}
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  {item.label}
+                  {item.key ? <NavPendingHint /> : null}
+                </span>
               </Link>
             );
           })}

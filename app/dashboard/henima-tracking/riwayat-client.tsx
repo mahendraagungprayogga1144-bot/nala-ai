@@ -189,12 +189,18 @@ export default function RiwayatClient({
                 {ymd === today ? "Hari ini" : longDate(ymd).replace(/ \d{4}$/, "")}
               </button>
             ))}
-            {dayBusy && <span className="text-xs font-medium text-[#64748B]">Memuat tanggal...</span>}
           </div>
+
+          {dayBusy && (
+            <div className="mx-3 mt-3 flex items-center gap-2 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-sm font-semibold text-[#2563EB] md:mx-4">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#BFDBFE] border-t-[#2563EB]" aria-hidden />
+              Memuat data tanggal… sebentar ya.
+            </div>
+          )}
 
           {error && <p className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 md:mx-4">{error}</p>}
 
-          <div className="mx-3 mt-3 flex flex-wrap gap-1.5 md:mx-4">
+          <div className={`mx-3 mt-3 flex flex-wrap gap-1.5 md:mx-4 ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
             <button
               type="button"
               onClick={() => setFocus("all")}
@@ -219,7 +225,7 @@ export default function RiwayatClient({
             ))}
           </div>
 
-          <section className="mx-3 my-4 rounded-2xl border border-[#E2E8F0] bg-white shadow-sm md:mx-5">
+          <section className={`mx-3 my-4 rounded-2xl border border-[#E2E8F0] bg-white shadow-sm md:mx-5 ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E2E8F0] px-4 py-3">
               <div>
                 <p className="text-[11px] font-bold tracking-[0.18em] text-[#2563EB]">RIWAYAT LENGKAP</p>

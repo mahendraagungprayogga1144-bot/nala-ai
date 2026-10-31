@@ -112,16 +112,34 @@ export default function TrackingDesk({
     });
   }, []);
 
+  const pointsSig = useRef("");
+  const seedPointsRef = useRef(points);
+  seedPointsRef.current = points;
+
   useEffect(() => {
     if (viewDate !== today) return;
     const timer = window.setInterval(() => {
-      void fetch("/api/henima-tracking/desk", { cache: "no-store" })
+      void fetch("/api/henima-tracking/desk?light=1", { cache: "no-store" })
         .then((response) => response.json())
         .then((json) => {
-          if (Array.isArray(json.points)) setClientDay({ date: json.date || today, points: json.points });
+          if (!Array.isArray(json.points)) return;
+          const nextPoints = json.points as TrackingPoint[];
+          const sig = `${json.date || today}|${nextPoints.length}|${nextPoints[0]?.id || ""}|${nextPoints[0]?.recorded_at || ""}`;
+          if (sig === pointsSig.current) return;
+          pointsSig.current = sig;
+          setClientDay((prev) => {
+            // Poll ringan tanpa URL foto — pertahankan signed URL lama biar strip foto tidak hilang.
+            const prevById = new Map((prev?.points ?? seedPointsRef.current).map((point) => [point.id, point]));
+            const merged = nextPoints.map((point) => {
+              const old = prevById.get(point.id);
+              if (!old?.photo_url) return point;
+              return { ...point, photo_url: old.photo_url, photo_path: point.photo_path || old.photo_path };
+            });
+            return { date: json.date || today, points: merged };
+          });
         })
         .catch(() => undefined);
-    }, 15000);
+    }, 20000);
     return () => window.clearInterval(timer);
   }, [viewDate, today]);
 
@@ -134,6 +152,7 @@ export default function TrackingDesk({
     return (staffId: string) => map.get(staffId) || "Sales";
   }, [links]);
 
+  const cards = useMemo(() => new Map(links.map((link) => [link.staffId, snapshot(link, viewPoints)])), [links, viewPoints]);
   const needle = query.trim().toLowerCase();
   const people = links
     .filter((link) => {
@@ -152,8 +171,8 @@ export default function TrackingDesk({
   );
   // QRIS tetap di riwayat kartu sales, jangan campur ke strip foto di bawah peta.
   const photos = visible.filter((point) => point.photo_url && point.kind !== "qris");
-  const aktif = links.filter((link) => snapshot(link, viewPoints).out).length;
-  const late = links.filter((link) => snapshot(link, viewPoints).status.tone === "late").length;
+  const aktif = links.filter((link) => cards.get(link.staffId)?.out).length;
+  const late = links.filter((link) => cards.get(link.staffId)?.status.tone === "late").length;
   const checkins = viewPoints.filter((point) => point.kind === "checkin_pagi").length;
   const memory = days.includes(viewDate) ? days : [viewDate, ...days];
 
@@ -169,7 +188,9 @@ export default function TrackingDesk({
       const response = await fetch(url, { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Gagal memuat tanggal itu.");
-      setClientDay({ date: json.date || next, points: Array.isArray(json.points) ? json.points : [] });
+      const nextPoints = Array.isArray(json.points) ? (json.points as TrackingPoint[]) : [];
+      pointsSig.current = `${json.date || next}|${nextPoints.length}|${nextPoints[0]?.id || ""}|${nextPoints[0]?.recorded_at || ""}`;
+      setClientDay({ date: json.date || next, points: nextPoints });
       window.history.replaceState(null, "", next === today ? "/dashboard/henima-tracking" : `/dashboard/henima-tracking?hari=${next}`);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Gagal memuat tanggal.");
@@ -306,14 +327,18 @@ export default function TrackingDesk({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <DayCalendar date={viewDate} today={today} marked={memory} onPick={(ymd) => void openDay(ymd)} />
+            <DayCalendar date={viewDate} today={today} marked={memory} busy={dayBusy} onPick={(ymd) => void openDay(ymd)} />
             <span
               className={`inline-flex h-10 items-center gap-2 rounded-full border bg-white px-3 text-sm font-semibold ${
-                viewDate === today ? "border-emerald-200 text-emerald-600" : "border-[#E2E8F0] text-[#64748B]"
+                dayBusy
+                  ? "border-[#BFDBFE] text-[#2563EB]"
+                  : viewDate === today
+                    ? "border-emerald-200 text-emerald-600"
+                    : "border-[#E2E8F0] text-[#64748B]"
               }`}
             >
-              <span className={`h-2 w-2 rounded-full ${viewDate === today ? "bg-emerald-500" : "bg-slate-300"}`} />
-              {dayBusy ? "Memuat..." : viewDate === today ? "Live Tracking" : "Arsip"}
+              <span className={`h-2 w-2 rounded-full ${dayBusy ? "animate-pulse bg-[#2563EB]" : viewDate === today ? "bg-emerald-500" : "bg-slate-300"}`} />
+              {dayBusy ? "Memuat tanggal…" : viewDate === today ? "Live Tracking" : "Arsip"}
             </span>
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B]" title="Belum ada notifikasi">
               <Bell size={16} />
@@ -328,8 +353,14 @@ export default function TrackingDesk({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6">
+          {dayBusy && (
+            <div className="sticky top-0 z-20 mb-3 flex items-center gap-2 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-sm font-semibold text-[#2563EB] shadow-sm">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#BFDBFE] border-t-[#2563EB]" aria-hidden />
+              Memuat data tanggal… sebentar ya.
+            </div>
+          )}
+          <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
             <Stat label="Total Sales" value={String(links.length)} hint="Orang" tone="blue" />
             <Stat label="Aktif" value={String(aktif)} hint="sedang bekerja" tone="ok" />
             <Stat label="Terlambat" value={String(late)} hint="Lewat 09:00" tone="late" />
@@ -340,7 +371,7 @@ export default function TrackingDesk({
             <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{notice || formError}</p>
           )}
 
-          <div className="mt-4 grid min-h-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
+          <div className={`mt-4 grid min-h-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)] ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
             <div className="flex min-h-0 flex-col gap-4">
               <section className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
@@ -447,8 +478,8 @@ export default function TrackingDesk({
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
                   {people.length === 0 && <p className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#64748B]">Tidak ada sales dengan nama itu.</p>}
                   {people.map((link) => {
-                    const card = snapshot(link, viewPoints);
-                    return (
+                  const card = cards.get(link.staffId) || snapshot(link, viewPoints);
+                  return (
                       <article key={link.staffId} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-sm">
                         <div className="flex gap-3">
                           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] text-sm font-bold text-[#2563EB]">
@@ -668,11 +699,13 @@ function DayCalendar({
   date,
   today,
   marked,
+  busy,
   onPick,
 }: {
   date: string;
   today: string;
   marked: string[];
+  busy?: boolean;
   onPick: (ymd: string) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
@@ -721,17 +754,19 @@ function DayCalendar({
     <div ref={root} className="relative">
       <button
         type="button"
+        disabled={busy}
         onClick={() => {
+          if (busy) return;
           setMonth(date.slice(0, 7));
           setOpen((value) => {
             if (!value) placePanel();
             return !value;
           });
         }}
-        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold"
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold disabled:opacity-60"
       >
         <CalendarDays size={15} className="text-[#64748B]" />
-        {longDate(date)}
+        {busy ? "Memuat tanggal…" : longDate(date)}
         <ChevronDown size={14} className={`text-[#64748B] transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open &&
@@ -771,7 +806,7 @@ function DayCalendar({
                   <button
                     key={ymd}
                     type="button"
-                    disabled={disabled}
+                    disabled={disabled || busy}
                     onClick={() => {
                       onPick(ymd);
                       setOpen(false);

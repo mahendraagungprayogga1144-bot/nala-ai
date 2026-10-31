@@ -15,8 +15,9 @@ export async function GET(request: Request) {
   return withSalesActor(async () => {
     const url = new URL(request.url);
     const day = chosenDay(url.searchParams.get("hari"));
+    const light = url.searchParams.get("light") === "1";
     const session = await createClient();
-    const visible = await loadVisiblePoints(session, day);
+    const visible = await loadVisiblePoints(session, day, { skipPhotos: light });
     return {
       date: visible.date,
       today: todayWib(),

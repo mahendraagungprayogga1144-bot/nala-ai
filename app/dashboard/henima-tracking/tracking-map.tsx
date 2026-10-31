@@ -126,22 +126,24 @@ export default function TrackingMap({
       if (!latest) continue;
       latestPins.push([latest.lat, latest.lng]);
 
+      // Ping tipis saja — terlalu banyak marker bikin ganti tanggal / live refresh berat.
       const trail = ordered.filter((point, index) => {
         if (point === latest) return false;
         if (point.kind !== "ping") return true;
-        return index === 0 || index % 3 === 0;
+        return index === 0 || index % 6 === 0;
       });
+      const capped = trail.length > 80 ? trail.filter((_, index) => index % Math.ceil(trail.length / 80) === 0) : trail;
 
-      for (const point of trail) {
+      for (const point of capped) {
         const important = point.kind !== "ping";
         const marker = L.circleMarker([point.lat, point.lng], {
-          radius: important ? 7 : 5,
+          radius: important ? 7 : 4,
           color: "#FFFFFF",
-          weight: 2,
+          weight: important ? 2 : 1,
           fillColor: important && (point.kind === "visit" || point.kind === "qris") ? "#60A5FA" : color,
-          fillOpacity: 0.95,
+          fillOpacity: important ? 0.95 : 0.7,
         }).addTo(layer);
-        marker.on("click", () => onPointRef.current?.(point));
+        if (important) marker.on("click", () => onPointRef.current?.(point));
       }
 
       const acc = Math.min(Math.max(latest.accuracy_m || 30, 18), 90);

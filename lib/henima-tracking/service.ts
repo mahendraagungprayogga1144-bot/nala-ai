@@ -179,7 +179,11 @@ export async function ensureTrackingLinks(db: SalesDb, actor: Actor): Promise<Tr
   });
 }
 
-export async function loadVisiblePoints(db: SalesDb, ymd = todayWib()) {
+export async function loadVisiblePoints(
+  db: SalesDb,
+  ymd = todayWib(),
+  opts?: { skipPhotos?: boolean },
+) {
   const win = dayWindow(ymd);
   const { data, error } = await db
     .from("module_henima_tracking_points")
@@ -190,8 +194,14 @@ export async function loadVisiblePoints(db: SalesDb, ymd = todayWib()) {
     .limit(1500);
   if (error) throw new SalesError(error.message, "tracking_read");
   const rows = data || [];
-  // Tanda tangan foto hanya untuk galeri (bukan setiap ping). Maks 40 biar ganti hari cepat.
-  const photoRows = rows.filter((row) => row.photo_path && row.kind !== "ping" && row.kind !== "qris").slice(0, 40);
+  if (opts?.skipPhotos) {
+    return {
+      date: win.ymd,
+      points: rows.map((row) => asPoint(row, null)),
+    };
+  }
+  // Tanda tangan foto hanya untuk galeri (bukan setiap ping). Maks 24 biar ganti hari cepat.
+  const photoRows = rows.filter((row) => row.photo_path && row.kind !== "ping" && row.kind !== "qris").slice(0, 24);
   const signedList = await Promise.all(photoRows.map((row) => signPhoto(db, row.photo_path)));
   const signedByPath = new Map(photoRows.map((row, i) => [row.photo_path as string, signedList[i]]));
   const businessId = rows[0]?.business_id as string | undefined;

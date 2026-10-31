@@ -1,0 +1,6 @@
+# App native Capacitor — jangan ikut typecheck/upload build Next.js
+mobile
+tmp
+.tmp-dep-login.html
+scripts/demo-e2e-account-probe.ts
+scripts/demo-ops-readiness-poll.ts

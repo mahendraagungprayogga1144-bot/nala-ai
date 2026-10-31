@@ -41,20 +41,20 @@ export function TrackingSidebar({
   return (
     <>
       <aside
-        className={`${open ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[232px] flex-col border-r border-[#E2E8F0] bg-white md:static md:flex`}
+        className={`${open ? "flex" : "hidden"} absolute inset-y-0 left-0 z-30 w-[240px] flex-col border-r border-[#E2E8F0] bg-gradient-to-b from-[#EFF6FF] via-white to-white md:static md:flex`}
       >
-        <div className="border-b border-[#E2E8F0] px-5 pb-4 pt-6">
-          <p className="font-serif text-[22px] font-semibold leading-none tracking-tight text-[#0F172A]">HENIMA</p>
-          <p className="mt-1 text-xs font-medium text-[#64748B]">Signature Scent</p>
+        <div className="px-5 pb-2 pt-6">
+          <p className="font-serif text-[24px] font-semibold leading-none tracking-tight text-[#0F172A]">HENIMA</p>
+          <p className="mt-1.5 text-xs font-medium tracking-wide text-[#64748B]">Signature Scent</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
           {ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = item.key === active;
-            const className = `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+            const className = `flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition ${
               isActive
-                ? "bg-[#2563EB] text-white shadow-sm shadow-blue-600/20"
-                : "text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#0F172A]"
+                ? "bg-[#2563EB] text-white shadow-md shadow-blue-600/25"
+                : "text-[#64748B] hover:bg-white hover:text-[#0F172A]"
             }`;
             if (item.hash) {
               return (

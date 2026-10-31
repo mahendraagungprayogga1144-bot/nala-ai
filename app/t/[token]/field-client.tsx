@@ -66,6 +66,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [watching, setWatching] = useState(false);
+  const [inBackground, setInBackground] = useState(false);
   const [qrisUrl, setQrisUrl] = useState("");
   const [showQris, setShowQris] = useState(false);
   const [qrisZoom, setQrisZoom] = useState(false);
@@ -204,27 +205,83 @@ export default function FieldClient({ token, initial }: { token: string; initial
     if (!state.checkedIn || state.checkedOut) return;
     if (!navigator.geolocation) return;
 
-    // Setelah check-in sekali, lokasi ikut otomatis selama halaman terbuka.
+    // Boleh keluar ke app lain selama tab Chrome tidak ditutup / di-swipe hapus.
+    // Kalau Chrome di-kill total, browser tidak izinkan GPS jalan di belakang.
     let wake: WakeLockSentinel | null = null;
-    void navigator.wakeLock
-      ?.request("screen")
-      .then((lock) => {
-        wake = lock;
-      })
-      .catch(() => undefined);
+    let alive = true;
+    const trackUrl = typeof window !== "undefined" ? window.location.href : `/t/${token}`;
+
+    async function holdWake() {
+      try {
+        wake = (await navigator.wakeLock?.request("screen")) || null;
+      } catch {
+        wake = null;
+      }
+    }
+    void holdWake();
+
+    async function showTrackNotice() {
+      try {
+        if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
+        if (Notification.permission === "default") await Notification.requestPermission();
+        if (Notification.permission !== "granted") return;
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification("Henima · auto track aktif", {
+          body: "Boleh buka WhatsApp/app lain. Jangan tutup atau hapus tab ini sampai check-out.",
+          tag: "henima-auto-track",
+          renotify: false,
+          requireInteraction: true,
+          silent: true,
+          data: { url: trackUrl },
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function clearTrackNotice() {
+      try {
+        if (!("serviceWorker" in navigator)) return;
+        const reg = await navigator.serviceWorker.ready;
+        const notes = await reg.getNotifications({ tag: "henima-auto-track" });
+        notes.forEach((note) => note.close());
+      } catch {
+        /* ignore */
+      }
+    }
+    void showTrackNotice();
 
     const pushPing = (fix: GpsFix, force = false) => {
+      if (!alive) return;
       setGps(fix);
       setWatching(true);
       const prev = lastPos.current;
-      // ~25 m dalam derajat lintang kasar.
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      const age = Date.now() - lastSent.current;
-      const stale = age > 45_000;
-      // Longgar: HP di jalan sering 40–120 m; jangan putus jejak.
-      if (!force && fix.acc > 180) return;
+      const stale = Date.now() - lastSent.current > 45_000;
+      // Di background longgarkan akurasi supaya titik tetap masuk.
+      const accLimit = document.hidden ? 250 : 180;
+      if (!force && fix.acc > accLimit) return;
       if (!force && !stale && moved < 0.00022) return;
       void send("ping", fix).catch(() => undefined);
+    };
+
+    const readGps = (force = false, maximumAge = 5000) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          pushPing(
+            {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              acc: Math.round(pos.coords.accuracy),
+            },
+            force,
+          );
+        },
+        () => {
+          if (!document.hidden) setWatching(false);
+        },
+        { enableHighAccuracy: true, maximumAge, timeout: 25000 },
+      );
     };
 
     const watch = navigator.geolocation.watchPosition(
@@ -235,59 +292,65 @@ export default function FieldClient({ token, initial }: { token: string; initial
           acc: Math.round(pos.coords.accuracy),
         });
       },
-      () => setWatching(false),
+      () => {
+        if (!document.hidden) setWatching(false);
+      },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 },
     );
 
-    // Backup timer: kalau diam di satu tempat tetap kirim tiap 60 dtk.
+    // Tetap jalan meski tab di belakang (Android sering throttle timer jadi ~1 menit).
     const heartbeat = window.setInterval(() => {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          pushPing(
-            {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              acc: Math.round(pos.coords.accuracy),
-            },
-            Date.now() - lastSent.current > 55_000,
-          );
-        },
-        () => undefined,
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
-      );
-    }, 60_000);
+      readGps(Date.now() - lastSent.current > 50_000, document.hidden ? 15000 : 8000);
+    }, 50_000);
 
-    function onVisible() {
-      if (document.visibilityState !== "visible") return;
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          pushPing(
-            {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              acc: Math.round(pos.coords.accuracy),
-            },
-            true,
-          );
-        },
-        () => undefined,
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
-      );
-      void navigator.wakeLock
-        ?.request("screen")
-        .then((lock) => {
-          wake = lock;
-        })
-        .catch(() => undefined);
+    // Cadangan khusus saat keluar Chrome ke app lain.
+    const backgroundBeat = window.setInterval(() => {
+      if (!document.hidden) return;
+      readGps(true, 20000);
+    }, 65_000);
+
+    function onVisibility() {
+      const hidden = document.visibilityState !== "visible";
+      setInBackground(hidden);
+      if (!hidden) {
+        readGps(true, 0);
+        void holdWake();
+        void showTrackNotice();
+        return;
+      }
+      // Baru keluar dari Chrome ke app lain → kirim titik terakhir segera.
+      readGps(true, 0);
     }
-    document.addEventListener("visibilitychange", onVisible);
+
+    function onPageShow() {
+      readGps(true, 0);
+      void holdWake();
+    }
+
+    function onResume() {
+      readGps(true, 0);
+      void holdWake();
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", onPageShow);
+    // Page Lifecycle (Chrome Android): lanjut setelah tab di-freeze.
+    // @ts-expect-error freeze/resume belum di semua lib DOM
+    document.addEventListener("resume", onResume);
+    // @ts-expect-error freeze/resume belum di semua lib DOM
+    document.addEventListener("freeze", () => readGps(true, 0));
 
     return () => {
+      alive = false;
       navigator.geolocation.clearWatch(watch);
       window.clearInterval(heartbeat);
-      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(backgroundBeat);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pageshow", onPageShow);
+      // @ts-expect-error freeze/resume belum di semua lib DOM
+      document.removeEventListener("resume", onResume);
       void wake?.release().catch(() => undefined);
+      void clearTrackNotice();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.checkedIn, state.checkedOut, token]);
@@ -434,22 +497,28 @@ export default function FieldClient({ token, initial }: { token: string; initial
               {busy === "pagi" ? "Menyimpan..." : "Check-in pagi"}
             </button>
             <p className="mt-2 text-center text-[11px] text-white/45">
-              Cukup sekali. Setelah itu GPS ikut otomatis ke mana saja kamu pergi.
+              Auto track: sekali check-in, lokasi ikut kemana saja sampai check-out. Boleh keluar Chrome ke app lain — jangan tutup tab-nya.
             </p>
           </section>
         )}
 
         {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <p className="text-sm font-semibold text-emerald-200">Check-in aktif · ikut otomatis</p>
+            <p className="text-sm font-semibold text-emerald-200">Auto track aktif</p>
             <p className="mt-1 text-xs text-white/60">
               {watching
-                ? "Sudah check-in. Tidak perlu check-in lagi tiap pindah tempat — GPS ikut kemana kamu pergi selama halaman ini tetap terbuka."
-                : "Izinkan GPS. Setelah check-in sekali, lokasi otomatis ikut bergerak. Jangan tutup halaman saat di jalan."}
+                ? "Lokasi dikirim otomatis ke kantor. Boleh buka WhatsApp/Maps/app lain — tab Henima tetap di belakang."
+                : "Izinkan GPS + notifikasi tracking. Setelah itu lokasi ikut jalan sampai check-out."}
             </p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
+              <li>Boleh keluar dari Chrome ke aplikasi lain.</li>
+              <li>Jangan tutup / swipe hapus tab link ini.</li>
+              <li>Berhenti hanya setelah check-out sore.</li>
+            </ul>
             {gps && (
               <p className="mt-2 text-[11px] font-medium text-emerald-100/80">
-                Posisi live · akurasi ±{gps.acc} m{gpsText ? ` · ${gpsText}` : ""}
+                Posisi live · akurasi ±{gps.acc} m{inBackground ? " · mode belakang" : ""}
+                {gpsText ? ` · ${gpsText}` : ""}
               </p>
             )}
           </section>
@@ -540,15 +609,19 @@ export default function FieldClient({ token, initial }: { token: string; initial
 
         {state.checkedOut && (
           <section className="rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 p-4 text-center">
-            <p className="text-sm font-semibold text-[#d4af37]">Sudah check-out</p>
-            <p className="mt-1 text-xs text-white/60">Hari ini tidak bisa check-in lagi. Jejak dan dokumentasi tetap tersimpan.</p>
+            <p className="text-sm font-semibold text-[#d4af37]">Sudah check-out · auto track berhenti</p>
+            <p className="mt-1 text-xs text-white/60">
+              Posisi live tidak dikirim lagi. Jejak hari ini tetap ada di riwayat kantor. Check-in ulang baru besok.
+            </p>
           </section>
         )}
 
         {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 p-4">
-            <p className="text-sm font-semibold">Check-in sore</p>
-            <p className="mt-1 text-[11px] text-white/40">Saat pulang. Setelah check-out, hari ini tidak bisa check-in lagi.</p>
+            <p className="text-sm font-semibold">Check-out sore</p>
+            <p className="mt-1 text-[11px] text-white/40">
+              Saat target hari selesai / pulang. Setelah check-out, auto track berhenti dan posisi live tidak muncul lagi.
+            </p>
             <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
               Ambil Lokasi GPS
             </button>

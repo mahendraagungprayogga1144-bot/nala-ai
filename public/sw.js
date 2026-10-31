@@ -38,3 +38,20 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+/** Ketuk notifikasi auto-track → buka lagi tab sales. */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client && String(client.url).includes(target)) return client.focus();
+      }
+      for (const client of list) {
+        if ("focus" in client && String(client.url).includes("/t/")) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    }),
+  );
+});

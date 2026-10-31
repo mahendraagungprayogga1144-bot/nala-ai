@@ -68,6 +68,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
   const [watching, setWatching] = useState(false);
   const [qrisUrl, setQrisUrl] = useState("");
   const [showQris, setShowQris] = useState(false);
+  const [qrisZoom, setQrisZoom] = useState(false);
   const lastSent = useRef(0);
   const lastPos = useRef<GpsFix | null>(null);
 
@@ -292,6 +293,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
     try {
       await send("qris", gps);
       setShowQris(true);
+      setQrisZoom(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mencatat QRIS.");
     } finally {
@@ -406,11 +408,16 @@ export default function FieldClient({ token, initial }: { token: string; initial
               </>
             )}
             {(showQris || (!state.checkedIn && !state.checkedOut)) && (
-              <div className="mt-3 overflow-hidden rounded-xl bg-white p-3">
+              <button
+                type="button"
+                onClick={() => setQrisZoom(true)}
+                className="mt-3 w-full overflow-hidden rounded-xl bg-white p-3 text-left"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrisUrl} alt="QRIS" className="mx-auto max-h-72 w-full object-contain" />
                 <p className="mt-2 text-center text-xs font-semibold text-black">{state.nama} · QRIS</p>
-              </div>
+                <p className="mt-1 text-center text-[11px] font-medium text-black/50">Ketuk untuk perbesar · tunjukkan ke pembeli</p>
+              </button>
             )}
           </section>
         )}
@@ -495,7 +502,15 @@ export default function FieldClient({ token, initial }: { token: string; initial
                     <span className="font-mono text-xs text-white/40">{clock(point.recorded_at)}</span>
                   </div>
                   {point.note && <p className="mt-1 text-xs text-white/60">{point.note}</p>}
-                  {point.photo_url && <img src={point.photo_url} alt="" className="mt-2 max-h-40 w-full rounded-lg object-cover" />}
+                  {point.photo_url && point.kind !== "qris" && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={point.photo_url} alt="" className="mt-2 max-h-40 w-full rounded-lg object-cover" />
+                  )}
+                  {point.kind === "qris" && (
+                    <button type="button" onClick={() => qrisUrl && setQrisZoom(true)} className="mt-2 text-[11px] text-[#d4af37]">
+                      Buka QRIS besar
+                    </button>
+                  )}
                   {point.late && <p className="mt-1 text-[11px] text-red-300">Lewat batas 09:00</p>}
                   <a href={point.maps || mapsUrl(point.lat, point.lng)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#d4af37]">
                     Lihat di Maps
@@ -506,6 +521,34 @@ export default function FieldClient({ token, initial }: { token: string; initial
           )}
         </section>
       </div>
+
+      {qrisZoom && qrisUrl && (
+        <div
+          className="fixed inset-0 z-[80] flex flex-col bg-black/95 p-4"
+          role="dialog"
+          aria-label="QRIS besar"
+          onClick={() => setQrisZoom(false)}
+        >
+          <div className="flex items-center justify-between pb-3 text-white" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm font-semibold">{state.nama} · QRIS</p>
+            <button type="button" onClick={() => setQrisZoom(false)} className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold">
+              Tutup
+            </button>
+          </div>
+          <button
+            type="button"
+            className="flex min-h-0 flex-1 items-center justify-center"
+            onClick={(event) => {
+              event.stopPropagation();
+              setQrisZoom(false);
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrisUrl} alt="QRIS" className="max-h-full max-w-full object-contain" />
+          </button>
+          <p className="pt-3 text-center text-xs text-white/60">Ketuk di mana saja untuk menutup</p>
+        </div>
+      )}
     </main>
   );
 }

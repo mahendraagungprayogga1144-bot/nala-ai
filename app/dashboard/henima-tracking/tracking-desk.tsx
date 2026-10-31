@@ -167,7 +167,8 @@ export default function TrackingDesk({
   const visible = (focus === "all" ? viewPoints : viewPoints.filter((point) => point.staff_id === focus)).filter((point) =>
     people.some((link) => link.staffId === point.staff_id),
   );
-  const photos = visible.filter((point) => point.photo_url);
+  // QRIS tetap di riwayat kartu sales, jangan campur ke strip foto di bawah peta.
+  const photos = visible.filter((point) => point.photo_url && point.kind !== "qris");
   const aktif = links.filter((link) => snapshot(link, viewPoints).out).length;
   const late = links.filter((link) => snapshot(link, viewPoints).status.tone === "late").length;
   const checkins = viewPoints.filter((point) => point.kind === "checkin_pagi").length;

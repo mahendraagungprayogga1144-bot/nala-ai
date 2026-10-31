@@ -8,10 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "test:henima": "npx tsx lib/henima-sales/tests/run.ts",
-    "test:profit": "npx tsx lib/gercep-profit/tests/run.ts"
+    "test:profit": "npx tsx lib/gercep-profit/tests/run.ts",
+    "mobile:henima:sync": "npm --prefix mobile/henima-sales run build:web && npm --prefix mobile/henima-sales run sync",
+    "mobile:henima:open": "npm --prefix mobile/henima-sales run open"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
+    "@capacitor-community/background-geolocation": "^1.3.1",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/geolocation": "^8.2.4",
     "@pdf-lib/fontkit": "^1.1.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Henima Sales</string>
+    <string name="title_activity_main">Henima Sales</string>
+    <string name="package_name">id.gercepos.henima.sales</string>
+    <string name="custom_url_scheme">id.gercepos.henima.sales</string>
+</resources>

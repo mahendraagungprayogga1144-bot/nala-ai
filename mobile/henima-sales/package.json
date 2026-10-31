@@ -1,0 +1,22 @@
+{
+  "name": "henima-sales-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App Android Henima Sales — auto track GPS native untuk link lapangan",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open": "npx cap open android",
+    "add:android": "npx cap add android",
+    "build:web": "node ./scripts/prepare-www.mjs"
+  },
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/geolocation": "^7.1.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3",
+    "typescript": "^5.9.2"
+  }
+}

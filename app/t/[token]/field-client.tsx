@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { mapsUrl } from "@/lib/henima-tracking/shared";
+import { isNativeApp, readNativeOrBrowserGps, watchNativeOrBrowserGps } from "@/lib/henima-tracking/native-geo";
 
 export type FieldPoint = {
   id: string;
@@ -67,6 +68,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
   const [error, setError] = useState("");
   const [watching, setWatching] = useState(false);
   const [inBackground, setInBackground] = useState(false);
+  const [nativeApp, setNativeApp] = useState(false);
   const [qrisUrl, setQrisUrl] = useState("");
   const [showQris, setShowQris] = useState(false);
   const [qrisZoom, setQrisZoom] = useState(false);
@@ -170,46 +172,50 @@ export default function FieldClient({ token, initial }: { token: string; initial
     lastPos.current = fix;
   }
 
+  useEffect(() => {
+    void isNativeApp().then(setNativeApp);
+  }, []);
+
   function grabGps() {
     setError("");
     setGpsText("Mengambil lokasi GPS...");
-    if (!navigator.geolocation) {
-      setGpsText("GPS tidak tersedia di perangkat ini.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const fix = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          acc: Math.round(pos.coords.accuracy),
-        };
+    void readNativeOrBrowserGps()
+      .then((fix) => {
         setGps(fix);
-        setGpsText(`Lokasi didapat. Akurasi ${fix.acc} m`);
-      },
-      (err) => {
+        setGpsText(`Lokasi didapat. Akurasi ${fix.acc} m${nativeApp ? " · app" : ""}`);
+      })
+      .catch((err: unknown) => {
         const msg =
-          err.code === 1
+          err && typeof err === "object" && "code" in err && (err as { code: number }).code === 1
             ? "Izinkan akses lokasi di HP."
-            : err.code === 3
+            : err instanceof Error && /timeout/i.test(err.message)
               ? "GPS timeout. Coba lagi di tempat terbuka."
               : "GPS gagal. Nyalakan lokasi.";
         setGpsText(msg);
         setError(msg);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
+      });
   }
 
   useEffect(() => {
     if (!state.checkedIn || state.checkedOut) return;
-    if (!navigator.geolocation) return;
 
-    // Boleh keluar ke app lain selama tab Chrome tidak ditutup / di-swipe hapus.
-    // Kalau Chrome di-kill total, browser tidak izinkan GPS jalan di belakang.
-    let wake: WakeLockSentinel | null = null;
     let alive = true;
+    let wake: WakeLockSentinel | null = null;
+    let stopWatch: (() => void) | null = null;
     const trackUrl = typeof window !== "undefined" ? window.location.href : `/t/${token}`;
+
+    const pushPing = (fix: GpsFix, force = false) => {
+      if (!alive) return;
+      setGps(fix);
+      setWatching(true);
+      const prev = lastPos.current;
+      const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
+      const stale = Date.now() - lastSent.current > 45_000;
+      const accLimit = document.hidden || nativeApp ? 250 : 180;
+      if (!force && fix.acc > accLimit) return;
+      if (!force && !stale && moved < 0.00022) return;
+      void send("ping", fix).catch(() => undefined);
+    };
 
     async function holdWake() {
       try {
@@ -218,9 +224,9 @@ export default function FieldClient({ token, initial }: { token: string; initial
         wake = null;
       }
     }
-    void holdWake();
 
     async function showTrackNotice() {
+      if (nativeApp) return; // App native sudah punya notifikasi foreground service.
       try {
         if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
         if (Notification.permission === "default") await Notification.requestPermission();
@@ -248,108 +254,52 @@ export default function FieldClient({ token, initial }: { token: string; initial
         /* ignore */
       }
     }
+
+    void holdWake();
     void showTrackNotice();
 
-    const pushPing = (fix: GpsFix, force = false) => {
-      if (!alive) return;
-      setGps(fix);
-      setWatching(true);
-      const prev = lastPos.current;
-      const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      const stale = Date.now() - lastSent.current > 45_000;
-      // Di background longgarkan akurasi supaya titik tetap masuk.
-      const accLimit = document.hidden ? 250 : 180;
-      if (!force && fix.acc > accLimit) return;
-      if (!force && !stale && moved < 0.00022) return;
-      void send("ping", fix).catch(() => undefined);
-    };
-
-    const readGps = (force = false, maximumAge = 5000) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          pushPing(
-            {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              acc: Math.round(pos.coords.accuracy),
-            },
-            force,
-          );
-        },
-        () => {
-          if (!document.hidden) setWatching(false);
-        },
-        { enableHighAccuracy: true, maximumAge, timeout: 25000 },
-      );
-    };
-
-    const watch = navigator.geolocation.watchPosition(
-      (pos) => {
-        pushPing({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          acc: Math.round(pos.coords.accuracy),
-        });
-      },
+    void watchNativeOrBrowserGps(
+      (fix) => pushPing(fix),
       () => {
         if (!document.hidden) setWatching(false);
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 },
-    );
-
-    // Tetap jalan meski tab di belakang (Android sering throttle timer jadi ~1 menit).
-    const heartbeat = window.setInterval(() => {
-      readGps(Date.now() - lastSent.current > 50_000, document.hidden ? 15000 : 8000);
-    }, 50_000);
-
-    // Cadangan khusus saat keluar Chrome ke app lain.
-    const backgroundBeat = window.setInterval(() => {
-      if (!document.hidden) return;
-      readGps(true, 20000);
-    }, 65_000);
+    ).then((handle) => {
+      if (!alive) {
+        handle.stop();
+        return;
+      }
+      stopWatch = handle.stop;
+    });
 
     function onVisibility() {
       const hidden = document.visibilityState !== "visible";
       setInBackground(hidden);
       if (!hidden) {
-        readGps(true, 0);
+        void readNativeOrBrowserGps()
+          .then((fix) => pushPing(fix, true))
+          .catch(() => undefined);
         void holdWake();
         void showTrackNotice();
         return;
       }
-      // Baru keluar dari Chrome ke app lain → kirim titik terakhir segera.
-      readGps(true, 0);
-    }
-
-    function onPageShow() {
-      readGps(true, 0);
-      void holdWake();
-    }
-
-    function onFreeze() {
-      readGps(true, 0);
+      void readNativeOrBrowserGps()
+        .then((fix) => pushPing(fix, true))
+        .catch(() => undefined);
     }
 
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pageshow", onPageShow);
-    // Page Lifecycle (Chrome Android) — cast karena belum di semua lib DOM.
-    document.addEventListener("resume", onPageShow as EventListener);
-    document.addEventListener("freeze", onFreeze as EventListener);
+    window.addEventListener("pageshow", onVisibility);
 
     return () => {
       alive = false;
-      navigator.geolocation.clearWatch(watch);
-      window.clearInterval(heartbeat);
-      window.clearInterval(backgroundBeat);
+      stopWatch?.();
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pageshow", onPageShow);
-      document.removeEventListener("resume", onPageShow as EventListener);
-      document.removeEventListener("freeze", onFreeze as EventListener);
+      window.removeEventListener("pageshow", onVisibility);
       void wake?.release().catch(() => undefined);
       void clearTrackNotice();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.checkedIn, state.checkedOut, token]);
+  }, [state.checkedIn, state.checkedOut, token, nativeApp]);
 
   async function onCheckin() {
     if (!gps || !photo) {
@@ -493,23 +443,39 @@ export default function FieldClient({ token, initial }: { token: string; initial
               {busy === "pagi" ? "Menyimpan..." : "Check-in pagi"}
             </button>
             <p className="mt-2 text-center text-[11px] text-white/45">
-              Auto track: sekali check-in, lokasi ikut kemana saja sampai check-out. Boleh keluar Chrome ke app lain — jangan tutup tab-nya.
+              {nativeApp
+                ? "App Henima Sales: sekali check-in, GPS native ikut sampai check-out — boleh keluar app lain."
+                : "Auto track: sekali check-in, lokasi ikut sampai check-out. Boleh keluar Chrome — jangan tutup tab. Lebih kuat pakai app Henima Sales."}
             </p>
           </section>
         )}
 
         {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <p className="text-sm font-semibold text-emerald-200">Auto track aktif</p>
+            <p className="text-sm font-semibold text-emerald-200">
+              Auto track aktif{nativeApp ? " · app" : ""}
+            </p>
             <p className="mt-1 text-xs text-white/60">
               {watching
-                ? "Lokasi dikirim otomatis ke kantor. Boleh buka WhatsApp/Maps/app lain — tab Henima tetap di belakang."
-                : "Izinkan GPS + notifikasi tracking. Setelah itu lokasi ikut jalan sampai check-out."}
+                ? nativeApp
+                  ? "GPS native aktif (bisa di belakang). Boleh buka WhatsApp/Maps. Berhenti setelah check-out."
+                  : "Lokasi dikirim otomatis. Boleh buka app lain — tab Henima tetap di belakang."
+                : "Izinkan GPS + notifikasi. Setelah check-in, tracking jalan sampai check-out."}
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
-              <li>Boleh keluar dari Chrome ke aplikasi lain.</li>
-              <li>Jangan tutup / swipe hapus tab link ini.</li>
-              <li>Berhenti hanya setelah check-out sore.</li>
+              {nativeApp ? (
+                <>
+                  <li>App boleh di belakang — tracking tetap jalan.</li>
+                  <li>Jangan force-stop app dari pengaturan HP.</li>
+                  <li>Berhenti hanya setelah check-out sore.</li>
+                </>
+              ) : (
+                <>
+                  <li>Boleh keluar dari Chrome ke aplikasi lain.</li>
+                  <li>Jangan tutup / swipe hapus tab link ini.</li>
+                  <li>Berhenti hanya setelah check-out sore.</li>
+                </>
+              )}
             </ul>
             {gps && (
               <p className="mt-2 text-[11px] font-medium text-emerald-100/80">

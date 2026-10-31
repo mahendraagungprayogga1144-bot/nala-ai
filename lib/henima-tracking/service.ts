@@ -5,9 +5,9 @@ import { listStaff } from "@/lib/henima-sales/staff-service";
 import { NotFoundError, SalesError } from "@/lib/henima-sales/types";
 import type { Actor } from "@/lib/henima-sales/types";
 import { todayWib } from "@/lib/date";
-import { mapsUrl, type TrackingKind, type TrackingLink, type TrackingPoint } from "./shared";
+import { mapsUrl, qrisStorageCandidates, qrisStoragePath, type TrackingKind, type TrackingLink, type TrackingPoint } from "./shared";
 
-export { mapsUrl };
+export { mapsUrl, qrisStoragePath };
 export type { TrackingLink, TrackingPoint };
 
 const BUCKET = "henima-tracking";
@@ -73,6 +73,14 @@ async function signPhoto(db: SalesDb, path: string | null) {
   if (!path) return null;
   const { data } = await db.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
   return data?.signedUrl || null;
+}
+
+export async function loadQrisUrl(db: SalesDb, businessId: string) {
+  for (const path of qrisStorageCandidates(businessId)) {
+    const { data } = await db.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+    if (data?.signedUrl) return data.signedUrl;
+  }
+  return null;
 }
 
 function asPoint(row: {
@@ -175,7 +183,7 @@ export async function loadVisiblePoints(db: SalesDb, ymd = todayWib()) {
   const win = dayWindow(ymd);
   const { data, error } = await db
     .from("module_henima_tracking_points")
-    .select("id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
+    .select("id, business_id, staff_id, kind, lat, lng, accuracy_m, note, photo_path, late, recorded_at")
     .gte("recorded_at", win.from)
     .lt("recorded_at", win.to)
     .order("recorded_at", { ascending: false })
@@ -183,12 +191,23 @@ export async function loadVisiblePoints(db: SalesDb, ymd = todayWib()) {
   if (error) throw new SalesError(error.message, "tracking_read");
   const rows = data || [];
   // Tanda tangan foto hanya untuk galeri (bukan setiap ping). Maks 40 biar ganti hari cepat.
-  const photoRows = rows.filter((row) => row.photo_path && row.kind !== "ping").slice(0, 40);
+  const photoRows = rows.filter((row) => row.photo_path && row.kind !== "ping" && row.kind !== "qris").slice(0, 40);
   const signedList = await Promise.all(photoRows.map((row) => signPhoto(db, row.photo_path)));
   const signedByPath = new Map(photoRows.map((row, i) => [row.photo_path as string, signedList[i]]));
+  const businessId = rows[0]?.business_id as string | undefined;
+  const qrisUrl = businessId && rows.some((row) => row.kind === "qris") ? await loadQrisUrl(db, businessId) : null;
   return {
     date: win.ymd,
-    points: rows.map((row) => asPoint(row, row.photo_path ? signedByPath.get(row.photo_path) || null : null)),
+    points: rows.map((row) =>
+      asPoint(
+        row,
+        row.kind === "qris"
+          ? qrisUrl
+          : row.photo_path
+            ? signedByPath.get(row.photo_path) || null
+            : null,
+      ),
+    ),
   };
 }
 
@@ -197,7 +216,7 @@ export async function loadTrackingDays(db: SalesDb) {
   const { data, error } = await db
     .from("module_henima_tracking_points")
     .select("recorded_at")
-    .in("kind", ["checkin_pagi", "visit", "checkin_sore"])
+    .in("kind", ["checkin_pagi", "visit", "checkin_sore", "qris"])
     .gte("recorded_at", `${since}T00:00:00+07:00`)
     .order("recorded_at", { ascending: false })
     .limit(800);
@@ -218,6 +237,10 @@ export async function loadTrackingDesk(admin: SalesDb, session: SalesDb, actor: 
   } catch (err) {
     notice = err instanceof Error ? err.message : "Link check-in gagal dibuat.";
   }
-  const [visible, days] = await Promise.all([loadVisiblePoints(session, ymd), loadTrackingDays(session)]);
-  return { date: visible.date, today: todayWib(), days, links, points: visible.points, notice };
+  const [visible, days, qrisUrl] = await Promise.all([
+    loadVisiblePoints(session, ymd),
+    loadTrackingDays(session),
+    loadQrisUrl(admin, actor.businessId),
+  ]);
+  return { date: visible.date, today: todayWib(), days, links, points: visible.points, notice, qrisUrl };
 }

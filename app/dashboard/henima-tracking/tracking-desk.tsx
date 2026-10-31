@@ -25,6 +25,7 @@ const KIND: Record<TrackingPoint["kind"], string> = {
   checkin_sore: "Check-out",
   visit: "Nawar",
   ping: "Jejak",
+  qris: "QRIS",
 };
 
 const NAV = [
@@ -98,6 +99,7 @@ export default function TrackingDesk({
   points,
   notice,
   ownerName,
+  qrisUrl: initialQrisUrl,
 }: {
   date: string;
   today: string;
@@ -106,6 +108,7 @@ export default function TrackingDesk({
   points: TrackingPoint[];
   notice?: string;
   ownerName: string;
+  qrisUrl?: string | null;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState("");
@@ -121,6 +124,8 @@ export default function TrackingDesk({
   const [focusPointId, setFocusPointId] = useState<string | undefined>();
   const [clientDay, setClientDay] = useState<{ date: string; points: TrackingPoint[] } | null>(null);
   const [dayBusy, setDayBusy] = useState(false);
+  const [qrisUrl, setQrisUrl] = useState(initialQrisUrl || "");
+  const [qrisBusy, setQrisBusy] = useState(false);
   const viewDate = clientDay?.date ?? date;
   const viewPoints = clientDay?.points ?? points;
 
@@ -192,6 +197,40 @@ export default function TrackingDesk({
   async function copy(link: TrackingLink) {
     await navigator.clipboard.writeText(`${window.location.origin}${link.path}`);
     setCopied(link.staffId);
+  }
+
+  async function uploadQris(file: File | null) {
+    if (!file) return;
+    setQrisBusy(true);
+    setFormError("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/henima-tracking/qris", { method: "POST", body: form });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Upload QRIS gagal.");
+      setQrisUrl(json.qrisUrl || "");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Upload QRIS gagal.");
+    } finally {
+      setQrisBusy(false);
+    }
+  }
+
+  async function removeQris() {
+    if (!window.confirm("Hapus gambar QRIS dari link sales?")) return;
+    setQrisBusy(true);
+    setFormError("");
+    try {
+      const response = await fetch("/api/henima-tracking/qris", { method: "DELETE" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Gagal menghapus QRIS.");
+      setQrisUrl("");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Gagal menghapus QRIS.");
+    } finally {
+      setQrisBusy(false);
+    }
   }
 
   async function addSales() {
@@ -372,6 +411,34 @@ export default function TrackingDesk({
           {dayBusy && <span className="text-xs font-medium text-[#94A3B8]">Memuat tanggal...</span>}
         </div>
         {(notice || formError) && <p className="mx-3 mt-2 rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200 md:mx-4">{notice || formError}</p>}
+
+        <div className="mx-3 mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-[#243247] bg-[#101827]/80 px-3 py-2 md:mx-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">QRIS toko</p>
+            <p className="text-xs font-medium text-[#94A3B8]">Gambar ini muncul di link sales. Saat mereka tampilkan, riwayat tercatat atas nama sales itu.</p>
+          </div>
+          {qrisUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qrisUrl} alt="QRIS" className="h-14 w-14 rounded-lg object-cover" />
+          ) : (
+            <span className="rounded-lg border border-dashed border-[#243247] px-3 py-2 text-xs text-[#94A3B8]">Belum ada gambar</span>
+          )}
+          <label className="cursor-pointer rounded-xl bg-[#FFD34D] px-3 py-2 text-xs font-bold text-[#080D18]">
+            {qrisBusy ? "..." : qrisUrl ? "Ganti QRIS" : "Upload QRIS"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              disabled={qrisBusy}
+              onChange={(event) => void uploadQris(event.target.files?.[0] || null)}
+            />
+          </label>
+          {qrisUrl && (
+            <button type="button" disabled={qrisBusy} onClick={() => void removeQris()} className="rounded-xl border border-[#243247] px-3 py-2 text-xs font-semibold text-red-300">
+              Hapus
+            </button>
+          )}
+        </div>
 
         <div className="grid min-h-0 flex-1 gap-3 px-3 py-3 lg:grid-cols-[340px_1fr] md:px-4">
           <section className="flex max-h-[48vh] min-h-0 flex-col rounded-2xl border border-[#243247] bg-[#0B1220]/75 backdrop-blur-md lg:max-h-none">

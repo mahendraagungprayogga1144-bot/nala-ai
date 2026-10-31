@@ -6,7 +6,7 @@ import { mapsUrl } from "@/lib/henima-tracking/shared";
 
 export type FieldPoint = {
   id: string;
-  kind: "checkin_pagi" | "checkin_sore" | "visit" | "ping";
+  kind: "checkin_pagi" | "checkin_sore" | "visit" | "ping" | "qris";
   lat: number;
   lng: number;
   accuracy_m: number | null;
@@ -38,6 +38,7 @@ const KIND_LABEL: Record<FieldPoint["kind"], string> = {
   checkin_sore: "Check-in sore",
   visit: "Nawar di sini",
   ping: "Jejak",
+  qris: "QRIS",
 };
 
 function clock(iso: string) {
@@ -65,6 +66,8 @@ export default function FieldClient({ token, initial }: { token: string; initial
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [watching, setWatching] = useState(false);
+  const [qrisUrl, setQrisUrl] = useState("");
+  const [showQris, setShowQris] = useState(false);
   const lastSent = useRef(0);
   const lastPos = useRef<GpsFix | null>(null);
 
@@ -84,6 +87,7 @@ export default function FieldClient({ token, initial }: { token: string; initial
       checkedIn: Boolean(json.checkedIn),
       checkedOut: Boolean(json.checkedOut),
     }));
+    setQrisUrl(typeof json.qrisUrl === "string" ? json.qrisUrl : "");
   }
 
   async function uploadPhoto(file: File) {
@@ -141,14 +145,23 @@ export default function FieldClient({ token, initial }: { token: string; initial
                   p_photo_path: photoPath,
                 })
               ).error
-            : (
-                await supabase.rpc("henima_tracking_field_titik", {
-                  p_token: token,
-                  p_lat: fix.lat,
-                  p_lng: fix.lng,
-                  p_accuracy_m: accuracy,
-                })
-              ).error;
+            : kind === "qris"
+              ? (
+                  await supabase.rpc("henima_tracking_field_qris", {
+                    p_token: token,
+                    p_lat: fix.lat,
+                    p_lng: fix.lng,
+                    p_accuracy_m: accuracy,
+                  })
+                ).error
+              : (
+                  await supabase.rpc("henima_tracking_field_titik", {
+                    p_token: token,
+                    p_lat: fix.lat,
+                    p_lng: fix.lng,
+                    p_accuracy_m: accuracy,
+                  })
+                ).error;
     if (error) throw new Error(pesanDb(error.message));
     await refresh();
     lastSent.current = Date.now();
@@ -265,6 +278,27 @@ export default function FieldClient({ token, initial }: { token: string; initial
     }
   }
 
+  async function onQris() {
+    if (!qrisUrl) {
+      setError("QRIS belum diunggah founder di Henima Tracking.");
+      return;
+    }
+    if (!gps) {
+      setError("Ambil lokasi GPS dulu, supaya tercatat sales mana yang menampilkan QRIS.");
+      return;
+    }
+    setBusy("qris");
+    setError("");
+    try {
+      await send("qris", gps);
+      setShowQris(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mencatat QRIS.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   const visits = state.points.filter((p) => p.kind !== "ping");
 
   return (
@@ -342,6 +376,34 @@ export default function FieldClient({ token, initial }: { token: string; initial
                 ? "Halaman ini terbuka, lokasi ikut tercatat otomatis. Jangan ditutup saat di jalan."
                 : "Izinkan GPS dan biarkan halaman ini terbuka supaya kantor tahu kamu kemana."}
             </p>
+          </section>
+        )}
+
+        {state.checkedIn && !state.checkedOut && qrisUrl && (
+          <section className="rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 p-4">
+            <p className="text-sm font-semibold text-[#f5d98a]">Bayar QRIS</p>
+            <p className="mt-1 text-[11px] text-white/60">
+              Tampilkan ke pelanggan. Tercatat di riwayat atas nama {state.nama}.
+            </p>
+            <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
+              Ambil Lokasi GPS
+            </button>
+            <p className="mt-2 text-center text-xs text-white/50">{gpsText}</p>
+            <button
+              type="button"
+              disabled={!gps || busy === "qris"}
+              onClick={() => void onQris()}
+              className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
+            >
+              {busy === "qris" ? "Menyimpan..." : showQris ? "Tampilkan lagi · catat riwayat" : "Tampilkan QRIS"}
+            </button>
+            {showQris && (
+              <div className="mt-3 overflow-hidden rounded-xl bg-white p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrisUrl} alt="QRIS" className="mx-auto max-h-72 w-full object-contain" />
+                <p className="mt-2 text-center text-xs font-semibold text-black">{state.nama} · QRIS</p>
+              </div>
+            )}
           </section>
         )}
 

@@ -1,4 +1,16 @@
-export const TRACKING_KINDS = ["checkin_pagi", "checkin_sore", "visit", "ping"] as const;
+export const TRACKING_KINDS = ["checkin_pagi", "checkin_sore", "visit", "ping", "qris"] as const;
+
+export function qrisStoragePath(businessId: string, ext: "jpg" | "png" | "webp" = "jpg") {
+  return `${businessId}/qris/primary.${ext}`;
+}
+
+export function qrisStorageCandidates(businessId: string) {
+  return [
+    qrisStoragePath(businessId, "jpg"),
+    qrisStoragePath(businessId, "png"),
+    qrisStoragePath(businessId, "webp"),
+  ];
+}
 export type TrackingKind = (typeof TRACKING_KINDS)[number];
 
 export type TrackingPoint = {

@@ -117,7 +117,12 @@ export default function TrackingMap({
           radius: point === latest ? 11 : big ? 9 : 5,
           color,
           weight: 2,
-          fillColor: point.kind === "visit" ? "#FFD34D" : point.kind === "checkin_sore" ? "#fb7185" : color,
+          fillColor:
+            point.kind === "visit" || point.kind === "qris"
+              ? "#FFD34D"
+              : point.kind === "checkin_sore"
+                ? "#fb7185"
+                : color,
           fillOpacity: 0.95,
         }).addTo(layer);
         marker.on("click", () => onPointRef.current?.(point));

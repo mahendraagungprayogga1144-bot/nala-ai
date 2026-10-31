@@ -48,6 +48,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
             points={desk.points}
             notice={desk.notice}
             ownerName={ownerName}
+            qrisUrl={desk.qrisUrl}
           />
         </div>
       );

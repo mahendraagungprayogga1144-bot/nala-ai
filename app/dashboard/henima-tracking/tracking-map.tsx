@@ -23,9 +23,13 @@ export default function TrackingMap({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
+  const layerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const tilesRef = useRef<import("leaflet").TileLayer | null>(null);
+  const LRef = useRef<typeof import("leaflet") | null>(null);
   const onPointRef = useRef(onPoint);
   const [basemap, setBasemap] = useState<"peta" | "satelit">("peta");
   const [locateNote, setLocateNote] = useState("");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     onPointRef.current = onPoint;
@@ -34,69 +38,99 @@ export default function TrackingMap({
   useEffect(() => {
     const node = host.current;
     if (!node) return;
-    let map: import("leaflet").Map | null = null;
     let cancelled = false;
 
     void (async () => {
       const leaflet = await import("leaflet");
-      const L = leaflet.default ?? leaflet;
+      const L = (leaflet as { default?: typeof import("leaflet") }).default ?? leaflet;
       if (cancelled || !host.current) return;
-      map = L.map(host.current, { zoomControl: true, attributionControl: false }).setView([-2.2, 118], 5);
+      LRef.current = L;
+      const map = L.map(host.current, { zoomControl: true, attributionControl: false }).setView([-2.2, 118], 5);
       mapRef.current = map;
-      const key = process.env.NEXT_PUBLIC_MAPTILER_KEY || "w5GCpH0T3D6oGpmDyI29";
-      const style = basemap === "satelit" ? "satellite" : "streets-v2-dark";
-      const ext = basemap === "satelit" ? "jpg" : "png";
-      if (key) {
-        L.tileLayer(`https://api.maptiler.com/maps/${style}/256/{z}/{x}/{y}.${ext}?key=${key}`, {
-          maxZoom: 20,
-          attribution: "",
-        }).addTo(map);
-      }
-
-      const byStaff = new Map<string, TrackingPoint[]>();
-      for (const point of points) {
-        const list = byStaff.get(point.staff_id) || [];
-        list.push(point);
-        byStaff.set(point.staff_id, list);
-      }
-
-      const bounds: [number, number][] = [];
-      for (const [staffId, list] of byStaff) {
-        if (focusStaffId && staffId !== focusStaffId) continue;
-        const ordered = [...list].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
-        const color = colorOf(staffId);
-        const latlngs = ordered.map((point) => [point.lat, point.lng] as [number, number]);
-        bounds.push(...latlngs);
-        if (latlngs.length > 1) {
-          L.polyline(latlngs, { color, weight: 4, opacity: 0.9 }).addTo(map);
-        }
-        const latest = ordered[ordered.length - 1];
-        for (const point of ordered) {
-          const big = point.kind !== "ping" || point === latest;
-          const marker = L.circleMarker([point.lat, point.lng], {
-            radius: point === latest ? 11 : big ? 9 : 5,
-            color,
-            weight: 2,
-            fillColor: point.kind === "visit" ? "#FFD34D" : point.kind === "checkin_sore" ? "#fb7185" : color,
-            fillOpacity: 0.95,
-          }).addTo(map);
-          marker.on("click", () => onPointRef.current?.(point));
-        }
-      }
-      const picked = focusPointId ? points.find((point) => point.id === focusPointId) : undefined;
-      if (picked) map.setView([picked.lat, picked.lng], 17);
-      else if (bounds.length === 1) map.setView(bounds[0], 16);
-      else if (bounds.length > 1) map.fitBounds(bounds, { padding: [28, 28] });
-      else map.fitBounds([[6.2, 95], [-11, 141]], { padding: [12, 12] });
-      window.setTimeout(() => map?.invalidateSize(), 80);
+      layerRef.current = L.layerGroup().addTo(map);
+      setReady(true);
+      window.setTimeout(() => map.invalidateSize(), 80);
     })();
 
     return () => {
       cancelled = true;
-      map?.remove();
+      mapRef.current?.remove();
       mapRef.current = null;
+      layerRef.current = null;
+      tilesRef.current = null;
+      LRef.current = null;
+      setReady(false);
     };
-  }, [points, colorOf, nameOf, focusStaffId, focusPointId, basemap]);
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = LRef.current;
+    if (!map || !L || !ready) return;
+    const key = process.env.NEXT_PUBLIC_MAPTILER_KEY || "w5GCpH0T3D6oGpmDyI29";
+    const style = basemap === "satelit" ? "satellite" : "streets-v2-dark";
+    const ext = basemap === "satelit" ? "jpg" : "png";
+    if (tilesRef.current) {
+      map.removeLayer(tilesRef.current);
+      tilesRef.current = null;
+    }
+    if (!key) return;
+    tilesRef.current = L.tileLayer(`https://api.maptiler.com/maps/${style}/256/{z}/{x}/{y}.${ext}?key=${key}`, {
+      maxZoom: 20,
+      attribution: "",
+    }).addTo(map);
+  }, [basemap, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = layerRef.current;
+    const L = LRef.current;
+    if (!map || !layer || !L || !ready) return;
+    layer.clearLayers();
+
+    const byStaff = new Map<string, TrackingPoint[]>();
+    for (const point of points) {
+      const list = byStaff.get(point.staff_id) || [];
+      list.push(point);
+      byStaff.set(point.staff_id, list);
+    }
+
+    const bounds: [number, number][] = [];
+    for (const [staffId, list] of byStaff) {
+      if (focusStaffId && staffId !== focusStaffId) continue;
+      const ordered = [...list].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+      const color = colorOf(staffId);
+      const latlngs = ordered.map((point) => [point.lat, point.lng] as [number, number]);
+      bounds.push(...latlngs);
+      if (latlngs.length > 1) {
+        L.polyline(latlngs, { color, weight: 4, opacity: 0.9 }).addTo(layer);
+      }
+      const latest = ordered[ordered.length - 1];
+      // Titik jejak ditipiskan supaya ganti hari tidak berat; garis rute tetap penuh.
+      const markers = ordered.filter((point, index) => {
+        if (point.kind !== "ping") return true;
+        return index === 0 || index === ordered.length - 1 || index % 5 === 0;
+      });
+      for (const point of markers) {
+        const big = point.kind !== "ping" || point === latest;
+        const marker = L.circleMarker([point.lat, point.lng], {
+          radius: point === latest ? 11 : big ? 9 : 5,
+          color,
+          weight: 2,
+          fillColor: point.kind === "visit" ? "#FFD34D" : point.kind === "checkin_sore" ? "#fb7185" : color,
+          fillOpacity: 0.95,
+        }).addTo(layer);
+        marker.on("click", () => onPointRef.current?.(point));
+      }
+    }
+
+    const picked = focusPointId ? points.find((point) => point.id === focusPointId) : undefined;
+    if (picked) map.setView([picked.lat, picked.lng], 17);
+    else if (bounds.length === 1) map.setView(bounds[0], 16);
+    else if (bounds.length > 1) map.fitBounds(bounds, { padding: [28, 28] });
+    else map.fitBounds([[6.2, 95], [-11, 141]], { padding: [12, 12] });
+    window.setTimeout(() => map.invalidateSize(), 40);
+  }, [points, colorOf, nameOf, focusStaffId, focusPointId, ready]);
 
   function locateMe() {
     const map = mapRef.current;

@@ -182,10 +182,13 @@ export async function loadVisiblePoints(db: SalesDb, ymd = todayWib()) {
     .limit(1500);
   if (error) throw new SalesError(error.message, "tracking_read");
   const rows = data || [];
-  const signed = await Promise.all(rows.map((row) => (row.photo_path ? signPhoto(db, row.photo_path) : Promise.resolve(null))));
+  // Tanda tangan foto hanya untuk galeri (bukan setiap ping). Maks 40 biar ganti hari cepat.
+  const photoRows = rows.filter((row) => row.photo_path && row.kind !== "ping").slice(0, 40);
+  const signedList = await Promise.all(photoRows.map((row) => signPhoto(db, row.photo_path)));
+  const signedByPath = new Map(photoRows.map((row, i) => [row.photo_path as string, signedList[i]]));
   return {
     date: win.ymd,
-    points: rows.map((row, i) => asPoint(row, signed[i])),
+    points: rows.map((row) => asPoint(row, row.photo_path ? signedByPath.get(row.photo_path) || null : null)),
   };
 }
 

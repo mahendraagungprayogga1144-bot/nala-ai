@@ -119,12 +119,23 @@ export default function TrackingDesk({
   const [navOpen, setNavOpen] = useState(false);
   const [viewer, setViewer] = useState<TrackingPoint | null>(null);
   const [focusPointId, setFocusPointId] = useState<string | undefined>();
+  const [clientDay, setClientDay] = useState<{ date: string; points: TrackingPoint[] } | null>(null);
+  const [dayBusy, setDayBusy] = useState(false);
+  const viewDate = clientDay?.date ?? date;
+  const viewPoints = clientDay?.points ?? points;
 
   useEffect(() => {
-    if (date !== today) return;
-    const timer = window.setInterval(() => router.refresh(), 25000);
+    if (viewDate !== today) return;
+    const timer = window.setInterval(() => {
+      void fetch("/api/henima-tracking/desk", { cache: "no-store" })
+        .then((response) => response.json())
+        .then((json) => {
+          if (Array.isArray(json.points)) setClientDay({ date: json.date || today, points: json.points });
+        })
+        .catch(() => undefined);
+    }, 25000);
     return () => window.clearInterval(timer);
-  }, [router, date, today]);
+  }, [viewDate, today]);
 
   const colorOf = useMemo(() => {
     const map = new Map(links.map((link, index) => [link.staffId, staffColor(index)]));
@@ -139,27 +150,43 @@ export default function TrackingDesk({
   const people = links
     .filter((link) => {
       if (!needle) return true;
-      const last = points.find((point) => point.staff_id === link.staffId);
+      const last = viewPoints.find((point) => point.staff_id === link.staffId);
       return link.nama.toLowerCase().includes(needle) || (last?.note || "").toLowerCase().includes(needle);
     })
     .sort((a, b) => {
       if (sort === "nama") return a.nama.localeCompare(b.nama, "id");
-      const ta = points.find((point) => point.staff_id === a.staffId)?.recorded_at || "";
-      const tb = points.find((point) => point.staff_id === b.staffId)?.recorded_at || "";
+      const ta = viewPoints.find((point) => point.staff_id === a.staffId)?.recorded_at || "";
+      const tb = viewPoints.find((point) => point.staff_id === b.staffId)?.recorded_at || "";
       return tb.localeCompare(ta);
     });
-  const visible = (focus === "all" ? points : points.filter((point) => point.staff_id === focus)).filter((point) =>
+  const visible = (focus === "all" ? viewPoints : viewPoints.filter((point) => point.staff_id === focus)).filter((point) =>
     people.some((link) => link.staffId === point.staff_id),
   );
   const photos = visible.filter((point) => point.photo_url);
-  const aktif = links.filter((link) => snapshot(link, points).out).length;
-  const late = links.filter((link) => snapshot(link, points).status.tone === "late").length;
-  const checkins = points.filter((point) => point.kind === "checkin_pagi").length;
-  const memory = days.includes(date) ? days : [date, ...days];
+  const aktif = links.filter((link) => snapshot(link, viewPoints).out).length;
+  const late = links.filter((link) => snapshot(link, viewPoints).status.tone === "late").length;
+  const checkins = viewPoints.filter((point) => point.kind === "checkin_pagi").length;
+  const memory = days.includes(viewDate) ? days : [viewDate, ...days];
 
-  function openDay(ymd: string) {
+  async function openDay(ymd: string) {
     const next = ymd > today ? today : ymd;
-    router.push(next === today ? "/dashboard/henima-tracking" : `/dashboard/henima-tracking?hari=${next}`);
+    if (next === viewDate || dayBusy) return;
+    setDayBusy(true);
+    setFormError("");
+    setFocus("all");
+    setFocusPointId(undefined);
+    try {
+      const url = next === today ? "/api/henima-tracking/desk" : `/api/henima-tracking/desk?hari=${next}`;
+      const response = await fetch(url, { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Gagal memuat tanggal itu.");
+      setClientDay({ date: json.date || next, points: Array.isArray(json.points) ? json.points : [] });
+      window.history.replaceState(null, "", next === today ? "/dashboard/henima-tracking" : `/dashboard/henima-tracking?hari=${next}`);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Gagal memuat tanggal.");
+    } finally {
+      setDayBusy(false);
+    }
   }
 
   async function copy(link: TrackingLink) {
@@ -188,6 +215,7 @@ export default function TrackingDesk({
       const activatedJson = await activated.json();
       if (!activated.ok) throw new Error(activatedJson.error || "Sales tercatat, tetapi belum bisa check-in.");
       setNama("");
+      setClientDay(null);
       router.refresh();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Gagal menambah sales.");
@@ -210,6 +238,7 @@ export default function TrackingDesk({
       return;
     }
     if (focus === link.staffId) setFocus("all");
+    setClientDay(null);
     router.refresh();
   }
 
@@ -225,6 +254,7 @@ export default function TrackingDesk({
       setFormError(json.error || "Gagal mengaktifkan sales.");
       return;
     }
+    setClientDay(null);
     router.refresh();
   }
 
@@ -286,11 +316,11 @@ export default function TrackingDesk({
             placeholder="Cari nama sales, lokasi atau tanggal..."
             className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#243247] bg-[#101827] px-3 text-sm font-medium outline-none placeholder:text-[#64748B]"
           />
-          <DayCalendar date={date} today={today} marked={memory} onPick={openDay} />
-          <span className={`inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold ${date === today ? "border-[#22E6A8]/40 text-[#22E6A8]" : "border-[#243247] text-[#94A3B8]"}`}>
+          <DayCalendar date={viewDate} today={today} marked={memory} onPick={(ymd) => void openDay(ymd)} />
+          <span className={`inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold ${viewDate === today ? "border-[#22E6A8]/40 text-[#22E6A8]" : "border-[#243247] text-[#94A3B8]"}`}>
             <Wifi size={15} />
             <span className="leading-tight">
-              {date === today ? "Live Tracking" : "Arsip"}
+              {dayBusy ? "Memuat..." : viewDate === today ? "Live Tracking" : "Arsip"}
               <span className="block text-[10px] font-medium text-[#94A3B8]">{aktif} sales aktif</span>
             </span>
           </span>
@@ -315,16 +345,16 @@ export default function TrackingDesk({
             <Stat icon={<Users size={16} />} label="Total Sales" value={String(links.length)} hint="Orang" />
             <Stat icon={<span className="h-2.5 w-2.5 rounded-full bg-[#22E6A8]" />} label="Aktif" value={String(aktif)} hint="Sedang bekerja" tone="ok" />
             <Stat icon={<span className="text-sm font-bold text-[#FFD34D]">!</span>} label="Terlambat" value={String(late)} hint="Lewat 09:00" tone="late" />
-            <Stat icon={<Camera size={16} />} label="Total Check-in" value={String(checkins)} hint={date === today ? "Hari ini" : longDate(date)} tone="photo" />
+            <Stat icon={<Camera size={16} />} label="Total Check-in" value={String(checkins)} hint={viewDate === today ? "Hari ini" : longDate(viewDate)} tone="photo" />
           </div>
         </div>
 
         <div id="riwayat" className="flex items-center gap-2 overflow-x-auto px-3 pt-2 md:px-4">
-          <button type="button" onClick={() => openDay(shiftDay(date, -1))} className="shrink-0 rounded-full border border-[#243247] px-2.5 py-1 text-xs font-semibold text-[#94A3B8]">
+          <button type="button" disabled={dayBusy} onClick={() => void openDay(shiftDay(viewDate, -1))} className="shrink-0 rounded-full border border-[#243247] px-2.5 py-1 text-xs font-semibold text-[#94A3B8] disabled:opacity-40">
             Sebelumnya
           </button>
-          {date !== today && (
-            <button type="button" onClick={() => openDay(today)} className="shrink-0 rounded-full border border-[#06D6D6]/40 px-2.5 py-1 text-xs font-semibold text-[#06D6D6]">
+          {viewDate !== today && (
+            <button type="button" disabled={dayBusy} onClick={() => void openDay(today)} className="shrink-0 rounded-full border border-[#06D6D6]/40 px-2.5 py-1 text-xs font-semibold text-[#06D6D6] disabled:opacity-40">
               Hari ini
             </button>
           )}
@@ -332,12 +362,14 @@ export default function TrackingDesk({
             <button
               key={ymd}
               type="button"
-              onClick={() => openDay(ymd)}
-              className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${ymd === date ? "border-[#FFD34D] text-[#FFD34D]" : "border-[#243247] text-[#94A3B8]"}`}
+              disabled={dayBusy}
+              onClick={() => void openDay(ymd)}
+              className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-40 ${ymd === viewDate ? "border-[#FFD34D] text-[#FFD34D]" : "border-[#243247] text-[#94A3B8]"}`}
             >
               {ymd === today ? "Hari ini" : longDate(ymd).replace(/ \d{4}$/, "")}
             </button>
           ))}
+          {dayBusy && <span className="text-xs font-medium text-[#94A3B8]">Memuat tanggal...</span>}
         </div>
         {(notice || formError) && <p className="mx-3 mt-2 rounded-xl border border-red-400/30 bg-red-950/40 px-3 py-2 text-sm text-red-200 md:mx-4">{notice || formError}</p>}
 
@@ -398,7 +430,7 @@ export default function TrackingDesk({
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
               {people.length === 0 && <p className="rounded-xl border border-[#243247] bg-[#101827] p-3 text-sm text-[#94A3B8]">Tidak ada sales dengan nama itu.</p>}
               {people.map((link) => {
-                const card = snapshot(link, points);
+                const card = snapshot(link, viewPoints);
                 return (
                   <article key={link.staffId} className="rounded-2xl border border-[#243247] bg-[#101827]/85 p-3">
                     <div className="flex gap-3">
@@ -517,14 +549,14 @@ export default function TrackingDesk({
             </div>
             <div id="foto-checkin">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-bold">{date === today ? "Foto Check-in Hari Ini" : `Foto ${longDate(date)}`}</h2>
+                <h2 className="text-sm font-bold">{viewDate === today ? "Foto Check-in Hari Ini" : `Foto ${longDate(viewDate)}`}</h2>
                 <button type="button" onClick={() => setFocus("all")} className="text-xs font-semibold text-[#06D6D6]">
                   Lihat semua
                 </button>
               </div>
               {photos.length === 0 ? (
                 <p className="rounded-2xl border border-[#243247] bg-[#101827] px-3 py-3 text-sm text-[#94A3B8]">
-                  {date === today ? "Foto muncul di sini setelah sales check-in atau mencatat tempat nawar." : "Tanggal ini belum ada foto."}
+                  {viewDate === today ? "Foto muncul di sini setelah sales check-in atau mencatat tempat nawar." : "Tanggal ini belum ada foto."}
                 </p>
               ) : (
                 <ul className="flex gap-2 overflow-x-auto pb-1">

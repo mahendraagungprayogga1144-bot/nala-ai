@@ -1,7 +1,7 @@
 import { todayWib } from "@/lib/date";
 import { salesDb, type SalesDb } from "@/lib/henima-sales/db";
 import { createCustomer, findCustomerByPhone } from "@/lib/henima-sales/customer-service";
-import { confirmSale, listOrders, updateOrder, type SalesOrder } from "@/lib/henima-sales/order-service";
+import { confirmSale, listOrders, softDeleteOrder, updateOrder, type SalesOrder } from "@/lib/henima-sales/order-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
 import { achievementFor, listTargets } from "@/lib/henima-sales/target-service";
 import {
@@ -120,6 +120,7 @@ export async function loadFieldPortal(db: SalesDb, token: string) {
 }
 
 function briefOrder(order: SalesOrder) {
+  const first = order.order_items?.[0];
   const items = (order.order_items || [])
     .map((i) => `${i.product_name_snapshot || "Produk"} ×${i.qty}`)
     .join(", ");
@@ -132,6 +133,10 @@ function briefOrder(order: SalesOrder) {
     orderDate: order.order_date,
     createdAt: order.created_at,
     items,
+    productId: first?.product_id || null,
+    productName: first?.product_name_snapshot || null,
+    quantity: first ? Number(first.qty) : 0,
+    unitPrice: first ? money(first.harga_jual) : 0,
   };
 }
 
@@ -207,6 +212,55 @@ export async function markFieldPayment(
     notes: input.notes,
   });
   return { order: briefOrder(order) };
+}
+
+export async function updateFieldSale(
+  db: SalesDb,
+  token: string,
+  input: {
+    orderId: string;
+    productId?: string;
+    quantity?: number;
+    unitPrice?: number;
+    paymentMethod?: PaymentMethod;
+    paymentStatus?: PaymentStatus;
+    notes?: string | null;
+  },
+) {
+  const actor = await actorFromTrackingToken(db, token);
+  if (!input.orderId) throw new SalesError("ID transaksi wajib.", "order_id");
+
+  let productName: string | undefined;
+  if (input.productId) {
+    const products = await listProducts(db, actor.businessId);
+    const product = products.find((p) => p.id === input.productId);
+    if (!product) throw new SalesError("Produk tidak valid.", "product_invalid");
+    productName = product.name;
+  }
+  if (input.quantity != null && (!Number.isFinite(input.quantity) || input.quantity < 1)) {
+    throw new SalesError("Jumlah botol tidak valid.", "qty");
+  }
+  if (input.unitPrice != null && (!Number.isFinite(input.unitPrice) || input.unitPrice < 0)) {
+    throw new SalesError("Harga tidak valid.", "price");
+  }
+
+  const order = await updateOrder(db, actor, input.orderId, {
+    productId: input.productId,
+    productName,
+    quantity: input.quantity != null ? Math.round(input.quantity) : undefined,
+    unitPrice: input.unitPrice != null ? Math.round(input.unitPrice) : undefined,
+    paymentMethod: input.paymentMethod,
+    paymentStatus: input.paymentStatus,
+    notes: input.notes,
+  });
+  return { order: briefOrder(order) };
+}
+
+export async function deleteFieldSale(db: SalesDb, token: string, orderId: string) {
+  const actor = await actorFromTrackingToken(db, token);
+  if (!orderId) throw new SalesError("ID transaksi wajib.", "order_id");
+  const result = await softDeleteOrder(db, actor, orderId);
+  return { ok: true, result };
 }
 
 export function fieldSalesDb() {

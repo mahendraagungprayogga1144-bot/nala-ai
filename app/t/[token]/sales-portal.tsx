@@ -30,6 +30,10 @@ type PortalOrder = {
   orderDate: string;
   createdAt: string;
   items: string;
+  productId?: string | null;
+  productName?: string | null;
+  quantity?: number;
+  unitPrice?: number;
 };
 type PortalData = {
   actor: { staffId: string; nama: string; role: string; businessName: string };
@@ -155,6 +159,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
             {tab === "bayar" && (
               <PayView
                 token={token}
+                products={data?.products || []}
                 orders={data?.payments || []}
                 setorCash={data?.stats.setorCash || 0}
                 pendingTotal={data?.stats.pendingTotal || 0}
@@ -544,23 +549,47 @@ function SaleView({
 
 function PayView({
   token,
+  products,
   orders,
   setorCash,
   pendingTotal,
   onChanged,
 }: {
   token: string;
+  products: PortalProduct[];
   orders: PortalOrder[];
   setorCash: number;
   pendingTotal: number;
   onChanged: () => void;
 }) {
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editProductId, setEditProductId] = useState("");
+  const [editQty, setEditQty] = useState(1);
+  const [editPrice, setEditPrice] = useState(0);
+  const [editMethod, setEditMethod] = useState<"CASH" | "TRANSFER" | "QRIS">("CASH");
+  const [editStatus, setEditStatus] = useState<"PAID" | "PENDING">("PAID");
+  const [editNotes, setEditNotes] = useState("");
+
+  function startEdit(order: PortalOrder) {
+    setEditingId(order.id);
+    setEditProductId(order.productId || products[0]?.id || "");
+    setEditQty(Math.max(1, order.quantity || 1));
+    setEditPrice(Math.max(0, order.unitPrice || 0));
+    const metode = (order.metode || "CASH").toUpperCase();
+    setEditMethod(metode === "TRANSFER" || metode === "QRIS" ? metode : "CASH");
+    setEditStatus(order.status === "PENDING" ? "PENDING" : "PAID");
+    setEditNotes((order.catatan || "").replace(/\s*·?\s*bukti:[^\s]+/g, "").trim());
+    setError("");
+    setOk("");
+  }
 
   async function markPaid(orderId: string) {
     setBusyId(orderId);
     setError("");
+    setOk("");
     try {
       const response = await fetch(`/api/henima-tracking/field/${token}/sales`, {
         method: "POST",
@@ -569,6 +598,7 @@ function PayView({
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Gagal update.");
+      setOk("Ditandai lunas.");
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal update.");
@@ -577,14 +607,70 @@ function PayView({
     }
   }
 
+  async function saveEdit(orderId: string) {
+    setBusyId(orderId);
+    setError("");
+    setOk("");
+    try {
+      const response = await fetch(`/api/henima-tracking/field/${token}/sales`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "edit_sale",
+          orderId,
+          productId: editProductId,
+          quantity: editQty,
+          unitPrice: editPrice,
+          paymentMethod: editMethod,
+          paymentStatus: editStatus,
+          notes: editNotes,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Gagal mengubah.");
+      setEditingId(null);
+      setOk("Transaksi berhasil diubah.");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengubah.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function removeSale(orderId: string) {
+    if (!window.confirm("Hapus transaksi ini? Data hilang dari laporan (bisa dilihat owner di riwayat hapus).")) return;
+    setBusyId(orderId);
+    setError("");
+    setOk("");
+    try {
+      const response = await fetch(`/api/henima-tracking/field/${token}/sales`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_sale", orderId }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Gagal menghapus.");
+      if (editingId === orderId) setEditingId(null);
+      setOk("Transaksi dihapus.");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Pembayaran</h1>
+      <p className="text-sm text-[#6B6B6B]">Salah input? Edit atau hapus transaksi hari ini di sini.</p>
       <div className="grid grid-cols-2 gap-3">
         <StatCard label="Harus disetor (tunai lunas)" value={rp(setorCash)} hint="Hari ini" />
         <StatCard label="Belum lunas" value={rp(pendingTotal)} hint={`${orders.filter((o) => o.status === "PENDING").length} order`} />
       </div>
       {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {ok && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{ok}</p>}
       {!orders.length ? (
         <p className="rounded-2xl border border-dashed border-[#E8E8E4] bg-white px-4 py-8 text-center text-sm text-[#6B6B6B]">
           Belum ada transaksi hari ini.
@@ -602,15 +688,134 @@ function PayView({
                 </div>
                 <p className="text-sm font-bold">{rp(order.total)}</p>
               </div>
-              {order.status === "PENDING" && (
-                <button
-                  type="button"
-                  disabled={busyId === order.id}
-                  onClick={() => void markPaid(order.id)}
-                  className="mt-2 w-full rounded-xl border border-[#111] py-2 text-xs font-bold"
-                >
-                  {busyId === order.id ? "Menyimpan…" : "Tandai lunas"}
-                </button>
+
+              {editingId === order.id ? (
+                <div className="mt-3 space-y-2 border-t border-[#E8E8E4] pt-3">
+                  <label className="block text-xs font-semibold">
+                    Produk
+                    <select
+                      value={editProductId}
+                      onChange={(e) => {
+                        setEditProductId(e.target.value);
+                        const p = products.find((x) => x.id === e.target.value);
+                        if (p) setEditPrice(p.price);
+                      }}
+                      className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
+                    >
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-xs font-semibold">
+                      Jumlah
+                      <input
+                        type="number"
+                        min={1}
+                        value={editQty}
+                        onChange={(e) => setEditQty(Math.max(1, Number(e.target.value) || 1))}
+                        className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold">
+                      Harga
+                      <input
+                        type="number"
+                        min={0}
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(Math.max(0, Number(e.target.value) || 0))}
+                        className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(["CASH", "TRANSFER", "QRIS"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setEditMethod(m)}
+                        className={`rounded-lg border py-2 text-[10px] font-bold ${
+                          editMethod === m ? "border-[#111] bg-[#111] text-white" : "border-[#E8E8E4]"
+                        }`}
+                      >
+                        {m === "CASH" ? "Tunai" : m === "TRANSFER" ? "TF" : "QRIS"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(["PAID", "PENDING"] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setEditStatus(s)}
+                        className={`rounded-lg border py-2 text-[10px] font-bold ${
+                          editStatus === s ? "border-[#111] bg-[#111] text-white" : "border-[#E8E8E4]"
+                        }`}
+                      >
+                        {s === "PAID" ? "Lunas" : "Belum lunas"}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="block text-xs font-semibold">
+                    Catatan
+                    <input
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <p className="text-xs font-semibold">Total baru: {rp(editQty * editPrice)}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={busyId === order.id}
+                      onClick={() => setEditingId(null)}
+                      className="rounded-xl border border-[#E8E8E4] py-2 text-xs font-bold"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === order.id || !editProductId}
+                      onClick={() => void saveEdit(order.id)}
+                      className="rounded-xl bg-[#111] py-2 text-xs font-bold text-white disabled:opacity-40"
+                    >
+                      {busyId === order.id ? "Menyimpan…" : "Simpan edit"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {order.status === "PENDING" && (
+                    <button
+                      type="button"
+                      disabled={busyId === order.id}
+                      onClick={() => void markPaid(order.id)}
+                      className="col-span-2 rounded-xl border border-[#111] py-2 text-xs font-bold"
+                    >
+                      {busyId === order.id ? "Menyimpan…" : "Tandai lunas"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busyId === order.id}
+                    onClick={() => startEdit(order)}
+                    className="rounded-xl border border-[#E8E8E4] py-2 text-xs font-bold"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId === order.id}
+                    onClick={() => void removeSale(order.id)}
+                    className="rounded-xl border border-rose-200 py-2 text-xs font-bold text-rose-600"
+                  >
+                    Hapus
+                  </button>
+                </div>
               )}
             </li>
           ))}

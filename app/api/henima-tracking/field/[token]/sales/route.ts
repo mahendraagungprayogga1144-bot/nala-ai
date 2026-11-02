@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { NotFoundError, SalesError, normalizePaymentMethod, type PaymentStatus } from "@/lib/henima-sales/types";
-import { createFieldSale, fieldSalesDb, markFieldPayment } from "@/lib/henima-tracking/field-sales";
+import {
+  createFieldSale,
+  deleteFieldSale,
+  fieldSalesDb,
+  markFieldPayment,
+  updateFieldSale,
+} from "@/lib/henima-tracking/field-sales";
 import { resolveTrackingToken } from "@/lib/henima-tracking/service";
 
 export const runtime = "nodejs";
@@ -45,6 +51,30 @@ export async function POST(request: Request, ctx: { params: Promise<{ token: str
         paymentMethod: method || undefined,
         notes: typeof body.notes === "string" ? body.notes : undefined,
       });
+      return NextResponse.json(result);
+    }
+
+    if (body?.action === "edit_sale") {
+      const method = normalizePaymentMethod(body.paymentMethod) || undefined;
+      const statusRaw = body.paymentStatus != null ? String(body.paymentStatus).toUpperCase() : "";
+      const status = statusRaw ? (statusRaw as PaymentStatus) : undefined;
+      if (status && !["PAID", "PENDING", "CANCELLED"].includes(status)) {
+        throw new SalesError("Status pembayaran tidak valid.", "payment_status");
+      }
+      const result = await updateFieldSale(db, token, {
+        orderId: String(body.orderId || ""),
+        productId: typeof body.productId === "string" ? body.productId : undefined,
+        quantity: body.quantity != null ? Number(body.quantity) : undefined,
+        unitPrice: body.unitPrice != null ? Number(body.unitPrice) : undefined,
+        paymentMethod: method,
+        paymentStatus: status,
+        notes: typeof body.notes === "string" ? body.notes : body.notes === null ? null : undefined,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body?.action === "delete_sale") {
+      const result = await deleteFieldSale(db, token, String(body.orderId || ""));
       return NextResponse.json(result);
     }
 

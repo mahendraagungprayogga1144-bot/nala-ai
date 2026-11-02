@@ -57,7 +57,17 @@ function pesanDb(message: string) {
   return message;
 }
 
-export default function FieldClient({ token, initial }: { token: string; initial: FieldState }) {
+export default function FieldClient({
+  token,
+  initial,
+  embedded = false,
+  onBack,
+}: {
+  token: string;
+  initial: FieldState;
+  embedded?: boolean;
+  onBack?: () => void;
+}) {
   const [state, setState] = useState(initial);
   const [gps, setGps] = useState<GpsFix | null>(null);
   const [gpsText, setGpsText] = useState("Belum diambil");
@@ -377,36 +387,89 @@ export default function FieldClient({ token, initial }: { token: string; initial
   }
 
   const visits = state.points.filter((p) => p.kind !== "ping");
+  const light = embedded;
+  const card = light
+    ? "rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-sm"
+    : "rounded-2xl border border-white/10 bg-white/[0.03] p-4";
+  const muted = light ? "text-[#6B6B6B]" : "text-white/40";
+  const soft = light ? "text-[#6B6B6B]" : "text-white/50";
+  const label = light ? "text-[#8A8A8A]" : "text-white/35";
+  const input = light
+    ? "mt-3 w-full rounded-xl border border-[#E8E8E4] bg-[#F7F7F5] px-3 py-3 text-sm outline-none"
+    : "mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm outline-none";
+  const ghostBtn = light
+    ? "mt-3 w-full rounded-xl border border-[#E8E8E4] bg-[#F7F7F5] py-3 text-sm font-semibold"
+    : "mt-3 w-full rounded-xl bg-white/10 py-3 text-sm";
+  const primaryBtn = "mt-2 w-full rounded-xl bg-[#111111] py-3 text-sm font-semibold text-white disabled:opacity-40";
+  const goldBtn = light
+    ? "mt-2 w-full rounded-xl bg-[#B8952A] py-3 text-sm font-semibold text-white disabled:opacity-40"
+    : "mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40";
+  void card; void muted; void soft; void label; void input; void ghostBtn; void primaryBtn; void goldBtn;
 
   return (
-    <main className="min-h-screen bg-[#08080f] text-white">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#08080f]/90 px-4 py-3 backdrop-blur">
+    <main className={light ? "min-h-screen bg-[#F7F7F5] text-[#111111]" : "min-h-screen bg-[#08080f] text-white"}>
+      <header
+        className={
+          light
+            ? "sticky top-0 z-10 flex items-center justify-between border-b border-[#E8E8E4] bg-white/95 px-4 py-3 backdrop-blur"
+            : "sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#08080f]/90 px-4 py-3 backdrop-blur"
+        }
+      >
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-xs font-black text-black">H</span>
+          {onBack && (
+            <button type="button" onClick={onBack} className={`rounded-lg border px-2 py-1 text-xs font-semibold ${light ? "border-[#E8E8E4]" : "border-white/15"}`}>
+              Home
+            </button>
+          )}
+          <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black ${light ? "bg-[#111] text-white" : "bg-white text-black"}`}>H</span>
           <div>
             <p className="text-sm font-bold">
-              HENIMA <span className="text-[#d4af37]">Tracking</span>
+              HENIMA <span className="text-[#B8952A]">GPS</span>
             </p>
-            <p className="text-[11px] text-white/45">
-              {state.nama} · tanpa login
-            </p>
+            <p className={`text-[11px] ${light ? "text-[#6B6B6B]" : "text-white/45"}`}>{state.nama} · tanpa login</p>
           </div>
         </div>
-        <button type="button" onClick={() => void refresh().catch((err) => setError(err.message))} className="text-xs text-white/50">
+        <button
+          type="button"
+          onClick={() => void refresh().catch((err) => setError(err.message))}
+          className={`text-xs ${light ? "text-[#6B6B6B]" : "text-white/50"}`}
+        >
           Muat ulang
         </button>
       </header>
 
-      <div className="mx-auto max-w-md space-y-4 px-4 py-5">
-        <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] leading-5 text-white/65">
+      <div className={`mx-auto max-w-md space-y-4 px-4 py-5 ${light ? "pb-8" : ""}`}>
+        <p
+          className={
+            light
+              ? "rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-center text-[12px] leading-5 text-[#6B6B6B]"
+              : "rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] leading-5 text-white/65"
+          }
+        >
           Buka link ini di HP, izinkan GPS, lalu check-in. Tidak perlu masuk akun Gercep.
         </p>
         {state.lateWindow && !state.checkedIn && (
-          <p className="rounded-xl border border-red-500/30 bg-red-950/50 px-3 py-2 text-center text-xs text-red-200">
+          <p
+            className={
+              light
+                ? "rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-center text-xs text-rose-700"
+                : "rounded-xl border border-red-500/30 bg-red-950/50 px-3 py-2 text-center text-xs text-red-200"
+            }
+          >
             Kamu telat check-in. Batas jam 09:00. Tetap lakukan check-in sekarang.
           </p>
         )}
-        {error && <p className="rounded-xl border border-red-500/30 bg-red-950/40 px-3 py-2 text-xs text-red-200">{error}</p>}
+        {error && (
+          <p
+            className={
+              light
+                ? "rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"
+                : "rounded-xl border border-red-500/30 bg-red-950/40 px-3 py-2 text-xs text-red-200"
+            }
+          >
+            {error}
+          </p>
+        )}
 
         {!state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

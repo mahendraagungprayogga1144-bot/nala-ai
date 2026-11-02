@@ -1,6 +1,6 @@
 # Henima Sales (Android app)
 
-App Capacitor untuk sales lapangan. Membuka `https://gercepos.id` di WebView dan memakai **GPS native + background geolocation**, jadi auto track lebih kuat saat keluar ke WhatsApp/Maps (bukan cuma tab Chrome).
+App Capacitor untuk sales lapangan. Membuka link portal `/t/{token}` (Sales Dashboard HENIMA: GPS + catat jual + bayar + laporan) di WebView dan memakai **GPS native + background geolocation**, jadi auto track lebih kuat saat keluar ke WhatsApp/Maps (bukan cuma tab Chrome).
 
 ## Syarat
 

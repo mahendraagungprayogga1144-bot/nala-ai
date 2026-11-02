@@ -38,7 +38,8 @@ export type TrackingLink = {
 };
 
 export function mapsUrl(lat: number, lng: number) {
-  return `https://maps.google.com/?q=${lat},${lng}`;
+  // Buka Google Maps (app HP atau web) di koordinat titik sales.
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 }
 
 /** Batas hari kalender WIB, sama dengan function database. */

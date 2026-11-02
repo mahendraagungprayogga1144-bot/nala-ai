@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell, CalendarDays } from "lucide-react";
-import { type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
+import { mapsUrl, type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
 import { staffColor } from "./tracking-map";
 import { TrackingSidebar } from "./tracking-nav";
 
@@ -320,8 +320,11 @@ export default function RiwayatClient({
                           <span>
                             {longDate(viewDate)} · {clock(point.recorded_at)} WIB
                           </span>
+                          <a href={mapsUrl(point.lat, point.lng)} target="_blank" rel="noreferrer" className="font-semibold text-[#C5A358]">
+                            Google Maps
+                          </a>
                           <Link
-                            href={viewDate === today ? "/dashboard/henima-tracking" : `/dashboard/henima-tracking?hari=${viewDate}`}
+                            href={viewDate === today ? "/dashboard/henima-tracking#lokasi" : `/dashboard/henima-tracking?hari=${viewDate}#lokasi`}
                             className="font-semibold text-[#2563EB]"
                           >
                             Buka di peta
@@ -360,9 +363,19 @@ export default function RiwayatClient({
                   </p>
                   <p className="mt-1 text-xs text-[#64748B]">{viewer.note || "Titik GPS tersimpan"}</p>
                 </div>
-                <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#E2E8F0] px-3 py-2 text-xs font-semibold">
-                  Tutup
-                </button>
+                <div className="flex shrink-0 gap-2">
+                  <a
+                    href={mapsUrl(viewer.lat, viewer.lng)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl bg-[#C5A358] px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Google Maps
+                  </a>
+                  <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#E2E8F0] px-3 py-2 text-xs font-semibold">
+                    Tutup
+                  </button>
+                </div>
               </div>
             </div>
           </div>,

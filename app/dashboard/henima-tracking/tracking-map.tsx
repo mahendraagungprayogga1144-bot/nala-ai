@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
-import type { TrackingPoint } from "@/lib/henima-tracking/shared";
+import { mapsUrl, type TrackingPoint } from "@/lib/henima-tracking/shared";
 
 const COLORS = ["#2563EB", "#3B82F6", "#1D4ED8", "#0EA5E9", "#6366F1"];
 
@@ -157,6 +157,13 @@ export default function TrackingMap({
         interactive: false,
       }).addTo(layer);
 
+      const gmaps = mapsUrl(latest.lat, latest.lng);
+      const popupHtml = `<div style="min-width:150px;font:12px/1.4 system-ui,sans-serif">
+        <strong>${escapeHtml(nama)}</strong><br/>
+        Posisi terakhir<br/>
+        <a href="${gmaps}" target="_blank" rel="noreferrer" style="color:#C5A358;font-weight:700">Buka di Google Maps</a>
+      </div>`;
+
       L.circleMarker([latest.lat, latest.lng], {
         radius: 10,
         color: "#FFFFFF",
@@ -165,6 +172,7 @@ export default function TrackingMap({
         fillOpacity: 1,
       })
         .addTo(layer)
+        .bindPopup(popupHtml)
         .on("click", () => onPointRef.current?.(latest));
 
       L.marker([latest.lat, latest.lng], {
@@ -174,9 +182,12 @@ export default function TrackingMap({
           iconSize: [120, 28],
           iconAnchor: [60, 42],
         }),
-        interactive: false,
-        keyboard: false,
-      }).addTo(layer);
+        interactive: true,
+        keyboard: true,
+      })
+        .addTo(layer)
+        .bindPopup(popupHtml)
+        .on("click", () => onPointRef.current?.(latest));
     }
 
     const picked = focusPointId ? points.find((point) => point.id === focusPointId) : undefined;

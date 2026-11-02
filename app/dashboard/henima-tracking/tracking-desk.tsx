@@ -8,7 +8,7 @@ import {
   CalendarDays,
   ChevronDown,
 } from "lucide-react";
-import { type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
+import { mapsUrl, type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
 import { type OwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboard";
 import TrackingMap, { staffColor } from "./tracking-map";
 import TrackingHome from "./tracking-home";
@@ -553,16 +553,33 @@ export default function TrackingDesk({
                             type="button"
                             onClick={() => {
                               setFocus(link.staffId);
-                              setFocusPointId(undefined);
+                              setFocusPointId(card.last?.id);
+                              document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
                             }}
                             className="rounded-xl bg-[#1E3A8A] py-2.5 text-xs font-bold text-white"
                           >
                             Lihat di Peta
                           </button>
-                          <button type="button" onClick={() => void copy(link)} className="rounded-xl border border-[#E2E8F0] bg-white py-2.5 text-xs font-semibold text-[#0F172A]">
+                          {card.last ? (
+                            <a
+                              href={mapsUrl(card.last.lat, card.last.lng)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-xl border border-[#E8D9A8] bg-[#F7F4EC] py-2.5 text-center text-xs font-bold text-[#8A7040]"
+                            >
+                              Google Maps
+                            </a>
+                          ) : (
+                            <button type="button" onClick={() => void copy(link)} className="rounded-xl border border-[#E2E8F0] bg-white py-2.5 text-xs font-semibold text-[#0F172A]">
+                              {copied === link.staffId ? "Tersalin" : "Salin Link HP"}
+                            </button>
+                          )}
+                        </div>
+                        {card.last && (
+                          <button type="button" onClick={() => void copy(link)} className="mt-2 w-full rounded-xl border border-[#E2E8F0] bg-white py-2 text-xs font-semibold text-[#0F172A]">
                             {copied === link.staffId ? "Tersalin" : "Salin Link HP"}
                           </button>
-                        </div>
+                        )}
                         <button type="button" onClick={() => setDetail(detail === link.staffId ? "" : link.staffId)} className="mt-2 text-[11px] font-semibold text-[#2563EB]">
                           {detail === link.staffId ? "Tutup detail" : "Lihat detail"}
                         </button>
@@ -706,7 +723,15 @@ export default function TrackingDesk({
                   </p>
                   <p className="mt-1 text-xs text-[#64748B]">{viewer.note || "Titik GPS tersimpan"}</p>
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <a
+                    href={mapsUrl(viewer.lat, viewer.lng)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl bg-[#C5A358] px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Google Maps
+                  </a>
                   <button
                     type="button"
                     onClick={() => {
@@ -715,9 +740,9 @@ export default function TrackingDesk({
                       setViewer(null);
                       document.getElementById("peta-tracking")?.scrollIntoView({ block: "nearest" });
                     }}
-                    className="rounded-xl bg-[#2563EB] px-3 py-2 text-xs font-bold text-white"
+                    className="rounded-xl bg-[#111] px-3 py-2 text-xs font-bold text-white"
                   >
-                    Lihat di peta
+                    Fokus peta
                   </button>
                   <button type="button" onClick={() => setViewer(null)} className="rounded-xl border border-[#E2E8F0] px-3 py-2 text-xs font-semibold">
                     Tutup

@@ -74,7 +74,8 @@ export async function watchNativeOrBrowserGps(
           backgroundTitle: "Henima · auto track aktif",
           requestPermissions: true,
           stale: false,
-          distanceFilter: 25,
+          // Update lebih sering biar titik di peta selalu nempel saat bergerak.
+          distanceFilter: 8,
         },
         (location, error) => {
           if (error) {
@@ -127,15 +128,16 @@ export async function watchNativeOrBrowserGps(
   const watchId = navigator.geolocation.watchPosition(
     (pos) => onFix(browserFix(pos)),
     (err) => onError?.(err.message || "GPS gagal."),
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
   );
+  // Heartbeat ketat: Chrome sering pause watchPosition saat tab di belakang.
   const heartbeat = window.setInterval(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => onFix(browserFix(pos)),
       () => undefined,
-      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
     );
-  }, 55_000);
+  }, 18_000);
 
   return {
     stop: () => {

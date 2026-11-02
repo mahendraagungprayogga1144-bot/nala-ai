@@ -62,11 +62,13 @@ export default function FieldClient({
   initial,
   embedded = false,
   onBack,
+  onStatusChange,
 }: {
   token: string;
   initial: FieldState;
   embedded?: boolean;
   onBack?: () => void;
+  onStatusChange?: (status: { checkedIn: boolean; checkedOut: boolean; watching: boolean }) => void;
 }) {
   const [state, setState] = useState(initial);
   const [gps, setGps] = useState<GpsFix | null>(null);
@@ -84,6 +86,8 @@ export default function FieldClient({
   const [qrisZoom, setQrisZoom] = useState(false);
   const lastSent = useRef(0);
   const lastPos = useRef<GpsFix | null>(null);
+  const pingBusy = useRef(false);
+  const pendingPing = useRef<GpsFix | null>(null);
 
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
@@ -177,14 +181,23 @@ export default function FieldClient({
                   })
                 ).error;
     if (error) throw new Error(pesanDb(error.message));
-    await refresh();
     lastSent.current = Date.now();
     lastPos.current = fix;
+    // Ping sering — jangan refresh full setiap titik (bikin lag & skip update).
+    if (kind !== "ping") await refresh();
   }
 
   useEffect(() => {
     void isNativeApp().then(setNativeApp);
   }, []);
+
+  useEffect(() => {
+    onStatusChange?.({
+      checkedIn: state.checkedIn,
+      checkedOut: state.checkedOut,
+      watching,
+    });
+  }, [state.checkedIn, state.checkedOut, watching, onStatusChange]);
 
   function grabGps() {
     setError("");
@@ -214,17 +227,37 @@ export default function FieldClient({
     let stopWatch: (() => void) | null = null;
     const trackUrl = typeof window !== "undefined" ? window.location.href : `/t/${token}`;
 
+    const flushPing = (fix: GpsFix) => {
+      if (!alive) return;
+      if (pingBusy.current) {
+        pendingPing.current = fix;
+        return;
+      }
+      pingBusy.current = true;
+      void send("ping", fix)
+        .catch(() => undefined)
+        .finally(() => {
+          pingBusy.current = false;
+          const queued = pendingPing.current;
+          pendingPing.current = null;
+          if (queued && alive) flushPing(queued);
+        });
+    };
+
     const pushPing = (fix: GpsFix, force = false) => {
       if (!alive) return;
       setGps(fix);
+      setGpsText(`Live · akurasi ±${fix.acc} m${document.hidden ? " · belakang" : ""}`);
       setWatching(true);
       const prev = lastPos.current;
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      const stale = Date.now() - lastSent.current > 45_000;
-      const accLimit = document.hidden || nativeApp ? 250 : 180;
+      // Minimal tiap ~15 detik, atau segera kalau sudah pindah ~8–10 m.
+      const stale = Date.now() - lastSent.current > 15_000;
+      const movedEnough = moved >= 0.00008;
+      const accLimit = document.hidden || nativeApp ? 400 : 280;
       if (!force && fix.acc > accLimit) return;
-      if (!force && !stale && moved < 0.00022) return;
-      void send("ping", fix).catch(() => undefined);
+      if (!force && !stale && !movedEnough) return;
+      flushPing(fix);
     };
 
     async function holdWake() {
@@ -268,6 +301,11 @@ export default function FieldClient({
     void holdWake();
     void showTrackNotice();
 
+    // Ambil titik pertama segera setelah check-in.
+    void readNativeOrBrowserGps()
+      .then((fix) => pushPing(fix, true))
+      .catch(() => undefined);
+
     void watchNativeOrBrowserGps(
       (fix) => pushPing(fix),
       () => {
@@ -281,30 +319,41 @@ export default function FieldClient({
       stopWatch = handle.stop;
     });
 
-    function onVisibility() {
-      const hidden = document.visibilityState !== "visible";
-      setInBackground(hidden);
-      if (!hidden) {
-        void readNativeOrBrowserGps()
-          .then((fix) => pushPing(fix, true))
-          .catch(() => undefined);
-        void holdWake();
-        void showTrackNotice();
-        return;
-      }
+    // Paksa update berkala supaya titik tetap nempel meski diam / sinyal jelek.
+    const forceTimer = window.setInterval(() => {
       void readNativeOrBrowserGps()
         .then((fix) => pushPing(fix, true))
         .catch(() => undefined);
+    }, 20_000);
+
+    const softRefresh = window.setInterval(() => {
+      void refresh().catch(() => undefined);
+    }, 90_000);
+
+    function onVisibility() {
+      const hidden = document.visibilityState !== "visible";
+      setInBackground(hidden);
+      void readNativeOrBrowserGps()
+        .then((fix) => pushPing(fix, true))
+        .catch(() => undefined);
+      if (!hidden) {
+        void holdWake();
+        void showTrackNotice();
+      }
     }
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onVisibility);
+    window.addEventListener("focus", onVisibility);
 
     return () => {
       alive = false;
       stopWatch?.();
+      window.clearInterval(forceTimer);
+      window.clearInterval(softRefresh);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onVisibility);
+      window.removeEventListener("focus", onVisibility);
       void wake?.release().catch(() => undefined);
       void clearTrackNotice();
     };

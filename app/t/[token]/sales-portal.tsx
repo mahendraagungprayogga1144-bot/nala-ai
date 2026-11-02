@@ -72,6 +72,11 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
   const [data, setData] = useState<PortalData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [trackLive, setTrackLive] = useState({
+    checkedIn: field.checkedIn,
+    checkedOut: field.checkedOut,
+    watching: false,
+  });
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/henima-tracking/field/${token}/portal`, { cache: "no-store" });
@@ -89,9 +94,18 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
 
   return (
     <div className={`${jakarta.className} min-h-screen bg-[#F7F7F5] text-[#111111]`}>
-      {tab === "lokasi" ? (
-        <FieldClient token={token} initial={field} embedded onBack={() => setTab("home")} />
-      ) : (
+      {/* Tetap mounted supaya auto GPS tidak mati saat pindah menu Jual/Home/Bayar. */}
+      <div className={tab === "lokasi" ? "block" : "hidden"} aria-hidden={tab !== "lokasi"}>
+        <FieldClient
+          token={token}
+          initial={field}
+          embedded
+          onBack={() => setTab("home")}
+          onStatusChange={setTrackLive}
+        />
+      </div>
+
+      {tab !== "lokasi" && (
         <>
           <header className="sticky top-0 z-20 border-b border-[#E8E8E4] bg-white/95 px-4 py-3 backdrop-blur">
             <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
@@ -106,6 +120,11 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
                 <span className="max-w-[110px] truncate text-xs font-semibold">{nama}</span>
               </div>
             </div>
+            {trackLive.checkedIn && !trackLive.checkedOut && (
+              <p className="mx-auto mt-2 max-w-lg rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700">
+                Auto GPS {trackLive.watching ? "aktif" : "menyambung"} · titik terus update meski di menu lain
+              </p>
+            )}
           </header>
 
           <main className="mx-auto max-w-lg px-4 pb-28 pt-5">

@@ -5,8 +5,15 @@
   html, body {
     background: #070711;
     color: #f0eff8;
-    overflow-x: hidden;
+    /* clip = tidak mengunci scroll vertikal di Chrome Android (beda dari overflow-x:hidden) */
+    overflow-x: clip;
     font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+  /* Link lapangan /t/... — biarkan dokumen yang scroll (Chrome Android) */
+  .henima-field-shell {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    min-height: 100dvh;
   }
   /* Mobile-friendly taps — closer to native app feel */
   button, a, [role="button"] {

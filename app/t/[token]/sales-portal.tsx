@@ -97,9 +97,15 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
   const nama = data?.actor.nama || field.nama;
 
   return (
-    <div className={`${jakarta.className} min-h-screen bg-[#F7F7F5] text-[#111111]`}>
+    <div
+      className={`${jakarta.className} relative min-h-full touch-pan-y bg-[#F7F7F5] text-[#111111]`}
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
       {/* Tetap mounted supaya auto GPS tidak mati saat pindah menu Jual/Home/Bayar. */}
-      <div className={tab === "lokasi" ? "block" : "hidden"} aria-hidden={tab !== "lokasi"}>
+      <div
+        className={tab === "lokasi" ? "relative block min-h-full" : "pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"}
+        aria-hidden={tab !== "lokasi"}
+      >
         <FieldClient
           token={token}
           initial={field}
@@ -111,7 +117,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
 
       {tab !== "lokasi" && (
         <>
-          <header className="sticky top-0 z-20 border-b border-[#E8E8E4] bg-white/95 px-4 py-3 backdrop-blur">
+          <header className="sticky top-0 z-20 border-b border-[#E8E8E4] bg-white/95 px-4 py-3 backdrop-blur supports-[padding:max(0px)]:pt-[max(0.75rem,env(safe-area-inset-top))]">
             <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
               <div>
                 <p className="text-[15px] font-bold tracking-[0.08em]">HENIMA</p>
@@ -131,7 +137,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
             )}
           </header>
 
-          <main className="mx-auto max-w-lg px-4 pb-28 pt-5">
+          <main className="mx-auto max-w-lg px-4 pt-5 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
             {loadError && (
               <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>
             )}
@@ -170,7 +176,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
             {tab === "target" && <TargetView data={data} />}
           </main>
 
-          <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E8E8E4] bg-white/95 backdrop-blur">
+          <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E8E8E4] bg-white/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur">
             <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 px-1 py-2">
               {(
                 [

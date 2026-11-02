@@ -456,7 +456,13 @@ export default function FieldClient({
   void card; void muted; void soft; void label; void input; void ghostBtn; void primaryBtn; void goldBtn;
 
   return (
-    <main className={light ? "min-h-screen bg-[#F7F7F5] text-[#111111]" : "min-h-screen bg-[#08080f] text-white"}>
+    <main
+      className={
+        light
+          ? "min-h-full touch-pan-y bg-[#F7F7F5] pb-10 text-[#111111]"
+          : "min-h-full touch-pan-y bg-[#08080f] pb-10 text-white"
+      }
+    >
       <header
         className={
           light

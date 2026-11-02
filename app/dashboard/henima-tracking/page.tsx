@@ -5,6 +5,7 @@ import { guardPage } from "../lib/page-guard";
 import { loadSalesContext } from "@/lib/henima-sales/page-context";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTrackingTable, loadTrackingDesk } from "@/lib/henima-tracking/service";
+import { loadOwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboard";
 import { todayWib } from "@/lib/date";
 import TrackingDesk from "./tracking-desk";
 
@@ -25,7 +26,10 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
   return guardPage("Henima Tracking", async () => {
     try {
       const [{ actor, db }, session] = await Promise.all([loadSalesContext(), createClient()]);
-      const desk = await loadTrackingDesk(db, session, actor, day);
+      const [desk, summary] = await Promise.all([
+        loadTrackingDesk(db, session, actor, day),
+        loadOwnerDashboardSummary(db, actor).catch(() => null),
+      ]);
       const { data: auth } = await session.auth.getUser();
       let ownerName = "Owner";
       if (auth.user) {
@@ -33,7 +37,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
         ownerName = profile?.full_name || auth.user.email?.split("@")[0] || "Owner";
       }
       return (
-        <div className={`${jakarta.className} flex h-full min-h-0 flex-col bg-[#F8FAFC] text-[#0F172A]`}>
+        <div className={`${jakarta.className} flex h-full min-h-0 flex-col bg-white text-[#111111]`}>
           <TrackingDesk
             date={desk.date}
             today={desk.today}
@@ -43,6 +47,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
             notice={desk.notice}
             ownerName={ownerName}
             qrisUrl={desk.qrisUrl}
+            summary={summary}
           />
         </div>
       );

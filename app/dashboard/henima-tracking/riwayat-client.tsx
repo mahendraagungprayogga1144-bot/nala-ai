@@ -123,7 +123,7 @@ export default function RiwayatClient({
 
   return (
     <div className="relative flex h-full min-h-0 text-[#0F172A]">
-      <TrackingSidebar active="riwayat" open={navOpen} onClose={() => setNavOpen(false)} />
+      <TrackingSidebar active="riwayat" open={navOpen} onClose={() => setNavOpen(false)} onPanel={() => undefined} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="relative z-40 flex flex-wrap items-center gap-2 border-b border-[#E2E8F0] bg-white px-3 py-3 md:px-5">

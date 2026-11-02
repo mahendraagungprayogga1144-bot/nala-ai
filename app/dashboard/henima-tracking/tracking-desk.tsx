@@ -9,8 +9,12 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { type TrackingLink, type TrackingPoint } from "@/lib/henima-tracking/shared";
+import { type OwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboard";
 import TrackingMap, { staffColor } from "./tracking-map";
+import TrackingHome from "./tracking-home";
 import { TrackingSidebar } from "./tracking-nav";
+
+const GOLD = "#C5A358";
 
 const KIND: Record<TrackingPoint["kind"], string> = {
   checkin_pagi: "Check-in",
@@ -75,6 +79,7 @@ export default function TrackingDesk({
   notice,
   ownerName,
   qrisUrl: initialQrisUrl,
+  summary,
 }: {
   date: string;
   today: string;
@@ -84,6 +89,7 @@ export default function TrackingDesk({
   notice?: string;
   ownerName: string;
   qrisUrl?: string | null;
+  summary?: OwnerDashboardSummary | null;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState("");
@@ -101,12 +107,16 @@ export default function TrackingDesk({
   const [dayBusy, setDayBusy] = useState(false);
   const [qrisUrl, setQrisUrl] = useState(initialQrisUrl || "");
   const [qrisBusy, setQrisBusy] = useState(false);
+  const [panel, setPanel] = useState<"dashboard" | "lokasi">("dashboard");
   const viewDate = clientDay?.date ?? date;
   const viewPoints = clientDay?.points ?? points;
 
   useEffect(() => {
     const hash = window.location.hash.replace("#", "");
     if (!hash) return;
+    if (hash === "lokasi" || hash === "foto-checkin" || hash === "tambah-sales") {
+      setPanel("lokasi");
+    }
     window.requestAnimationFrame(() => {
       document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -145,7 +155,7 @@ export default function TrackingDesk({
 
   const colorOf = useMemo(() => {
     const map = new Map(links.map((link, index) => [link.staffId, staffColor(index)]));
-    return (staffId: string) => map.get(staffId) || "#2563EB";
+    return (staffId: string) => map.get(staffId) || GOLD;
   }, [links]);
   const nameOf = useMemo(() => {
     const map = new Map(links.map((link) => [link.staffId, link.nama]));
@@ -303,64 +313,106 @@ export default function TrackingDesk({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 bg-[#F8FAFC] text-[#0F172A]">
+    <div className="relative flex h-full min-h-0 bg-white text-[#111111]">
       <style>{`
-        .henima-track-map .leaflet-control-zoom { border: 0; margin-top: 12px !important; margin-left: 12px !important; box-shadow: 0 1px 3px rgba(15,23,42,0.08); }
-        .henima-track-map .leaflet-control-zoom a { background:#FFFFFF; color:#0F172A; border-color:#E2E8F0; width: 32px; height: 32px; line-height: 32px; }
-        .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip { background:#FFFFFF; color:#0F172A; }
-        .henima-track-map .leaflet-container { background:#F8FAFC; font-family: inherit; }
+        .henima-track-map .leaflet-control-zoom { border: 0; margin-top: 12px !important; margin-left: 12px !important; box-shadow: 0 1px 3px rgba(17,17,17,0.08); }
+        .henima-track-map .leaflet-control-zoom a { background:#FFFFFF; color:#111111; border-color:#E8E8E4; width: 32px; height: 32px; line-height: 32px; }
+        .henima-track-map .leaflet-popup-content-wrapper, .henima-track-map .leaflet-popup-tip { background:#FFFFFF; color:#111111; }
+        .henima-track-map .leaflet-container { background:#FAFAF8; font-family: inherit; }
         .henima-track-map .leaflet-interactive { cursor: pointer; }
         .henima-track-map .leaflet-control-attribution { display: none !important; }
       `}</style>
 
-      <TrackingSidebar active="tracking" open={navOpen} onClose={() => setNavOpen(false)} />
+      <TrackingSidebar
+        active={panel === "dashboard" ? "dashboard" : "lokasi"}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+        onPanel={(next) => {
+          setPanel(next);
+          if (next === "lokasi") {
+            window.history.replaceState(null, "", "#lokasi");
+          } else {
+            window.history.replaceState(null, "", "/dashboard/henima-tracking");
+          }
+        }}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="relative z-40 flex flex-wrap items-center justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 py-4 md:px-6">
+        <header className="relative z-40 flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E8E4] bg-white px-4 py-4 md:px-6">
           <div className="flex min-w-0 items-start gap-3">
-            <button type="button" onClick={() => setNavOpen(true)} className="mt-1 rounded-lg border border-[#E2E8F0] px-2 py-1.5 text-xs font-semibold md:hidden">
+            <button type="button" onClick={() => setNavOpen(true)} className="mt-1 rounded-lg border border-[#E8E8E4] px-2 py-1.5 text-xs font-semibold md:hidden">
               Menu
             </button>
-            <div className="min-w-0">
-              <h1 className="text-[22px] font-bold tracking-tight text-[#0F172A] md:text-[26px]">Henima Tracking</h1>
-              <p className="mt-0.5 text-sm font-medium text-[#64748B]">Pantau lokasi sales, rute perjalanan, dan foto check-in secara real-time.</p>
-            </div>
+            {panel === "lokasi" ? (
+              <div className="min-w-0">
+                <h1 className="text-[22px] font-bold tracking-tight text-[#111] md:text-[26px]">Lokasi GPS</h1>
+                <p className="mt-0.5 text-sm font-medium text-[#6B6B6B]">Pantau check-in, rute, dan foto sales secara real-time.</p>
+              </div>
+            ) : (
+              <div className="min-w-0 md:hidden">
+                <h1 className="text-lg font-bold tracking-tight text-[#111]">HENIMA Tracking</h1>
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <DayCalendar date={viewDate} today={today} marked={memory} busy={dayBusy} onPick={(ymd) => void openDay(ymd)} />
-            <span
-              className={`inline-flex h-10 items-center gap-2 rounded-full border bg-white px-3 text-sm font-semibold ${
-                dayBusy
-                  ? "border-[#BFDBFE] text-[#2563EB]"
-                  : viewDate === today
-                    ? "border-emerald-200 text-emerald-600"
-                    : "border-[#E2E8F0] text-[#64748B]"
-              }`}
-            >
-              <span className={`h-2 w-2 rounded-full ${dayBusy ? "animate-pulse bg-[#2563EB]" : viewDate === today ? "bg-emerald-500" : "bg-slate-300"}`} />
-              {dayBusy ? "Memuat tanggal…" : viewDate === today ? "Live Tracking" : "Arsip"}
-            </span>
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B]" title="Belum ada notifikasi">
+            {panel === "lokasi" && (
+              <>
+                <DayCalendar date={viewDate} today={today} marked={memory} busy={dayBusy} onPick={(ymd) => void openDay(ymd)} />
+                <span
+                  className={`inline-flex h-10 items-center gap-2 rounded-full border bg-white px-3 text-sm font-semibold ${
+                    dayBusy
+                      ? "border-[#E8D9A8] text-[#8A7040]"
+                      : viewDate === today
+                        ? "border-emerald-200 text-emerald-600"
+                        : "border-[#E8E8E4] text-[#6B6B6B]"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${dayBusy ? "animate-pulse" : viewDate === today ? "bg-emerald-500" : "bg-slate-300"}`} style={dayBusy ? { background: GOLD } : undefined} />
+                  {dayBusy ? "Memuat tanggal…" : viewDate === today ? "Live Tracking" : "Arsip"}
+                </span>
+              </>
+            )}
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E8E8E4] bg-white text-[#6B6B6B]" title="Belum ada notifikasi">
               <Bell size={16} />
             </span>
-            <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-2 pr-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2563EB] text-xs font-bold text-white">{initials(ownerName)}</span>
+            <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E8E8E4] bg-white px-2 pr-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: GOLD }}>
+                {initials(ownerName)}
+              </span>
               <span className="hidden text-left leading-tight sm:block">
                 <span className="block max-w-[120px] truncate text-xs font-bold">{ownerName}</span>
-                <span className="block text-[10px] font-medium text-[#64748B]">Owner</span>
+                <span className="block text-[10px] font-medium text-[#6B6B6B]">Owner</span>
               </span>
             </span>
           </div>
         </header>
 
         <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6">
+          {panel === "dashboard" && summary && (
+            <TrackingHome
+              ownerName={ownerName}
+              summary={summary}
+              onOpenLokasi={() => {
+                setPanel("lokasi");
+                window.history.replaceState(null, "", "#lokasi");
+              }}
+            />
+          )}
+          {panel === "dashboard" && !summary && (
+            <p className="rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-4 py-6 text-sm text-[#6B6B6B]">
+              Ringkasan penjualan belum bisa dimuat. Fitur GPS tetap tersedia di menu Lokasi GPS.
+            </p>
+          )}
+
+          {panel === "lokasi" && (
+            <>
           {dayBusy && (
-            <div className="sticky top-0 z-20 mb-3 flex items-center gap-2 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-sm font-semibold text-[#2563EB] shadow-sm">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#BFDBFE] border-t-[#2563EB]" aria-hidden />
+            <div className="sticky top-0 z-20 mb-3 flex items-center gap-2 rounded-xl border border-[#E8D9A8] bg-[#F7F4EC] px-3 py-2 text-sm font-semibold shadow-sm" style={{ color: GOLD }}>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#E8D9A8] border-t-[#C5A358]" aria-hidden />
               Memuat data tanggal… sebentar ya.
             </div>
           )}
-          <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
+          <div id="lokasi" className={`scroll-mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4 ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
             <Stat label="Total Sales" value={String(links.length)} hint="Orang" tone="blue" />
             <Stat label="Aktif" value={String(aktif)} hint="sedang bekerja" tone="ok" />
             <Stat label="Terlambat" value={String(late)} hint="Lewat 09:00" tone="late" />
@@ -631,6 +683,8 @@ export default function TrackingDesk({
               </section>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -843,7 +897,7 @@ function Thumb({ src }: { src: string }) {
 
 function Spark() {
   return (
-    <svg viewBox="0 0 64 24" className="h-6 w-16 text-[#2563EB]" aria-hidden>
+    <svg viewBox="0 0 64 24" className="h-6 w-16 text-[#C5A358]" aria-hidden>
       <path d="M1 18 L12 14 L22 16 L32 8 L42 12 L52 4 L63 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -867,13 +921,13 @@ function Stat({
         ? "text-amber-600"
         : tone === "photo"
           ? "text-rose-500"
-          : "text-[#2563EB]";
+          : "text-[#C5A358]";
   return (
-    <div className="rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm">
+    <div className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">{label}</p>
-          <p className="mt-1 text-2xl font-bold leading-none text-[#0F172A]">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">{label}</p>
+          <p className="mt-1 text-2xl font-bold leading-none text-[#111]">
             {value} <span className={`text-xs font-semibold ${accent}`}>{hint}</span>
           </p>
         </div>

@@ -330,10 +330,10 @@ export default function FieldClient({
       setWatching(true);
       const prev = lastPos.current;
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      // Native: kirim tiap ~12 dtk / pindah ~5 m. Skip titik jelek kecuali force.
-      const stale = Date.now() - lastSent.current > (nativeApp ? 12_000 : 15_000);
-      const movedEnough = moved >= (nativeApp ? 0.000045 : 0.00008);
-      const accLimit = nativeApp ? 120 : document.hidden ? 400 : 280;
+      // Mode Grab: native kirim ~8 dtk / pindah ~3 m. Force heartbeat selalu tembus.
+      const stale = Date.now() - lastSent.current > (nativeApp ? 8_000 : 12_000);
+      const movedEnough = moved >= (nativeApp ? 0.00003 : 0.00006);
+      const accLimit = nativeApp ? 150 : document.hidden ? 450 : 300;
       if (!force && fix.acc > accLimit) return;
       if (!force && !stale && !movedEnough) return;
       flushPing(fix);
@@ -370,12 +370,12 @@ export default function FieldClient({
       setWatching(true);
     });
 
-    // Paksa kirim berkala supaya titik tetap update meski diam / sinyal jelek.
+    // Heartbeat Grab-style: tetap kirim meski diam di satu titik.
     const forceTimer = window.setInterval(() => {
       void readNativeOrBrowserGps()
         .then((fix) => pushPing(fix, true))
         .catch(() => undefined);
-    }, nativeApp ? 12_000 : 20_000);
+    }, nativeApp ? 8_000 : 12_000);
 
     const softRefresh = window.setInterval(() => {
       void refresh().catch(() => undefined);
@@ -596,10 +596,10 @@ export default function FieldClient({
               Segarkan GPS sekarang
             </button>
             <ul className="mt-3 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
-              <li>Tidak perlu check-in tiap pindah tempat.</li>
-              <li>Izinkan notifikasi HP — ada pengingat “Henima ngingetin” tiap jam.</li>
-              <li>Biarkan notifikasi GPS live di status bar; jangan force-stop.</li>
-              <li>Opsional: tap “Selesai kerja” kalau mau berhenti jejak hari ini.</li>
+              <li>Mode Grab: titik dikirim terus (~8 dtk) ke peta owner.</li>
+              <li>Wajib Izinkan selalu + biarkan notifikasi GPS di status bar.</li>
+              <li>Jangan swipe-close / force-stop app — itu yang bikin desk “Senyap”.</li>
+              <li>Opsional: “Selesai kerja” kalau mau berhenti jejak hari ini.</li>
             </ul>
             {gps && (
               <p className="mt-2 text-[11px] font-medium text-emerald-100/80">

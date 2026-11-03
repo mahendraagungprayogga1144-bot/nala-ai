@@ -138,12 +138,12 @@ export async function watchNativeOrBrowserGps(
       const id = await BackgroundGeolocation.addWatcher(
         {
           backgroundMessage:
-            "GPS live ke owner. Jangan force-stop. Izin lokasi harus Izinkan selalu.",
+            "GPS live ke owner (mode Grab). Jangan swipe-close / force-stop. Lokasi: Izinkan selalu.",
           backgroundTitle: "Henima · GPS live",
           requestPermissions: true,
           stale: false,
-          // Update lebih rapat agar titik akurat saat bergerak.
-          distanceFilter: 5,
+          // 0 = tiap update OS (mirip Grab). Jangan pakai filter besar — diam = desk “Senyap”.
+          distanceFilter: 0,
         },
         (location, error) => {
           if (error) {
@@ -208,9 +208,9 @@ export async function watchNativeOrBrowserGps(
     navigator.geolocation.getCurrentPosition(
       (pos) => onFix(browserFix(pos)),
       () => undefined,
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
     );
-  }, 15_000);
+  }, 10_000);
 
   return {
     stop: () => {

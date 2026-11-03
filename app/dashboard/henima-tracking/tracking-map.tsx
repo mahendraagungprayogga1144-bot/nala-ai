@@ -80,6 +80,43 @@ function trailPoints(ordered: TrackingPoint[], latest: TrackingPoint) {
   return trail.length > 80 ? trail.filter((_, index) => index % Math.ceil(trail.length / 80) === 0) : trail;
 }
 
+/** Meter antar 2 titik (approx). */
+function metersBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * Rapikan garis rute: GPS diam sering “goyang” di dalam lingkaran akurasi
+ * → polyline zigzag. Skip ping yang terlalu dekat / masih di dalam jitter.
+ */
+function smoothRoute(ordered: TrackingPoint[]) {
+  if (ordered.length <= 2) return ordered;
+  const out: TrackingPoint[] = [ordered[0]];
+  for (let i = 1; i < ordered.length - 1; i++) {
+    const point = ordered[i];
+    if (point.kind !== "ping") {
+      out.push(point);
+      continue;
+    }
+    const prev = out[out.length - 1];
+    const dist = metersBetween(prev, point);
+    const jitter = Math.max(prev.accuracy_m || 0, point.accuracy_m || 0, 30) * 0.7;
+    if (dist < Math.max(35, jitter)) continue;
+    out.push(point);
+  }
+  const last = ordered[ordered.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
 export default function TrackingMap({
   points,
   colorOf,
@@ -251,7 +288,8 @@ function GoogleTrackingMap({
       const ordered = [...list].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
       const color = colorOf(staffId);
       const nama = nameOf(staffId);
-      const path = ordered.map((point) => ({ lat: point.lat, lng: point.lng }));
+      const route = smoothRoute(ordered);
+      const path = route.map((point) => ({ lat: point.lat, lng: point.lng }));
       path.forEach((p) => {
         bounds.extend(p);
         hasBounds = true;
@@ -457,7 +495,8 @@ function LeafletTrackingMap({
       const ordered = [...list].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
       const color = colorOf(staffId);
       const nama = nameOf(staffId);
-      const latlngs = ordered.map((point) => [point.lat, point.lng] as [number, number]);
+      const route = smoothRoute(ordered);
+      const latlngs = route.map((point) => [point.lat, point.lng] as [number, number]);
       allBounds.push(...latlngs);
       if (latlngs.length > 1) {
         L.polyline(latlngs, { color, weight: 4, opacity: 0.9 }).addTo(layer);

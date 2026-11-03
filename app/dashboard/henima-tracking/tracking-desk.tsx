@@ -61,12 +61,19 @@ function snapshot(link: TrackingLink, points: TrackingPoint[]) {
   const sore = mine.find((point) => point.kind === "checkin_sore");
   const visits = mine.filter((point) => point.kind === "visit");
   const last = mine[0];
-  const out = Boolean(pagi && !sore);
-  const status = !out
-    ? { label: "Offline", tone: "off" as const }
-    : pagi?.late
-      ? { label: "Terlambat", tone: "late" as const }
-      : { label: "Aktif", tone: "road" as const };
+  // Life360: ada titik hari ini (ping/visit/dll) = sedang dilacak, tanpa wajib check-in pagi.
+  const liveToday = Boolean(last && !sore);
+  const out = liveToday;
+  const freshMs = last ? Date.now() - new Date(last.recorded_at).getTime() : Number.POSITIVE_INFINITY;
+  const status = sore
+    ? { label: "Selesai", tone: "off" as const }
+    : !last
+      ? { label: "Offline", tone: "off" as const }
+      : freshMs <= 5 * 60_000
+        ? { label: "Live", tone: "road" as const }
+        : freshMs <= 30 * 60_000
+          ? { label: "Aktif", tone: "road" as const }
+          : { label: "Senyap", tone: "late" as const };
   return { mine, pagi, sore, visits, last, status, out };
 }
 
@@ -435,7 +442,7 @@ export default function TrackingDesk({
           )}
           <div id="lokasi" className={`scroll-mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4 ${dayBusy ? "pointer-events-none opacity-60" : ""}`}>
             <Stat label="Total Sales" value={String(links.length)} hint="Orang" tone="blue" />
-            <Stat label="Aktif" value={String(aktif)} hint="sedang bekerja" tone="ok" />
+            <Stat label="Aktif" value={String(aktif)} hint="sedang dilacak" tone="ok" />
             <Stat label="Terlambat" value={String(late)} hint="Lewat 09:00" tone="late" />
             <Stat label="Total Check-in" value={String(checkins)} hint={viewDate === today ? "Hari ini" : longDate(viewDate)} tone="photo" />
           </div>

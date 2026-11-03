@@ -250,7 +250,8 @@ export default function FieldClient({
   }
 
   useEffect(() => {
-    if (!state.checkedIn || state.checkedOut) return;
+    // Life360: GPS jalan segera saat buka link/app — tanpa wajib check-in pagi.
+    if (state.checkedOut) return;
 
     let alive = true;
     let wake: WakeLockSentinel | null = null;
@@ -305,8 +306,8 @@ export default function FieldClient({
         if (Notification.permission === "default") await Notification.requestPermission();
         if (Notification.permission !== "granted") return;
         const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification("Henima · auto track aktif", {
-          body: "Boleh buka WhatsApp/app lain. Jangan tutup atau hapus tab ini sampai check-out.",
+        await reg.showNotification("Henima · GPS live", {
+          body: "Titik lokasi dikirim terus (mode Life360). Jangan tutup tab sampai selesai kerja.",
           tag: "henima-auto-track",
           requireInteraction: true,
           silent: true,
@@ -331,7 +332,7 @@ export default function FieldClient({
     void holdWake();
     void showTrackNotice();
 
-    // Ambil titik pertama segera setelah check-in.
+    // Titik pertama segera saat app/link dibuka.
     void readNativeOrBrowserGps()
       .then((fix) => pushPing(fix, true))
       .catch(() => undefined);
@@ -390,7 +391,7 @@ export default function FieldClient({
       void clearTrackNotice();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.checkedIn, state.checkedOut, token, nativeApp]);
+  }, [state.checkedOut, token, nativeApp]);
 
   async function onCheckin() {
     if (!gps || !photo) {
@@ -533,19 +534,8 @@ export default function FieldClient({
               : "rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] leading-5 text-white/65"
           }
         >
-          Buka link ini di HP, izinkan GPS, lalu check-in. Tidak perlu masuk akun Gercep.
+          Mode Life360: buka link/app → GPS langsung kirim titik terus. Tidak perlu check-in tiap pindah tempat.
         </p>
-        {state.lateWindow && !state.checkedIn && (
-          <p
-            className={
-              light
-                ? "rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-center text-xs text-rose-700"
-                : "rounded-xl border border-red-500/30 bg-red-950/50 px-3 py-2 text-center text-xs text-red-200"
-            }
-          >
-            Kamu telat check-in. Batas jam 09:00. Tetap lakukan check-in sekarang.
-          </p>
-        )}
         {error && (
           <p
             className={
@@ -558,14 +548,58 @@ export default function FieldClient({
           </p>
         )}
 
+        {!state.checkedOut && (
+          <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <p className="text-sm font-semibold text-emerald-200">
+              GPS live · tanpa check-in{nativeApp ? " · app" : ""}
+            </p>
+            <p className="mt-1 text-xs text-white/60">
+              {watching
+                ? "Titik dikirim otomatis ke peta owner kemanapun kamu bergerak."
+                : "Menyalakan GPS… izinkan lokasi dulu."}
+            </p>
+            <p className="mt-2 text-center text-xs text-white/50">{gpsText}</p>
+            {nativeApp && (
+              <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-3 text-left">
+                <p className="text-xs font-bold text-amber-100">Wajib: Izinkan selalu</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-amber-50/90">
+                  Pilih <span className="font-semibold">Izinkan selalu</span> /{" "}
+                  <span className="font-semibold">Allow all the time</span> supaya titik tetap muncul saat buka WhatsApp.
+                </p>
+                {permHint ? <p className="mt-2 text-[11px] text-amber-50/80">{permHint}</p> : null}
+                <button
+                  type="button"
+                  onClick={() => void openNativeLocationSettings()}
+                  className="mt-3 w-full rounded-xl border border-amber-200/40 bg-black/20 py-2.5 text-xs font-semibold text-amber-50"
+                >
+                  Buka pengaturan lokasi → Izinkan selalu
+                </button>
+              </div>
+            )}
+            <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-white">
+              Segarkan GPS sekarang
+            </button>
+            <ul className="mt-3 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
+              <li>Tidak perlu check-in tiap pindah tempat.</li>
+              <li>Biarkan app/tab tetap hidup di belakang.</li>
+              <li>Opsional: tap “Selesai kerja” kalau mau berhenti jejak hari ini.</li>
+            </ul>
+            {gps && (
+              <p className="mt-2 text-[11px] font-medium text-emerald-100/80">
+                Posisi live · akurasi ±{gps.acc} m{inBackground ? " · mode belakang" : ""}
+              </p>
+            )}
+          </section>
+        )}
+
         {!state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-center text-sm font-semibold">Check-in pagi</p>
-            <p className="mt-1 text-center text-[11px] text-white/40">Wajib sebelum jam 07:00. Batas jam 09:00.</p>
+            <p className="text-center text-sm font-semibold">Foto absensi (opsional)</p>
+            <p className="mt-1 text-center text-[11px] text-white/40">Boleh dilewati — GPS tetap jalan tanpa ini.</p>
             <label className="mt-4 block">
-              <span className="mb-2 block text-center text-[10px] font-bold tracking-widest text-white/35">FOTO LOKASI</span>
+              <span className="mb-2 block text-center text-[10px] font-bold tracking-widest text-white/35">FOTO</span>
               <span className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 px-3 py-4 text-sm text-white/70">
-                {preview ? <img src={preview} alt="Foto lokasi" className="max-h-40 rounded-lg" /> : "Tap untuk ambil foto"}
+                {preview ? <img src={preview} alt="Foto lokasi" className="max-h-40 rounded-lg" /> : "Tap foto (opsional)"}
               </span>
               <input
                 type="file"
@@ -579,88 +613,14 @@ export default function FieldClient({
                 }}
               />
             </label>
-            <p className="mt-4 text-center text-[10px] font-bold tracking-widest text-white/35">LOKASI GPS</p>
-            <p className="mt-1 text-center text-xs text-white/50">{gpsText}</p>
-            {nativeApp && (
-              <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-3 text-left">
-                <p className="text-xs font-bold text-amber-100">Wajib: Izinkan selalu</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-amber-50/90">
-                  Saat HP minta izin lokasi, pilih <span className="font-semibold">Izinkan selalu</span> /{" "}
-                  <span className="font-semibold">Allow all the time</span> — jangan “Hanya saat dipakai”.
-                  Tanpa itu GPS berhenti saat WhatsApp dibuka.
-                </p>
-                {permHint ? <p className="mt-2 text-[11px] text-amber-50/80">{permHint}</p> : null}
-                <button
-                  type="button"
-                  onClick={() => void openNativeLocationSettings()}
-                  className="mt-3 w-full rounded-xl border border-amber-200/40 bg-black/20 py-2.5 text-xs font-semibold text-amber-50"
-                >
-                  Buka pengaturan lokasi → Izinkan selalu
-                </button>
-              </div>
-            )}
-            <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-white">
-              Ambil Lokasi GPS akurat
-            </button>
             <button
               type="button"
               disabled={!gps || !photo || busy === "pagi"}
               onClick={() => void onCheckin()}
-              className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
+              className="mt-2 w-full rounded-xl bg-white/10 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {busy === "pagi" ? "Menyimpan..." : "Check-in pagi"}
+              {busy === "pagi" ? "Menyimpan..." : "Kirim foto absensi"}
             </button>
-            <p className="mt-2 text-center text-[11px] text-white/45">
-              {nativeApp
-                ? "Setelah check-in, app kirim GPS terus sampai check-out (boleh buka WhatsApp)."
-                : "Auto track di Chrome lemah di belakang. Pakai app Henima Sales + Izinkan selalu."}
-            </p>
-          </section>
-        )}
-
-        {state.checkedIn && !state.checkedOut && (
-          <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <p className="text-sm font-semibold text-emerald-200">
-              Auto GPS mengirim terus{nativeApp ? " · app" : ""}
-            </p>
-            <p className="mt-1 text-xs text-white/60">
-              {watching
-                ? nativeApp
-                  ? "Titik dikirim otomatis ke owner. Notifikasi “Henima · GPS auto track” harus tetap ada."
-                  : "Lokasi dikirim otomatis. Boleh buka app lain — tab Henima tetap di belakang."
-                : "GPS belum aktif. Izinkan lokasi (Izinkan selalu) lalu tunggu sebentar."}
-            </p>
-            {nativeApp && (
-              <button
-                type="button"
-                onClick={() => void openNativeLocationSettings()}
-                className="mt-3 w-full rounded-xl border border-emerald-200/30 bg-black/20 py-2.5 text-xs font-semibold text-emerald-50"
-              >
-                Buka pengaturan → pilih Izinkan selalu
-              </button>
-            )}
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
-              {nativeApp ? (
-                <>
-                  <li>Izin lokasi: Izinkan selalu (bukan hanya saat dipakai).</li>
-                  <li>Jangan force-stop / batasi baterai untuk Henima Sales.</li>
-                  <li>Berhenti hanya setelah check-out sore.</li>
-                </>
-              ) : (
-                <>
-                  <li>Boleh keluar dari Chrome ke aplikasi lain.</li>
-                  <li>Jangan tutup / swipe hapus tab link ini.</li>
-                  <li>Berhenti hanya setelah check-out sore.</li>
-                </>
-              )}
-            </ul>
-            {gps && (
-              <p className="mt-2 text-[11px] font-medium text-emerald-100/80">
-                Posisi live · akurasi ±{gps.acc} m{inBackground ? " · mode belakang" : ""}
-                {gpsText ? ` · ${gpsText}` : ""}
-              </p>
-            )}
-            {permHint ? <p className="mt-2 text-[11px] text-amber-100/90">{permHint}</p> : null}
           </section>
         )}
 
@@ -670,11 +630,11 @@ export default function FieldClient({
             <p className="mt-1 text-[11px] text-white/60">
               {state.checkedOut
                 ? "Sudah check-out. QRIS hari ini tidak dicatat lagi."
-                : state.checkedIn
+                : !state.checkedOut
                   ? `Tampilkan ke pelanggan. Tercatat di riwayat atas nama ${state.nama}.`
-                  : "Check-in pagi dulu, baru QRIS bisa ditampilkan dan masuk riwayat."}
+                  : "Sudah selesai kerja hari ini."}
             </p>
-            {state.checkedIn && !state.checkedOut && (
+            {!state.checkedOut && (
               <>
                 <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
                   Ambil Lokasi GPS
@@ -705,10 +665,10 @@ export default function FieldClient({
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && (
+        {!state.checkedOut && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold">Nawar di sini</p>
-            <p className="mt-1 text-[11px] text-white/40">Tap saat kamu sedang menawarkan, supaya tempatnya tercatat.</p>
+            <p className="text-sm font-semibold">Catat tempat (opsional)</p>
+            <p className="mt-1 text-[11px] text-white/40">Tidak wajib. GPS sudah otomatis. Ini hanya kalau mau kasih nama toko.</p>
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -749,18 +709,18 @@ export default function FieldClient({
 
         {state.checkedOut && (
           <section className="rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 p-4 text-center">
-            <p className="text-sm font-semibold text-[#d4af37]">Sudah check-out · auto track berhenti</p>
+            <p className="text-sm font-semibold text-[#d4af37]">Selesai kerja · GPS berhenti hari ini</p>
             <p className="mt-1 text-xs text-white/60">
-              Posisi live tidak dikirim lagi. Jejak hari ini tetap ada di riwayat kantor. Check-in ulang baru besok.
+              Jejak hari ini tetap di peta owner. Besok buka app lagi — GPS langsung jalan tanpa check-in.
             </p>
           </section>
         )}
 
-        {state.checkedIn && !state.checkedOut && (
+        {!state.checkedOut && (
           <section className="rounded-2xl border border-white/10 p-4">
-            <p className="text-sm font-semibold">Check-out sore</p>
+            <p className="text-sm font-semibold">Selesai kerja (opsional)</p>
             <p className="mt-1 text-[11px] text-white/40">
-              Saat target hari selesai / pulang. Setelah check-out, auto track berhenti dan posisi live tidak muncul lagi.
+              Hanya kalau mau berhenti kirim GPS hari ini. Tidak wajib tiap pindah tempat.
             </p>
             <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
               Ambil Lokasi GPS
@@ -771,7 +731,7 @@ export default function FieldClient({
               onClick={() => void onSore()}
               className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
             >
-              {busy === "sore" ? "Menyimpan..." : "Check-out"}
+              {busy === "sore" ? "Menyimpan..." : "Selesai kerja hari ini"}
             </button>
           </section>
         )}

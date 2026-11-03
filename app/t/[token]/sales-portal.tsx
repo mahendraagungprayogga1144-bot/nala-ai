@@ -132,9 +132,9 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
                 <span className="max-w-[110px] truncate text-xs font-semibold">{nama}</span>
               </div>
             </div>
-            {trackLive.checkedIn && !trackLive.checkedOut && (
+            {!trackLive.checkedOut && (
               <p className="mx-auto mt-2 max-w-lg rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700">
-                Auto GPS {trackLive.watching ? "aktif" : "menyambung"} · titik terus update meski di menu lain
+                GPS live {trackLive.watching ? "mengirim" : "menyambung"} · tanpa check-in · titik terus update
               </p>
             )}
           </header>

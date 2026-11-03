@@ -45,11 +45,11 @@ export type FieldState = {
 type GpsFix = { lat: number; lng: number; acc: number };
 
 const KIND_LABEL: Record<FieldPoint["kind"], string> = {
-  checkin_pagi: "Check-in pagi",
-  checkin_sore: "Check-in sore",
-  visit: "Nawar di sini",
+  checkin_pagi: "Foto absensi",
+  checkin_sore: "Selesai kerja",
+  visit: "Catat toko",
   ping: "Jejak",
-  qris: "QRIS",
+  qris: "Tampil QRIS",
 };
 
 function clock(iso: string) {
@@ -95,6 +95,8 @@ export default function FieldClient({
   const [qrisUrl, setQrisUrl] = useState("");
   const [showQris, setShowQris] = useState(false);
   const [qrisZoom, setQrisZoom] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const lastSent = useRef(0);
   const lastPos = useRef<GpsFix | null>(null);
   const pingBusy = useRef(false);
@@ -484,34 +486,24 @@ export default function FieldClient({
     }
   }
 
-  const visits = state.points.filter((p) => p.kind !== "ping");
+  // Riwayat ringkas: tanpa ping, QRIS berurutan digabung.
+  const visits = state.points
+    .filter((p) => p.kind !== "ping")
+    .filter((point, index, arr) => !(point.kind === "qris" && arr[index - 1]?.kind === "qris"));
   const light = embedded;
-  const card = light
-    ? "rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-sm"
-    : "rounded-2xl border border-white/10 bg-white/[0.03] p-4";
-  const muted = light ? "text-[#6B6B6B]" : "text-white/40";
-  const soft = light ? "text-[#6B6B6B]" : "text-white/50";
-  const label = light ? "text-[#8A8A8A]" : "text-white/35";
-  const input = light
-    ? "mt-3 w-full rounded-xl border border-[#E8E8E4] bg-[#F7F7F5] px-3 py-3 text-sm outline-none"
-    : "mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm outline-none";
-  const ghostBtn = light
-    ? "mt-3 w-full rounded-xl border border-[#E8E8E4] bg-[#F7F7F5] py-3 text-sm font-semibold"
-    : "mt-3 w-full rounded-xl bg-white/10 py-3 text-sm";
-  const primaryBtn = "mt-2 w-full rounded-xl bg-[#111111] py-3 text-sm font-semibold text-white disabled:opacity-40";
-  const goldBtn = light
-    ? "mt-2 w-full rounded-xl bg-[#B8952A] py-3 text-sm font-semibold text-white disabled:opacity-40"
-    : "mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40";
-  void card; void muted; void soft; void label; void input; void ghostBtn; void primaryBtn; void goldBtn;
+  const shell = light ? "min-h-full touch-pan-y bg-[#F7F7F5] pb-10 text-[#111]" : "min-h-full touch-pan-y bg-[#08080f] pb-10 text-white";
+  const card = light ? "rounded-2xl border border-[#E8E8E4] bg-white p-4" : "rounded-2xl border border-white/10 bg-white/[0.04] p-4";
+  const sub = light ? "text-sm text-[#5C5C5C]" : "text-sm text-white/65";
+  const tiny = light ? "text-xs text-[#6B6B6B]" : "text-xs text-white/55";
+  const ghost = light
+    ? "w-full rounded-2xl border border-[#E8E8E4] bg-[#F7F7F5] py-3.5 text-sm font-semibold text-[#111]"
+    : "w-full rounded-2xl border border-white/15 bg-white/10 py-3.5 text-sm font-semibold text-white";
+  const primary = "w-full rounded-2xl bg-[#111] py-3.5 text-sm font-semibold text-white disabled:opacity-40";
+  const gold = "w-full rounded-2xl bg-[#B8952A] py-3.5 text-sm font-semibold text-white disabled:opacity-40";
+  const live = watching && !state.checkedOut;
 
   return (
-    <main
-      className={
-        light
-          ? "min-h-full touch-pan-y bg-[#F7F7F5] pb-10 text-[#111111]"
-          : "min-h-full touch-pan-y bg-[#08080f] pb-10 text-white"
-      }
-    >
+    <main className={shell}>
       <header
         className={
           light
@@ -520,279 +512,204 @@ export default function FieldClient({
         }
       >
         <div className="flex items-center gap-2">
-          {onBack && (
-            <button type="button" onClick={onBack} className={`rounded-lg border px-2 py-1 text-xs font-semibold ${light ? "border-[#E8E8E4]" : "border-white/15"}`}>
+          {onBack ? (
+            <button type="button" onClick={onBack} className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${light ? "border-[#E8E8E4]" : "border-white/15"}`}>
               Home
             </button>
-          )}
-          <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black ${light ? "bg-[#111] text-white" : "bg-white text-black"}`}>H</span>
+          ) : null}
           <div>
-            <p className="text-sm font-bold">
-              HENIMA <span className="text-[#B8952A]">GPS</span>
-            </p>
-            <p className={`text-[11px] ${light ? "text-[#6B6B6B]" : "text-white/45"}`}>{state.nama} · tanpa login</p>
+            <p className="text-sm font-bold">HENIMA GPS</p>
+            <p className={tiny}>{state.nama}</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh().catch((err) => setError(err.message))}
-          className={`text-xs ${light ? "text-[#6B6B6B]" : "text-white/50"}`}
-        >
+        <button type="button" onClick={() => void refresh().catch((err) => setError(err.message))} className={tiny}>
           Muat ulang
         </button>
       </header>
 
-      <div className={`mx-auto max-w-md space-y-4 px-4 py-5 ${light ? "pb-8" : ""}`}>
-        <p
+      <div className="mx-auto max-w-md space-y-3 px-4 py-4">
+        {/* 1 status besar — biar sales langsung paham */}
+        <section
           className={
-            light
-              ? "rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-center text-[12px] leading-5 text-[#6B6B6B]"
-              : "rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] leading-5 text-white/65"
+            state.checkedOut
+              ? "rounded-2xl border border-[#E8D7A8] bg-[#FFF8E8] p-4"
+              : live
+                ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+                : "rounded-2xl border border-amber-200 bg-amber-50 p-4"
           }
         >
-          Mode Life360: buka link/app → GPS langsung kirim titik terus. Tidak perlu check-in tiap pindah tempat.
-        </p>
-        {error && (
-          <p
-            className={
-              light
-                ? "rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"
-                : "rounded-xl border border-red-500/30 bg-red-950/40 px-3 py-2 text-xs text-red-200"
-            }
-          >
-            {error}
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                state.checkedOut ? "bg-[#B8952A]" : live ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            />
+            <p className="text-base font-bold text-[#111]">
+              {state.checkedOut ? "Selesai kerja hari ini" : live ? "GPS menyala" : "Menyalakan GPS…"}
+            </p>
+          </div>
+          <p className="mt-1 text-sm leading-snug text-[#444]">
+            {state.checkedOut
+              ? "Besok buka app lagi. GPS langsung jalan sendiri."
+              : live
+                ? "Lokasi dikirim otomatis ke owner. Tidak perlu check-in tiap pindah."
+                : "Izinkan lokasi HP dulu."}
           </p>
-        )}
-
-        {!state.checkedOut && (
-          <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <p className="text-sm font-semibold text-emerald-200">
-              GPS live · tanpa check-in{nativeApp ? " · app" : ""}
-            </p>
-            <p className="mt-1 text-xs text-white/60">
-              {watching
-                ? "Titik dikirim otomatis ke peta owner kemanapun kamu bergerak."
-                : "Menyalakan GPS… izinkan lokasi dulu."}
-            </p>
-            <p className="mt-2 text-center text-xs text-white/50">{gpsText}</p>
-            {nativeApp && (
-              <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-3 text-left">
-                <p className="text-xs font-bold text-amber-100">Wajib: Izinkan selalu</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-amber-50/90">
-                  Pilih <span className="font-semibold">Izinkan selalu</span> /{" "}
-                  <span className="font-semibold">Allow all the time</span> supaya titik tetap muncul saat buka WhatsApp.
-                </p>
-                {permHint ? <p className="mt-2 text-[11px] text-amber-50/80">{permHint}</p> : null}
-                <button
-                  type="button"
-                  onClick={() => void openNativeLocationSettings()}
-                  className="mt-3 w-full rounded-xl border border-amber-200/40 bg-black/20 py-2.5 text-xs font-semibold text-amber-50"
-                >
-                  Buka pengaturan lokasi → Izinkan selalu
-                </button>
-              </div>
-            )}
-            <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-white">
-              Segarkan GPS sekarang
+          {!state.checkedOut ? <p className="mt-2 text-xs font-medium text-[#555]">{gpsText}</p> : null}
+          {nativeApp && !state.checkedOut ? (
+            <button type="button" onClick={() => void openNativeLocationSettings()} className={`${ghost} mt-3`}>
+              Izinkan lokasi selalu
             </button>
-            <ul className="mt-3 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
-              <li>Mode Grab: titik dikirim terus (~8 dtk) ke peta owner.</li>
-              <li>Wajib Izinkan selalu + biarkan notifikasi GPS di status bar.</li>
-              <li>Jangan swipe-close / force-stop app — itu yang bikin desk “Senyap”.</li>
-              <li>Opsional: “Selesai kerja” kalau mau berhenti jejak hari ini.</li>
-            </ul>
-            {gps && (
-              <p className="mt-2 text-[11px] font-medium text-emerald-100/80">
-                Posisi live · akurasi ±{gps.acc} m{inBackground ? " · mode belakang" : ""}
-              </p>
-            )}
-          </section>
-        )}
+          ) : null}
+        </section>
 
-        {!state.hasCheckinPagi && !state.checkedOut && (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-center text-sm font-semibold">Foto absensi (opsional)</p>
-            <p className="mt-1 text-center text-[11px] text-white/40">
-              Boleh dilewati — GPS tetap jalan. iPhone: kamera / Galeri OK (otomatis jadi JPG).
-            </p>
-            <label className="mt-4 block">
-              <span className="mb-2 block text-center text-[10px] font-bold tracking-widest text-white/35">FOTO</span>
-              <span className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 px-3 py-4 text-sm text-white/70">
-                {preview ? <img src={preview} alt="Foto lokasi" className="max-h-40 rounded-lg" /> : "Tap foto (opsional)"}
-              </span>
-              <input
-                type="file"
-                accept="image/*,.heic,.heif"
-                capture="environment"
-                className="sr-only"
-                onChange={(e) => {
-                  setPhotoFile(e.target.files?.[0] || null);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-            <button
-              type="button"
-              disabled={!gps || !photo || busy === "pagi"}
-              onClick={() => void onCheckin()}
-              className="mt-2 w-full rounded-xl bg-white/10 py-3 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {busy === "pagi" ? "Menyimpan..." : "Kirim foto absensi"}
-            </button>
-          </section>
-        )}
+        {error ? (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        ) : null}
 
-        {qrisUrl && (
-          <section className="rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 p-4">
-            <p className="text-sm font-semibold text-[#f5d98a]">Bayar QRIS</p>
-            <p className="mt-1 text-[11px] text-white/60">
-              {state.checkedOut
-                ? "Sudah check-out. QRIS hari ini tidak dicatat lagi."
-                : !state.checkedOut
-                  ? `Tampilkan ke pelanggan. Tercatat di riwayat atas nama ${state.nama}.`
-                  : "Sudah selesai kerja hari ini."}
-            </p>
-            {!state.checkedOut && (
-              <>
-                <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
-                  Ambil Lokasi GPS
-                </button>
-                <p className="mt-2 text-center text-xs text-white/50">{gpsText}</p>
-                <button
-                  type="button"
-                  disabled={!gps || busy === "qris"}
-                  onClick={() => void onQris()}
-                  className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
-                >
-                  {busy === "qris" ? "Menyimpan..." : showQris ? "Tampilkan lagi · catat riwayat" : "Tampilkan QRIS"}
-                </button>
-              </>
-            )}
-            {(showQris || (!state.checkedIn && !state.checkedOut)) && (
-              <button
-                type="button"
-                onClick={() => setQrisZoom(true)}
-                className="mt-3 w-full overflow-hidden rounded-xl bg-white p-3 text-left"
-              >
+        {/* Tombol utama: QRIS */}
+        {qrisUrl ? (
+          <section className={card}>
+            <p className="text-base font-bold">Bayar QRIS</p>
+            <p className={`mt-1 ${tiny}`}>Tunjukkan ke pembeli</p>
+            {!state.checkedOut ? (
+              <button type="button" disabled={busy === "qris"} onClick={() => void onQris()} className={`${gold} mt-3`}>
+                {busy === "qris" ? "Menyiapkan…" : showQris ? "Tampilkan QRIS lagi" : "Tampilkan QRIS"}
+              </button>
+            ) : null}
+            {(showQris || state.checkedOut) && (
+              <button type="button" onClick={() => setQrisZoom(true)} className="mt-3 w-full overflow-hidden rounded-xl border border-[#E8E8E4] bg-white p-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrisUrl} alt="QRIS" className="mx-auto max-h-72 w-full object-contain" />
-                <p className="mt-2 text-center text-xs font-semibold text-black">{state.nama} · QRIS</p>
-                <p className="mt-1 text-center text-[11px] font-medium text-black/50">Ketuk untuk perbesar · tunjukkan ke pembeli</p>
+                <img src={qrisUrl} alt="QRIS" className="mx-auto max-h-56 w-full object-contain" />
+                <p className="mt-2 text-center text-xs font-semibold text-[#111]">{state.nama} · ketuk perbesar</p>
               </button>
             )}
           </section>
-        )}
+        ) : null}
 
-        {!state.checkedOut && (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold">Catat tempat (opsional)</p>
-            <p className="mt-1 text-[11px] text-white/40">Tidak wajib. GPS sudah otomatis. Ini hanya kalau mau kasih nama toko.</p>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Toko, kantor, atau nama orang"
-              className="mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm outline-none"
-            />
-            <label className="mt-3 block">
-              <span className="mb-2 block text-[10px] font-bold tracking-widest text-white/35">FOTO DOKUMENTASI</span>
-              <span className="flex min-h-14 cursor-pointer items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 px-3 py-3 text-sm text-white/70">
-                {preview ? <img src={preview} alt="Dokumentasi nawar" className="max-h-36 rounded-lg" /> : "Tap untuk foto tempat nawar"}
-              </span>
-              <input
-                type="file"
-                accept="image/*,.heic,.heif"
-                capture="environment"
-                className="sr-only"
-                onChange={(e) => {
-                  setPhotoFile(e.target.files?.[0] || null);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-            <p className="mt-3 text-center text-xs text-white/50">{gpsText}</p>
-            <button type="button" onClick={grabGps} className="mt-2 w-full rounded-xl bg-white/10 py-3 text-sm">
-              Ambil Lokasi GPS
-            </button>
+        {/* Aksi kerja — cuma 2 tombol besar */}
+        {!state.checkedOut ? (
+          <section className={`${card} space-y-2`}>
+            <p className="text-base font-bold">Aksi cepat</p>
             <button
               type="button"
-              disabled={!gps || busy === "visit"}
-              onClick={() => void onVisit()}
-              className="mt-2 w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold disabled:opacity-40"
+              onClick={() => setShowExtras((v) => !v)}
+              className={ghost}
             >
-              {busy === "visit" ? "Menyimpan..." : "Saya nawar di sini"}
+              {showExtras ? "Tutup · catat toko / foto" : "Catat toko / foto (opsional)"}
             </button>
-          </section>
-        )}
-
-        {state.checkedOut && (
-          <section className="rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 p-4 text-center">
-            <p className="text-sm font-semibold text-[#d4af37]">Selesai kerja · GPS berhenti hari ini</p>
-            <p className="mt-1 text-xs text-white/60">
-              Jejak hari ini tetap di peta owner. Besok buka app lagi — GPS langsung jalan tanpa check-in.
-            </p>
-          </section>
-        )}
-
-        {!state.checkedOut && (
-          <section className="rounded-2xl border border-white/10 p-4">
-            <p className="text-sm font-semibold">Selesai kerja (opsional)</p>
-            <p className="mt-1 text-[11px] text-white/40">
-              Hanya kalau mau berhenti kirim GPS hari ini. Tidak wajib tiap pindah tempat.
-            </p>
-            <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-white/10 py-3 text-sm">
-              Ambil Lokasi GPS
-            </button>
-            <button
-              type="button"
-              disabled={!gps || busy === "sore"}
-              onClick={() => void onSore()}
-              className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f59e0b] py-3 text-sm font-semibold text-[#08080f] disabled:opacity-40"
-            >
-              {busy === "sore" ? "Menyimpan..." : "Selesai kerja hari ini"}
-            </button>
-          </section>
-        )}
-
-        <section>
-          <p className="mb-2 text-[10px] font-bold tracking-widest text-white/35">HARI INI</p>
-          {visits.length === 0 ? (
-            <p className="text-xs text-white/35">Belum ada titik.</p>
-          ) : (
-            <ul className="space-y-2">
-              {visits.map((point) => (
-                <li key={point.id} className="rounded-xl border border-white/10 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2 text-sm">
-                    <span>{KIND_LABEL[point.kind]}</span>
-                    <span className="font-mono text-xs text-white/40">{clock(point.recorded_at)}</span>
-                  </div>
-                  {point.note && <p className="mt-1 text-xs text-white/60">{point.note}</p>}
-                  {point.photo_url && point.kind !== "qris" && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={point.photo_url} alt="" className="mt-2 max-h-40 w-full rounded-lg object-cover" />
-                  )}
-                  {point.kind === "qris" && (
-                    <button type="button" onClick={() => qrisUrl && setQrisZoom(true)} className="mt-2 text-[11px] text-[#d4af37]">
-                      Buka QRIS besar
+            {showExtras ? (
+              <div className="space-y-2 rounded-xl border border-dashed border-[#E8E8E4] bg-[#FAFAF8] p-3">
+                {!state.hasCheckinPagi ? (
+                  <>
+                    <p className="text-sm font-semibold text-[#111]">Foto absensi (boleh dilewati)</p>
+                    <label className="block">
+                      <span className="flex min-h-14 cursor-pointer items-center justify-center rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm text-[#555]">
+                        {preview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={preview} alt="Foto" className="max-h-36 rounded-lg" />
+                        ) : (
+                          "Tap ambil foto"
+                        )}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,.heic,.heif"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={(e) => {
+                          setPhotoFile(e.target.files?.[0] || null);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!gps || !photo || busy === "pagi"}
+                      onClick={() => void onCheckin()}
+                      className={ghost}
+                    >
+                      {busy === "pagi" ? "Menyimpan…" : "Kirim foto absensi"}
                     </button>
-                  )}
-                  {point.late && <p className="mt-1 text-[11px] text-red-300">Lewat batas 09:00</p>}
-                  <a href={point.maps || mapsUrl(point.lat, point.lng)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-[#d4af37]">
-                    Lihat di Maps
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
+                  </>
+                ) : null}
+                <p className="pt-1 text-sm font-semibold text-[#111]">Catat nama toko</p>
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Nama toko / orang"
+                  className="w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm outline-none"
+                />
+                <label className="block">
+                  <span className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm text-[#555]">
+                    {preview ? "Foto siap · ganti?" : "Foto toko (opsional)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.heic,.heif"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(e) => {
+                      setPhotoFile(e.target.files?.[0] || null);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <button type="button" disabled={!gps || busy === "visit"} onClick={() => void onVisit()} className={primary}>
+                  {busy === "visit" ? "Menyimpan…" : "Simpan catat toko"}
+                </button>
+              </div>
+            ) : null}
+            <button type="button" onClick={grabGps} className={ghost}>
+              Segarkan GPS
+            </button>
+            <button type="button" disabled={!gps || busy === "sore"} onClick={() => void onSore()} className={ghost}>
+              {busy === "sore" ? "Menyimpan…" : "Selesai kerja hari ini"}
+            </button>
+          </section>
+        ) : null}
+
+        {/* Riwayat disembunyikan default */}
+        <section className={card}>
+          <button type="button" onClick={() => setShowHistory((v) => !v)} className="flex w-full items-center justify-between text-left">
+            <span className="text-base font-bold text-[#111]">Riwayat hari ini</span>
+            <span className={tiny}>{showHistory ? "Sembunyikan" : `${visits.length} catatan`}</span>
+          </button>
+          {showHistory ? (
+            visits.length === 0 ? (
+              <p className={`mt-3 ${sub}`}>Belum ada catatan.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {visits.slice(0, 8).map((point) => (
+                  <li key={point.id} className="rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-[#111]">{KIND_LABEL[point.kind]}</span>
+                      <span className="font-mono text-xs text-[#666]">{clock(point.recorded_at)}</span>
+                    </div>
+                    {point.note ? <p className="mt-1 text-xs text-[#555]">{point.note}</p> : null}
+                    {point.photo_url && point.kind !== "qris" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={point.photo_url} alt="" className="mt-2 max-h-28 w-full rounded-lg object-cover" />
+                    ) : null}
+                    {point.late ? <p className="mt-1 text-xs font-medium text-rose-600">Lewat 09:00</p> : null}
+                    <a
+                      href={point.maps || mapsUrl(point.lat, point.lng)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs font-semibold text-[#0B57D0]"
+                    >
+                      Buka Maps
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
         </section>
       </div>
 
-      {qrisZoom && qrisUrl && (
-        <div
-          className="fixed inset-0 z-[80] flex flex-col bg-black/95 p-4"
-          role="dialog"
-          aria-label="QRIS besar"
-          onClick={() => setQrisZoom(false)}
-        >
+      {qrisZoom && qrisUrl ? (
+        <div className="fixed inset-0 z-[80] flex flex-col bg-black/95 p-4" role="dialog" aria-label="QRIS besar" onClick={() => setQrisZoom(false)}>
           <div className="flex items-center justify-between pb-3 text-white" onClick={(event) => event.stopPropagation()}>
             <p className="text-sm font-semibold">{state.nama} · QRIS</p>
             <button type="button" onClick={() => setQrisZoom(false)} className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold">
@@ -810,9 +727,8 @@ export default function FieldClient({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={qrisUrl} alt="QRIS" className="max-h-full max-w-full object-contain" />
           </button>
-          <p className="pt-3 text-center text-xs text-white/60">Ketuk di mana saja untuk menutup</p>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }

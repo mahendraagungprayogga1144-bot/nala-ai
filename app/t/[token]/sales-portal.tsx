@@ -256,11 +256,11 @@ function HomeView({
           </button>
         </div>
         <div className="space-y-2">
-          <MenuRow icon={MapPinned} title="Lokasi GPS" desc="Check-in, check-out, foto & jejak" onClick={() => onOpen("lokasi")} />
-          <MenuRow icon={ShoppingBag} title="Catat Penjualan" desc="AFTERNOON & THE DISTANCE" onClick={() => onOpen("jual")} />
-          <MenuRow icon={CreditCard} title="Pembayaran" desc="Tunai, transfer, status lunas" onClick={() => onOpen("bayar")} />
-          <MenuRow icon={FileBarChart} title="Laporan Penjualan" desc="Harian & bulanan" onClick={() => onOpen("laporan")} />
-          <MenuRow icon={Target} title="Target & Bonus" desc="Progress & komisi perusahaan" onClick={() => onOpen("target")} />
+          <MenuRow icon={MapPinned} title="Lokasi GPS" desc="GPS otomatis · QRIS · selesai kerja" onClick={() => onOpen("lokasi")} />
+          <MenuRow icon={ShoppingBag} title="Catat Penjualan" desc="Input order & jumlah" onClick={() => onOpen("jual")} />
+          <MenuRow icon={CreditCard} title="Pembayaran" desc="Lunas / belum · bukti transfer" onClick={() => onOpen("bayar")} />
+          <MenuRow icon={FileBarChart} title="Laporan" desc="Omzet hari ini & bulan" onClick={() => onOpen("laporan")} />
+          <MenuRow icon={Target} title="Target & Bonus" desc="Progress target bulanan" onClick={() => onOpen("target")} />
         </div>
       </section>
 

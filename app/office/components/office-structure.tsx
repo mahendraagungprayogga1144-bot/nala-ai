@@ -5,8 +5,8 @@ import * as THREE from "three";
 import { FLOOR, ROOMS, WALL, WALLS } from "@/lib/office/layout";
 import RoomLabel from "./room-label";
 
-const WALL_COLOR = "#F7F4EF";
-const SITE = "#FFFFFF";
+const WALL_COLOR = "#F4F0FF";
+const SITE = "#F3F0F8";
 
 const WINDOW_SLOTS_X = [-5.4, -2.7, 0, 2.7, 5.4] as const;
 const WINDOW_SLOTS_Z = [-3.5, 0, 3.5] as const;
@@ -56,6 +56,32 @@ function makeHenimaWallTexture() {
   return texture;
 }
 
+function makeHenimaHoloTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D tidak tersedia");
+  ctx.clearRect(0, 0, 512, 512);
+  const ring = ctx.createRadialGradient(256, 256, 40, 256, 256, 240);
+  ring.addColorStop(0, "rgba(56,189,248,0.55)");
+  ring.addColorStop(0.55, "rgba(124,58,237,0.28)");
+  ring.addColorStop(1, "rgba(124,58,237,0)");
+  ctx.fillStyle = ring;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillStyle = "#E0F2FE";
+  ctx.font = "800 96px Geist, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#38BDF8";
+  ctx.shadowBlur = 36;
+  ctx.fillText("Henima", 256, 256);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 function HenimaWallSign({
   position,
   rotationY = 0,
@@ -70,6 +96,31 @@ function HenimaWallSign({
       <planeGeometry args={[2.4, 1.05]} />
       <meshBasicMaterial map={texture} transparent />
     </mesh>
+  );
+}
+
+function HenimaLobbyHologram() {
+  const texture = useMemo(() => makeHenimaHoloTexture(), []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return (
+    <group position={[0, FLOOR.top + 0.95, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.72, 0]}>
+        <circleGeometry args={[1.35, 48]} />
+        <meshBasicMaterial color="#7C3AED" transparent opacity={0.18} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.55, 32, 32]} />
+        <meshBasicMaterial color="#38BDF8" transparent opacity={0.22} />
+      </mesh>
+      <mesh position={[0, 0, 0.02]}>
+        <planeGeometry args={[2.2, 2.2]} />
+        <meshBasicMaterial map={texture} transparent depthWrite={false} />
+      </mesh>
+      <mesh rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[2.2, 2.2]} />
+        <meshBasicMaterial map={texture} transparent depthWrite={false} />
+      </mesh>
+    </group>
   );
 }
 
@@ -126,11 +177,12 @@ export default function OfficeStructure() {
         </mesh>
       ))}
 
-      {/* Brand dinding koridor: Henima (mengganti tulisan AI di mock). */}
+      {/* Brand dinding + hologram lobby: Henima (bukan AI). */}
       <HenimaWallSign position={[-4.55, FLOOR.top + 0.62, -0.98]} />
       <HenimaWallSign position={[-4.55, FLOOR.top + 0.62, 0.98]} rotationY={Math.PI} />
       <HenimaWallSign position={[4.55, FLOOR.top + 0.62, -0.98]} />
       <HenimaWallSign position={[4.55, FLOOR.top + 0.62, 0.98]} rotationY={Math.PI} />
+      <HenimaLobbyHologram />
     </group>
   );
 }

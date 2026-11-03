@@ -62,7 +62,7 @@ export default function OfficeScene({
         onCreated={({ gl }) => {
           gl.shadowMap.enabled = false;
           gl.toneMapping = NoToneMapping;
-          gl.setClearColor("#F3F0F8", 1);
+          gl.setClearColor("#EDE8F8", 1);
         }}
       >
         <ambientLight intensity={0.74} />

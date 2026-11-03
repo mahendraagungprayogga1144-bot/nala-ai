@@ -99,8 +99,15 @@ export default function DashboardShell({
     );
   }
 
-  // Kantor AI: isi layar penuh di HP, tanpa scroll ganda + header shell tetap ada.
-  const fillViewport = pathname?.startsWith("/office");
+  // Kantor AI: shell sendiri (layout terang + sidebar agen), tanpa chrome dashboard gelap.
+  if (pathname?.startsWith("/office")) {
+    return (
+      <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[#F3F0F8] text-[#1A1630]">
+        <SyncActiveBusiness businessId={activeBusiness?.id} />
+        <div className="min-h-0 flex-1">{children}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
@@ -171,15 +178,14 @@ export default function DashboardShell({
 
       <main
         className={[
-          "w-full min-w-0 max-w-full flex-1 overflow-x-hidden bg-[#070711]",
-          fillViewport ? "flex flex-col overflow-hidden" : "overflow-y-auto",
+          "w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto bg-[#070711]",
           "pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]",
           "md:pt-0 md:pb-0",
           expanded ? "md:ml-[232px]" : "md:ml-16",
           "md:transition-[margin-left] md:duration-[220ms] md:ease-[cubic-bezier(0.4,0,0.2,1)]",
         ].join(" ")}
       >
-        {!fillViewport && showAnnounce ? (
+        {showAnnounce ? (
           <div className="flex items-start gap-3 border-b border-[#38BDF8]/25 bg-[#38BDF8]/10 px-4 py-2.5 text-sm text-[#E0F2FE]">
             <p className="min-w-0 flex-1 leading-relaxed">
               {announcement!.message}
@@ -209,8 +215,8 @@ export default function DashboardShell({
             </button>
           </div>
         ) : null}
-        {!fillViewport ? <TrialBanner /> : null}
-        {fillViewport ? <div className="min-h-0 flex-1">{children}</div> : children}
+        <TrialBanner />
+        {children}
       </main>
     </div>
   );

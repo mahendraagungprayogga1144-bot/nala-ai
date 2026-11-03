@@ -11,15 +11,17 @@ import type { OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
 const OfficeScene = dynamic(() => import("./office-scene"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center text-sm text-slate-500">Menyiapkan kantor…</div>
+    <div className="absolute inset-0 grid place-items-center bg-white text-sm text-slate-500">Menyiapkan kantor…</div>
   ),
 });
 
 export default function OfficeClient({
   businessName,
+  userName,
   initialSnapshot,
 }: {
   businessName: string;
+  userName: string;
   initialSnapshot: OfficeSnapshot;
 }) {
   const { snapshot, setSnapshot } = useOfficeCrew(initialSnapshot);
@@ -32,8 +34,8 @@ export default function OfficeClient({
 
   const selected = snapshot.agents.find((agent) => agent.id === selectedId) ?? null;
 
-  return (
-    <div className="relative h-full min-h-0 overflow-hidden bg-white text-slate-100">
+  const scene = (
+    <>
       {mode && graphics.webgl ? (
         <OfficeScene
           agents={snapshot.agents}
@@ -50,25 +52,33 @@ export default function OfficeClient({
         <OfficePlanFallback agents={snapshot.agents} selectedId={selectedId} onSelect={setSelectedId} />
       ) : null}
       {!graphics.ready ? (
-        <div className="absolute inset-0 grid place-items-center text-sm text-slate-500">Menyiapkan kantor…</div>
+        <div className="absolute inset-0 grid place-items-center bg-white text-sm text-slate-500">Menyiapkan kantor…</div>
       ) : null}
-      {mode ? (
-        <OfficeHud
-          snapshot={snapshot}
-          businessName={businessName}
-          selected={selected}
-          mode={mode}
-          webgl={graphics.webgl}
-          weak={graphics.weak}
-          onSelect={setSelectedId}
-          onMode={setModeOverride}
-          onReset={() => {
-            setSelectedId(null);
-            setResetToken((token) => token + 1);
-          }}
-          onSnapshot={setSnapshot}
-        />
-      ) : null}
-    </div>
+    </>
+  );
+
+  if (!mode) {
+    return <div className="relative h-full min-h-0 overflow-hidden bg-[#F3F0F8]">{scene}</div>;
+  }
+
+  return (
+    <OfficeHud
+      snapshot={snapshot}
+      businessName={businessName}
+      userName={userName}
+      selected={selected}
+      mode={mode}
+      webgl={graphics.webgl}
+      weak={graphics.weak}
+      onSelect={setSelectedId}
+      onMode={setModeOverride}
+      onReset={() => {
+        setSelectedId(null);
+        setResetToken((token) => token + 1);
+      }}
+      onSnapshot={setSnapshot}
+    >
+      {scene}
+    </OfficeHud>
   );
 }

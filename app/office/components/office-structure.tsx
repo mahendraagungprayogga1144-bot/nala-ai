@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
+import * as THREE from "three";
 import { FLOOR, ROOMS, WALL, WALLS } from "@/lib/office/layout";
 import RoomLabel from "./room-label";
 
@@ -29,6 +31,47 @@ function facadeWindows(): Opening[] {
 }
 
 const WINDOWS = facadeWindows();
+
+function makeHenimaWallTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D tidak tersedia");
+  ctx.fillStyle = "#1E1B4B";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const glow = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  glow.addColorStop(0, "#7C3AED");
+  glow.addColorStop(1, "#38BDF8");
+  ctx.fillStyle = glow;
+  ctx.font = "700 92px Geist, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#A78BFA";
+  ctx.shadowBlur = 28;
+  ctx.fillText("Henima", canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function HenimaWallSign({
+  position,
+  rotationY = 0,
+}: {
+  position: readonly [number, number, number];
+  rotationY?: number;
+}) {
+  const texture = useMemo(() => makeHenimaWallTexture(), []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return (
+    <mesh position={position} rotation={[0, rotationY, 0]}>
+      <planeGeometry args={[2.4, 1.05]} />
+      <meshBasicMaterial map={texture} transparent />
+    </mesh>
+  );
+}
 
 export default function OfficeStructure() {
   return (
@@ -82,6 +125,12 @@ export default function OfficeStructure() {
           <meshLambertMaterial color="#7DD3FC" />
         </mesh>
       ))}
+
+      {/* Brand dinding koridor: Henima (mengganti tulisan AI di mock). */}
+      <HenimaWallSign position={[-4.55, FLOOR.top + 0.62, -0.98]} />
+      <HenimaWallSign position={[-4.55, FLOOR.top + 0.62, 0.98]} rotationY={Math.PI} />
+      <HenimaWallSign position={[4.55, FLOOR.top + 0.62, -0.98]} />
+      <HenimaWallSign position={[4.55, FLOOR.top + 0.62, 0.98]} rotationY={Math.PI} />
     </group>
   );
 }

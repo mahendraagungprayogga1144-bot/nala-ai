@@ -24,6 +24,18 @@ export default async function OfficePage() {
     }
 
     const snapshot = await loadOfficeSnapshot(business.id);
-    return <OfficeClient key={business.id} businessName={business.name} initialSnapshot={snapshot} />;
+    const userName =
+      (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name) ||
+      (typeof user.user_metadata?.name === "string" && user.user_metadata.name) ||
+      user.email?.split("@")[0] ||
+      "Founder";
+    return (
+      <OfficeClient
+        key={business.id}
+        businessName={business.name}
+        userName={userName}
+        initialSnapshot={snapshot}
+      />
+    );
   });
 }

@@ -5,7 +5,23 @@
 
 export type GeoFix = { lat: number; lng: number; acc: number };
 
+export type NativeLocationPermission = {
+  ok: boolean;
+  /** true kalau foreground location granted (fine/coarse). */
+  foreground: boolean;
+  message: string;
+};
+
 type WatchHandle = { stop: () => void };
+
+type BgGeo = {
+  addWatcher: (
+    options: Record<string, unknown>,
+    cb: (location?: { latitude: number; longitude: number; accuracy?: number; time?: number }, error?: { code?: string; message?: string }) => void,
+  ) => Promise<string>;
+  removeWatcher: (options: { id: string }) => Promise<void>;
+  openSettings: () => Promise<void>;
+};
 
 function browserFix(pos: GeolocationPosition): GeoFix {
   return {
@@ -13,6 +29,11 @@ function browserFix(pos: GeolocationPosition): GeoFix {
     lng: pos.coords.longitude,
     acc: Math.round(pos.coords.accuracy),
   };
+}
+
+async function backgroundGeo(): Promise<BgGeo> {
+  const { registerPlugin } = await import("@capacitor/core");
+  return registerPlugin<BgGeo>("BackgroundGeolocation");
 }
 
 export async function isNativeApp() {
@@ -24,13 +45,63 @@ export async function isNativeApp() {
   }
 }
 
+/** Buka pengaturan lokasi app — user pilih "Izinkan selalu / Allow all the time". */
+export async function openNativeLocationSettings() {
+  if (!(await isNativeApp())) return;
+  try {
+    const bg = await backgroundGeo();
+    await bg.openSettings();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Minta izin lokasi di app. Untuk tracking belakang, Android perlu
+ * "Izinkan selalu" — setelah grant foreground, arahkan user ke settings.
+ */
+export async function ensureNativeLocationPermissions(): Promise<NativeLocationPermission> {
+  if (!(await isNativeApp())) {
+    return { ok: true, foreground: true, message: "" };
+  }
+
+  try {
+    const { Geolocation } = await import("@capacitor/geolocation");
+    let status = await Geolocation.checkPermissions();
+    if (status.location !== "granted" && status.coarseLocation !== "granted") {
+      status = await Geolocation.requestPermissions({ permissions: ["location", "coarseLocation"] });
+    }
+    const foreground = status.location === "granted" || status.coarseLocation === "granted";
+    if (!foreground) {
+      return {
+        ok: false,
+        foreground: false,
+        message: 'Lokasi ditolak. Di pengaturan HP pilih "Izinkan selalu" untuk Henima Sales.',
+      };
+    }
+    return {
+      ok: true,
+      foreground: true,
+      message:
+        'Untuk GPS jalan terus di belakang: buka pengaturan lokasi app → pilih "Izinkan selalu" / Allow all the time.',
+    };
+  } catch {
+    return {
+      ok: false,
+      foreground: false,
+      message: "Gagal meminta izin lokasi. Buka pengaturan HP.",
+    };
+  }
+}
+
 export async function readNativeOrBrowserGps(): Promise<GeoFix> {
   if (await isNativeApp()) {
+    await ensureNativeLocationPermissions();
     const { Geolocation } = await import("@capacitor/geolocation");
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 20000,
-      maximumAge: 3000,
+      timeout: 25000,
+      maximumAge: 0,
     });
     return {
       lat: pos.coords.latitude,
@@ -57,28 +128,31 @@ export async function watchNativeOrBrowserGps(
   onError?: (message: string) => void,
 ): Promise<WatchHandle> {
   if (await isNativeApp()) {
+    const perm = await ensureNativeLocationPermissions();
+    if (!perm.ok) {
+      onError?.(perm.message);
+    }
+
     try {
-      // Plugin community — lebih tahan saat app di belakang / layar mati (Android).
-      const { registerPlugin } = await import("@capacitor/core");
-      type BgGeo = {
-        addWatcher: (
-          options: Record<string, unknown>,
-          cb: (location?: { latitude: number; longitude: number; accuracy?: number }, error?: Error) => void,
-        ) => Promise<string>;
-        removeWatcher: (options: { id: string }) => Promise<void>;
-      };
-      const BackgroundGeolocation = registerPlugin<BgGeo>("BackgroundGeolocation");
+      const BackgroundGeolocation = await backgroundGeo();
       const id = await BackgroundGeolocation.addWatcher(
         {
-          backgroundMessage: "Henima sedang melacak lokasi sales. Berhenti setelah check-out.",
-          backgroundTitle: "Henima · auto track aktif",
+          backgroundMessage:
+            "Henima mengirim GPS terus. Jangan force-stop. Pilih izin lokasi: Izinkan selalu.",
+          backgroundTitle: "Henima · GPS auto track",
           requestPermissions: true,
           stale: false,
-          // Update lebih sering biar titik di peta selalu nempel saat bergerak.
-          distanceFilter: 8,
+          // Update lebih rapat agar titik akurat saat bergerak.
+          distanceFilter: 5,
         },
         (location, error) => {
           if (error) {
+            if (error.code === "NOT_AUTHORIZED") {
+              onError?.(
+                'Izin lokasi kurang. Tap "Buka pengaturan lokasi" lalu pilih Izinkan selalu.',
+              );
+              return;
+            }
             onError?.(error.message || "GPS native gagal.");
             return;
           }
@@ -99,7 +173,7 @@ export async function watchNativeOrBrowserGps(
       // Fallback Geolocation Capacitor (tanpa background service).
       const { Geolocation } = await import("@capacitor/geolocation");
       const id = await Geolocation.watchPosition(
-        { enableHighAccuracy: true, timeout: 25000 },
+        { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 },
         (pos, err) => {
           if (err || !pos) {
             onError?.(err?.message || "GPS gagal.");
@@ -128,16 +202,15 @@ export async function watchNativeOrBrowserGps(
   const watchId = navigator.geolocation.watchPosition(
     (pos) => onFix(browserFix(pos)),
     (err) => onError?.(err.message || "GPS gagal."),
-    { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
   );
-  // Heartbeat ketat: Chrome sering pause watchPosition saat tab di belakang.
   const heartbeat = window.setInterval(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => onFix(browserFix(pos)),
       () => undefined,
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
     );
-  }, 18_000);
+  }, 15_000);
 
   return {
     stop: () => {

@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { mapsUrl } from "@/lib/henima-tracking/shared";
-import { isNativeApp, readNativeOrBrowserGps, watchNativeOrBrowserGps } from "@/lib/henima-tracking/native-geo";
+import {
+  ensureNativeLocationPermissions,
+  isNativeApp,
+  openNativeLocationSettings,
+  readNativeOrBrowserGps,
+  watchNativeOrBrowserGps,
+} from "@/lib/henima-tracking/native-geo";
 
 export type FieldPoint = {
   id: string;
@@ -81,6 +87,7 @@ export default function FieldClient({
   const [watching, setWatching] = useState(false);
   const [inBackground, setInBackground] = useState(false);
   const [nativeApp, setNativeApp] = useState(false);
+  const [permHint, setPermHint] = useState("");
   const [qrisUrl, setQrisUrl] = useState("");
   const [showQris, setShowQris] = useState(false);
   const [qrisZoom, setQrisZoom] = useState(false);
@@ -188,7 +195,12 @@ export default function FieldClient({
   }
 
   useEffect(() => {
-    void isNativeApp().then(setNativeApp);
+    void isNativeApp().then(async (native) => {
+      setNativeApp(native);
+      if (!native) return;
+      const perm = await ensureNativeLocationPermissions();
+      setPermHint(perm.message);
+    });
   }, []);
 
   useEffect(() => {
@@ -201,22 +213,40 @@ export default function FieldClient({
 
   function grabGps() {
     setError("");
-    setGpsText("Mengambil lokasi GPS...");
-    void readNativeOrBrowserGps()
-      .then((fix) => {
-        setGps(fix);
-        setGpsText(`Lokasi didapat. Akurasi ${fix.acc} m${nativeApp ? " · app" : ""}`);
-      })
-      .catch((err: unknown) => {
+    setGpsText("Mengambil lokasi GPS akurat...");
+    void (async () => {
+      if (nativeApp) {
+        const perm = await ensureNativeLocationPermissions();
+        setPermHint(perm.message);
+        if (!perm.ok) {
+          setGpsText(perm.message);
+          setError(perm.message);
+          return;
+        }
+      }
+      try {
+        // Ambil 2–3 kali, pakai yang akurasinya terbaik.
+        let best: { lat: number; lng: number; acc: number } | null = null;
+        for (let i = 0; i < 3; i++) {
+          const fix = await readNativeOrBrowserGps();
+          if (!best || fix.acc < best.acc) best = fix;
+          if (fix.acc <= 25) break;
+          await new Promise((r) => setTimeout(r, 900));
+        }
+        if (!best) throw new Error("GPS kosong");
+        setGps(best);
+        setGpsText(`Lokasi didapat. Akurasi ±${best.acc} m${nativeApp ? " · app" : ""}`);
+      } catch (err: unknown) {
         const msg =
           err && typeof err === "object" && "code" in err && (err as { code: number }).code === 1
-            ? "Izinkan akses lokasi di HP."
+            ? 'Izinkan lokasi. Pilih "Izinkan selalu".'
             : err instanceof Error && /timeout/i.test(err.message)
-              ? "GPS timeout. Coba lagi di tempat terbuka."
-              : "GPS gagal. Nyalakan lokasi.";
+              ? "GPS timeout. Coba di tempat terbuka (langit terlihat)."
+              : "GPS gagal. Nyalakan lokasi HP.";
         setGpsText(msg);
         setError(msg);
-      });
+      }
+    })();
   }
 
   useEffect(() => {
@@ -247,14 +277,14 @@ export default function FieldClient({
     const pushPing = (fix: GpsFix, force = false) => {
       if (!alive) return;
       setGps(fix);
-      setGpsText(`Live · akurasi ±${fix.acc} m${document.hidden ? " · belakang" : ""}`);
+      setGpsText(`Live · akurasi ±${fix.acc} m · mengirim terus${document.hidden ? " · belakang" : ""}`);
       setWatching(true);
       const prev = lastPos.current;
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      // Minimal tiap ~15 detik, atau segera kalau sudah pindah ~8–10 m.
-      const stale = Date.now() - lastSent.current > 15_000;
-      const movedEnough = moved >= 0.00008;
-      const accLimit = document.hidden || nativeApp ? 400 : 280;
+      // Native: kirim tiap ~12 dtk / pindah ~5 m. Skip titik jelek kecuali force.
+      const stale = Date.now() - lastSent.current > (nativeApp ? 12_000 : 15_000);
+      const movedEnough = moved >= (nativeApp ? 0.000045 : 0.00008);
+      const accLimit = nativeApp ? 120 : document.hidden ? 400 : 280;
       if (!force && fix.acc > accLimit) return;
       if (!force && !stale && !movedEnough) return;
       flushPing(fix);
@@ -308,8 +338,9 @@ export default function FieldClient({
 
     void watchNativeOrBrowserGps(
       (fix) => pushPing(fix),
-      () => {
-        if (!document.hidden) setWatching(false);
+      (message) => {
+        setWatching(false);
+        if (message) setPermHint(message);
       },
     ).then((handle) => {
       if (!alive) {
@@ -317,14 +348,15 @@ export default function FieldClient({
         return;
       }
       stopWatch = handle.stop;
+      setWatching(true);
     });
 
-    // Paksa update berkala supaya titik tetap nempel meski diam / sinyal jelek.
+    // Paksa kirim berkala supaya titik tetap update meski diam / sinyal jelek.
     const forceTimer = window.setInterval(() => {
       void readNativeOrBrowserGps()
         .then((fix) => pushPing(fix, true))
         .catch(() => undefined);
-    }, 20_000);
+    }, nativeApp ? 12_000 : 20_000);
 
     const softRefresh = window.setInterval(() => {
       void refresh().catch(() => undefined);
@@ -549,8 +581,26 @@ export default function FieldClient({
             </label>
             <p className="mt-4 text-center text-[10px] font-bold tracking-widest text-white/35">LOKASI GPS</p>
             <p className="mt-1 text-center text-xs text-white/50">{gpsText}</p>
+            {nativeApp && (
+              <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-3 text-left">
+                <p className="text-xs font-bold text-amber-100">Wajib: Izinkan selalu</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-amber-50/90">
+                  Saat HP minta izin lokasi, pilih <span className="font-semibold">Izinkan selalu</span> /{" "}
+                  <span className="font-semibold">Allow all the time</span> — jangan “Hanya saat dipakai”.
+                  Tanpa itu GPS berhenti saat WhatsApp dibuka.
+                </p>
+                {permHint ? <p className="mt-2 text-[11px] text-amber-50/80">{permHint}</p> : null}
+                <button
+                  type="button"
+                  onClick={() => void openNativeLocationSettings()}
+                  className="mt-3 w-full rounded-xl border border-amber-200/40 bg-black/20 py-2.5 text-xs font-semibold text-amber-50"
+                >
+                  Buka pengaturan lokasi → Izinkan selalu
+                </button>
+              </div>
+            )}
             <button type="button" onClick={grabGps} className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-white">
-              Ambil Lokasi GPS
+              Ambil Lokasi GPS akurat
             </button>
             <button
               type="button"
@@ -562,8 +612,8 @@ export default function FieldClient({
             </button>
             <p className="mt-2 text-center text-[11px] text-white/45">
               {nativeApp
-                ? "App Henima Sales: sekali check-in, GPS native ikut sampai check-out — boleh keluar app lain."
-                : "Auto track: sekali check-in, lokasi ikut sampai check-out. Boleh keluar Chrome — jangan tutup tab. Lebih kuat pakai app Henima Sales."}
+                ? "Setelah check-in, app kirim GPS terus sampai check-out (boleh buka WhatsApp)."
+                : "Auto track di Chrome lemah di belakang. Pakai app Henima Sales + Izinkan selalu."}
             </p>
           </section>
         )}
@@ -571,20 +621,29 @@ export default function FieldClient({
         {state.checkedIn && !state.checkedOut && (
           <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
             <p className="text-sm font-semibold text-emerald-200">
-              Auto track aktif{nativeApp ? " · app" : ""}
+              Auto GPS mengirim terus{nativeApp ? " · app" : ""}
             </p>
             <p className="mt-1 text-xs text-white/60">
               {watching
                 ? nativeApp
-                  ? "GPS native aktif (bisa di belakang). Boleh buka WhatsApp/Maps. Berhenti setelah check-out."
+                  ? "Titik dikirim otomatis ke owner. Notifikasi “Henima · GPS auto track” harus tetap ada."
                   : "Lokasi dikirim otomatis. Boleh buka app lain — tab Henima tetap di belakang."
-                : "Izinkan GPS + notifikasi. Setelah check-in, tracking jalan sampai check-out."}
+                : "GPS belum aktif. Izinkan lokasi (Izinkan selalu) lalu tunggu sebentar."}
             </p>
+            {nativeApp && (
+              <button
+                type="button"
+                onClick={() => void openNativeLocationSettings()}
+                className="mt-3 w-full rounded-xl border border-emerald-200/30 bg-black/20 py-2.5 text-xs font-semibold text-emerald-50"
+              >
+                Buka pengaturan → pilih Izinkan selalu
+              </button>
+            )}
             <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
               {nativeApp ? (
                 <>
-                  <li>App boleh di belakang — tracking tetap jalan.</li>
-                  <li>Jangan force-stop app dari pengaturan HP.</li>
+                  <li>Izin lokasi: Izinkan selalu (bukan hanya saat dipakai).</li>
+                  <li>Jangan force-stop / batasi baterai untuk Henima Sales.</li>
                   <li>Berhenti hanya setelah check-out sore.</li>
                 </>
               ) : (
@@ -601,6 +660,7 @@ export default function FieldClient({
                 {gpsText ? ` · ${gpsText}` : ""}
               </p>
             )}
+            {permHint ? <p className="mt-2 text-[11px] text-amber-100/90">{permHint}</p> : null}
           </section>
         )}
 

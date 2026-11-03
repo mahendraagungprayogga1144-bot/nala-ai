@@ -359,15 +359,15 @@ export default function OfficeHud({
             <Stat label="Penggunaan AI" value={`${usage || 92}%`} trend="+5%" seed={4} />
           </div>
 
-          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_280px] gap-3 overflow-hidden xl:grid-cols-[minmax(0,1fr)_300px]">
-            <section className="relative min-h-0 overflow-hidden rounded-[28px] border border-white bg-[#EEEAF8] shadow-[0_20px_60px_rgba(70,40,130,0.1)]">
+          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_260px] gap-3 overflow-hidden xl:grid-cols-[minmax(0,1fr)_280px]">
+            <section className="relative min-h-0 overflow-hidden rounded-[28px] border border-white bg-[#E8E2F6] shadow-[0_20px_60px_rgba(70,40,130,0.1)]">
               {stage === "showcase" ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/office-henima-hero.jpg"
                     alt="Kantor AI Henima"
-                    className="absolute inset-0 h-full w-full object-contain object-center"
+                    className="absolute inset-0 h-full w-full object-cover object-[18%_55%]"
                     draggable={false}
                   />
                   {/* Orang di kiri kirim notif HR lewat bubble */}
@@ -523,7 +523,7 @@ export default function OfficeHud({
           </div>
           <section className="relative aspect-[16/10] overflow-hidden rounded-[24px] border border-white bg-[#EEEAF8] shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/office-henima-hero.jpg" alt="" className="absolute inset-0 h-full w-full object-contain" draggable={false} />
+            <img src="/office-henima-hero.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-[16%_60%]" draggable={false} />
             <button type="button" onClick={openAlertAgent} className="absolute top-3 left-2 z-10 w-[46%] max-w-[12rem] text-left">
               <div
                 className={[

@@ -10,15 +10,17 @@ export function isFieldAppAllowedPath(pathname: string) {
   if (pathname.startsWith("/_next")) return true;
   if (pathname.startsWith("/icon")) return true;
   if (pathname === "/favicon.ico" || pathname === "/apple-touch-icon.png") return true;
-  if (pathname.startsWith("/manifest")) return true;
+  if (pathname.startsWith("/manifest") || pathname.startsWith("/t/manifest")) return true;
+  if (pathname.startsWith("/downloads/")) return true;
   if (pathname === "/sw.js" || pathname.startsWith("/workbox")) return true;
   return false;
 }
 
-/** URL APK yang bisa diunduh sales (host di Drive/Blob/CDN). */
+/** URL APK yang bisa diunduh sales (env override, atau file di /downloads). */
 export function getHenimaSalesApkUrl() {
   const raw = process.env.NEXT_PUBLIC_HENIMA_SALES_APK_URL?.trim();
-  return raw || "";
+  if (raw) return raw;
+  return "/downloads/henima-sales.apk";
 }
 
 export function fieldTokenStorageKey() {

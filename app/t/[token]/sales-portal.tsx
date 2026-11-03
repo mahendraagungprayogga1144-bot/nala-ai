@@ -12,6 +12,7 @@ import {
   Target,
 } from "lucide-react";
 import { rememberFieldToken } from "@/lib/henima-tracking/field-app";
+import InstallToHome from "../install-to-home";
 import FieldClient, { type FieldState } from "./field-client";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -237,6 +238,8 @@ function HomeView({
           Muat ulang data
         </button>
       </section>
+
+      <InstallToHome />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Total Penjualan" value={rp(stats?.omzetHari || 0)} hint="Hari ini" />

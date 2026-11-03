@@ -36,6 +36,8 @@ export default function InstallAppBanner() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Field sales /t pakai panduan Henima sendiri, jangan campur banner Gercep OS
+    if (window.location.pathname.startsWith("/t")) return;
     if (isStandalone()) return;
     if (!isMobileUa()) return;
     if (localStorage.getItem(DISMISS_KEY) === "1") return;

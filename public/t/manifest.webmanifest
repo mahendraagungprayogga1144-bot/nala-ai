@@ -1,0 +1,33 @@
+{
+  "name": "Henima Sales",
+  "short_name": "Henima Sales",
+  "description": "App sales lapangan HENIMA — GPS, catat jual, bayar, laporan.",
+  "start_url": "/t",
+  "scope": "/t",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F7F7F5",
+  "theme_color": "#111111",
+  "lang": "id",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

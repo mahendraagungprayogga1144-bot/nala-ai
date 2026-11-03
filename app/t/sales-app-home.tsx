@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { getHenimaSalesApkUrl, readRememberedFieldToken } from "@/lib/henima-tracking/field-app";
 import { isNativeApp } from "@/lib/henima-tracking/native-geo";
+import InstallToHome from "./install-to-home";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -51,8 +52,14 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
       <p className="mt-2 text-sm text-[#6B6B6B]">
         {native
           ? "App khusus tracking & catat jual. Tidak membuka Gercep OS internal."
-          : "Pakai link dari leader, atau install app Android supaya GPS lebih kuat di belakang."}
+          : "iPhone: pasang ke layar utama dari Safari. Android: APK atau Install app."}
       </p>
+
+      {!native ? (
+        <div className="mt-5">
+          <InstallToHome apkUrl={downloadUrl} />
+        </div>
+      ) : null}
 
       {native ? (
         <div className="mt-6 space-y-3">
@@ -87,20 +94,8 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
         <div className="mt-6 space-y-3">
           <p className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm text-[#6B6B6B]">
             Minta <span className="font-semibold text-[#111]">link HP</span> ke leader (tombol Salin Link HP di
-            Tracking). Jangan pakai login Gercep OS.
+            Tracking). Buka di Safari → pasang ke layar utama. Jangan pakai login Gercep OS.
           </p>
-          {downloadUrl ? (
-            <a
-              href={downloadUrl}
-              className="flex w-full items-center justify-center rounded-2xl bg-[#111] py-3.5 text-sm font-semibold text-white"
-            >
-              Unduh app Android Henima Sales
-            </a>
-          ) : (
-            <p className="text-xs text-[#8A8A8A]">
-              App Android: minta file APK ke leader (belum ada link unduhan publik).
-            </p>
-          )}
         </div>
       )}
     </main>

@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import OfficeWorkPanel from "./office-work-panel";
-import OfficeFounderGuide from "./office-founder-guide";
+import OfficeThemeAlert from "./office-theme-alert";
 import { DIVISION_LABEL, placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
 import { createClient } from "@/lib/supabase/client";
 import { clearFastGateCookies } from "@/lib/auth/post-login";
@@ -361,27 +361,38 @@ export default function OfficeHud({
           </div>
 
           <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_260px] gap-3 overflow-hidden xl:grid-cols-[minmax(0,1fr)_280px]">
-            <section className="relative min-h-0 overflow-hidden rounded-[28px] border border-white bg-[#E8E2F6] shadow-[0_20px_60px_rgba(70,40,130,0.1)]">
-              {/* Area tengah = kantor live 3D: orang divisi jalan & kerja di dalam ruangan */}
-              <div className="absolute inset-0">{children}</div>
+            <section className="relative min-h-0 overflow-hidden rounded-[28px] border border-white bg-[#EEEAF8] shadow-[0_20px_60px_rgba(70,40,130,0.1)]">
               {stage === "showcase" ? (
-                <OfficeFounderGuide
-                  greetName={greetName}
-                  alert={activeAlert}
-                  alertIndex={alertIndex}
-                  alertTotal={alerts.length}
-                  onOpen={openAlertAgent}
-                />
+                <>
+                  {/* Tema mock asli: artwork kantor + karakter satu komposisi */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/office-henima-hero.jpg"
+                    alt="Kantor AI Henima"
+                    className="absolute inset-0 h-full w-full object-cover object-center"
+                    draggable={false}
+                  />
+                  <OfficeThemeAlert
+                    greetName={greetName}
+                    alert={activeAlert}
+                    alertIndex={alertIndex}
+                    alertTotal={alerts.length}
+                    onOpen={openAlertAgent}
+                  />
+                </>
               ) : (
-                <button
-                  type="button"
-                  onClick={onReset}
-                  className="absolute top-3 left-3 z-20 rounded-xl border border-white bg-white/95 px-2.5 py-1 text-[11px] font-bold text-[#5B5678] shadow-sm"
-                >
-                  Semua ruang
-                </button>
+                <>
+                  <div className="absolute inset-0">{children}</div>
+                  <button
+                    type="button"
+                    onClick={onReset}
+                    className="absolute top-3 left-3 z-20 rounded-xl border border-white bg-white/95 px-2.5 py-1 text-[11px] font-bold text-[#5B5678] shadow-sm"
+                  >
+                    Semua ruang
+                  </button>
+                  {weak ? <p className="absolute bottom-3 left-3 z-20 rounded-lg bg-white/90 px-2 py-1 text-[10px] text-[#7A7594]">Mode ringan aktif</p> : null}
+                </>
               )}
-              {weak ? <p className="absolute bottom-3 left-3 z-20 rounded-lg bg-white/90 px-2 py-1 text-[10px] text-[#7A7594]">Mode ringan aktif</p> : null}
             </section>
 
             <aside className="flex min-h-0 flex-col gap-3 overflow-hidden">
@@ -482,8 +493,9 @@ export default function OfficeHud({
             <Stat label="Penggunaan AI" value={`${usage || 92}%`} trend="+5%" seed={4} />
           </div>
           <section className="relative aspect-[16/10] overflow-hidden rounded-[24px] border border-white bg-[#EEEAF8] shadow-sm">
-            <div className="absolute inset-0">{children}</div>
-            <OfficeFounderGuide
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/office-henima-hero.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-center" draggable={false} />
+            <OfficeThemeAlert
               greetName={greetName}
               alert={activeAlert}
               alertIndex={alertIndex}

@@ -341,7 +341,7 @@ export default function FieldClient({
         .catch(() => undefined);
       if (!hidden) {
         void holdWake();
-        void showTrackNotice();
+        void startFieldTrackingNotify({ nama: state.nama });
       }
     }
 

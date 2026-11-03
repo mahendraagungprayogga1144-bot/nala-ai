@@ -18,9 +18,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const role = getAdminRole(user.email, settings) || "owner";
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#070711", color: "#F2F1F8" }}>
+    <div className="flex min-h-[100dvh] overflow-x-hidden" style={{ background: "#070711", color: "#F2F1F8" }}>
       <AdminSidebar role={role} />
-      <main className="ml-0 min-w-0 flex-1 md:ml-[220px]">{children}</main>
+      <main className="ml-0 min-w-0 flex-1 pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] md:ml-[220px] md:pt-0 md:pb-0">
+        {children}
+      </main>
     </div>
   );
 }

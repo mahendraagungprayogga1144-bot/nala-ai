@@ -12,6 +12,7 @@ import {
   Target,
 } from "lucide-react";
 import { rememberFieldToken } from "@/lib/henima-tracking/field-app";
+import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
 import InstallToHome from "../install-to-home";
 import FieldClient, { type FieldState } from "./field-client";
 
@@ -386,8 +387,9 @@ function SaleView({
     try {
       let proofPath: string | null = null;
       if (proof) {
+        const ready = await prepareFieldPhoto(proof);
         const form = new FormData();
-        form.append("file", proof);
+        form.append("file", ready);
         const up = await fetch(`/api/henima-tracking/field/${token}/sales`, { method: "POST", body: form });
         const upJson = await up.json();
         if (!up.ok) throw new Error(upJson.error || "Upload bukti gagal.");

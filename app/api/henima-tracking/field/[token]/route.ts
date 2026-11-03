@@ -49,16 +49,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     );
 
     const checkedOut = points.some((point) => point.kind === "checkin_sore");
-    // Life360: tracking aktif tanpa wajib check-in pagi (ada titik hari ini = sudah "masuk" mode jejak).
+    const hasCheckinPagi = points.some((point) => point.kind === "checkin_pagi");
+    // Life360: tracking aktif tanpa wajib check-in pagi (ada titik hari ini = mode jejak).
     const checkedIn =
       !checkedOut &&
-      (points.some((point) => point.kind === "checkin_pagi") ||
+      (hasCheckinPagi ||
         points.some((point) => point.kind === "ping" || point.kind === "visit" || point.kind === "qris"));
     return NextResponse.json({
       date: win.ymd,
       points,
       checkedIn,
       checkedOut,
+      hasCheckinPagi,
       qrisUrl,
     });
   } catch (err) {

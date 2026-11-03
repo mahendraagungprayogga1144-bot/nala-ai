@@ -125,6 +125,7 @@ export async function publicTrackingState(token: string) {
     beforeDuty: hour < 7,
     checkedIn: false,
     checkedOut: false,
+    hasCheckinPagi: false,
     points: [] as {
       id: string;
       kind: TrackingPoint["kind"];

@@ -11,6 +11,7 @@ import {
   watchNativeOrBrowserGps,
 } from "@/lib/henima-tracking/native-geo";
 import { startFieldTrackingNotify, stopFieldTrackingNotify } from "@/lib/henima-tracking/field-notify";
+import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
 
 export type FieldPoint = {
   id: string;
@@ -36,6 +37,8 @@ export type FieldState = {
   beforeDuty: boolean;
   checkedIn: boolean;
   checkedOut: boolean;
+  /** Ada check-in pagi (foto absensi) hari ini — beda dari tracking ping. */
+  hasCheckinPagi?: boolean;
   points: FieldPoint[];
 };
 
@@ -96,56 +99,91 @@ export default function FieldClient({
   const lastPos = useRef<GpsFix | null>(null);
   const pingBusy = useRef(false);
   const pendingPing = useRef<GpsFix | null>(null);
+  const pingFailStreak = useRef(0);
+  const previewUrl = useRef("");
 
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
+    return () => {
+      if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  function setPhotoFile(file: File | null) {
+    setPhoto(file);
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = file ? URL.createObjectURL(file) : "";
+    setPreview(previewUrl.current);
+  }
 
   async function refresh() {
     const response = await fetch(`/api/henima-tracking/field/${token}`, { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(json.error || "Gagal memuat jejak hari ini.");
+    const points = (json.points || []) as FieldPoint[];
+    const hasCheckinPagi =
+      typeof json.hasCheckinPagi === "boolean"
+        ? json.hasCheckinPagi
+        : points.some((point) => point.kind === "checkin_pagi");
     setState((prev) => ({
       ...prev,
       date: json.date || prev.date,
-      points: (json.points || []) as FieldPoint[],
+      points,
       checkedIn: Boolean(json.checkedIn),
       checkedOut: Boolean(json.checkedOut),
+      hasCheckinPagi,
     }));
     setQrisUrl(typeof json.qrisUrl === "string" ? json.qrisUrl : "");
   }
 
   async function uploadPhoto(file: File) {
-    const type = file.type || "image/jpeg";
-    if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(type)) {
-      throw new Error("Foto harus JPG, PNG, atau WEBP.");
-    }
-    if (file.size > 5 * 1024 * 1024) throw new Error("Foto maksimal 5MB.");
+    const ready = await prepareFieldPhoto(file);
     const form = new FormData();
-    form.append("file", file);
+    form.append("file", ready);
     const response = await fetch(`/api/henima-tracking/field/${token}/photo`, { method: "POST", body: form });
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(json.error || "Upload foto gagal.");
     return String(json.path);
   }
 
-  async function send(kind: FieldPoint["kind"], fix: GpsFix, file?: File | null, place?: string) {
-    if (fix.acc > 250 && kind !== "ping") {
+  async function resolveActionGps(fix: GpsFix, kind: FieldPoint["kind"]): Promise<GpsFix> {
+    if (kind === "ping" || fix.acc <= 250) return fix;
+    // Live force-ping sering kasar — untuk absensi/nawar/QRIS ambil ulang akurat.
+    try {
+      let best = fix;
+      for (let i = 0; i < 3; i++) {
+        const next = await readNativeOrBrowserGps();
+        if (next.acc < best.acc) best = next;
+        if (best.acc <= 80) break;
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      setGps(best);
+      setGpsText(`Lokasi didapat. Akurasi ±${best.acc} m${nativeApp ? " · app" : ""}`);
+      if (best.acc > 250) {
+        throw new Error("Sinyal GPS masih kasar. Ambil lokasi lagi di tempat terbuka.");
+      }
+      return best;
+    } catch (err) {
+      if (err instanceof Error && /kasar|GPS|lokasi|timeout/i.test(err.message)) throw err;
       throw new Error("Sinyal GPS masih kasar. Ambil lokasi lagi di tempat terbuka.");
     }
+  }
+
+  async function send(kind: FieldPoint["kind"], fix: GpsFix, file?: File | null, place?: string) {
+    const useFix = await resolveActionGps(fix, kind);
     let photoPath: string | null = null;
     if (file) photoPath = await uploadPhoto(file);
 
     const supabase = createClient();
-    const accuracy = Math.round(fix.acc);
+    const accuracy = Math.round(useFix.acc);
     const error =
       kind === "checkin_pagi"
         ? (
             await supabase.rpc("henima_tracking_field_checkin", {
               p_token: token,
-              p_lat: fix.lat,
-              p_lng: fix.lng,
+              p_lat: useFix.lat,
+              p_lng: useFix.lng,
               p_accuracy_m: accuracy,
               p_photo_path: photoPath,
             })
@@ -154,8 +192,8 @@ export default function FieldClient({
           ? (
               await supabase.rpc("henima_tracking_field_checkout", {
                 p_token: token,
-                p_lat: fix.lat,
-                p_lng: fix.lng,
+                p_lat: useFix.lat,
+                p_lng: useFix.lng,
                 p_accuracy_m: accuracy,
                 p_photo_path: photoPath,
               })
@@ -164,8 +202,8 @@ export default function FieldClient({
             ? (
                 await supabase.rpc("henima_tracking_field_kunjungan", {
                   p_token: token,
-                  p_lat: fix.lat,
-                  p_lng: fix.lng,
+                  p_lat: useFix.lat,
+                  p_lng: useFix.lng,
                   p_accuracy_m: accuracy,
                   p_note: place || null,
                   p_photo_path: photoPath,
@@ -175,22 +213,22 @@ export default function FieldClient({
               ? (
                   await supabase.rpc("henima_tracking_field_qris", {
                     p_token: token,
-                    p_lat: fix.lat,
-                    p_lng: fix.lng,
+                    p_lat: useFix.lat,
+                    p_lng: useFix.lng,
                     p_accuracy_m: accuracy,
                   })
                 ).error
               : (
                   await supabase.rpc("henima_tracking_field_titik", {
                     p_token: token,
-                    p_lat: fix.lat,
-                    p_lng: fix.lng,
+                    p_lat: useFix.lat,
+                    p_lng: useFix.lng,
                     p_accuracy_m: accuracy,
                   })
                 ).error;
     if (error) throw new Error(pesanDb(error.message));
     lastSent.current = Date.now();
-    lastPos.current = fix;
+    lastPos.current = useFix;
     // Ping sering — jangan refresh full setiap titik (bikin lag & skip update).
     if (kind !== "ping") await refresh();
   }
@@ -266,7 +304,17 @@ export default function FieldClient({
       }
       pingBusy.current = true;
       void send("ping", fix)
-        .catch(() => undefined)
+        .then(() => {
+          pingFailStreak.current = 0;
+        })
+        .catch((err) => {
+          pingFailStreak.current += 1;
+          if (pingFailStreak.current <= 2 || pingFailStreak.current % 8 === 0) {
+            const msg = err instanceof Error ? err.message : "Gagal kirim titik GPS.";
+            setError(`GPS: ${msg}`);
+            setGpsText(`Gagal kirim · ${msg}`);
+          }
+        })
         .finally(() => {
           pingBusy.current = false;
           const queued = pendingPing.current;
@@ -372,8 +420,7 @@ export default function FieldClient({
     setError("");
     try {
       await send("checkin_pagi", gps, photo);
-      setPhoto(null);
-      setPreview("");
+      setPhotoFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal check-in.");
     } finally {
@@ -391,8 +438,7 @@ export default function FieldClient({
     try {
       await send("visit", gps, photo, note);
       setNote("");
-      setPhoto(null);
-      setPreview("");
+      setPhotoFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan tempat nawar.");
     } finally {
@@ -563,10 +609,12 @@ export default function FieldClient({
           </section>
         )}
 
-        {!state.checkedIn && !state.checkedOut && (
+        {!state.hasCheckinPagi && !state.checkedOut && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-center text-sm font-semibold">Foto absensi (opsional)</p>
-            <p className="mt-1 text-center text-[11px] text-white/40">Boleh dilewati — GPS tetap jalan tanpa ini.</p>
+            <p className="mt-1 text-center text-[11px] text-white/40">
+              Boleh dilewati — GPS tetap jalan. iPhone: kamera / Galeri OK (otomatis jadi JPG).
+            </p>
             <label className="mt-4 block">
               <span className="mb-2 block text-center text-[10px] font-bold tracking-widest text-white/35">FOTO</span>
               <span className="flex min-h-16 cursor-pointer items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 px-3 py-4 text-sm text-white/70">
@@ -574,13 +622,12 @@ export default function FieldClient({
               </span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,.heic,.heif"
                 capture="environment"
                 className="sr-only"
                 onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setPhoto(file);
-                  setPreview(file ? URL.createObjectURL(file) : "");
+                  setPhotoFile(e.target.files?.[0] || null);
+                  e.target.value = "";
                 }}
               />
             </label>
@@ -653,13 +700,12 @@ export default function FieldClient({
               </span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,.heic,.heif"
                 capture="environment"
                 className="sr-only"
                 onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setPhoto(file);
-                  setPreview(file ? URL.createObjectURL(file) : "");
+                  setPhotoFile(e.target.files?.[0] || null);
+                  e.target.value = "";
                 }}
               />
             </label>

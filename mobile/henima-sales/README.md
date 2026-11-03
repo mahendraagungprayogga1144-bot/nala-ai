@@ -58,9 +58,13 @@ Kalau Run gagal, buat file APK lalu kirim WhatsApp/Drive:
 
 ## Alur sales
 
-1. Founder salin link HP (`/t/{token}`) dari dashboard Henima Tracking.
-2. Sales buka link itu **di dalam app Henima Sales** (paste di Chrome in-app / buka dari notifikasi).
-3. Check-in pagi sekali → auto track GPS native sampai check-out.
+1. Founder build APK → kirim ke sales (atau set `NEXT_PUBLIC_HENIMA_SALES_APK_URL` di Vercel supaya tombol Unduh muncul).
+2. Sales install **Henima Sales** (bukan login Gercep OS).
+3. Founder salin link HP (`/t/{token}`) dari dashboard Henima Tracking.
+4. Sales tap link di WA → pilih **Henima Sales**, atau buka app lalu paste link.
+5. Check-in pagi sekali → auto track GPS native sampai check-out.
+
+App **hanya** boleh `/t/...` + API field. Percobaan buka `/dashboard`, `/login`, dll digiring balik ke `/t`.
 
 ## URL custom (staging)
 

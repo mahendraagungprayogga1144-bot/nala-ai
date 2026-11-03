@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   Target,
 } from "lucide-react";
+import { rememberFieldToken } from "@/lib/henima-tracking/field-app";
 import FieldClient, { type FieldState } from "./field-client";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -91,8 +92,9 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
   }, [token]);
 
   useEffect(() => {
+    rememberFieldToken(token);
     void refresh().catch((err) => setLoadError(err instanceof Error ? err.message : "Gagal memuat."));
-  }, [refresh]);
+  }, [refresh, token]);
 
   const nama = data?.actor.nama || field.nama;
 

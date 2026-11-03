@@ -1,22 +1,22 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
- * App membungkus situs live Gercep/Henima.
- * Sales buka link /t/{token} di dalam WebView + GPS native background.
+ * App lapangan: hanya pintu /t (Sales Portal), bukan homepage Gercep OS.
+ * Navigasi ke /dashboard dll diblok di proxy + FieldAppGuard.
  */
 const config: CapacitorConfig = {
   appId: "id.gercepos.henima.sales",
   appName: "Henima Sales",
   webDir: "www",
   server: {
-    // Ganti ke preview/staging lewat env bila perlu.
-    url: process.env.HENIMA_MOBILE_URL || "https://gercepos.id",
+    // Entry field-only — jangan root situs (bisa ke login/dashboard).
+    url: process.env.HENIMA_MOBILE_URL || "https://www.gercepos.id/t",
     cleartext: false,
-    allowNavigation: ["gercepos.id", "*.gercepos.id", "*.vercel.app"],
+    allowNavigation: ["gercepos.id", "www.gercepos.id", "*.gercepos.id", "*.vercel.app"],
   },
   android: {
     allowMixedContent: false,
-    backgroundColor: "#08080f",
+    backgroundColor: "#F7F7F5",
   },
   plugins: {
     Geolocation: {

@@ -12,6 +12,7 @@ import { isAdminEmail, FALLBACK_ADMIN_EMAIL } from "@/lib/auth/admin";
 import { getPlatformSettings } from "@/lib/admin/settings";
 import { homeForBizType } from "@/lib/auth/post-login";
 import { daysLeft, trialStillOpen } from "@/lib/auth/trial";
+import { HENIMA_FIELD_APP_COOKIE, isFieldAppAllowedPath } from "@/lib/henima-tracking/field-app";
 
 function isSignedInSurface(pathname: string) {
   return pathname.startsWith("/dashboard") || pathname.startsWith("/office");
@@ -43,6 +44,11 @@ function redirectTo(request: NextRequest, path: string, response?: NextResponse)
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  // App Henima Sales (Cap WebView): kunci ke /t + API field saja — jangan buka Gercep OS.
+  if (request.cookies.get(HENIMA_FIELD_APP_COOKIE)?.value === "1" && !isFieldAppAllowedPath(pathname)) {
+    return redirectTo(request, "/t");
+  }
 
   // Public pages without session cookie: skip Supabase entirely (fast)
   if (!needsAuth(pathname) && !isAuthPage(pathname) && !hasAuthCookie(request)) {

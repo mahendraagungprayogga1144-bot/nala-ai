@@ -372,6 +372,27 @@ export default function TrackingDesk({
                 </span>
               </>
             )}
+            {process.env.NEXT_PUBLIC_HENIMA_SALES_APK_URL ? (
+              <a
+                href={process.env.NEXT_PUBLIC_HENIMA_SALES_APK_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center rounded-xl border border-[#111] bg-[#111] px-3 text-xs font-bold text-white"
+                title="APK khusus lapangan — bukan Gercep OS"
+              >
+                Unduh App Sales
+              </a>
+            ) : (
+              <a
+                href="/t"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center rounded-xl border border-[#E8E8E4] bg-white px-3 text-xs font-semibold text-[#0F172A]"
+                title="Pintu app lapangan (bukan dashboard)"
+              >
+                Pintu App Sales
+              </a>
+            )}
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E8E8E4] bg-white text-[#6B6B6B]" title="Belum ada notifikasi">
               <Bell size={16} />
             </span>

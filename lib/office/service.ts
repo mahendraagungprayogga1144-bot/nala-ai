@@ -15,6 +15,7 @@ import {
   STOK_AGENT_ID,
   WA_AGENT_ID,
   type OfficeAgent,
+  type OfficeAlert,
   type OfficeSnapshot,
 } from "./types";
 import {
@@ -168,6 +169,90 @@ function hrWorking(facts: OfficeFacts) {
   if (!facts.staff.ok || !facts.staff.rows.length) return false;
   if (!facts.points.ok) return false;
   return facts.points.rows.some((p) => p.kind === "checkin_pagi" || p.late);
+}
+
+function buildHrAlerts(facts: OfficeFacts): OfficeAlert[] {
+  const alerts: OfficeAlert[] = [];
+  if (!facts.staff.ok) {
+    alerts.push({
+      id: "hr-staff-down",
+      agent_id: HR_AGENT_ID,
+      title: "HR butuh perhatian",
+      body: facts.staff.notice || "Data tim belum terbaca.",
+      tone: "warn",
+    });
+    return alerts;
+  }
+  const team = facts.staff.rows;
+  if (!team.length) {
+    alerts.push({
+      id: "hr-empty",
+      agent_id: HR_AGENT_ID,
+      title: "Tim masih kosong",
+      body: "Belum ada anggota sales aktif di HR.",
+      tone: "info",
+    });
+    return alerts;
+  }
+  if (!facts.points.ok) {
+    alerts.push({
+      id: "hr-track-down",
+      agent_id: HR_AGENT_ID,
+      title: "Tracking belum siap",
+      body: facts.points.notice || "Kehadiran hari ini belum terbaca.",
+      tone: "warn",
+    });
+    return alerts;
+  }
+
+  const morning = facts.points.rows.filter((p) => p.kind === "checkin_pagi");
+  const morningIds = new Set(morning.map((p) => p.staff_id));
+  const lateIds = [...new Set(facts.points.rows.filter((p) => p.late).map((p) => p.staff_id))];
+  const missing = team.filter((row) => !morningIds.has(row.id));
+
+  if (lateIds.length) {
+    const names = lateIds.slice(0, 3).map((id) => staffName(facts, id));
+    const more = lateIds.length > 3 ? ` +${lateIds.length - 3}` : "";
+    alerts.push({
+      id: "hr-late",
+      agent_id: HR_AGENT_ID,
+      title: `${lateIds.length} orang telat`,
+      body: `${names.join(", ")}${more}. Cek Divisi HR.`,
+      tone: "warn",
+    });
+  }
+
+  if (missing.length) {
+    const names = missing.slice(0, 3).map((row) => row.nama);
+    const more = missing.length > 3 ? ` +${missing.length - 3}` : "";
+    alerts.push({
+      id: "hr-missing",
+      agent_id: HR_AGENT_ID,
+      title: `${missing.length} belum check-in`,
+      body: `${names.join(", ")}${more} belum absen pagi.`,
+      tone: "warn",
+    });
+  }
+
+  if (!morning.length) {
+    alerts.push({
+      id: "hr-none",
+      agent_id: HR_AGENT_ID,
+      title: "Belum ada check-in",
+      body: `${team.length} orang di tim, belum ada yang absen pagi.`,
+      tone: "info",
+    });
+  } else if (!lateIds.length && !missing.length) {
+    alerts.push({
+      id: "hr-ok",
+      agent_id: HR_AGENT_ID,
+      title: "Kehadiran aman",
+      body: `Semua ${team.length} orang sudah check-in pagi tepat waktu.`,
+      tone: "ok",
+    });
+  }
+
+  return alerts;
 }
 
 function hrAnswer(facts: OfficeFacts, question: string, label: string) {
@@ -433,6 +518,7 @@ export function buildOfficeSnapshot(
     },
   ];
   const working = agents.filter((agent) => agent.status === "working");
+  const alerts = buildHrAlerts(facts);
   return {
     business_id: facts.businessId,
     agents,
@@ -440,6 +526,7 @@ export function buildOfficeSnapshot(
     crew_total: agents.length,
     tasks_running: working.filter((agent) => agent.current_task).length,
     notices: [...noticesOf(facts), ...(wa?.notice ? [wa.notice] : [])],
+    alerts,
     wa_path: wa?.path ?? null,
     wa_url: wa?.path ? `${getPublicShareOrigin()}${wa.path}` : null,
     products: facts.products.ok

@@ -44,6 +44,15 @@ export type OfficeProductBrief = {
   unit: string | null;
 };
 
+/** Notifikasi singkat yang dikirim mascot founder di kiri. */
+export type OfficeAlert = {
+  id: string;
+  agent_id: string;
+  title: string;
+  body: string;
+  tone: "info" | "warn" | "ok";
+};
+
 export type OfficeSnapshot = {
   business_id: string;
   agents: OfficeAgent[];
@@ -52,6 +61,8 @@ export type OfficeSnapshot = {
   tasks_running: number;
   /** Kosong kalau semua sumber terbaca. Kalau satu sumber gagal, hanya sumber itu yang disebut. */
   notices: string[];
+  /** Notif live dari agen (HR dulu) untuk bubble orang di kiri. */
+  alerts: OfficeAlert[];
   products: OfficeProductBrief[];
   /** Path publik `/w/...`. Kosong kalau tautan belum bisa dibuat. */
   wa_path: string | null;

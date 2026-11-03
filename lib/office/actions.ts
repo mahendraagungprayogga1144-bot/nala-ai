@@ -32,6 +32,7 @@ async function freshOrEmpty(businessId: string): Promise<OfficeSnapshot> {
       crew_total: 0,
       tasks_running: 0,
       notices: ["Data kantor belum bisa dimuat. Coba muat ulang."],
+      alerts: [],
       products: [],
       wa_path: null,
       wa_url: null,

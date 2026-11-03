@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -22,7 +22,7 @@ import OfficeWorkPanel from "./office-work-panel";
 import { DIVISION_LABEL, placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
 import { createClient } from "@/lib/supabase/client";
 import { clearFastGateCookies } from "@/lib/auth/post-login";
-import type { AgentStatus, OfficeAgent, OfficeDivision, OfficeSnapshot, OfficeViewMode } from "@/lib/office/types";
+import { HR_AGENT_ID, type AgentStatus, type OfficeAgent, type OfficeDivision, type OfficeSnapshot, type OfficeViewMode } from "@/lib/office/types";
 
 const DIVISIONS: { id: "semua" | OfficeDivision; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "semua", label: "Ringkasan", icon: LayoutDashboard },
@@ -88,6 +88,8 @@ export default function OfficeHud({
   const [navOpen, setNavOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState<StageMode>("showcase");
+  const [alertIndex, setAlertIndex] = useState(0);
+  const alerts = snapshot.alerts ?? [];
   const visible = useMemo(() => {
     const base = division === "semua" ? snapshot.agents : snapshot.agents.filter((agent) => agent.division === division);
     const q = query.trim().toLowerCase();
@@ -102,6 +104,27 @@ export default function OfficeHud({
     const vals = [22, 30, 38, 52, 46, 60, 70, 64, 78, 86, 80, Math.max(45, productivity)];
     return vals.map((v, i) => `${(i / (vals.length - 1)) * 100},${100 - v}`).join(" ");
   }, [productivity]);
+  const alertKey = useMemo(() => alerts.map((a) => a.id).join("|"), [alerts]);
+  const activeAlert = alerts.length ? alerts[alertIndex % alerts.length] : null;
+  const warnCount = alerts.filter((a) => a.tone === "warn").length;
+
+  useEffect(() => {
+    setAlertIndex(0);
+  }, [snapshot.business_id, alertKey]);
+
+  useEffect(() => {
+    if (alerts.length < 2) return;
+    const timer = window.setInterval(() => {
+      setAlertIndex((i) => (i + 1) % alerts.length);
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [alerts.length, snapshot.business_id, alertKey]);
+
+  const openAlertAgent = () => {
+    const agentId = activeAlert?.agent_id || HR_AGENT_ID;
+    onSelect(agentId);
+    setDivision("hr");
+  };
 
   const setLive = (value: OfficeViewMode) => {
     setStage(value);
@@ -307,12 +330,25 @@ export default function OfficeHud({
                   );
                 })}
               </div>
-              {[Sun, Bell, Maximize2].map((Icon, i) => (
-                <span key={i} className="relative grid h-10 w-10 place-items-center rounded-2xl border border-white bg-white text-[#7A7594] shadow-sm">
-                  <Icon size={16} />
-                  {i === 1 && snapshot.notices.length ? <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-rose-500" /> : null}
-                </span>
-              ))}
+              <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white bg-white text-[#7A7594] shadow-sm">
+                <Sun size={16} />
+              </span>
+              <button
+                type="button"
+                aria-label="Notifikasi HR"
+                onClick={openAlertAgent}
+                className="relative grid h-10 w-10 place-items-center rounded-2xl border border-white bg-white text-[#7A7594] shadow-sm"
+              >
+                <Bell size={16} />
+                {warnCount || alerts.length ? (
+                  <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                    {warnCount || alerts.length}
+                  </span>
+                ) : null}
+              </button>
+              <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white bg-white text-[#7A7594] shadow-sm">
+                <Maximize2 size={16} />
+              </span>
             </div>
           </header>
 
@@ -334,14 +370,44 @@ export default function OfficeHud({
                     className="absolute inset-0 h-full w-full object-contain object-center"
                     draggable={false}
                   />
-                  {/* Satu bubble saja, di atas kepala karakter — tidak nutup lobby */}
-                  <div className="pointer-events-none absolute top-[8%] left-[4%] z-10 w-[200px] max-w-[28%]">
-                    <div className="rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] px-3 py-2.5 text-white shadow-[0_12px_28px_rgba(91,33,182,0.4)]">
-                      <p className="text-[12px] font-bold leading-snug">Semangat hari ini, {greetName}!</p>
-                      <p className="mt-0.5 text-[10px] leading-snug text-violet-100">Henima Agent siap membantu bisnis Anda.</p>
+                  {/* Orang di kiri kirim notif HR lewat bubble */}
+                  <button
+                    type="button"
+                    onClick={openAlertAgent}
+                    className="absolute top-[7%] left-[3%] z-10 w-[220px] max-w-[30%] text-left"
+                  >
+                    <div
+                      className={[
+                        "rounded-2xl px-3 py-2.5 text-white shadow-[0_12px_28px_rgba(91,33,182,0.4)]",
+                        activeAlert?.tone === "warn"
+                          ? "bg-gradient-to-br from-[#F59E0B] to-[#DC2626]"
+                          : activeAlert?.tone === "ok"
+                            ? "bg-gradient-to-br from-[#34D399] to-[#059669]"
+                            : "bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9]",
+                      ].join(" ")}
+                    >
+                      <p className="text-[10px] font-semibold tracking-wide text-white/80 uppercase">
+                        {activeAlert ? "Notif HR" : "Henima"}
+                        {alerts.length > 1 ? ` · ${ (alertIndex % alerts.length) + 1}/${alerts.length}` : ""}
+                      </p>
+                      <p className="mt-0.5 text-[12px] font-bold leading-snug">
+                        {activeAlert?.title || `Semangat hari ini, ${greetName}!`}
+                      </p>
+                      <p className="mt-0.5 line-clamp-3 text-[10px] leading-snug text-white/90">
+                        {activeAlert?.body || "Henima Agent siap membantu bisnis Anda."}
+                      </p>
                     </div>
-                    <div className="ml-5 h-0 w-0 border-t-8 border-r-8 border-t-transparent border-r-[#6D28D9]" />
-                  </div>
+                    <div
+                      className={[
+                        "ml-5 h-0 w-0 border-t-8 border-r-8 border-t-transparent",
+                        activeAlert?.tone === "warn"
+                          ? "border-r-[#DC2626]"
+                          : activeAlert?.tone === "ok"
+                            ? "border-r-[#059669]"
+                            : "border-r-[#6D28D9]",
+                      ].join(" ")}
+                    />
+                  </button>
                 </>
               ) : (
                 <>
@@ -458,12 +524,22 @@ export default function OfficeHud({
           <section className="relative aspect-[16/10] overflow-hidden rounded-[24px] border border-white bg-[#EEEAF8] shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/office-henima-hero.jpg" alt="" className="absolute inset-0 h-full w-full object-contain" draggable={false} />
-            <div className="pointer-events-none absolute top-3 left-2 z-10 w-[42%] max-w-[11rem]">
-              <div className="rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] px-2.5 py-2 text-white shadow-lg">
-                <p className="text-[11px] font-bold leading-snug">Semangat hari ini, {greetName}!</p>
-                <p className="mt-0.5 text-[9px] text-violet-100">Henima Agent siap membantu.</p>
+            <button type="button" onClick={openAlertAgent} className="absolute top-3 left-2 z-10 w-[46%] max-w-[12rem] text-left">
+              <div
+                className={[
+                  "rounded-2xl px-2.5 py-2 text-white shadow-lg",
+                  activeAlert?.tone === "warn"
+                    ? "bg-gradient-to-br from-[#F59E0B] to-[#DC2626]"
+                    : activeAlert?.tone === "ok"
+                      ? "bg-gradient-to-br from-[#34D399] to-[#059669]"
+                      : "bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9]",
+                ].join(" ")}
+              >
+                <p className="text-[9px] font-semibold text-white/80 uppercase">{activeAlert ? "Notif HR" : "Henima"}</p>
+                <p className="text-[11px] font-bold leading-snug">{activeAlert?.title || `Semangat, ${greetName}!`}</p>
+                <p className="mt-0.5 line-clamp-2 text-[9px] text-white/90">{activeAlert?.body || "Henima Agent siap membantu."}</p>
               </div>
-            </div>
+            </button>
           </section>
           <div className="rounded-[24px] bg-gradient-to-br from-[#8B5CF6] to-[#5B21B6] p-4 text-white">
             <p className="text-sm font-bold">AI Agent Anda berjalan dengan optimal!</p>

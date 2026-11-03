@@ -4,7 +4,7 @@ export type Vec2 = readonly [number, number];
 
 export const FLOOR = { width: 16.2, depth: 12.4, top: 0.08 } as const;
 
-export const WALL = { height: 1.05, thickness: 0.12 } as const;
+export const WALL = { height: 1.45, thickness: 0.12 } as const;
 
 export type RoomLayout = {
   id: OfficeRoomId;
@@ -96,4 +96,57 @@ export function salesPantryLoop(chair: Vec2): Vec2[] {
     [0, 0],
     [-1.45, -1.55],
   ];
+}
+
+/** Patrol dalam ruangan supaya agen divisi terlihat jalan & kerja. */
+export function roomPatrol(room: OfficeRoomId): Vec2[] {
+  const r = roomById(room);
+  const [cx, cz] = r.center;
+  const hx = r.size[0] * 0.28;
+  const hz = r.size[1] * 0.28;
+  return [
+    [cx - hx, cz - hz],
+    [cx + hx, cz - hz],
+    [cx + hx, cz + hz],
+    [cx - hx, cz + hz],
+  ];
+}
+
+/** Jalur jalan agen selasar / divisi (bukan duduk di meja). */
+export function hallPatrol(agentId: string): Vec2[] {
+  switch (agentId) {
+    case "balas-wa":
+      return [
+        [0, 0],
+        [1.2, -0.8],
+        [0, -1.6],
+        [-1.2, -0.8],
+        [0, 0],
+        [0.9, 1.1],
+        [-0.9, 1.1],
+      ];
+    case "meja-software":
+      return roomPatrol("founder");
+    case "divisi-sosmed":
+      return roomPatrol("sales");
+    case "divisi-marketing":
+      return roomPatrol("ops");
+    case "divisi-hr":
+      return [
+        [0, -1.85],
+        [-1.6, -0.4],
+        [0, 0.6],
+        [1.6, -0.4],
+        [0, -1.85],
+        ...roomPatrol("founder").slice(0, 2),
+      ];
+    case "laporan-harian":
+      return roomPatrol("founder");
+    case "monitor-sales":
+      return roomPatrol("sales");
+    case "stok-produksi":
+      return roomPatrol("ops");
+    default:
+      return [crewSpot(agentId)];
+  }
 }

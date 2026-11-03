@@ -37,12 +37,15 @@ export function useOfficeGraphics() {
     const read = () => {
       const cores = navigator.hardwareConcurrency;
       const narrow = window.innerWidth < 768;
-      const weak = (typeof cores === "number" && cores <= 4) || narrow;
+      const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+      const weak = (typeof cores === "number" && cores <= 4) || narrow || (typeof mem === "number" && mem <= 4);
+      const dpr = window.devicePixelRatio || 1;
       setGraphics({
         ready: true,
         weak,
         webgl,
-        maxDpr: weak ? 1 : 1.5,
+        // Tajam (mendekati retina/8K feel), tetap aman di HP lemah
+        maxDpr: weak ? Math.min(1.35, dpr) : Math.min(2.5, Math.max(1.75, dpr)),
         reduceMotion: reduceQuery.matches,
       });
     };

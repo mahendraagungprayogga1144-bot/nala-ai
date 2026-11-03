@@ -17,15 +17,15 @@ type Opening = {
 };
 
 function facadeWindows(): Opening[] {
-  const y = FLOOR.top + 0.64;
+  const y = FLOOR.top + 0.82;
   const openings: Opening[] = [];
   for (const x of WINDOW_SLOTS_X) {
-    openings.push({ position: [x, y, -6.3], size: [1.2, 0.48, 0.05] });
-    openings.push({ position: [x, y, 6.3], size: [1.2, 0.48, 0.05] });
+    openings.push({ position: [x, y, -6.3], size: [1.25, 0.62, 0.05] });
+    openings.push({ position: [x, y, 6.3], size: [1.25, 0.62, 0.05] });
   }
   for (const z of WINDOW_SLOTS_Z) {
-    openings.push({ position: [-8.2, y, z], size: [0.05, 0.48, 1.05] });
-    openings.push({ position: [8.2, y, z], size: [0.05, 0.48, 1.05] });
+    openings.push({ position: [-8.2, y, z], size: [0.05, 0.62, 1.1] });
+    openings.push({ position: [8.2, y, z], size: [0.05, 0.62, 1.1] });
   }
   return openings;
 }
@@ -34,8 +34,8 @@ const WINDOWS = facadeWindows();
 
 function makeHenimaWallTexture() {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 256;
+  canvas.width = 1024;
+  canvas.height = 512;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D tidak tersedia");
   ctx.fillStyle = "#1E1B4B";
@@ -44,40 +44,66 @@ function makeHenimaWallTexture() {
   glow.addColorStop(0, "#7C3AED");
   glow.addColorStop(1, "#38BDF8");
   ctx.fillStyle = glow;
-  ctx.font = "700 92px Geist, sans-serif";
+  ctx.font = "800 180px Geist, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.shadowColor = "#A78BFA";
-  ctx.shadowBlur = 28;
+  ctx.shadowBlur = 42;
   ctx.fillText("Henima", canvas.width / 2, canvas.height / 2);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
   texture.needsUpdate = true;
   return texture;
 }
 
 function makeHenimaHoloTexture() {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = 1024;
+  canvas.height = 1024;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D tidak tersedia");
-  ctx.clearRect(0, 0, 512, 512);
-  const ring = ctx.createRadialGradient(256, 256, 40, 256, 256, 240);
-  ring.addColorStop(0, "rgba(56,189,248,0.55)");
-  ring.addColorStop(0.55, "rgba(124,58,237,0.28)");
+  ctx.clearRect(0, 0, 1024, 1024);
+  const ring = ctx.createRadialGradient(512, 512, 60, 512, 512, 480);
+  ring.addColorStop(0, "rgba(56,189,248,0.6)");
+  ring.addColorStop(0.55, "rgba(124,58,237,0.3)");
   ring.addColorStop(1, "rgba(124,58,237,0)");
   ctx.fillStyle = ring;
-  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillRect(0, 0, 1024, 1024);
   ctx.fillStyle = "#E0F2FE";
-  ctx.font = "800 96px Geist, sans-serif";
+  ctx.font = "800 168px Geist, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.shadowColor = "#38BDF8";
-  ctx.shadowBlur = 36;
-  ctx.fillText("Henima", 256, 256);
+  ctx.shadowBlur = 48;
+  ctx.fillText("Henima", 512, 512);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function makeFloorGrain(base: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D tidak tersedia");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const a = 0.02 + Math.random() * 0.05;
+    ctx.fillStyle = `rgba(30,27,75,${a})`;
+    ctx.fillRect(x, y, 1.2, 1.2);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(6, 6);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
   texture.needsUpdate = true;
   return texture;
 }
@@ -124,40 +150,70 @@ function HenimaLobbyHologram() {
   );
 }
 
-export default function OfficeStructure() {
+function RoomFloor({
+  center,
+  size,
+  color,
+  label,
+}: {
+  center: readonly [number, number];
+  size: readonly [number, number];
+  color: string;
+  label: string;
+}) {
+  const grain = useMemo(() => makeFloorGrain(color), [color]);
+  useEffect(() => () => grain.dispose(), [grain]);
   return (
     <group>
-      <mesh position={[0, -0.1, 0]}>
+      <mesh position={[center[0], FLOOR.top + 0.02, center[1]]} receiveShadow>
+        <boxGeometry args={[size[0], 0.025, size[1]]} />
+        <meshStandardMaterial map={grain} color={color} roughness={0.82} />
+      </mesh>
+      <mesh position={[center[0], FLOOR.top + WALL.height - 0.08, center[1]]}>
+        <boxGeometry args={[size[0] * 0.35, 0.04, 0.18]} />
+        <meshStandardMaterial color="#FFF7ED" emissive="#FDE68A" emissiveIntensity={0.55} roughness={0.35} />
+      </mesh>
+      <RoomLabel title={label} position={[center[0], 2.05, center[1]]} width={label.length > 12 ? 3.15 : 2.45} />
+    </group>
+  );
+}
+
+export default function OfficeStructure() {
+  const siteGrain = useMemo(() => makeFloorGrain("#F3F0F8"), []);
+  const plankGrain = useMemo(() => makeFloorGrain("#F7F5F2"), []);
+  useEffect(
+    () => () => {
+      siteGrain.dispose();
+      plankGrain.dispose();
+    },
+    [siteGrain, plankGrain],
+  );
+
+  return (
+    <group>
+      <mesh position={[0, -0.1, 0]} receiveShadow>
         <boxGeometry args={[36, 0.06, 28]} />
-        <meshLambertMaterial color={SITE} />
+        <meshStandardMaterial map={siteGrain} color={SITE} roughness={0.92} />
       </mesh>
-      <mesh position={[0, -0.02, 0]}>
+      <mesh position={[0, -0.02, 0]} receiveShadow>
         <boxGeometry args={[FLOOR.width + 0.7, 0.08, FLOOR.depth + 0.7]} />
-        <meshLambertMaterial color="#D5DEE8" />
+        <meshStandardMaterial color="#D5DEE8" roughness={0.85} metalness={0.05} />
       </mesh>
-      <mesh position={[0, 0.02, 0]}>
+      <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[FLOOR.width, 0.12, FLOOR.depth]} />
-        <meshLambertMaterial color="#F7F5F2" />
+        <meshStandardMaterial map={plankGrain} color="#F7F5F2" roughness={0.78} />
       </mesh>
 
       {ROOMS.map((room) => (
-        <group key={room.id}>
-          <mesh position={[room.center[0], FLOOR.top + 0.02, room.center[1]]}>
-            <boxGeometry args={[room.size[0], 0.025, room.size[1]]} />
-            <meshLambertMaterial color={room.floor} />
-          </mesh>
-          <RoomLabel
-            title={room.label}
-            position={[room.center[0], 1.72, room.center[1]]}
-            width={room.label.length > 12 ? 3.15 : 2.45}
-          />
-        </group>
+        <RoomFloor key={room.id} center={room.center} size={room.size} color={room.floor} label={room.label} />
       ))}
 
       {WALLS.map((wall) => (
         <mesh
           key={`${wall.axis}-${wall.center[0]}-${wall.center[1]}`}
           position={[wall.center[0], FLOOR.top + WALL.height / 2, wall.center[1]]}
+          castShadow
+          receiveShadow
         >
           <boxGeometry
             args={
@@ -166,22 +222,22 @@ export default function OfficeStructure() {
                 : [WALL.thickness, WALL.height, wall.length]
             }
           />
-          <meshLambertMaterial color={WALL_COLOR} />
+          <meshStandardMaterial color={WALL_COLOR} roughness={0.88} metalness={0.02} />
         </mesh>
       ))}
 
       {WINDOWS.map((opening) => (
         <mesh key={opening.position.join(",")} position={opening.position}>
           <boxGeometry args={opening.size} />
-          <meshLambertMaterial color="#7DD3FC" />
+          <meshStandardMaterial color="#BAE6FD" emissive="#7DD3FC" emissiveIntensity={0.45} roughness={0.15} metalness={0.2} transparent opacity={0.85} />
         </mesh>
       ))}
 
       {/* Brand dinding + hologram lobby: Henima (bukan AI). */}
-      <HenimaWallSign position={[-4.55, FLOOR.top + 0.62, -0.98]} />
-      <HenimaWallSign position={[-4.55, FLOOR.top + 0.62, 0.98]} rotationY={Math.PI} />
-      <HenimaWallSign position={[4.55, FLOOR.top + 0.62, -0.98]} />
-      <HenimaWallSign position={[4.55, FLOOR.top + 0.62, 0.98]} rotationY={Math.PI} />
+      <HenimaWallSign position={[-4.55, FLOOR.top + 0.78, -0.98]} />
+      <HenimaWallSign position={[-4.55, FLOOR.top + 0.78, 0.98]} rotationY={Math.PI} />
+      <HenimaWallSign position={[4.55, FLOOR.top + 0.78, -0.98]} />
+      <HenimaWallSign position={[4.55, FLOOR.top + 0.78, 0.98]} rotationY={Math.PI} />
       <HenimaLobbyHologram />
     </group>
   );

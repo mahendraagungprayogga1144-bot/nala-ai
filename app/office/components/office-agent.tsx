@@ -3,15 +3,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import { crewSpot, PANTRY_PARK, PANTRY_TABLE, STATIONS, salesPantryLoop } from "@/lib/office/layout";
+import { crewSpot, hallPatrol, PANTRY_PARK, PANTRY_TABLE, salesPantryLoop, STATIONS } from "@/lib/office/layout";
 import { loopPoint, yawToward } from "@/lib/office/motion";
 import { DIVISION_LABEL } from "@/lib/office/present";
 import type { OfficeAgent } from "@/lib/office/types";
 import FaceLabel from "./room-label";
 
-const WALK_SECONDS = 18;
-const SKIN = "#F3C7A1";
-const LEG = "#1E3A5F";
+const WALK_SECONDS = 16;
+const SKIN = "#E8B896";
+const LEG = "#1E293B";
 const INK = "#1A1A1A";
 
 const HAIR: Record<string, string> = {
@@ -45,21 +45,31 @@ export default function OfficeAgent({
   const legR = useRef<Group>(null);
   const beacon = useRef<Group>(null);
   const station = STATIONS[agent.room];
-  const path = useMemo(() => salesPantryLoop(station.chair), [station]);
+  const pantryPath = useMemo(() => salesPantryLoop(station.chair), [station]);
+  const patrol = useMemo(() => hallPatrol(agent.id), [agent.id]);
   const hall = agent.place === "hall";
   const hallSpot = crewSpot(agent.id);
   const seated = !hall && !agent.at_pantry;
   const hair = HAIR[agent.id] ?? "#292524";
   const face = yawToward(station.chair, station.desk);
+  /** Desk agent yang idle/working: sebagian waktu jalan dalam ruang, sebagian kerja di meja. */
+  const phaseOffset = useMemo(() => {
+    let hash = 0;
+    for (const ch of agent.id) hash = (hash + ch.charCodeAt(0) * 17) % 97;
+    return hash / 97;
+  }, [agent.id]);
 
-  useEffect(() => () => {
-    document.body.style.cursor = "";
-  }, []);
+  useEffect(
+    () => () => {
+      document.body.style.cursor = "";
+    },
+    [],
+  );
 
   useFrame(({ clock }) => {
     const group = root.current;
     if (!group) return;
-    const t = clock.elapsedTime;
+    const t = clock.elapsedTime + phaseOffset * 20;
 
     const pose = (leftArm: number, rightArm: number, leftLeg: number, rightLeg: number) => {
       if (armL.current) armL.current.rotation.x = leftArm;
@@ -68,37 +78,56 @@ export default function OfficeAgent({
       if (legR.current) legR.current.rotation.x = rightLeg;
     };
 
+    const walkAt = (path: readonly (readonly [number, number])[], seconds: number) => {
+      if (reduceMotion) {
+        const spot = path[0] || hallSpot;
+        group.position.set(spot[0], 0, spot[1]);
+        group.rotation.y = 0.4;
+        pose(0.1, 0.1, 0, 0);
+        return;
+      }
+      const sample = loopPoint(path, (t % seconds) / seconds);
+      const swing = Math.sin(t * 9.5);
+      group.position.set(sample.x, Math.abs(swing) * 0.05, sample.z);
+      group.rotation.y = sample.yaw;
+      pose(swing * 0.75, -swing * 0.75, -swing * 0.6, swing * 0.6);
+    };
+
     if (hall) {
-      const bob = !reduceMotion ? Math.sin(t * 2) * 0.015 : 0;
-      group.position.set(hallSpot[0], bob, hallSpot[1]);
-      group.rotation.y = 0.6;
-      pose(0.15, 0.15, 0, 0);
+      walkAt(patrol, WALK_SECONDS + phaseOffset * 6);
       return;
     }
 
     if (agent.at_pantry) {
+      walkAt(pantryPath, WALK_SECONDS);
       if (reduceMotion) {
         group.position.set(PANTRY_PARK[0], 0, PANTRY_PARK[1]);
         group.rotation.y = yawToward(PANTRY_PARK, PANTRY_TABLE);
         pose(0, 0, 0, 0);
-      } else {
-        const sample = loopPoint(path, (t % WALK_SECONDS) / WALK_SECONDS);
-        const swing = Math.sin(t * 10);
-        group.position.set(sample.x, Math.abs(swing) * 0.045, sample.z);
-        group.rotation.y = sample.yaw;
-        pose(swing * 0.7, -swing * 0.7, -swing * 0.55, swing * 0.55);
       }
       return;
     }
 
+    // Di meja: 55% kerja/duduk, 45% jalan keliling ruangan
+    const cycle = (t % 22) / 22;
+    const shouldWalk = !reduceMotion && cycle > 0.55;
+
+    if (shouldWalk) {
+      walkAt(hallPatrol(agent.id), 12);
+      return;
+    }
+
     const yaw = yawToward(station.chair, station.desk);
-    const bob = agent.status === "working" && !reduceMotion ? Math.sin(t * 3) * 0.02 : 0;
+    const bob = agent.status === "working" && !reduceMotion ? Math.sin(t * 3.2) * 0.018 : 0;
     const shake = agent.status === "error" && !reduceMotion ? Math.sin(t * 16) * 0.01 : 0;
     group.position.set(station.chair[0] + shake, bob, station.chair[1]);
     group.rotation.y = yaw;
 
     if (agent.status === "working" && !reduceMotion) {
-      pose(-1.15 + Math.sin(t * 8) * 0.35, -1.15 + Math.sin(t * 8 + 1.15) * 0.35, 1.2, 1.2);
+      // Mengetik / kerja di laptop
+      pose(-1.2 + Math.sin(t * 9) * 0.4, -1.15 + Math.sin(t * 9 + 1.2) * 0.4, 1.2, 1.2);
+    } else if (agent.status === "error" && !reduceMotion) {
+      pose(-0.7 + Math.sin(t * 5) * 0.2, -0.3, 1.2, 1.2);
     } else {
       pose(-0.45, -0.45, 1.2, 1.2);
     }
@@ -128,72 +157,72 @@ export default function OfficeAgent({
     >
       <group position={[0, seated ? SIT_LIFT : 0, 0]}>
         <group ref={legL} position={[-0.075, HIP, 0]}>
-          <mesh position={[0, -0.17, 0]}>
-            <boxGeometry args={[0.13, 0.34, 0.14]} />
-            <meshLambertMaterial color={LEG} />
+          <mesh position={[0, -0.17, 0]} castShadow={false}>
+            <capsuleGeometry args={[0.055, 0.22, 4, 8]} />
+            <meshStandardMaterial color={LEG} roughness={0.75} />
           </mesh>
         </group>
         <group ref={legR} position={[0.075, HIP, 0]}>
           <mesh position={[0, -0.17, 0]}>
-            <boxGeometry args={[0.13, 0.34, 0.14]} />
-            <meshLambertMaterial color={LEG} />
+            <capsuleGeometry args={[0.055, 0.22, 4, 8]} />
+            <meshStandardMaterial color={LEG} roughness={0.75} />
           </mesh>
         </group>
         <mesh position={[0, HIP + 0.045, 0]}>
           <boxGeometry args={[0.28, 0.09, 0.15]} />
-          <meshLambertMaterial color={LEG} />
+          <meshStandardMaterial color={LEG} roughness={0.8} />
         </mesh>
         <mesh position={[0, HIP + 0.28, 0]}>
-          <boxGeometry args={[0.32, 0.34, 0.17]} />
-          <meshLambertMaterial color={agent.color} />
+          <boxGeometry args={[0.34, 0.36, 0.18]} />
+          <meshStandardMaterial color={agent.color} roughness={0.55} metalness={0.05} />
         </mesh>
-        <mesh position={[0, HIP + 0.28, -0.09]}>
+        <mesh position={[0, HIP + 0.28, -0.095]}>
           <boxGeometry args={[0.14, 0.12, 0.02]} />
-          <meshLambertMaterial color="#FFFFFF" />
+          <meshStandardMaterial color="#F8FAFC" roughness={0.4} />
         </mesh>
         <mesh position={[0, HIP + 0.48, 0]}>
-          <cylinderGeometry args={[0.05, 0.05, 0.05, 8]} />
-          <meshLambertMaterial color={SKIN} />
+          <cylinderGeometry args={[0.05, 0.05, 0.05, 10]} />
+          <meshStandardMaterial color={SKIN} roughness={0.65} />
         </mesh>
-        <group ref={armL} position={[-0.21, HIP + 0.38, 0]}>
+        <group ref={armL} position={[-0.22, HIP + 0.38, 0]}>
           <mesh position={[0, -0.09, 0]}>
-            <cylinderGeometry args={[0.045, 0.045, 0.18, 8]} />
-            <meshLambertMaterial color={agent.color} />
+            <capsuleGeometry args={[0.04, 0.12, 4, 8]} />
+            <meshStandardMaterial color={agent.color} roughness={0.55} />
           </mesh>
           <mesh position={[0, -0.2, 0]}>
-            <boxGeometry args={[0.07, 0.07, 0.07]} />
-            <meshLambertMaterial color={SKIN} />
+            <sphereGeometry args={[0.045, 10, 10]} />
+            <meshStandardMaterial color={SKIN} roughness={0.65} />
           </mesh>
         </group>
-        <group ref={armR} position={[0.21, HIP + 0.38, 0]}>
+        <group ref={armR} position={[0.22, HIP + 0.38, 0]}>
           <mesh position={[0, -0.09, 0]}>
-            <cylinderGeometry args={[0.045, 0.045, 0.18, 8]} />
-            <meshLambertMaterial color={agent.color} />
+            <capsuleGeometry args={[0.04, 0.12, 4, 8]} />
+            <meshStandardMaterial color={agent.color} roughness={0.55} />
           </mesh>
           <mesh position={[0, -0.2, 0]}>
-            <boxGeometry args={[0.07, 0.07, 0.07]} />
-            <meshLambertMaterial color={SKIN} />
+            <sphereGeometry args={[0.045, 10, 10]} />
+            <meshStandardMaterial color={SKIN} roughness={0.65} />
           </mesh>
         </group>
         <mesh position={[0, HIP + 0.62, 0]}>
-          <sphereGeometry args={[0.16, 16, 12]} />
-          <meshLambertMaterial color={SKIN} />
+          <sphereGeometry args={[0.165, 20, 16]} />
+          <meshStandardMaterial color={SKIN} roughness={0.55} />
         </mesh>
         <mesh position={[0, HIP + 0.74, 0.02]}>
-          <sphereGeometry args={[0.15, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.42]} />
-          <meshLambertMaterial color={hair} />
+          <sphereGeometry args={[0.155, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.42]} />
+          <meshStandardMaterial color={hair} roughness={0.85} />
         </mesh>
         <mesh position={[-0.05, HIP + 0.64, -0.15]}>
-          <boxGeometry args={[0.035, 0.035, 0.02]} />
-          <meshLambertMaterial color={INK} />
+          <sphereGeometry args={[0.022, 8, 8]} />
+          <meshStandardMaterial color={INK} roughness={0.4} />
         </mesh>
         <mesh position={[0.05, HIP + 0.64, -0.15]}>
-          <boxGeometry args={[0.035, 0.035, 0.02]} />
-          <meshLambertMaterial color={INK} />
+          <sphereGeometry args={[0.022, 8, 8]} />
+          <meshStandardMaterial color={INK} roughness={0.4} />
         </mesh>
         <mesh position={[0, HIP + 0.56, -0.15]} rotation={[0, 0, Math.PI]}>
-          <torusGeometry args={[0.05, 0.012, 6, 10, Math.PI]} />
-          <meshLambertMaterial color={INK} />
+          <torusGeometry args={[0.05, 0.012, 6, 12, Math.PI]} />
+          <meshStandardMaterial color={INK} roughness={0.5} />
         </mesh>
         {agent.status === "error" ? (
           <group ref={beacon} position={[0, HIP + 0.86, 0]}>

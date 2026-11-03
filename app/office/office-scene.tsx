@@ -1,7 +1,8 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { NoToneMapping } from "three";
+import { ContactShadows, Environment } from "@react-three/drei";
+import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
 import { crewSpot, PANTRY_PARK, STATIONS } from "@/lib/office/layout";
 import type { OfficeAgent, OfficeViewMode, WorkRoomId } from "@/lib/office/types";
 import OfficeAgentMesh from "./components/office-agent";
@@ -33,7 +34,7 @@ export default function OfficeScene({
 }) {
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const anchor = selected
-      ? selected.place === "hall"
+    ? selected.place === "hall"
       ? crewSpot(selected.id)
       : selected.at_pantry
         ? PANTRY_PARK
@@ -45,29 +46,45 @@ export default function OfficeScene({
     <div className="absolute inset-0">
       <Canvas
         orthographic
-        shadows={false}
-        dpr={antialias ? [1, maxDpr] : 1}
+        shadows
+        dpr={[1, maxDpr]}
         camera={{
-          position: mode === "2d" ? [0, 20, 0.02] : [13.5, 12, 13.5],
-          zoom: mode === "2d" ? 42 : 28,
+          position: mode === "2d" ? [0, 20, 0.02] : [12.8, 11.2, 12.8],
+          zoom: mode === "2d" ? 44 : 30,
           near: -40,
           far: 90,
         }}
         gl={{
-          antialias,
+          antialias: true,
           alpha: false,
           stencil: false,
           powerPreference: "high-performance",
+          logarithmicDepthBuffer: true,
         }}
         onCreated={({ gl }) => {
-          gl.shadowMap.enabled = false;
-          gl.toneMapping = NoToneMapping;
-          gl.setClearColor("#EDE8F8", 1);
+          gl.shadowMap.enabled = true;
+          gl.toneMapping = ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.12;
+          gl.outputColorSpace = SRGBColorSpace;
+          gl.setClearColor("#E4DDF4", 1);
         }}
       >
-        <ambientLight intensity={0.74} />
-        <hemisphereLight color="#FFFFFF" groundColor="#F1F5F9" intensity={0.32} />
-        <directionalLight position={[8, 16, 6]} intensity={0.7} />
+        <fog attach="fog" args={["#E4DDF4", 22, 48]} />
+        <ambientLight intensity={0.42} />
+        <hemisphereLight color="#FFF8F0" groundColor="#B8C0D0" intensity={0.55} />
+        <directionalLight
+          castShadow
+          position={[7, 16, 5]}
+          intensity={1.15}
+          color="#FFF4E5"
+          shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0002}
+        />
+        <directionalLight position={[-6, 9, -4]} intensity={0.4} color="#DDD6FE" />
+        <pointLight position={[0, 2.4, 0]} intensity={0.7} distance={16} color="#FDE68A" />
+        <pointLight position={[-4.5, 2.1, 3.4]} intensity={0.35} distance={8} color="#FBBF24" />
+        <pointLight position={[4.5, 2.1, -3.4]} intensity={0.3} distance={8} color="#A5B4FC" />
+        {!reduceMotion ? <Environment preset="apartment" environmentIntensity={0.28} /> : null}
         <OfficeStructure />
         <PingPongTable />
         {WORK_ROOMS.map((room) => {
@@ -95,6 +112,7 @@ export default function OfficeScene({
             onSelect={onSelect}
           />
         ))}
+        <ContactShadows position={[0, 0.04, 0]} opacity={0.42} scale={28} blur={2.4} far={8} resolution={1024} color="#1E1B4B" />
         <ViewRig mode={mode} resetToken={resetToken} focus={focus} />
       </Canvas>
     </div>

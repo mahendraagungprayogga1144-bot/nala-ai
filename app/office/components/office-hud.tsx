@@ -15,6 +15,7 @@ import {
   Search,
   Share2,
   Sun,
+  Users,
   X,
 } from "lucide-react";
 import OfficeWorkPanel from "./office-work-panel";
@@ -29,6 +30,7 @@ const DIVISIONS: { id: "semua" | OfficeDivision; label: string; icon: typeof Lay
   { id: "software", label: "Software", icon: Code2 },
   { id: "sosmed", label: "Sosmed", icon: Share2 },
   { id: "marketing", label: "Marketing", icon: Megaphone },
+  { id: "hr", label: "HR", icon: Users },
 ];
 
 const STATUS_CLASS: Record<AgentStatus, string> = {

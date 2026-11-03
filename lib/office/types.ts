@@ -13,8 +13,9 @@ export const WA_AGENT_ID = "balas-wa";
 export const SOFTWARE_AGENT_ID = "meja-software";
 export const SOSMED_AGENT_ID = "divisi-sosmed";
 export const MARKETING_AGENT_ID = "divisi-marketing";
+export const HR_AGENT_ID = "divisi-hr";
 
-export type OfficeDivision = "kantor" | "software" | "sosmed" | "marketing";
+export type OfficeDivision = "kantor" | "software" | "sosmed" | "marketing" | "hr";
 
 export type OfficeAgent = {
   id: string;

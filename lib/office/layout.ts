@@ -68,6 +68,7 @@ const CREW_SPOTS: Record<string, Vec2> = {
   "meja-software": [-2.35, 0.15],
   "divisi-sosmed": [2.35, 0.15],
   "divisi-marketing": [0, 1.85],
+  "divisi-hr": [0, -1.85],
 };
 
 export function crewSpot(agentId: string): Vec2 {

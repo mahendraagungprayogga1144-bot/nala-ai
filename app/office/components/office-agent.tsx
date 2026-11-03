@@ -22,6 +22,7 @@ const HAIR: Record<string, string> = {
   "meja-software": "#0C4A6E",
   "divisi-sosmed": "#9D174D",
   "divisi-marketing": "#9F1239",
+  "divisi-hr": "#334155",
 };
 const SIT_LIFT = 0.16;
 const HIP = 0.44;

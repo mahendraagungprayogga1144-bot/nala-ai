@@ -6,6 +6,7 @@ import { SALES_ORDER_SOURCE } from "@/lib/henima-sales/types";
 import { getPublicShareOrigin } from "@/lib/auth/app-url";
 import { officeRepository, type OfficeFacts, type OfficeProductRow, type OfficeWindow, type StockAdjustResult } from "./repository";
 import {
+  HR_AGENT_ID,
   LAPORAN_AGENT_ID,
   MARKETING_AGENT_ID,
   SALES_AGENT_ID,
@@ -140,6 +141,97 @@ function salesTask(facts: OfficeFacts) {
 function salesWorking(facts: OfficeFacts) {
   if (facts.points.ok && facts.points.rows.length > 0) return true;
   return facts.orders.ok && facts.orders.rows.some((row) => row.source === SALES_ORDER_SOURCE);
+}
+
+function roleLabel(role: string) {
+  if (role === "FOUNDER") return "Founder";
+  if (role === "LEADER") return "Leader";
+  if (role === "SALES") return "Sales";
+  return role || "Tim";
+}
+
+function hrTask(facts: OfficeFacts) {
+  if (!facts.staff.ok) return facts.staff.notice || "Data tim belum terbaca.";
+  const team = facts.staff.rows;
+  if (!team.length) return "Belum ada anggota tim sales aktif.";
+  if (!facts.points.ok) return `${team.length} orang di tim. ${facts.points.notice || "Tracking hari ini belum terbaca."}`;
+  const morning = new Set(facts.points.rows.filter((p) => p.kind === "checkin_pagi").map((p) => p.staff_id));
+  const late = [...new Set(facts.points.rows.filter((p) => p.late).map((p) => p.staff_id))];
+  const missing = team.filter((row) => !morning.has(row.id));
+  if (!morning.size) return `${team.length} orang di tim. Belum ada yang check-in pagi.`;
+  const lateBit = late.length ? ` ${late.length} telat.` : "";
+  const missingBit = missing.length ? ` ${missing.length} belum check-in.` : " Semua sudah check-in pagi.";
+  return `Kehadiran: ${morning.size}/${team.length} check-in pagi.${lateBit}${missingBit}`;
+}
+
+function hrWorking(facts: OfficeFacts) {
+  if (!facts.staff.ok || !facts.staff.rows.length) return false;
+  if (!facts.points.ok) return false;
+  return facts.points.rows.some((p) => p.kind === "checkin_pagi" || p.late);
+}
+
+function hrAnswer(facts: OfficeFacts, question: string, label: string) {
+  if (!facts.staff.ok && !facts.points.ok) {
+    return "Data HR/tim belum bisa dibaca. Coba muat ulang.";
+  }
+  const text = question.toLowerCase();
+  const team = facts.staff.ok ? facts.staff.rows : [];
+
+  if (/daftar|tim|anggota|siapa saja|nama|role|jabatan/.test(text) && !/telat|check|absen|lokasi|di mana|dimana/.test(text)) {
+    if (!facts.staff.ok) return facts.staff.notice || "Daftar tim belum terbaca.";
+    if (!team.length) return "Belum ada anggota tim sales aktif.";
+    return `Tim aktif (${team.length}): ${team.map((row) => `${row.nama} (${roleLabel(row.role)})`).join(", ")}.`;
+  }
+
+  if (/telat/.test(text)) {
+    if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+    const lateIds = [...new Set(facts.points.rows.filter((p) => p.late).map((p) => p.staff_id))];
+    if (!lateIds.length) return `Tidak ada yang ditandai telat pada ${label}.`;
+    return `Yang telat pada ${label}: ${lateIds.map((id) => staffName(facts, id)).join(", ")}.`;
+  }
+
+  if (/belum check|belum absen|tidak check|belum masuk|yang belum/.test(text)) {
+    if (!facts.staff.ok) return facts.staff.notice || "Daftar tim belum terbaca.";
+    if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+    const morning = new Set(facts.points.rows.filter((p) => p.kind === "checkin_pagi").map((p) => p.staff_id));
+    const missing = team.filter((row) => !morning.has(row.id));
+    if (!missing.length) return `Semua ${team.length} orang sudah check-in pagi pada ${label}.`;
+    return `Belum check-in pagi pada ${label}: ${missing.map((row) => row.nama).join(", ")}.`;
+  }
+
+  if (/check-?in pagi|sudah check|sudah absen|yang sudah|kehadiran/.test(text)) {
+    if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+    const morning = facts.points.rows.filter((p) => p.kind === "checkin_pagi");
+    if (!morning.length) return `Belum ada check-in pagi pada ${label}.`;
+    const lines = [...new Map(morning.map((p) => [p.staff_id, p])).values()].map((p) => {
+      const late = p.late ? " (telat)" : "";
+      return `${staffName(facts, p.staff_id)} pukul ${wibClock(p.recorded_at)}${late}`;
+    });
+    return `Check-in pagi ${label}: ${lines.join("; ")}.`;
+  }
+
+  if (/check-?out|check-?in sore|pulang/.test(text)) {
+    if (!facts.points.ok) return facts.points.notice || `Tracking ${label} belum bisa dibaca.`;
+    const evening = facts.points.rows.filter((p) => p.kind === "checkin_sore");
+    if (!evening.length) return `Belum ada check-in sore / pulang pada ${label}.`;
+    const lines = [...new Map(evening.map((p) => [p.staff_id, p])).values()].map(
+      (p) => `${staffName(facts, p.staff_id)} pukul ${wibClock(p.recorded_at)}`,
+    );
+    return `Check-in sore ${label}: ${lines.join("; ")}.`;
+  }
+
+  if (/di mana|dimana|lokasi|posisi|titik/.test(text)) {
+    return salesAnswer(facts, question, label);
+  }
+
+  if (/rute|jejak|perjalanan/.test(text)) return routeAnswer(facts, label);
+
+  // Ringkasan default HR
+  const parts = [hrTask(facts)];
+  if (team.length) {
+    parts.push(`Tim: ${team.slice(0, 6).map((row) => row.nama).join(", ")}${team.length > 6 ? `, +${team.length - 6}` : ""}.`);
+  }
+  return parts.join(" ");
 }
 
 function stockTask(facts: OfficeFacts) {
@@ -326,6 +418,18 @@ export function buildOfficeSnapshot(
           : "Belum ada draft kampanye."
         : "Draft marketing belum terbaca.",
       color: "#FB7185",
+    },
+    {
+      id: HR_AGENT_ID,
+      business_id: facts.businessId,
+      name: "Divisi HR",
+      division: "hr",
+      room: "founder",
+      place: "hall",
+      status: hrWorking(facts) ? "working" : "idle",
+      at_pantry: false,
+      current_task: hrTask(facts),
+      color: "#64748B",
     },
   ];
   const working = agents.filter((agent) => agent.status === "working");
@@ -652,8 +756,14 @@ export async function answerOfficeQuestion(businessId: string, agentId: string, 
   const lower = text.toLowerCase();
   const aboutProduction = /produksi|diproduksi|racik|perlu dibuat|harus dibuat/.test(lower);
   const aboutStock = /stok|habis|inventory|produk/.test(lower);
+  const aboutHr =
+    agentId === HR_AGENT_ID ||
+    /kehadiran|absen|check-?in|check-?out|telat|tim sales|daftar tim|belum masuk/.test(lower);
   const aboutField = /tracking|lapangan|check-?in|telat|titik|lokasi|di mana|dimana|kunjungan|rute|perjalanan|jejak|target|capaian|follow/.test(lower);
   const aboutBook = /laba|hpp|biaya|laku|parfum|pelanggan|customer|piutang|belum lunas|nunggak|omzet|penjualan|order|pendapatan/.test(lower);
+  if (agentId === HR_AGENT_ID || (aboutHr && !aboutBook && agentId !== SALES_AGENT_ID && agentId !== STOK_AGENT_ID && agentId !== LAPORAN_AGENT_ID)) {
+    return hrAnswer(facts, text, range.label);
+  }
   if (aboutProduction || (aboutStock && !aboutBook)) return stockAnswer(facts, text, brief);
   if (aboutField && !aboutBook) return salesAnswer(facts, text, range.label, brief);
   if (aboutBook || agentId === LAPORAN_AGENT_ID) return laporanAnswer(facts, text, range.label, brief);

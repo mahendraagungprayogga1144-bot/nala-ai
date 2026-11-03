@@ -138,8 +138,8 @@ export async function watchNativeOrBrowserGps(
       const id = await BackgroundGeolocation.addWatcher(
         {
           backgroundMessage:
-            "Henima mengirim GPS terus. Jangan force-stop. Pilih izin lokasi: Izinkan selalu.",
-          backgroundTitle: "Henima · GPS auto track",
+            "GPS live ke owner. Jangan force-stop. Izin lokasi harus Izinkan selalu.",
+          backgroundTitle: "Henima · GPS live",
           requestPermissions: true,
           stale: false,
           // Update lebih rapat agar titik akurat saat bergerak.

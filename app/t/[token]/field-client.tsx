@@ -10,6 +10,7 @@ import {
   readNativeOrBrowserGps,
   watchNativeOrBrowserGps,
 } from "@/lib/henima-tracking/native-geo";
+import { startFieldTrackingNotify, stopFieldTrackingNotify } from "@/lib/henima-tracking/field-notify";
 
 export type FieldPoint = {
   id: string;
@@ -256,7 +257,6 @@ export default function FieldClient({
     let alive = true;
     let wake: WakeLockSentinel | null = null;
     let stopWatch: (() => void) | null = null;
-    const trackUrl = typeof window !== "undefined" ? window.location.href : `/t/${token}`;
 
     const flushPing = (fix: GpsFix) => {
       if (!alive) return;
@@ -299,38 +299,8 @@ export default function FieldClient({
       }
     }
 
-    async function showTrackNotice() {
-      if (nativeApp) return; // App native sudah punya notifikasi foreground service.
-      try {
-        if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
-        if (Notification.permission === "default") await Notification.requestPermission();
-        if (Notification.permission !== "granted") return;
-        const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification("Henima · GPS live", {
-          body: "Titik lokasi dikirim terus (mode Life360). Jangan tutup tab sampai selesai kerja.",
-          tag: "henima-auto-track",
-          requireInteraction: true,
-          silent: true,
-          data: { url: trackUrl },
-        });
-      } catch {
-        /* ignore */
-      }
-    }
-
-    async function clearTrackNotice() {
-      try {
-        if (!("serviceWorker" in navigator)) return;
-        const reg = await navigator.serviceWorker.ready;
-        const notes = await reg.getNotifications({ tag: "henima-auto-track" });
-        notes.forEach((note) => note.close());
-      } catch {
-        /* ignore */
-      }
-    }
-
     void holdWake();
-    void showTrackNotice();
+    void startFieldTrackingNotify({ nama: state.nama });
 
     // Titik pertama segera saat app/link dibuka.
     void readNativeOrBrowserGps()
@@ -388,10 +358,10 @@ export default function FieldClient({
       window.removeEventListener("pageshow", onVisibility);
       window.removeEventListener("focus", onVisibility);
       void wake?.release().catch(() => undefined);
-      void clearTrackNotice();
+      void stopFieldTrackingNotify();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.checkedOut, token, nativeApp]);
+  }, [state.checkedOut, token, nativeApp, state.nama]);
 
   async function onCheckin() {
     if (!gps || !photo) {
@@ -581,7 +551,8 @@ export default function FieldClient({
             </button>
             <ul className="mt-3 list-disc space-y-1 pl-4 text-[11px] font-medium text-emerald-100/90">
               <li>Tidak perlu check-in tiap pindah tempat.</li>
-              <li>Biarkan app/tab tetap hidup di belakang.</li>
+              <li>Izinkan notifikasi HP — ada pengingat “Henima ngingetin” tiap jam.</li>
+              <li>Biarkan notifikasi GPS live di status bar; jangan force-stop.</li>
               <li>Opsional: tap “Selesai kerja” kalau mau berhenti jejak hari ini.</li>
             </ul>
             {gps && (

@@ -99,62 +99,66 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
   }, [refresh, token]);
 
   const nama = data?.actor.nama || field.nama;
+  const gpsLive = !trackLive.checkedOut;
 
   return (
     <div
-      className={`${jakarta.className} relative min-h-full touch-pan-y bg-[#F7F7F5] text-[#111111]`}
+      className={`${jakarta.className} relative min-h-[100dvh] touch-pan-y bg-[#F7F7F5] text-[#111111]`}
       style={{ WebkitOverflowScrolling: "touch" }}
     >
-      {/* Tetap mounted supaya auto GPS tidak mati saat pindah menu Jual/Home/Bayar. */}
+      {/* Tetap mounted supaya auto GPS tidak mati saat pindah menu. Bottom nav selalu ada. */}
       <div
-        className={tab === "lokasi" ? "relative block min-h-full" : "pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"}
+        className={
+          tab === "lokasi"
+            ? "relative block min-h-[100dvh]"
+            : "pointer-events-none absolute inset-0 -z-10 h-0 w-0 overflow-hidden opacity-0"
+        }
         aria-hidden={tab !== "lokasi"}
       >
         <FieldClient
           token={token}
           initial={field}
           embedded
-          onBack={() => setTab("home")}
           onStatusChange={setTrackLive}
         />
       </div>
 
-      {tab !== "lokasi" && (
+      {tab !== "lokasi" ? (
         <>
-          <header className="sticky top-0 z-20 border-b border-[#E8E8E4] bg-white/95 px-4 py-3 backdrop-blur supports-[padding:max(0px)]:pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <header className="sticky top-0 z-20 border-b border-[#E8E8E4] bg-white/95 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur">
             <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[15px] font-bold tracking-[0.08em]">HENIMA</p>
-                <p className="text-[11px] font-medium text-[#6B6B6B]">Sales Dashboard</p>
+                <p className="truncate text-[11px] font-medium text-[#6B6B6B]">Sales Dashboard</p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-[#E8E8E4] bg-white px-2.5 py-1.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#111] text-[10px] font-bold text-white">
+              <div className="flex max-w-[48%] shrink-0 items-center gap-2 rounded-full border border-[#E8E8E4] bg-white px-2.5 py-1.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#111] text-[10px] font-bold text-white">
                   {nama.slice(0, 1).toUpperCase()}
                 </span>
-                <span className="max-w-[110px] truncate text-xs font-semibold">{nama}</span>
+                <span className="truncate text-xs font-semibold">{nama}</span>
               </div>
             </div>
-            {!trackLive.checkedOut && (
-              <p className="mx-auto mt-2 max-w-lg rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700">
-                GPS live {trackLive.watching ? "mengirim" : "menyambung"} · tanpa check-in · titik terus update
+            {gpsLive ? (
+              <p className="mx-auto mt-2 max-w-lg truncate rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+                GPS {trackLive.watching ? "live" : "menyambung"} · titik terus update
               </p>
-            )}
+            ) : null}
           </header>
 
-          <main className="mx-auto max-w-lg px-4 pt-5 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
-            {loadError && (
+          <main className="mx-auto max-w-lg px-4 pt-4 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))]">
+            {loadError ? (
               <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>
-            )}
+            ) : null}
 
-            {tab === "home" && (
+            {tab === "home" ? (
               <HomeView
                 nama={nama}
                 data={data}
                 onOpen={setTab}
                 onRefresh={() => void refresh().catch((err) => setLoadError(err.message))}
               />
-            )}
-            {tab === "jual" && (
+            ) : null}
+            {tab === "jual" ? (
               <SaleView
                 token={token}
                 products={data?.products || []}
@@ -165,8 +169,8 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
                   setTab("bayar");
                 }}
               />
-            )}
-            {tab === "bayar" && (
+            ) : null}
+            {tab === "bayar" ? (
               <PayView
                 token={token}
                 products={data?.products || []}
@@ -175,42 +179,42 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
                 pendingTotal={data?.stats.pendingTotal || 0}
                 onChanged={() => void refresh()}
               />
-            )}
-            {tab === "laporan" && <ReportView data={data} />}
-            {tab === "target" && <TargetView data={data} />}
+            ) : null}
+            {tab === "laporan" ? <ReportView data={data} /> : null}
+            {tab === "target" ? <TargetView data={data} /> : null}
           </main>
-
-          <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E8E8E4] bg-white/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur">
-            <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 px-1 py-2">
-              {(
-                [
-                  { id: "lokasi", label: "GPS", icon: MapPinned },
-                  { id: "jual", label: "Jual", icon: ShoppingBag },
-                  { id: "home", label: "Home", icon: Home },
-                  { id: "bayar", label: "Bayar", icon: CreditCard },
-                  { id: "laporan", label: "Lapor", icon: FileBarChart },
-                ] as const
-              ).map((item) => {
-                const Icon = item.icon;
-                const active = tab === item.id || (item.id === "home" && tab === "target");
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setTab(item.id)}
-                    className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-semibold ${
-                      active ? "text-[#111]" : "text-[#8A8A8A]"
-                    }`}
-                  >
-                    <Icon size={18} strokeWidth={active ? 2.4 : 1.8} color={active ? GOLD : undefined} />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
         </>
-      )}
+      ) : null}
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8E8E4] bg-white/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur">
+        <div className="mx-auto grid max-w-lg grid-cols-5 px-1 pt-1.5 pb-1">
+          {(
+            [
+              { id: "lokasi", label: "GPS", icon: MapPinned },
+              { id: "jual", label: "Jual", icon: ShoppingBag },
+              { id: "home", label: "Home", icon: Home },
+              { id: "bayar", label: "Bayar", icon: CreditCard },
+              { id: "laporan", label: "Lapor", icon: FileBarChart },
+            ] as const
+          ).map((item) => {
+            const Icon = item.icon;
+            const active = tab === item.id || (item.id === "home" && tab === "target");
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-semibold leading-none ${
+                  active ? "text-[#111]" : "text-[#8A8A8A]"
+                }`}
+              >
+                <Icon size={18} strokeWidth={active ? 2.4 : 1.8} color={active ? GOLD : undefined} />
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
@@ -227,25 +231,38 @@ function HomeView({
   onRefresh: () => void;
 }) {
   const stats = data?.stats;
+  const [showInstall, setShowInstall] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void import("@/lib/henima-tracking/native-geo").then(async ({ isNativeApp }) => {
+      const native = await isNativeApp();
+      if (alive) setShowInstall(!native);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>
           Selamat datang
         </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">{nama}</h1>
-        <p className="mt-1 text-sm text-[#6B6B6B]">Semangat hari ini, tingkatkan penjualan HENIMA.</p>
+        <h1 className="mt-1 break-words text-xl font-bold tracking-tight sm:text-2xl">{nama}</h1>
+        <p className="mt-1 text-sm leading-snug text-[#6B6B6B]">Semangat hari ini, tingkatkan penjualan HENIMA.</p>
         <button type="button" onClick={onRefresh} className="mt-3 text-xs font-semibold text-[#6B6B6B] underline">
           Muat ulang data
         </button>
       </section>
 
-      <InstallToHome />
+      {showInstall ? <InstallToHome /> : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard label="Total Penjualan" value={rp(stats?.omzetHari || 0)} hint="Hari ini" />
-        <StatCard label="Total Transaksi" value={`${stats?.transaksiHari || 0} Order`} hint={`${stats?.botolHari || 0} botol`} />
-        <StatCard label="Saldo setor tunai" value={rp(stats?.setorCash || 0)} hint="Yang sudah lunas · cash" />
+      <div className="grid grid-cols-3 gap-2">
+        <StatCard label="Penjualan" value={rp(stats?.omzetHari || 0)} hint="Hari ini" />
+        <StatCard label="Transaksi" value={`${stats?.transaksiHari || 0}`} hint={`${stats?.botolHari || 0} botol`} />
+        <StatCard label="Setor tunai" value={rp(stats?.setorCash || 0)} hint="Lunas cash" />
       </div>
 
       <section>
@@ -288,32 +305,32 @@ function HomeView({
         )}
       </section>
 
-      <section className="flex items-center justify-between gap-3 rounded-2xl border border-[#E8E8E4] bg-[#F3EEE4] px-4 py-3">
-        <div>
+      <section className="flex flex-col gap-3 rounded-2xl border border-[#E8E8E4] bg-[#F3EEE4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <p className="text-sm font-bold">Butuh bantuan?</p>
-          <p className="text-xs text-[#6B6B6B]">Hubungi tim HENIMA jika ada kendala.</p>
+          <p className="text-xs leading-snug text-[#6B6B6B]">Hubungi tim HENIMA jika ada kendala.</p>
         </div>
         <a
           href="https://wa.me/"
           target="_blank"
           rel="noreferrer"
-          className="shrink-0 rounded-full bg-[#111] px-3 py-2 text-xs font-semibold text-white"
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#111] px-3 py-2 text-xs font-semibold text-white"
         >
           Hubungi Admin
         </a>
       </section>
 
-      <p className="pb-2 text-center text-[11px] font-medium tracking-wide text-[#8A8A8A]">HENIMA · Together We Grow</p>
+      <p className="pb-1 text-center text-[11px] font-medium tracking-wide text-[#8A8A8A]">HENIMA · Together We Grow</p>
     </div>
   );
 }
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
-      <p className="mt-0.5 text-xs text-[#6B6B6B]">{hint}</p>
+    <div className="min-w-0 rounded-2xl border border-[#E8E8E4] bg-white px-2.5 py-3 shadow-[0_8px_24px_rgba(17,17,17,0.04)] sm:px-4">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#8A8A8A] sm:text-[11px]">{label}</p>
+      <p className="mt-1 break-words text-sm font-bold leading-tight sm:text-lg">{value}</p>
+      <p className="mt-0.5 truncate text-[10px] text-[#6B6B6B] sm:text-xs">{hint}</p>
     </div>
   );
 }
@@ -428,11 +445,13 @@ function SaleView({
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Catat Penjualan</h1>
-      <p className="text-sm text-[#6B6B6B]">Data langsung masuk database & terlihat di dashboard owner.</p>
-      {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
-      {ok && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{ok}</p>}
+    <div className="space-y-4 pb-2">
+      <div>
+        <h1 className="text-xl font-bold">Catat Penjualan</h1>
+        <p className="mt-1 text-sm leading-snug text-[#6B6B6B]">Data langsung masuk database & terlihat di dashboard owner.</p>
+      </div>
+      {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+      {ok ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{ok}</p> : null}
 
       <label className="block text-sm font-semibold">
         Produk
@@ -678,8 +697,8 @@ function PayView({
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Pembayaran</h1>
       <p className="text-sm text-[#6B6B6B]">Salah input? Edit atau hapus transaksi hari ini di sini.</p>
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Harus disetor (tunai lunas)" value={rp(setorCash)} hint="Hari ini" />
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard label="Setor tunai" value={rp(setorCash)} hint="Lunas hari ini" />
         <StatCard label="Belum lunas" value={rp(pendingTotal)} hint={`${orders.filter((o) => o.status === "PENDING").length} order`} />
       </div>
       {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}

@@ -491,7 +491,9 @@ export default function FieldClient({
     .filter((p) => p.kind !== "ping")
     .filter((point, index, arr) => !(point.kind === "qris" && arr[index - 1]?.kind === "qris"));
   const light = embedded;
-  const shell = light ? "min-h-full touch-pan-y bg-[#F7F7F5] pb-10 text-[#111]" : "min-h-full touch-pan-y bg-[#08080f] pb-10 text-white";
+  const shell = light
+    ? "min-h-[100dvh] touch-pan-y bg-[#F7F7F5] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] text-[#111]"
+    : "min-h-full touch-pan-y bg-[#08080f] pb-10 text-white";
   const card = light ? "rounded-2xl border border-[#E8E8E4] bg-white p-4" : "rounded-2xl border border-white/10 bg-white/[0.04] p-4";
   const sub = light ? "text-sm text-[#5C5C5C]" : "text-sm text-white/65";
   const tiny = light ? "text-xs text-[#6B6B6B]" : "text-xs text-white/55";
@@ -507,22 +509,22 @@ export default function FieldClient({
       <header
         className={
           light
-            ? "sticky top-0 z-10 flex items-center justify-between border-b border-[#E8E8E4] bg-white/95 px-4 py-3 backdrop-blur"
+            ? "sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#E8E8E4] bg-white/95 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur"
             : "sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#08080f]/90 px-4 py-3 backdrop-blur"
         }
       >
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {onBack ? (
-            <button type="button" onClick={onBack} className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${light ? "border-[#E8E8E4]" : "border-white/15"}`}>
+            <button type="button" onClick={onBack} className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${light ? "border-[#E8E8E4]" : "border-white/15"}`}>
               Home
             </button>
           ) : null}
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-bold">HENIMA GPS</p>
-            <p className={tiny}>{state.nama}</p>
+            <p className={`truncate ${tiny}`}>{state.nama}</p>
           </div>
         </div>
-        <button type="button" onClick={() => void refresh().catch((err) => setError(err.message))} className={tiny}>
+        <button type="button" onClick={() => void refresh().catch((err) => setError(err.message))} className={`shrink-0 ${tiny}`}>
           Muat ulang
         </button>
       </header>
@@ -709,10 +711,15 @@ export default function FieldClient({
       </div>
 
       {qrisZoom && qrisUrl ? (
-        <div className="fixed inset-0 z-[80] flex flex-col bg-black/95 p-4" role="dialog" aria-label="QRIS besar" onClick={() => setQrisZoom(false)}>
-          <div className="flex items-center justify-between pb-3 text-white" onClick={(event) => event.stopPropagation()}>
-            <p className="text-sm font-semibold">{state.nama} · QRIS</p>
-            <button type="button" onClick={() => setQrisZoom(false)} className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold">
+        <div
+          className="fixed inset-0 z-[80] flex flex-col bg-black/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-[max(1rem,env(safe-area-inset-top,0px))]"
+          role="dialog"
+          aria-label="QRIS besar"
+          onClick={() => setQrisZoom(false)}
+        >
+          <div className="flex items-center justify-between gap-3 pb-3 text-white" onClick={(event) => event.stopPropagation()}>
+            <p className="min-w-0 truncate text-sm font-semibold">{state.nama} · QRIS</p>
+            <button type="button" onClick={() => setQrisZoom(false)} className="shrink-0 rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold">
               Tutup
             </button>
           </div>

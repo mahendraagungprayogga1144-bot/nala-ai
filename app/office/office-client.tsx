@@ -33,7 +33,7 @@ export default function OfficeClient({
   const selected = snapshot.agents.find((agent) => agent.id === selectedId) ?? null;
 
   return (
-    <div className="relative h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] overflow-hidden bg-white text-slate-100 md:h-dvh">
+    <div className="relative h-full min-h-0 overflow-hidden bg-white text-slate-100">
       {mode && graphics.webgl ? (
         <OfficeScene
           agents={snapshot.agents}

@@ -38,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function FieldLinkLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="henima-field-shell min-h-[100dvh] bg-[#F7F7F5] text-[#111111]">
+    <div className="henima-field-shell min-h-[100dvh] overflow-x-hidden bg-[#F7F7F5] text-[#111111]">
       <FieldScrollUnlock />
       <FieldAppGuard />
       {children}

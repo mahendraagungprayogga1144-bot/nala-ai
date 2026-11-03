@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import OfficeWorkPanel from "./office-work-panel";
+import OfficeFounderGuide from "./office-founder-guide";
 import { DIVISION_LABEL, placeLine, STATUS_LABEL, statusMeaning, taskLine } from "@/lib/office/present";
 import { createClient } from "@/lib/supabase/client";
 import { clearFastGateCookies } from "@/lib/auth/post-login";
@@ -367,47 +368,16 @@ export default function OfficeHud({
                   <img
                     src="/office-henima-hero.jpg"
                     alt="Kantor AI Henima"
-                    className="absolute inset-0 h-full w-full object-cover object-[18%_55%]"
+                    className="absolute inset-0 h-full w-full object-cover object-[42%_52%]"
                     draggable={false}
                   />
-                  {/* Orang di kiri kirim notif HR lewat bubble */}
-                  <button
-                    type="button"
-                    onClick={openAlertAgent}
-                    className="absolute top-[7%] left-[3%] z-10 w-[220px] max-w-[30%] text-left"
-                  >
-                    <div
-                      className={[
-                        "rounded-2xl px-3 py-2.5 text-white shadow-[0_12px_28px_rgba(91,33,182,0.4)]",
-                        activeAlert?.tone === "warn"
-                          ? "bg-gradient-to-br from-[#F59E0B] to-[#DC2626]"
-                          : activeAlert?.tone === "ok"
-                            ? "bg-gradient-to-br from-[#34D399] to-[#059669]"
-                            : "bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9]",
-                      ].join(" ")}
-                    >
-                      <p className="text-[10px] font-semibold tracking-wide text-white/80 uppercase">
-                        {activeAlert ? "Notif HR" : "Henima"}
-                        {alerts.length > 1 ? ` · ${ (alertIndex % alerts.length) + 1}/${alerts.length}` : ""}
-                      </p>
-                      <p className="mt-0.5 text-[12px] font-bold leading-snug">
-                        {activeAlert?.title || `Semangat hari ini, ${greetName}!`}
-                      </p>
-                      <p className="mt-0.5 line-clamp-3 text-[10px] leading-snug text-white/90">
-                        {activeAlert?.body || "Henima Agent siap membantu bisnis Anda."}
-                      </p>
-                    </div>
-                    <div
-                      className={[
-                        "ml-5 h-0 w-0 border-t-8 border-r-8 border-t-transparent",
-                        activeAlert?.tone === "warn"
-                          ? "border-r-[#DC2626]"
-                          : activeAlert?.tone === "ok"
-                            ? "border-r-[#059669]"
-                            : "border-r-[#6D28D9]",
-                      ].join(" ")}
-                    />
-                  </button>
+                  <OfficeFounderGuide
+                    greetName={greetName}
+                    alert={activeAlert}
+                    alertIndex={alertIndex}
+                    alertTotal={alerts.length}
+                    onOpen={openAlertAgent}
+                  />
                 </>
               ) : (
                 <>
@@ -523,23 +493,15 @@ export default function OfficeHud({
           </div>
           <section className="relative aspect-[16/10] overflow-hidden rounded-[24px] border border-white bg-[#EEEAF8] shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/office-henima-hero.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-[16%_60%]" draggable={false} />
-            <button type="button" onClick={openAlertAgent} className="absolute top-3 left-2 z-10 w-[46%] max-w-[12rem] text-left">
-              <div
-                className={[
-                  "rounded-2xl px-2.5 py-2 text-white shadow-lg",
-                  activeAlert?.tone === "warn"
-                    ? "bg-gradient-to-br from-[#F59E0B] to-[#DC2626]"
-                    : activeAlert?.tone === "ok"
-                      ? "bg-gradient-to-br from-[#34D399] to-[#059669]"
-                      : "bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9]",
-                ].join(" ")}
-              >
-                <p className="text-[9px] font-semibold text-white/80 uppercase">{activeAlert ? "Notif HR" : "Henima"}</p>
-                <p className="text-[11px] font-bold leading-snug">{activeAlert?.title || `Semangat, ${greetName}!`}</p>
-                <p className="mt-0.5 line-clamp-2 text-[9px] text-white/90">{activeAlert?.body || "Henima Agent siap membantu."}</p>
-              </div>
-            </button>
+            <img src="/office-henima-hero.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-[42%_55%]" draggable={false} />
+            <OfficeFounderGuide
+              greetName={greetName}
+              alert={activeAlert}
+              alertIndex={alertIndex}
+              alertTotal={alerts.length}
+              onOpen={openAlertAgent}
+              compact
+            />
           </section>
           <div className="rounded-[24px] bg-gradient-to-br from-[#8B5CF6] to-[#5B21B6] p-4 text-white">
             <p className="text-sm font-bold">AI Agent Anda berjalan dengan optimal!</p>

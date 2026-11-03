@@ -10,6 +10,8 @@ App Capacitor untuk sales lapangan. Membuka link portal `/t/{token}` (Sales Dash
 
 ## Setup sekali
 
+Versi Capacitor harus sama dengan web (`@capacitor/core` ^8.x di root) biar bridge GPS native nyambung ke situs live.
+
 ```bash
 cd mobile/henima-sales
 npm install

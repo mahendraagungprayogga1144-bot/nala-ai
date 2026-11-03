@@ -42,6 +42,26 @@ function assertWritableOrder(actor: Actor, order: SalesOrder, teamIds: string[])
   assertCanAccessStaff(actor, order.sales_id, teamIds);
 }
 
+/** Sync komisi + kas + CRM setelah patch order (mark paid / edit). */
+async function syncSaleSideEffects(
+  db: SalesDb,
+  businessId: string,
+  orderId: string,
+  prevPaymentStatus: string | null,
+  prevTotal: number,
+) {
+  const { error } = await db.rpc("henima_sync_sale_side_effects", {
+    p_order_id: orderId,
+    p_business_id: businessId,
+    p_prev_payment_status: prevPaymentStatus,
+    p_prev_total: prevTotal,
+  });
+  if (error) {
+    salesLogError("sync_sale_side_effects", error, { orderId });
+    throw new SalesError(rpcMessage(error), "sync_side_effects", 500);
+  }
+}
+
 export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleInput) {
   const lines: SaleLine[] =
     input.lines?.length && input.lines.length > 1
@@ -318,6 +338,8 @@ export async function updateOrder(
 ) {
   const current = await getOrder(db, actor, id);
   if (current.deleted_at) throw new SalesError("Transaksi sudah dihapus.", "deleted");
+  const prevPaymentStatus = current.payment_status;
+  const prevTotal = Number(current.total || 0);
 
   // Structural qty/product/price changes: reverse + re-confirm with same id is unsafe.
   // Keep metadata edits in place; for qty/price recreate via delete+new is worse.
@@ -364,6 +386,7 @@ export async function updateOrder(
       oldValue: { total: current.total, diskon: current.diskon },
       newValue: { total: priced.total, diskon: priced.discount },
     });
+    await syncSaleSideEffects(db, actor.businessId, id, prevPaymentStatus, prevTotal);
     return getOrder(db, actor, id);
   }
 
@@ -430,6 +453,7 @@ export async function updateOrder(
     oldValue: { total: current.total, qty: item.qty },
     newValue: { total, qty },
   });
+  await syncSaleSideEffects(db, actor.businessId, id, prevPaymentStatus, prevTotal);
   return getOrder(db, actor, id);
 }
 

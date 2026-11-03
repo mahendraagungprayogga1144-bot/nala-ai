@@ -105,9 +105,12 @@ export default function DashboardShell({
   return (
     <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
       <SyncActiveBusiness businessId={activeBusiness?.id} />
-      {/* Mobile top bar */}
+      {/* Mobile top bar — naik di atas banner saat drawer terbuka. */}
       <div
-        className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-white/[0.06] bg-[#0B0B16]/92 px-4 backdrop-blur-xl md:hidden"
+        className={[
+          "fixed top-0 right-0 left-0 flex items-center justify-between border-b border-white/[0.06] bg-[#0B0B16]/92 px-4 backdrop-blur-xl md:hidden",
+          drawerOpen ? "z-[80]" : "z-50",
+        ].join(" ")}
         style={{
           paddingTop: "env(safe-area-inset-top)",
           height: "calc(3.5rem + env(safe-area-inset-top))",
@@ -138,9 +141,9 @@ export default function DashboardShell({
         </button>
       </div>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — di atas banner install (z-55) supaya menu tidak ketutup. */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-[70] md:hidden">
           <button
             type="button"
             aria-label="Tutup menu"
@@ -148,7 +151,7 @@ export default function DashboardShell({
             onClick={() => setMobileOpen(false)}
           />
           <div
-            className="absolute bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] z-50 flex w-[min(19.5rem,88vw)] flex-col overflow-hidden border-r border-white/[0.08] bg-[#0B0B16] shadow-[8px_0_40px_rgba(0,0,0,0.45)]"
+            className="absolute bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] flex w-[min(19.5rem,88vw)] max-w-full flex-col overflow-hidden border-r border-white/[0.08] bg-[#0B0B16] pb-[env(safe-area-inset-bottom)] shadow-[8px_0_40px_rgba(0,0,0,0.45)]"
             onClick={(e) => e.stopPropagation()}
           >
             <Sidebar

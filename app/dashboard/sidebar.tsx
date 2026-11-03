@@ -92,8 +92,8 @@ export default function Sidebar({
   return (
     <aside
       className={[
-        "relative z-50 flex flex-col overflow-hidden border-r border-white/[0.06] bg-[#0B0B16]",
-        embedded ? "h-full w-full border-r-0" : "fixed top-0 left-0 h-screen",
+        "relative flex min-h-0 flex-col overflow-hidden border-r border-white/[0.06] bg-[#0B0B16]",
+        embedded ? "h-full w-full border-r-0" : "fixed top-0 left-0 z-50 h-screen",
       ].join(" ")}
       style={{
         width: embedded ? "100%" : expanded ? 232 : 64,
@@ -120,19 +120,19 @@ export default function Sidebar({
         </div>
       )}
 
-      {embedded && (
-        <div className="flex-shrink-0 px-4 pb-2 pt-3">
+      {embedded ? (
+        <div className="shrink-0 border-b border-white/[0.06] px-4 pb-2.5 pt-3">
           <p className="text-[11px] font-medium tracking-[0.14em] text-[#5A5B7A] uppercase">Navigasi</p>
           {activeBusiness?.name ? (
             <p className="mt-1 truncate text-sm font-semibold text-[#F0EFF8]">{activeBusiness.name}</p>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       <nav
         className={[
-          "flex-1 overflow-y-auto overscroll-contain px-2.5",
-          embedded ? "pb-3" : "py-3",
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5",
+          embedded ? "py-2.5 pb-3" : "py-3",
         ].join(" ")}
         style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}
       >
@@ -150,8 +150,8 @@ export default function Sidebar({
 
       <div
         className={[
-          "flex-shrink-0 space-y-2 border-t border-white/[0.06] bg-[#0B0B16]/95 px-2.5 pt-2.5 backdrop-blur-sm",
-          embedded ? "pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "pb-3",
+          "shrink-0 space-y-2 border-t border-white/[0.06] bg-[#0B0B16] px-2.5 pt-2.5",
+          embedded ? "pb-3" : "pb-3",
         ].join(" ")}
       >
         {expanded && isAdminEmail(userEmail, [FALLBACK_ADMIN_EMAIL]) && (

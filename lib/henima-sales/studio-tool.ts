@@ -10,7 +10,7 @@ type ChatCtx = { userId: string; business: { id: string } | null };
 
 export async function runGantiLatarStudio(ctx: ChatCtx, input: Record<string, unknown>) {
   if (!studioConfigured()) {
-    return "Studio belum siap. Founder set PHOTOROOM_API_KEY di server (atau REMOVEBG_API_KEY untuk cutout + warna solid).";
+    return "Studio belum siap. Founder set HF_KEY Higgsfield di Vercel (atau PHOTOROOM_API_KEY).";
   }
   const presetRaw = typeof input.preset === "string" ? input.preset : "";
   const preset = resolveStudioPreset(presetRaw);

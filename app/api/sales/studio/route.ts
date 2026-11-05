@@ -8,7 +8,7 @@ import {
 } from "@/lib/henima-sales/studio-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
 
-export const maxDuration = 90;
+export const maxDuration = 120;
 
 export async function GET(request: Request) {
   return withSalesActor(async ({ actor, db }) => {

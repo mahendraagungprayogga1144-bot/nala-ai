@@ -1,5 +1,11 @@
 import { SalesError } from "./types";
 import {
+  downloadHiggsfieldImage,
+  higgsfieldConfigured,
+  higgsfieldSubscribe,
+  higgsfieldUpload,
+} from "./higgsfield";
+import {
   geminiAspectRatio,
   getStudioPreset,
   resolveGeminiModel,
@@ -8,9 +14,12 @@ import {
   type StudioPresetId,
 } from "./studio-presets";
 
-export type StudioProviderId = "photoroom" | "removebg" | "gemini";
+export type StudioProviderId = "photoroom" | "removebg" | "gemini" | "higgsfield";
+
+export { higgsfieldConfigured };
 
 export function studioProvider(): Exclude<StudioProviderId, "gemini"> | null {
+  if (higgsfieldConfigured()) return "higgsfield";
   if (process.env.PHOTOROOM_API_KEY?.trim()) return "photoroom";
   if (process.env.REMOVEBG_API_KEY?.trim()) return "removebg";
   return null;
@@ -58,27 +67,56 @@ export async function swapBottleInScene(input: {
   frame: StudioFrameId;
   modelRaw?: string | null;
 }): Promise<StudioEditResult> {
+  const picked = resolveGeminiModel(input.modelRaw);
+  if (higgsfieldConfigured()) {
+    return editWithHiggsfield({
+      imageUrls: [
+        await higgsfieldUpload(input.sceneBytes, input.sceneMime),
+        await higgsfieldUpload(input.bottleBytes, input.bottleMime),
+      ],
+      prompt: input.prompt,
+      frame: input.frame,
+      model: picked.higgsfield,
+      resolution: picked.resolution,
+    });
+  }
   const key = geminiApiKey();
   if (!key) {
     throw new SalesError(
-      "Mode tukar botol butuh GEMINI_API_KEY (Google AI Studio / Nano Banana). Pasang di Vercel.",
+      "Mode tukar botol butuh HF_KEY (Higgsfield) di Vercel. Paste key_id:secret, Save, Redeploy.",
       "studio_unconfigured",
       503,
     );
   }
-  const picked = resolveGeminiModel(input.modelRaw);
   try {
     return await callGeminiImage(key, picked.model, input);
   } catch (err) {
     if (err instanceof SalesError && err.code === "studio_model") {
       throw new SalesError(
-        `${picked.label} belum aktif di key ini. Coba pilih Nano Banana, atau enable model Pro di Google AI Studio.`,
+        `${picked.label} belum aktif di key Gemini. Pasang HF_KEY Higgsfield, atau enable model di Google AI Studio.`,
         "studio_model",
         404,
       );
     }
     throw err;
   }
+}
+
+async function editWithHiggsfield(input: {
+  imageUrls: string[];
+  prompt: string;
+  frame: StudioFrameId;
+  model: string;
+  resolution: string;
+}): Promise<StudioEditResult> {
+  const url = await higgsfieldSubscribe(input.model, {
+    prompt: input.prompt,
+    aspect_ratio: geminiAspectRatio(input.frame),
+    resolution: input.resolution,
+    image_references: input.imageUrls,
+  });
+  const file = await downloadHiggsfieldImage(url);
+  return { ...file, provider: "higgsfield" };
 }
 
 function toB64(bytes: Uint8Array) {
@@ -156,10 +194,28 @@ async function callGeminiImage(
 }
 
 export async function editStudioPhoto(input: StudioEditRequest): Promise<StudioEditResult> {
+  if (higgsfieldConfigured()) {
+    const preset = getStudioPreset(input.presetId);
+    const prompt =
+      input.prompt ||
+      (preset.kind === "solid" && preset.color
+        ? `Keep the exact perfume bottle. Replace only the background with a clean solid #${preset.color} studio backdrop, no extra objects, no text, no logos.`
+        : "");
+    if (!prompt) throw new SalesError("Preset latar tidak valid.", "studio_preset");
+    const imageUrl = await higgsfieldUpload(input.bytes, input.mime);
+    const picked = resolveGeminiModel("flash");
+    return editWithHiggsfield({
+      imageUrls: [imageUrl],
+      prompt,
+      frame: input.frame,
+      model: picked.higgsfield,
+      resolution: picked.resolution,
+    });
+  }
   const provider = studioProvider();
   if (!provider) {
     throw new SalesError(
-      "Studio belum dikonfigurasi. Set PHOTOROOM_API_KEY (disarankan) atau REMOVEBG_API_KEY di server.",
+      "Studio belum dikonfigurasi. Set HF_KEY Higgsfield di Vercel (disarankan), atau PHOTOROOM_API_KEY.",
       "studio_unconfigured",
       503,
     );

@@ -56,12 +56,20 @@ export async function GET() {
   });
   checks.push({
     name: "Henima Studio API",
-    ok: Boolean(process.env.PHOTOROOM_API_KEY || process.env.REMOVEBG_API_KEY),
-    detail: process.env.PHOTOROOM_API_KEY
-      ? "PHOTOROOM_API_KEY set"
-      : process.env.REMOVEBG_API_KEY
-        ? "REMOVEBG_API_KEY set (cutout + solid only)"
-        : "missing PHOTOROOM_API_KEY (or REMOVEBG_API_KEY)",
+    ok: Boolean(
+      process.env.HF_KEY ||
+        process.env.HF_CREDENTIALS ||
+        process.env.HIGGSFIELD_API_KEY ||
+        process.env.PHOTOROOM_API_KEY ||
+        process.env.REMOVEBG_API_KEY,
+    ),
+    detail: process.env.HF_KEY || process.env.HF_CREDENTIALS || process.env.HIGGSFIELD_API_KEY
+      ? "HF_KEY set (Higgsfield)"
+      : process.env.PHOTOROOM_API_KEY
+        ? "PHOTOROOM_API_KEY set"
+        : process.env.REMOVEBG_API_KEY
+          ? "REMOVEBG_API_KEY set (cutout + solid only)"
+          : "missing HF_KEY (or PHOTOROOM_API_KEY)",
   });
   checks.push({
     name: "Infobip WhatsApp monitor",
@@ -81,6 +89,13 @@ export async function GET() {
     name: "DeepSeek sales bot",
     ok: Boolean(process.env.DEEPSEEK_API_KEY),
     detail: process.env.DEEPSEEK_API_KEY ? "DEEPSEEK_API_KEY set (chat Telegram santai)" : "missing DEEPSEEK_API_KEY",
+  });
+  checks.push({
+    name: "Henima Studio Higgsfield",
+    ok: Boolean(process.env.HF_KEY || process.env.HF_CREDENTIALS || process.env.HIGGSFIELD_API_KEY),
+    detail: process.env.HF_KEY || process.env.HF_CREDENTIALS || process.env.HIGGSFIELD_API_KEY
+      ? "HF_KEY set (tukar botol + ganti latar via Higgsfield)"
+      : "missing HF_KEY for Higgsfield Studio",
   });
   checks.push({
     name: "Henima Studio Gemini",
@@ -135,7 +150,8 @@ export async function GET() {
       c.ok ||
       c.name === "Maintenance mode" ||
       c.name === "Henima Studio API" ||
-      c.name === "Henima Studio Gemini",
+      c.name === "Henima Studio Gemini" ||
+      c.name === "Henima Studio Higgsfield",
   );
 
   return NextResponse.json({

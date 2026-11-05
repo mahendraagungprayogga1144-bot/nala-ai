@@ -193,14 +193,18 @@ export const STUDIO_GEMINI_MODELS = [
   {
     id: "pro",
     label: "Nano Banana Pro",
-    hint: "Kualitas max, mirip Artlist",
+    hint: "Kualitas max, via Higgsfield",
     model: "gemini-3-pro-image-preview",
+    higgsfield: "google/nano-banana-2",
+    resolution: "2k",
   },
   {
     id: "flash",
     label: "Nano Banana",
-    hint: "Lebih cepat & murah",
+    hint: "Lebih cepat & murah, via Higgsfield",
     model: "gemini-2.5-flash-image",
+    higgsfield: "google/nano-banana",
+    resolution: "1k",
   },
 ] as const;
 export type StudioGeminiModelId = (typeof STUDIO_GEMINI_MODELS)[number]["id"];

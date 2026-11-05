@@ -36,7 +36,7 @@ export default function StudioClient({
   role: string;
   configured: boolean;
   swapConfigured: boolean;
-  provider: "photoroom" | "removebg" | null;
+  provider: "photoroom" | "removebg" | "higgsfield" | null;
   tableReady: boolean;
   products: Product[];
   presets: Preset[];
@@ -69,9 +69,11 @@ export default function StudioClient({
 
   const providerLabel = useMemo(() => {
     if (mode === "swap") {
-      if (!swapConfigured) return "Belum ada GEMINI_API_KEY";
-      return STUDIO_GEMINI_MODELS.find((m) => m.id === geminiModel)?.label || "Nano Banana Pro";
+      if (!swapConfigured) return "Belum ada HF_KEY";
+      const model = STUDIO_GEMINI_MODELS.find((m) => m.id === geminiModel)?.label || "Nano Banana Pro";
+      return provider === "higgsfield" ? `Higgsfield · ${model}` : model;
     }
+    if (provider === "higgsfield") return "Higgsfield Nano Banana";
     if (provider === "photoroom") return "Photoroom AI";
     if (provider === "removebg") return "remove.bg";
     return "Belum ada API key";
@@ -93,7 +95,7 @@ export default function StudioClient({
   const generate = async () => {
     if (mode === "swap") {
       if (!swapConfigured) {
-        setError("Set GEMINI_API_KEY di Vercel dulu (Google AI Studio). Ini yang dipakai untuk @img1 + @img2.");
+        setError("Set HF_KEY di Vercel dulu (Higgsfield, format key_id:secret). Ini yang dipakai untuk @img1 + @img2.");
         return;
       }
       if (!file) {
@@ -106,7 +108,7 @@ export default function StudioClient({
       }
     } else {
       if (!configured) {
-        setError("Set PHOTOROOM_API_KEY di server dulu (atau REMOVEBG_API_KEY untuk cutout + warna solid).");
+        setError("Set HF_KEY Higgsfield di Vercel dulu (atau PHOTOROOM_API_KEY untuk ganti latar).");
         return;
       }
       if (!file && !sourceId) {
@@ -369,7 +371,7 @@ export default function StudioClient({
             )}
             {provider === "removebg" && sceneNeedsPhotoroom && (
               <p className="mt-2 text-[10px] text-[#F59E0B]">
-                remove.bg hanya cutout + warna. Latar AI butuh PHOTOROOM_API_KEY.
+                remove.bg hanya cutout + warna. Latar AI butuh HF_KEY Higgsfield.
               </p>
             )}
           </section>
@@ -435,21 +437,21 @@ export default function StudioClient({
         )}
         {mode === "swap" && !swapConfigured && (
           <p className="rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2 text-xs text-[#F59E0B]">
-            Mode tukar botol butuh <code>GEMINI_API_KEY</code> di Vercel. Ambil di Google AI Studio, Save, Redeploy.
+            Mode tukar botol butuh <code>HF_KEY</code> di Vercel (Higgsfield). Paste <code>key_id:secret</code>, Save, Redeploy. Saldo Higgsfield harus di-top up dulu.
           </p>
         )}
-        {mode === "swap" && swapConfigured && (
+        {provider === "higgsfield" && (
           <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-[#8B8AA0]">
-            Tukar botol pakai Gemini berbayar. Key free tier kuotanya 0 untuk generate gambar — enable billing dulu di{" "}
-            <a className="text-[#2DD4BF] underline" href="https://aistudio.google.com/usage?tab=billing" target="_blank" rel="noreferrer">
-              Google AI Studio
-            </a>
-            , bukan OpenAI.
+            Studio pakai Higgsfield. Top up saldo di{" "}
+            <a className="text-[#2DD4BF] underline" href="https://open.higgsfield.ai" target="_blank" rel="noreferrer">
+              open.higgsfield.ai
+            </a>{" "}
+            kalau generate ditolak.
           </p>
         )}
         {mode === "background" && !configured && (
           <p className="rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2 text-xs text-[#F59E0B]">
-            Tambah <code>PHOTOROOM_API_KEY</code> di env server (Vercel). Bisa juga <code>REMOVEBG_API_KEY</code> untuk cutout + warna solid.
+            Tambah <code>HF_KEY</code> Higgsfield di Vercel. Bisa juga <code>PHOTOROOM_API_KEY</code> untuk ganti latar.
           </p>
         )}
         {error && (

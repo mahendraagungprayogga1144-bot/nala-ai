@@ -44,7 +44,7 @@ Lihat `/admin/health`:
 - Vercel env `NEXT_PUBLIC_APP_URL` = `https://www.gercepos.id`
 - Supabase **Backups** on (Dashboard → Project Settings → Database)
 - Service role key hanya di Vercel env / password manager — jangan di chat
-- Henima Studio: `PHOTOROOM_API_KEY` (ganti latar) dan `GEMINI_API_KEY` (tukar botol @img1 scene + @img2 botol, seperti Nano Banana). Key Gemini: [Google AI Studio](https://aistudio.google.com/apikey). Setelah itu jalankan migration `supabase/migrations/20260901_henima_studio.sql`.
+- Henima Studio: `HF_KEY` Higgsfield (`key_id:secret` dari [open.higgsfield.ai](https://open.higgsfield.ai/api-keys)) untuk tukar botol + ganti latar. Saldo harus di-top up. Opsional: `PHOTOROOM_API_KEY` / `GEMINI_API_KEY`. Setelah itu jalankan migration `supabase/migrations/20260901_henima_studio.sql`. Jangan commit API key.
 
 ## Invoice user
 

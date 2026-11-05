@@ -35,6 +35,7 @@ import { buildSalesReportPdf, groupRecapByMonth } from "../pdf";
 import { brandFontBytes } from "../pdf-fonts";
 import { resolveStudioPreset, resolveStudioFrame, buildBackgroundPrompt, studioOutputSize, buildSwapPrompt, resolveGeminiModel } from "../studio-presets";
 import { geminiApiError } from "../studio-provider";
+import { higgsfieldHttpError } from "../higgsfield";
 
 let failed = 0;
 function test(name: string, fn: () => void) {
@@ -352,6 +353,7 @@ test("studio gemini model picker", () => {
   assert.equal(resolveGeminiModel("pro").id, "pro");
   assert.equal(resolveGeminiModel("flash").model, "gemini-2.5-flash-image");
   assert.equal(resolveGeminiModel("pro").model, "gemini-3-pro-image-preview");
+  assert.equal(resolveGeminiModel("pro").higgsfield, "google/nano-banana-2");
 });
 
 test("studio gemini free-tier image quota is not a retryable rate limit", () => {
@@ -362,6 +364,12 @@ test("studio gemini free-tier image quota is not a retryable rate limit", () => 
   assert.equal(err.code, "studio_quota");
   assert.match(err.message, /free tier/i);
   assert.match(err.message, /billing/i);
+});
+
+test("higgsfield empty balance is a quota error", () => {
+  const err = higgsfieldHttpError(403, JSON.stringify({ detail: "Insufficient credits" }));
+  assert.equal(err.code, "studio_quota");
+  assert.match(err.message, /Higgsfield/i);
 });
 
 test("input_phone sale chat is not treated as a phone number", () => {

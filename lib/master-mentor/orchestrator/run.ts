@@ -1,5 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildChairmanSystem, buildSpecialistSystem } from "../agents/prompts";
+import {
+  buildBusinessPdfSystem,
+  businessPdfTitle,
+  businessPdfUserHint,
+  henimaBusinessTextToPdf,
+  pdfFileSlug,
+  wantsBusinessPdf,
+} from "../chat/business-pdf";
 import { looksTruncatedReply, toPlainChatText } from "../chat/plain-text";
 import type { AgentRunOutput, SpecialistBrief, SpecialistId } from "../agents/types";
 import { buildFinanceSnapshot } from "../finance/calculations";
@@ -30,6 +38,13 @@ export type OrchestratorProgress = {
   text?: string;
 };
 
+export type OrchestratorPdfFile = {
+  name: string;
+  mediaType: "application/pdf";
+  data: string; // base64
+  title: string;
+};
+
 export type OrchestratorResult = {
   reply: string;
   specialists: SpecialistBrief[];
@@ -39,6 +54,7 @@ export type OrchestratorResult = {
   businessId: string | null;
   complex: boolean;
   routeReasons: string[];
+  pdf?: OrchestratorPdfFile | null;
 };
 
 const LABELS: Record<SpecialistId, string> = {
@@ -99,24 +115,29 @@ export async function runMasterOrchestrator(opts: {
     throw err;
   }
 
+  const pdfMode = wantsBusinessPdf(opts.question);
   const route = planSpecialistRoute(opts.question);
   // Cap fan-out: sequential Opus calls were timing out on Hobby before any reply.
-  const specialistsToRun = route.specialists.slice(0, 2);
+  // PDF docs: chairman alone + memory (faster, fuller document).
+  const specialistsToRun = pdfMode ? [] : route.specialists.slice(0, 2);
   onProgress({
     type: "status",
-    message: specialistsToRun.length
-      ? `Lagi lihat: ${specialistsToRun.map((s) => LABELS[s]).join(", ")}…`
-      : "Mentor lagi ngetik…",
+    message: pdfMode
+      ? "Menyusun dokumen bisnis HENIMA…"
+      : specialistsToRun.length
+        ? `Lagi lihat: ${specialistsToRun.map((s) => LABELS[s]).join(", ")}…`
+        : "Mentor lagi ngetik…",
   });
 
   onProgress({ type: "status", message: "Baca memori bisnis…" });
   const context = await retrieveMentorContext(opts.db, opts.ownerUserId, {
     query: opts.question,
     businessId: opts.businessId || null,
-    includeFinance: route.includeFinance,
+    includeFinance: pdfMode ? true : route.includeFinance,
   });
 
-  const finance = route.includeFinance ? buildFinanceSnapshot(context.financial) : null;
+  const finance =
+    pdfMode || route.includeFinance ? buildFinanceSnapshot(context.financial) : null;
   const memoryBlock = formatMemoryContext(context, finance);
 
   onProgress({ type: "status", message: "Cek angka operasional…" });
@@ -245,14 +266,20 @@ export async function runMasterOrchestrator(opts: {
     message: "Mentor lagi ngetik…",
   });
 
-  const chairmanUser = [
-    baseUser,
-    "CATATAN TIM (kalau ada):",
-    peerNotes || "(tidak ada catatan tim — jawab langsung sebagai mentor)",
-    route.complex
-      ? "Jawab gaya chat dengan struktur ringan (inti → angka → rekomendasi → risiko)."
-      : "Jawab singkat seperti chat WhatsApp — enak dibaca.",
-  ].join("\n\n");
+  const chairmanUser = pdfMode
+    ? [
+        baseUser,
+        businessPdfUserHint(opts.question, locale),
+        "Tulis dokumen lengkap. Angka hanya dari memori/chat di atas.",
+      ].join("\n\n")
+    : [
+        baseUser,
+        "CATATAN TIM (kalau ada):",
+        peerNotes || "(tidak ada catatan tim — jawab langsung sebagai mentor)",
+        route.complex
+          ? "Jawab gaya chat dengan struktur ringan (inti → angka → rekomendasi → risiko)."
+          : "Jawab singkat seperti chat WhatsApp — enak dibaca.",
+      ].join("\n\n");
 
   let reply = "";
   let chairmanUsage: ProviderUsage = {
@@ -264,9 +291,17 @@ export async function runMasterOrchestrator(opts: {
   };
 
   const providerCfg = getMentorProviderConfig();
-  const chairmanMaxTokens = Math.max(providerCfg.maxTokens || 4096, 3200);
+  const chairmanMaxTokens = Math.max(
+    providerCfg.maxTokens || 4096,
+    pdfMode ? 4500 : 3200,
+  );
   const chairmanTimeoutMs = Math.max(providerCfg.timeoutMs || 55_000, 90_000);
-  const chairmanSystem = buildChairmanSystem(route.complex, locale);
+  const chairmanSystem = pdfMode
+    ? [
+        buildBusinessPdfSystem(locale),
+        "PERMISSIONS: analisis + susun dokumen saja. Jangan klaim sudah mengirim file eksternal.",
+      ].join("\n\n")
+    : buildChairmanSystem(route.complex, locale);
 
   try {
     if (opts.streamFinal && provider.stream) {
@@ -374,8 +409,34 @@ export async function runMasterOrchestrator(opts: {
     );
   }
 
+  let pdf: OrchestratorPdfFile | null = null;
+  if (pdfMode && reply.trim()) {
+    onProgress({ type: "status", message: "Membuat file PDF…" });
+    try {
+      const title = businessPdfTitle(opts.question);
+      const data = await henimaBusinessTextToPdf(title, reply);
+      pdf = {
+        name: `${pdfFileSlug(title)}.pdf`,
+        mediaType: "application/pdf",
+        data,
+        title,
+      };
+    } catch (err) {
+      onProgress({
+        type: "status",
+        message: `PDF gagal dibuat (${err instanceof Error ? err.message : "error"}). Teks dokumen tetap ada di chat.`,
+      });
+    }
+  }
+
+  const plainReply = toPlainChatText(reply);
+  const chatReply =
+    pdf && plainReply
+      ? `${plainReply}\n\nDokumen PDF siap diunduh: ${pdf.title}.`
+      : plainReply;
+
   const result: OrchestratorResult = {
-    reply: toPlainChatText(reply),
+    reply: chatReply,
     specialists: briefs,
     sourcesUsed: [
       ...context.sourcesUsed,
@@ -384,10 +445,11 @@ export async function runMasterOrchestrator(opts: {
     missing: missingUi,
     usage: sumUsage(usageParts),
     businessId: context.businessId,
-    complex: route.complex,
-    routeReasons: route.reasons,
+    complex: route.complex || pdfMode,
+    routeReasons: pdfMode ? [...route.reasons, "business_pdf"] : route.reasons,
+    pdf,
   };
 
-  onProgress({ type: "done", message: "Selesai" });
+  onProgress({ type: "done", message: pdf ? "PDF siap" : "Selesai" });
   return result;
 }

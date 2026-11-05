@@ -127,6 +127,7 @@ export async function POST(request: Request) {
         missing: result.missing,
         usage: result.usage,
         proposals,
+        pdf: result.pdf || null,
       });
     }
 
@@ -179,6 +180,7 @@ export async function POST(request: Request) {
             missing: result.missing,
             usage: result.usage,
             proposals,
+            pdf: result.pdf || null,
           });
         } catch (err) {
           const msg =

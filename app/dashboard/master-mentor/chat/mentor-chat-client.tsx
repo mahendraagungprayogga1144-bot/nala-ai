@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MessageSquare, Plus, Send, Sparkles } from "lucide-react";
+import { Download, MessageSquare, Plus, Send, Sparkles } from "lucide-react";
 import type { MentorPortfolioBusiness } from "@/lib/master-mentor/types";
 import { categoryLabel } from "@/lib/master-mentor/types";
 import { toPlainChatText } from "@/lib/master-mentor/chat/plain-text";
@@ -14,6 +14,13 @@ type Conversation = {
   updated_at?: string;
 };
 
+type ChatPdf = {
+  name: string;
+  mediaType: string;
+  data: string;
+  title?: string;
+};
+
 type ChatMessage = {
   id: string;
   role: "user" | "assistant" | "system";
@@ -21,7 +28,15 @@ type ChatMessage = {
   specialists?: string[];
   sources_used?: string[];
   missing?: string[];
+  pdf?: ChatPdf | null;
 };
+
+function downloadPdf(file: ChatPdf) {
+  const a = document.createElement("a");
+  a.href = `data:${file.mediaType || "application/pdf"};base64,${file.data}`;
+  a.download = file.name || "henima-dokumen.pdf";
+  a.click();
+}
 
 type SpecialistEvent = { id: string; label: string; status: "running" | "done" };
 
@@ -149,6 +164,7 @@ export default function MentorChatClient({
                   specialists: (data.specialists || []).map((s: { id: string }) => s.id),
                   sources_used: data.sourcesUsed,
                   missing: data.missing,
+                  pdf: (data.pdf as ChatPdf | null) || null,
                 }
               : m,
           ),
@@ -234,6 +250,7 @@ export default function MentorChatClient({
                       specialists: specs,
                       sources_used: (evt.sourcesUsed as string[]) || [],
                       missing: (evt.missing as string[]) || [],
+                      pdf: (evt.pdf as ChatPdf | null) || null,
                     }
                   : m,
               ),
@@ -399,6 +416,16 @@ export default function MentorChatClient({
                   ].join(" ")}
                 >
                   {m.role === "assistant" ? toPlainChatText(m.content) : m.content}
+                  {m.role === "assistant" && m.pdf?.data ? (
+                    <button
+                      type="button"
+                      onClick={() => downloadPdf(m.pdf!)}
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-xs font-medium text-[#111827] hover:bg-[#F9FAFB]"
+                    >
+                      <Download size={14} />
+                      Unduh PDF{m.pdf.title ? ` · ${m.pdf.title}` : ""}
+                    </button>
+                  ) : null}
                 </div>
               ))
             )}

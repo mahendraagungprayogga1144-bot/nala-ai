@@ -4,7 +4,7 @@
  * Stock figures from owner (Nov 2026).
  */
 
-export const HENIMA_PACK_VERSION = "2026-11-06-v2-stock";
+export const HENIMA_PACK_VERSION = "2026-11-06-v2-stock-deploy";
 
 export const henimaOwnerMemory = {
   business_vision:

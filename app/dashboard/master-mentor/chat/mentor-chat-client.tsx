@@ -104,10 +104,14 @@ export default function MentorChatClient({
     const assistantId = uid();
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }]);
 
+    const abort = new AbortController();
+    const hangTimer = window.setTimeout(() => abort.abort(), 280_000);
+
     try {
       const res = await fetch("/api/master-mentor/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abort.signal,
         body: JSON.stringify({
           message: text,
           conversationId: activeId,

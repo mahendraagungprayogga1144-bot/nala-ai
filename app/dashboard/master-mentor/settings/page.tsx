@@ -38,21 +38,25 @@ export default async function AiSettingsPage() {
           </dl>
         </SectionCard>
 
-        <SectionCard title="Engine status" subtitle="Integration roadmap">
+        <SectionCard title="Engine status" subtitle="Phase 3 intelligence">
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between gap-4 border-b border-[#F3F4F6] pb-3">
               <dt className="text-[#6B7280]">Master Orchestrator</dt>
-              <dd className="font-medium text-[#6B7280]">Not connected (Phase 3)</dd>
+              <dd className="font-medium text-[#111827]">Active (analyze-only)</dd>
             </div>
             <div className="flex justify-between gap-4 border-b border-[#F3F4F6] pb-3">
               <dt className="text-[#6B7280]">Specialists</dt>
               <dd className="text-right font-medium text-[#6B7280]">
-                Strategy · CFO · Growth · Operations · Risk
+                Chairman · Strategy · CFO · Growth · Operations · Risk
               </dd>
+            </div>
+            <div className="flex justify-between gap-4 border-b border-[#F3F4F6] pb-3">
+              <dt className="text-[#6B7280]">Permissions</dt>
+              <dd className="font-medium text-[#6B7280]">READ + ANALYZE (no WRITE)</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-[#6B7280]">API secrets</dt>
-              <dd className="font-medium text-[#6B7280]">Never exposed in client</dd>
+              <dd className="font-medium text-[#6B7280]">Server-only · never in client</dd>
             </div>
           </dl>
         </SectionCard>

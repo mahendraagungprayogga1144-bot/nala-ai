@@ -1,23 +1,33 @@
 import { withMentorOwner } from "@/lib/master-mentor/authz";
+import { getMentorProviderConfig } from "@/lib/master-mentor/providers/config";
+import { MENTOR_PERMISSIONS } from "@/lib/master-mentor/permissions";
 
 export const dynamic = "force-dynamic";
 
-/** Lightweight owner session probe — no AI, no secrets. */
 export async function GET() {
-  return withMentorOwner(async ({ owner }) => ({
-    owner: {
-      name: owner.ownerName,
-      email: owner.email,
-      activeGercepBusinessId: owner.activeGercepBusinessId,
-      gercepBusinesses: owner.gercepBusinesses,
-    },
-    engine: {
-      status: "memory_ready",
-      phase: 2,
-      message:
-        "Business Memory Engine is available. AI orchestration connects in Phase 3. Retrieval uses structured PostgreSQL memory — no invented facts.",
-      retrieval: "/api/master-mentor/memory/retrieve",
-      pgvector: false,
-    },
-  }));
+  return withMentorOwner(async ({ owner }) => {
+    const cfg = getMentorProviderConfig();
+    return {
+      owner: {
+        name: owner.ownerName,
+        email: owner.email,
+        activeGercepBusinessId: owner.activeGercepBusinessId,
+        gercepBusinesses: owner.gercepBusinesses,
+      },
+      engine: {
+        status: cfg.apiKeyPresent ? "ready" : "awaiting_api_key",
+        phase: 3,
+        provider: cfg.provider,
+        model: cfg.model,
+        apiKeyConfigured: cfg.apiKeyPresent,
+        permissions: MENTOR_PERMISSIONS,
+        message: cfg.apiKeyPresent
+          ? "Master Orchestrator ready. Analysis-only permissions."
+          : "Set ANTHROPIC_API_KEY on the server to enable Mentor Chat intelligence.",
+        retrieval: "/api/master-mentor/memory/retrieve",
+        chat: "/api/master-mentor/chat",
+        pgvector: false,
+      },
+    };
+  });
 }

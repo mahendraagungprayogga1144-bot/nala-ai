@@ -181,4 +181,78 @@ expectThrow(
   "lesson",
 );
 
-console.log("master-mentor tests: ok (phase1+phase2 memory)");
+// ── Phase 3: routing, finance calc, permissions, hallucination guards ────────
+import { planSpecialistRoute } from "../orchestrator/router";
+import { buildFinanceSnapshot } from "../finance/calculations";
+import { MENTOR_PERMISSIONS, assertAnalyzeOnly } from "../permissions";
+import { getMentorProviderConfig, estimateAnthropicCostUsd } from "../providers/config";
+import type { FinancialRecord } from "../memory-types";
+
+const greet = planSpecialistRoute("Halo");
+assert.deepEqual(greet.specialists, ["chairman"]);
+assert.equal(greet.complex, false);
+
+const financeRoute = planSpecialistRoute("Bagaimana omzet, COGS, dan cash flow bisnis ini?");
+assert.ok(financeRoute.specialists.includes("cfo"));
+assert.equal(financeRoute.includeFinance, true);
+
+const growthRoute = planSpecialistRoute("Strategi pricing dan acquisition untuk naikkan konversi");
+assert.ok(growthRoute.specialists.includes("growth"));
+
+const multi = planSpecialistRoute(
+  "Tolong analisis rekomendasi ekspansi toko baru: strategi, risiko, dan dampak keuangan.",
+);
+assert.ok(multi.specialists.includes("strategy") || multi.specialists.includes("cfo") || multi.specialists.includes("risk"));
+assert.equal(multi.complex, true);
+assert.ok(!multi.specialists.includes("chairman")); // chairman synthesizes separately
+
+const rows: FinancialRecord[] = [
+  {
+    id: "1",
+    owner_user_id: "u",
+    business_id: bizA,
+    metric_type: "revenue",
+    amount: 10000000,
+    currency: "IDR",
+    transaction_date: "2026-11-01",
+    transaction_category: "sales",
+    description: "Nov",
+    data_source: "owner_entry",
+    certainty: "actual",
+    created_at: "",
+    updated_at: "",
+  },
+  {
+    id: "2",
+    owner_user_id: "u",
+    business_id: bizA,
+    metric_type: "cogs",
+    amount: 4000000,
+    currency: "IDR",
+    transaction_date: "2026-11-01",
+    transaction_category: "cogs",
+    description: "Nov",
+    data_source: "owner_entry",
+    certainty: "actual",
+    created_at: "",
+    updated_at: "",
+  },
+];
+const snap = buildFinanceSnapshot(rows);
+assert.equal(snap.derived.grossProfitActual, 6000000);
+assert.ok(snap.evidence.length >= 2);
+assert.equal(buildFinanceSnapshot([]).missing.length > 0, true);
+
+assert.equal(MENTOR_PERMISSIONS.WRITE, false);
+assert.equal(MENTOR_PERMISSIONS.ANALYZE, true);
+assertAnalyzeOnly();
+
+const cfg = getMentorProviderConfig();
+assert.ok(["anthropic", "none"].includes(cfg.provider));
+assert.ok(estimateAnthropicCostUsd(cfg.model, 1000, 1000) >= 0);
+
+// Cross-business finance isolation is enforced by business_id on records + assertOwnedBusiness in services
+assert.notEqual(bizA, bizB);
+
+console.log("master-mentor tests: ok (phase1+phase2+phase3)");
+

@@ -1,0 +1,290 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildChairmanSystem, buildSpecialistSystem } from "../agents/prompts";
+import type { AgentRunOutput, SpecialistBrief, SpecialistId } from "../agents/types";
+import { buildFinanceSnapshot } from "../finance/calculations";
+import { retrieveMentorContext } from "../memory-retrieval";
+import { assertAnalyzeOnly } from "../permissions";
+import { createMentorProvider, type MentorProvider, type ProviderUsage } from "../providers";
+import { ProviderConfigError, ProviderRuntimeError } from "../providers/types";
+import { logMentorUsage, sumUsage } from "../usage";
+import { formatMemoryContext } from "./context-prompt";
+import { planSpecialistRoute } from "./router";
+
+
+export type OrchestratorProgress = {
+  type: "status" | "specialist_start" | "specialist_done" | "token" | "error" | "done";
+  message?: string;
+  specialist?: SpecialistId;
+  label?: string;
+  text?: string;
+};
+
+export type OrchestratorResult = {
+  reply: string;
+  specialists: SpecialistBrief[];
+  sourcesUsed: string[];
+  missing: string[];
+  usage: ProviderUsage;
+  businessId: string | null;
+  complex: boolean;
+  routeReasons: string[];
+};
+
+const LABELS: Record<SpecialistId, string> = {
+  chairman: "Chairman Agent",
+  strategy: "Strategy Agent",
+  cfo: "CFO Agent",
+  growth: "Growth Agent",
+  operations: "Operations Agent",
+  risk: "Risk Agent",
+};
+
+async function runSpecialist(
+  provider: MentorProvider,
+  specialist: SpecialistId,
+  userContent: string,
+): Promise<AgentRunOutput> {
+  const system = buildSpecialistSystem(specialist);
+  const result = await provider.complete({
+    system,
+    messages: [{ role: "user", content: userContent }],
+    temperature: specialist === "cfo" ? 0.1 : 0.3,
+  });
+  return {
+    specialist,
+    label: LABELS[specialist],
+    analysis: result.text,
+    usage: result.usage,
+  };
+}
+
+export async function runMasterOrchestrator(opts: {
+  db: SupabaseClient;
+  ownerUserId: string;
+  question: string;
+  businessId?: string | null;
+  history?: { role: "user" | "assistant"; content: string }[];
+  conversationId?: string | null;
+  onProgress?: (e: OrchestratorProgress) => void;
+  streamFinal?: boolean;
+}): Promise<OrchestratorResult> {
+  assertAnalyzeOnly();
+  const onProgress = opts.onProgress || (() => {});
+
+  let provider: MentorProvider;
+  try {
+    provider = createMentorProvider();
+  } catch (err) {
+    if (err instanceof ProviderConfigError) {
+      onProgress({ type: "error", message: err.message });
+      throw err;
+    }
+    throw err;
+  }
+
+  const route = planSpecialistRoute(opts.question);
+  onProgress({
+    type: "status",
+    message: `Routing: ${route.specialists.join(", ")} → Chairman`,
+  });
+
+  const context = await retrieveMentorContext(opts.db, opts.ownerUserId, {
+    query: opts.question,
+    businessId: opts.businessId || null,
+    includeFinance: route.includeFinance,
+  });
+
+  const finance = route.includeFinance ? buildFinanceSnapshot(context.financial) : null;
+  const memoryBlock = formatMemoryContext(context, finance);
+
+  const historyBlock =
+    opts.history && opts.history.length
+      ? "RIWAYAT PERCAKAPAN (ringkas):\n" +
+        opts.history
+          .slice(-8)
+          .map((m) => `${m.role.toUpperCase()}: ${m.content.slice(0, 1200)}`)
+          .join("\n")
+      : "";
+
+  const baseUser = [
+    memoryBlock,
+    historyBlock,
+    `PERTANYAAN OWNER:\n${opts.question}`,
+    "Ingat: jangan mengarang data. Jika missing, sebutkan.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const specialistOutputs: AgentRunOutput[] = [];
+  const usageParts: ProviderUsage[] = [];
+
+  for (const specialist of route.specialists) {
+    onProgress({
+      type: "specialist_start",
+      specialist,
+      label: LABELS[specialist],
+      message: `${LABELS[specialist]} menganalisis…`,
+    });
+    try {
+      const out = await runSpecialist(provider, specialist, baseUser);
+      specialistOutputs.push(out);
+      usageParts.push(out.usage);
+      await logMentorUsage(opts.db, {
+        ownerUserId: opts.ownerUserId,
+        conversationId: opts.conversationId,
+        specialist,
+        usage: out.usage,
+        success: true,
+      });
+      onProgress({
+        type: "specialist_done",
+        specialist,
+        label: LABELS[specialist],
+        message: `${LABELS[specialist]} selesai`,
+      });
+    } catch (err) {
+      const code = err instanceof ProviderRuntimeError ? err.code : "specialist_error";
+      const message = err instanceof Error ? err.message : "Specialist failed";
+      await logMentorUsage(opts.db, {
+        ownerUserId: opts.ownerUserId,
+        conversationId: opts.conversationId,
+        specialist,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostUsd: 0,
+          provider: provider.id,
+          model: provider.model,
+        },
+        success: false,
+        errorCode: code,
+      });
+      onProgress({ type: "error", specialist, message });
+      // Continue with other specialists; chairman will note failures
+      specialistOutputs.push({
+        specialist,
+        label: LABELS[specialist],
+        analysis: `(Spesialis gagal: ${message})`,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostUsd: 0,
+          provider: provider.id,
+          model: provider.model,
+        },
+      });
+    }
+  }
+
+  const peerNotes = specialistOutputs
+    .map((s) => `### ${s.label}\n${s.analysis}`)
+    .join("\n\n");
+
+  onProgress({
+    type: "specialist_start",
+    specialist: "chairman",
+    label: LABELS.chairman,
+    message: "Chairman Agent menyusun rekomendasi akhir…",
+  });
+
+  const chairmanUser = [
+    baseUser,
+    "CATATAN SPESIALIS (hanya yang benar-benar dijalankan):",
+    peerNotes || "(tidak ada spesialis domain — jawab langsung sebagai Chairman)",
+    route.complex
+      ? "Susun jawaban final terstruktur untuk pertanyaan kompleks."
+      : "Jawab final singkat dan langsung.",
+  ].join("\n\n");
+
+  let reply = "";
+  let chairmanUsage: ProviderUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    estimatedCostUsd: 0,
+    provider: provider.id,
+    model: provider.model,
+  };
+
+  try {
+    if (opts.streamFinal && provider.stream) {
+      const result = await provider.stream({
+        system: buildChairmanSystem(route.complex),
+        messages: [{ role: "user", content: chairmanUser }],
+        temperature: 0.35,
+        handlers: {
+          onText: (chunk) => onProgress({ type: "token", text: chunk }),
+        },
+      });
+      reply = result.text;
+      chairmanUsage = result.usage;
+    } else {
+      const result = await provider.complete({
+        system: buildChairmanSystem(route.complex),
+        messages: [{ role: "user", content: chairmanUser }],
+        temperature: 0.35,
+      });
+      reply = result.text;
+      chairmanUsage = result.usage;
+      onProgress({ type: "token", text: reply });
+    }
+    usageParts.push(chairmanUsage);
+    await logMentorUsage(opts.db, {
+      ownerUserId: opts.ownerUserId,
+      conversationId: opts.conversationId,
+      specialist: "chairman",
+      usage: chairmanUsage,
+      success: true,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Chairman failed";
+    await logMentorUsage(opts.db, {
+      ownerUserId: opts.ownerUserId,
+      conversationId: opts.conversationId,
+      specialist: "chairman",
+      usage: chairmanUsage,
+      success: false,
+      errorCode: err instanceof ProviderRuntimeError ? err.code : "chairman_error",
+    });
+    throw err instanceof Error ? err : new Error(message);
+  }
+
+  onProgress({
+    type: "specialist_done",
+    specialist: "chairman",
+    label: LABELS.chairman,
+  });
+
+  const briefs: SpecialistBrief[] = [
+    ...specialistOutputs.map((s) => ({
+      id: s.specialist,
+      label: s.label,
+      ran: true,
+      summary: s.analysis.slice(0, 280),
+      usage: s.usage,
+    })),
+    {
+      id: "chairman",
+      label: LABELS.chairman,
+      ran: true,
+      summary: reply.slice(0, 280),
+      usage: chairmanUsage,
+    },
+  ];
+
+  const result: OrchestratorResult = {
+    reply,
+    specialists: briefs,
+    sourcesUsed: context.sourcesUsed,
+    missing: [
+      ...context.missing,
+      ...(finance?.missing || []),
+    ],
+    usage: sumUsage(usageParts),
+    businessId: context.businessId,
+    complex: route.complex,
+    routeReasons: route.reasons,
+  };
+
+  onProgress({ type: "done", message: "Selesai" });
+  return result;
+}

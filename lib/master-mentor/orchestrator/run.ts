@@ -265,8 +265,8 @@ export async function runMasterOrchestrator(opts: {
         system: buildChairmanSystem(route.complex, locale),
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
-        maxTokens: 2500,
-        timeoutMs: 55_000,
+        maxTokens: route.complex ? 1800 : 900,
+        timeoutMs: 45_000,
         handlers: {
           onText: (chunk) => onProgress({ type: "token", text: chunk }),
         },
@@ -278,8 +278,8 @@ export async function runMasterOrchestrator(opts: {
         system: buildChairmanSystem(route.complex, locale),
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
-        maxTokens: 2500,
-        timeoutMs: 55_000,
+        maxTokens: route.complex ? 1800 : 900,
+        timeoutMs: 45_000,
       });
       reply = result.text;
       chairmanUsage = result.usage;

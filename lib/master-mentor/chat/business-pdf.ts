@@ -3,17 +3,20 @@ import { embedBrandFonts } from "@/lib/henima-sales/pdf-fonts";
 import { toPlainChatText } from "./plain-text";
 
 /**
- * Detect owner asking for a HENIMA business/company document as PDF.
- * Scoped to company docs — not random world PDFs.
+ * Detect owner asking for a document/PDF in Mentor Chat.
+ * Wide internal scope: almost any HENIMA/business document request.
  */
 export function wantsBusinessPdf(question: string): boolean {
   const q = question.trim();
   if (!q) return false;
   if (isPdfExportFollowUp(q)) return true;
-  if (/(buat|bikin|buatkan|bikinin|susun|unduh|download|export|jadikan|generate|kirim|kirimkan).{0,48}(pdf|dokumen)/i.test(q)) {
+  // Explicit PDF / file ask
+  if (/\bpdf\b/i.test(q)) return true;
+  if (/(buat|bikin|buatkan|bikinin|susun|unduh|download|export|jadikan|generate|kirim|kirimkan|tuliskan|siapkan).{0,80}(pdf|dokumen|surat|laporan|form|formulir|template|berkas|file)/i.test(q)) {
     return true;
   }
-  return /\b(pdf|proposal|profil\s+perusahaan|company\s+profile|visi\s*misi|visi\s+perusahaan|misi\s+perusahaan|pitch(\s*deck)?|mou\b|kerja\s*sama|partnership|sop\b|peraturan\s+(perusahaan|karyawan|kepegawaian|penggajian)|kebijakan\s+(hr|sdm|gaji|penggajian)|panduan\s+wawancara|interview\s+guide|job\s*desc|deskripsi\s+pekerjaan|kontrak\s+kerja|surat\s+perjanjian|perjanjian\s+kerja|calon\s+karyawan|offer\s+letter|sistem\s+(henima|kerja|operasional)|penggajian|gaji\s+karyawan|laporan\s+(mingguan|harian|bulanan)|rencana\s+mingguan|company\s+deck|ringkasan\s+perusahaan|dokumen\s+(bisnis|perusahaan|internal)|brief\s+perusahaan|company\s+brief)\b/i.test(
+  // Common company-doc intents (even without saying "pdf")
+  return /\b(proposal|profil\s+perusahaan|company\s+profile|visi\s*misi|visi\s+perusahaan|misi\s+perusahaan|pitch(\s*deck)?|mou\b|kerja\s*sama|partnership|sop\b|peraturan|kebijakan|panduan\s+wawancara|interview\s+guide|job\s*desc|deskripsi\s+pekerjaan|kontrak\s+kerja|surat\s+(perjanjian|penawaran|tugas|peringatan|resign|keterangan)|perjanjian\s+kerja|calon\s+karyawan|offer\s+letter|sistem\s+(henima|kerja|operasional|penggajian)|penggajian|gaji\s+karyawan|laporan\s+(mingguan|harian|bulanan)|rencana\s+(mingguan|harian|bulanan|kerja)|checklist|form\s+absen|company\s+deck|ringkasan\s+perusahaan|dokumen\s+(bisnis|perusahaan|internal)|brief\s+perusahaan|company\s+brief|standar\s+operasional)\b/i.test(
     q,
   );
 }
@@ -49,46 +52,48 @@ export function businessPdfTitle(question: string, priorUserAsk?: string | null)
   if (/job\s*desc|deskripsi\s+pekerjaan/.test(q)) return "Job Description HENIMA";
   if (/rekrut|karyawan|sales/.test(q)) return "Rencana Tim & Komisi HENIMA";
   if (/penjualan|omzet|kas|stok/.test(q)) return "Rencana Bisnis HENIMA";
-  return "Dokumen Internal HENIMA";
+  const snippet = question
+    .replace(/\b(buatkan|buat|bikin|bikinin|tolong|pdf|dokumen)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 48);
+  return snippet ? `Dokumen HENIMA — ${snippet}` : "Dokumen Internal HENIMA";
 }
 
 export function buildBusinessPdfSystem(locale: "id" | "en" = "id"): string {
   if (locale === "en") {
     return [
-      "You are HENIMA's internal business document writer — think like a practical human ops/HR mentor.",
-      "Write a COMPLETE company document ready for PDF: SOP, employment offer/agreement draft, payroll system, weekly plan, company profile, etc.",
-      "HUMAN LOGIC allowed: sensible process steps, clear rules, fair commission structures, interview rubrics, weekly checklists — drafted for HENIMA Perfume / owner context.",
-      "HARD FACTS (revenue, cash, stock counts, legal registration numbers): ONLY from Business Memory, Gercep intel, or figures the owner typed. Never invent those.",
-      "If a number is missing, use placeholders like [isi gaji pokok] or 'belum tercatat' — do not fake Rp amounts.",
-      "Plain text only — no markdown (** ## tables).",
-      "Label drafts that need lawyer/notary review when they are legal-ish (contracts).",
-      "End with one line: Draft from HENIMA context — hard numbers only from memory/chat; process text is practical draft.",
+      "You are HENIMA's internal document writer — practical human ops/HR/business mentor.",
+      "Owner may request ALMOST ANY internal business document. Do it fully. Do not refuse reasonable company docs.",
+      "Examples: SOP, contracts/offers, payroll, weekly/monthly plans, forms, checklists, proposals, policies, scripts, org notes.",
+      "HUMAN LOGIC: draft complete usable content. Tie to HENIMA Perfume / owner context when relevant.",
+      "HARD FACTS (revenue, cash, stock, legal IDs): ONLY from memory / Gercep / owner chat. Never invent those.",
+      "Missing numbers → placeholders like [isi gaji pokok]. Plain text only — no markdown.",
+      "Legal-ish drafts: mark as internal draft needing lawyer/notary before official use.",
     ].join("\n");
   }
   return [
-    "Kamu penulis dokumen internal HENIMA — berpikir seperti mentor operasional/HR manusia yang praktis.",
-    "Tulis DOKUMEN LENGKAP siap PDF: SOP, surat perjanjian/offer calon karyawan, sistem penggajian, rencana mingguan, profil perusahaan, dll.",
-    "BOLEH menyusun draf logis ala manusia: alur kerja, aturan jelas, skema komisi adil, rubrik wawancara, checklist mingguan — disesuaikan konteks HENIMA Perfume / owner.",
-    "ANGKA KERAS (omzet, kas, stok, NIB, dll.): HANYA dari Business Memory, intel Gercep, atau angka yang owner tulis di chat. Jangan dikarang.",
-    "Kalau angka belum ada, pakai placeholder seperti [isi gaji pokok] atau 'belum tercatat' — jangan mengarang nominal Rp.",
-    "Teks polos saja — tanpa markdown (** ## tabel).",
-    "Untuk kontrak/perjanjian: sebut ini draf internal; sebaiknya dicek legal/notaris sebelum dipakai resmi.",
-    "Fokus HENIMA / bisnis owner — bukan template perusahaan asing generik.",
-    "Di akhir satu baris: Draf dari konteks HENIMA — angka keras hanya dari memori/chat; isi proses adalah draf praktis.",
+    "Kamu penulis dokumen internal HENIMA — mentor operasional/HR/bisnis yang mikir seperti manusia praktis.",
+    "Owner boleh minta HAMPIR SEMUA dokumen internal bisnis. Kerjakan tuntas. Jangan menolak permintaan dokumen perusahaan yang masuk akal.",
+    "Contoh: SOP, surat perjanjian/offer, penggajian, rencana harian/mingguan/bulanan, form, checklist, proposal, kebijakan, script sales, catatan organisasi, sistem kerja.",
+    "LOGIKA MANUSIA: susun isi lengkap siap pakai. Sesuaikan ke konteks HENIMA Perfume / owner bila relevan.",
+    "ANGKA KERAS (omzet, kas, stok, NIB): HANYA dari memori / Gercep / chat owner. Jangan dikarang.",
+    "Angka belum ada → placeholder [isi …]. Teks polos — tanpa markdown.",
+    "Draf kontrak/legal: tulis sebagai draf internal; sebaiknya dicek legal/notaris sebelum resmi.",
   ].join("\n");
 }
 
 export function businessPdfUserHint(question: string, locale: "id" | "en" = "id"): string {
   if (locale === "en") {
     return [
-      "Owner asked for a HENIMA business/company document (PDF).",
-      "Write the FULL document body now.",
+      "Owner requested a document/PDF. Fulfill it completely for HENIMA internal use.",
+      "Write the FULL document body now — not a short chat answer.",
       `Request: ${question}`,
     ].join("\n");
   }
   return [
-    "Owner minta dokumen bisnis/perusahaan HENIMA (PDF).",
-    "Tulis ISI DOKUMEN LENGKAP sekarang (bukan ringkasan chat).",
+    "Owner minta dokumen/PDF. Kerjakan tuntas untuk keperluan internal HENIMA.",
+    "Tulis ISI DOKUMEN LENGKAP sekarang — bukan jawaban chat singkat.",
     `Permintaan: ${question}`,
   ].join("\n");
 }

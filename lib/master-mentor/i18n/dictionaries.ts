@@ -201,10 +201,10 @@ const id: MentorDictionary = {
     done: "selesai",
     startTitle: "Tanya aja soal bisnis",
     startBody: (context) =>
-      `Lagi bahas: ${context}. Bisa juga minta PDF: proposal, profil perusahaan, visi misi, SOP, peraturan, panduan wawancara — dari data HENIMA, tidak dikarang.`,
+      `Lagi bahas: ${context}. Mau dokumen? Ketik aja — SOP, surat, penggajian, laporan mingguan, dll. Mentor bikinkan PDF dari konteks HENIMA (angka tidak dikarang).`,
     sources: "Sumber",
     missing: "Kurang",
-    placeholder: "Tanya bisnis, atau minta PDF dokumen HENIMA…",
+    placeholder: "Tanya bisnis, atau minta PDF dokumen apa saja…",
     send: "Kirim",
     preparing: "Mentor lagi ngetik…",
     failLoadConversations: "Gagal muat chat",

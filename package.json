@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:henima": "npx tsx lib/henima-sales/tests/run.ts",
     "test:profit": "npx tsx lib/gercep-profit/tests/run.ts",
+    "test:master-mentor": "npx tsx lib/master-mentor/tests/run.ts",
     "mobile:henima:sync": "npm --prefix mobile/henima-sales run build:web && npm --prefix mobile/henima-sales run sync",
     "mobile:henima:open": "npm --prefix mobile/henima-sales run open"
   },

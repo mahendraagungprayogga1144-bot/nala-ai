@@ -1,0 +1,253 @@
+"use client";
+
+import { useState } from "react";
+import {
+  FINANCIAL_CERTAINTIES,
+  FINANCIAL_METRIC_TYPES,
+  metricLabel,
+  type FinancialRecord,
+} from "@/lib/master-mentor/memory-types";
+import EmptyState from "../../components/empty-state";
+import PhaseBanner from "../../components/phase-banner";
+import SectionCard from "../../components/section-card";
+import { LineChart } from "lucide-react";
+import {
+  DangerButton,
+  ErrorBox,
+  Field,
+  GhostButton,
+  MetaLine,
+  PrimaryButton,
+  Select,
+  TextArea,
+  TextInput,
+  apiJson,
+} from "../memory-ui";
+
+type Biz = { id: string; name: string };
+
+const emptyForm = (businessId: string) => ({
+  business_id: businessId,
+  metric_type: "revenue",
+  amount: "",
+  currency: "IDR",
+  transaction_date: new Date().toISOString().slice(0, 10),
+  transaction_category: "",
+  description: "",
+  data_source: "owner_entry",
+  certainty: "actual",
+});
+
+export default function FinancialMemoryClient({
+  businesses,
+  initial,
+  notice,
+}: {
+  businesses: Biz[];
+  initial: FinancialRecord[];
+  notice: string | null;
+}) {
+  const [rows, setRows] = useState(initial);
+  const [bizId, setBizId] = useState(businesses[0]?.id || "");
+  const [q, setQ] = useState("");
+  const [certainty, setCertainty] = useState("");
+  const [form, setForm] = useState(emptyForm(businesses[0]?.id || ""));
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = async () => {
+    const params = new URLSearchParams();
+    if (bizId) params.set("businessId", bizId);
+    if (q) params.set("q", q);
+    if (certainty) params.set("certainty", certainty);
+    const data = await apiJson<{ records: FinancialRecord[] }>(
+      `/api/master-mentor/memory/financial?${params}`,
+    );
+    setRows(data.records);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = { ...form, amount: Number(form.amount) };
+      if (editingId) {
+        await apiJson(`/api/master-mentor/memory/financial/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiJson("/api/master-mentor/memory/financial", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setOpen(false);
+      setEditingId(null);
+      setForm(emptyForm(bizId));
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Hapus financial record ini?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiJson(`/api/master-mentor/memory/financial/${id}`, { method: "DELETE" });
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#111827]">Financial Records</h1>
+          <p className="mt-1 text-sm text-[#6B7280]">
+            Owner-entered figures only. Separated by business_id. Mark actual / estimate / projection.
+          </p>
+        </div>
+        <PrimaryButton
+          type="button"
+          disabled={!bizId}
+          onClick={() => {
+            setEditingId(null);
+            setForm(emptyForm(bizId));
+            setOpen(true);
+          }}
+        >
+          Add record
+        </PrimaryButton>
+      </header>
+
+      <div className="mb-5 space-y-3">
+        <PhaseBanner message="AI must never invent financial amounts. Missing records stay missing." />
+        {notice ? <ErrorBox message={notice} /> : null}
+        <ErrorBox message={error} />
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Select value={bizId} onChange={(e) => setBizId(e.target.value)} className="max-w-xs">
+          {businesses.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </Select>
+        <Select value={certainty} onChange={(e) => setCertainty(e.target.value)} className="max-w-[160px]">
+          <option value="">All certainty</option>
+          {FINANCIAL_CERTAINTIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </Select>
+        <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="max-w-xs" />
+        <GhostButton type="button" disabled={busy} onClick={() => reload().catch((e) => setError(String(e.message || e)))}>
+          Filter
+        </GhostButton>
+      </div>
+
+      {open ? (
+        <div className="mb-4">
+          <SectionCard title={editingId ? "Edit record" : "New financial record"}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Business">
+                <Select value={form.business_id} onChange={(e) => setForm({ ...form, business_id: e.target.value })}>
+                  {businesses.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Metric">
+                <Select value={form.metric_type} onChange={(e) => setForm({ ...form, metric_type: e.target.value })}>
+                  {FINANCIAL_METRIC_TYPES.map((m) => (
+                    <option key={m} value={m}>{metricLabel(m)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Amount">
+                <TextInput type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              </Field>
+              <Field label="Transaction date">
+                <TextInput type="date" value={form.transaction_date} onChange={(e) => setForm({ ...form, transaction_date: e.target.value })} />
+              </Field>
+              <Field label="Certainty">
+                <Select value={form.certainty} onChange={(e) => setForm({ ...form, certainty: e.target.value })}>
+                  {FINANCIAL_CERTAINTIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Category">
+                <TextInput value={form.transaction_category} onChange={(e) => setForm({ ...form, transaction_category: e.target.value })} />
+              </Field>
+              <Field label="Description" className="sm:col-span-2">
+                <TextArea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </Field>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <PrimaryButton type="button" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+              <GhostButton type="button" onClick={() => setOpen(false)}>Cancel</GhostButton>
+            </div>
+          </SectionCard>
+        </div>
+      ) : null}
+
+      {rows.length === 0 ? (
+        <EmptyState icon={LineChart} title="No financial records" description="Add actual, estimate, or projection figures entered by the owner." />
+      ) : (
+        <div className="space-y-3">
+          {rows.map((r) => (
+            <article key={r.id} className="rounded-xl border border-[#E5E7EB] px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-[#111827]">
+                    {metricLabel(r.metric_type)} · {r.amount.toLocaleString("id-ID")} {r.currency}
+                  </p>
+                  <p className="text-xs text-[#6B7280]">
+                    {r.transaction_date} · {r.certainty} · {r.transaction_category || "uncategorized"}
+                  </p>
+                  <p className="mt-1 text-sm text-[#4B5563]">{r.description || "No description"}</p>
+                  <MetaLine created={r.created_at} updated={r.updated_at} source={r.data_source} />
+                </div>
+                <div className="flex gap-2">
+                  <GhostButton
+                    type="button"
+                    onClick={() => {
+                      setEditingId(r.id);
+                      setForm({
+                        business_id: r.business_id,
+                        metric_type: r.metric_type,
+                        amount: String(r.amount),
+                        currency: r.currency,
+                        transaction_date: r.transaction_date,
+                        transaction_category: r.transaction_category,
+                        description: r.description,
+                        data_source: r.data_source,
+                        certainty: r.certainty,
+                      });
+                      setOpen(true);
+                    }}
+                  >
+                    Edit
+                  </GhostButton>
+                  <DangerButton type="button" disabled={busy} onClick={() => remove(r.id)}>
+                    Delete
+                  </DangerButton>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

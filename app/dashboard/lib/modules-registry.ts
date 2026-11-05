@@ -4,7 +4,9 @@ import {
   ShoppingCart, ShoppingBag, Megaphone, BarChart3, Users, LayoutDashboard, Layers, Percent,
   Smartphone, MessageCircle, Factory, Bird, Sprout, UtensilsCrossed,
   Briefcase, Boxes, HeartPulse, Wrench, Crosshair, Target, Gauge, Sparkles, Building2,
+  Brain,
 } from "lucide-react";
+
 import { normalizeBizType } from "@/lib/auth/post-login";
 
 export type ModuleStatus = "live" | "beta";
@@ -52,8 +54,10 @@ const BIZ_MODULES: DashboardModule[] = [
 ];
 /** Modul universal — tampil untuk semua jenis bisnis */
 export const GERCEP_MODULES: DashboardModule[] = [
-  { id: "henima-ai", name: "Henima AI", desc: "Analisa dan obrolan GPT Astra. Latar putih kertas.", href: "/dashboard/henima-ai", icon: Sparkles, category: "utama", status: "live" },
+  { id: "master-mentor", name: "HENIMA AI", desc: "Business Master Mentor — overview, chat, portfolio, strategy desk.", href: "/dashboard/master-mentor", icon: Brain, category: "utama", status: "beta" },
+  { id: "henima-ai", name: "GPT Astra", desc: "Analisa dan obrolan GPT Astra. Latar putih kertas.", href: "/dashboard/henima-ai", icon: Sparkles, category: "utama", status: "live" },
   { id: "owner", name: "Dashboard Owner", desc: "Tanya kondisi bisnis, AI jawab lengkap.", href: "/dashboard/owner", icon: LayoutDashboard, category: "utama", status: "live" },
+
   { id: "sales", name: "Henima Sales", desc: "Dashboard, KPI, CRM, Telegram, laporan khusus modul sales Henima.", href: "/dashboard/sales", icon: Target, category: "utama", status: "live" },
   { id: "henima-tracking", name: "Henima Tracking", desc: "Link lapangan sales: jejak GPS dan tempat mereka nawar.", href: "/dashboard/henima-tracking", icon: Activity, category: "utama", status: "live" },
   { id: "kantor-ai", name: "Kantor AI", desc: "Kantor virtual agent: sales, operasional, founder, dan pantry.", href: "/office", icon: Building2, category: "utama", status: "beta" },

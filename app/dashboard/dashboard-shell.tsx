@@ -89,6 +89,16 @@ export default function DashboardShell({
     );
   }
 
+  // HENIMA AI Business Master Mentor — light enterprise shell (own sidebar).
+  if (pathname?.startsWith("/dashboard/master-mentor")) {
+    return (
+      <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-white text-[#111827]">
+        <SyncActiveBusiness businessId={activeBusiness?.id} />
+        <div className="min-h-0 flex-1">{children}</div>
+      </div>
+    );
+  }
+
   if (pathname?.startsWith("/dashboard/henima-tracking")) {
     return (
       <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[#F8FAFC] text-[#0F172A]">

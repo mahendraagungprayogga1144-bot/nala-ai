@@ -12,6 +12,7 @@ import {
 } from "@/lib/henima-tracking/native-geo";
 import { startFieldTrackingNotify, stopFieldTrackingNotify } from "@/lib/henima-tracking/field-notify";
 import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
+import { isPastTrackingAutoClose, TRACKING_AUTO_CLOSE_HOUR } from "@/lib/henima-tracking/schedule";
 
 export type FieldPoint = {
   id: string;
@@ -45,8 +46,8 @@ export type FieldState = {
 type GpsFix = { lat: number; lng: number; acc: number };
 
 const KIND_LABEL: Record<FieldPoint["kind"], string> = {
-  checkin_pagi: "Foto absensi",
-  checkin_sore: "Selesai kerja",
+  checkin_pagi: "Absensi pagi",
+  checkin_sore: "Tutup jam 18:00",
   visit: "Catat toko",
   ping: "Jejak",
   qris: "Tampil QRIS",
@@ -57,10 +58,10 @@ function clock(iso: string) {
 }
 
 function pesanDb(message: string) {
-  if (message.includes("BELUM_CHECKIN")) return "Belum check-in. Jejak dan kunjungan belum bisa dicatat.";
-  if (message.includes("SUDAH_CHECKOUT")) return "Sudah check-out. Hari ini tidak bisa check-in lagi.";
+  if (message.includes("BELUM_CHECKIN")) return "Belum absensi pagi. Ambil 1 foto dulu.";
+  if (message.includes("SUDAH_CHECKOUT")) return `GPS sudah berhenti (auto jam ${TRACKING_AUTO_CLOSE_HOUR}:00). Besok buka lagi.`;
   if (message.includes("TIDAK_LOGIN")) return "Link ini belum aktif di database. Minta founder paste SQL field token.";
-  if (message.includes("DATA_TIDAK_VALID")) return "Data tidak valid. Cek foto, GPS, atau apakah check-in hari ini sudah ada.";
+  if (message.includes("DATA_TIDAK_VALID")) return "Data tidak valid. Cek foto & GPS, atau absensi pagi sudah pernah dikirim.";
   if (message.includes("Could not find the function") || message.includes("schema cache")) {
     return "Sistem lapangan belum aktif. Minta founder jalankan SQL henima_tracking_field di Supabase.";
   }
@@ -103,6 +104,7 @@ export default function FieldClient({
   const pendingPing = useRef<GpsFix | null>(null);
   const pingFailStreak = useRef(0);
   const previewUrl = useRef("");
+  const autoClosedRef = useRef(false);
 
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat jejak."));
@@ -266,17 +268,21 @@ export default function FieldClient({
         }
       }
       try {
-        // Ambil 2–3 kali, pakai yang akurasinya terbaik.
+        // Ambil beberapa kali, pakai yang paling akurat.
         let best: { lat: number; lng: number; acc: number } | null = null;
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 5; i++) {
           const fix = await readNativeOrBrowserGps();
           if (!best || fix.acc < best.acc) best = fix;
-          if (fix.acc <= 25) break;
-          await new Promise((r) => setTimeout(r, 900));
+          if (fix.acc <= 15) break;
+          await new Promise((r) => setTimeout(r, 800));
         }
         if (!best) throw new Error("GPS kosong");
         setGps(best);
-        setGpsText(`Lokasi didapat. Akurasi ±${best.acc} m${nativeApp ? " · app" : ""}`);
+        setGpsText(
+          best.acc <= 40
+            ? `Lokasi bagus ±${best.acc} m${nativeApp ? " · app" : ""}`
+            : `Lokasi ±${best.acc} m — ke tempat terbuka biar lebih akurat`,
+        );
       } catch (err: unknown) {
         const msg =
           err && typeof err === "object" && "code" in err && (err as { code: number }).code === 1
@@ -291,15 +297,15 @@ export default function FieldClient({
   }
 
   useEffect(() => {
-    // Life360: GPS jalan segera saat buka link/app — tanpa wajib check-in pagi.
-    if (state.checkedOut) return;
+    // GPS jalan sejak buka app. Auto stop jam 18:00 WIB — tanpa tombol selesai kerja.
+    if (state.checkedOut || isPastTrackingAutoClose()) return;
 
     let alive = true;
     let wake: WakeLockSentinel | null = null;
     let stopWatch: (() => void) | null = null;
 
     const flushPing = (fix: GpsFix) => {
-      if (!alive) return;
+      if (!alive || isPastTrackingAutoClose()) return;
       if (pingBusy.current) {
         pendingPing.current = fix;
         return;
@@ -310,9 +316,17 @@ export default function FieldClient({
           pingFailStreak.current = 0;
         })
         .catch((err) => {
+          const msg = err instanceof Error ? err.message : "Gagal kirim titik GPS.";
+          if (/berhenti|18:00|CHECKOUT/i.test(msg)) {
+            alive = false;
+            setState((prev) => ({ ...prev, checkedOut: true }));
+            setWatching(false);
+            setGpsText(`GPS otomatis berhenti jam ${TRACKING_AUTO_CLOSE_HOUR}:00`);
+            void stopFieldTrackingNotify();
+            return;
+          }
           pingFailStreak.current += 1;
           if (pingFailStreak.current <= 2 || pingFailStreak.current % 8 === 0) {
-            const msg = err instanceof Error ? err.message : "Gagal kirim titik GPS.";
             setError(`GPS: ${msg}`);
             setGpsText(`Gagal kirim · ${msg}`);
           }
@@ -326,18 +340,23 @@ export default function FieldClient({
     };
 
     const pushPing = (fix: GpsFix, force = false) => {
-      if (!alive) return;
-      setGps(fix);
-      setGpsText(`Live · akurasi ±${fix.acc} m · mengirim terus${document.hidden ? " · belakang" : ""}`);
+      if (!alive || isPastTrackingAutoClose()) return;
+      // Jangan pakai titik jelek ke state aksi (biar absensi/QRIS lebih akurat).
+      if (!force || fix.acc <= 100) setGps(fix);
+      setGpsText(`Live · akurasi ±${fix.acc} m${document.hidden ? " · belakang" : ""}`);
       setWatching(true);
       const prev = lastPos.current;
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      // Mode Grab: native kirim ~8 dtk / pindah ~3 m. Force heartbeat selalu tembus.
-      const stale = Date.now() - lastSent.current > (nativeApp ? 8_000 : 12_000);
-      const movedEnough = moved >= (nativeApp ? 0.00003 : 0.00006);
-      const accLimit = nativeApp ? 150 : document.hidden ? 450 : 300;
-      if (!force && fix.acc > accLimit) return;
-      if (!force && !stale && !movedEnough) return;
+      const stale = Date.now() - lastSent.current > (nativeApp ? 10_000 : 15_000);
+      const movedEnough = moved >= (nativeApp ? 0.00005 : 0.00008); // ~5–9 m
+      const accLimit = nativeApp ? 80 : document.hidden ? 180 : 100;
+      if (force) {
+        // Heartbeat: kirim hanya kalau cukup akurat, atau sudah lama banget.
+        if (fix.acc > 120 && Date.now() - lastSent.current < 45_000) return;
+      } else {
+        if (fix.acc > accLimit) return;
+        if (!stale && !movedEnough) return;
+      }
       flushPing(fix);
     };
 
@@ -372,12 +391,12 @@ export default function FieldClient({
       setWatching(true);
     });
 
-    // Heartbeat Grab-style: tetap kirim meski diam di satu titik.
+    // Heartbeat: tetap kirim meski diam, tapi filter akurasi di pushPing.
     const forceTimer = window.setInterval(() => {
       void readNativeOrBrowserGps()
         .then((fix) => pushPing(fix, true))
         .catch(() => undefined);
-    }, nativeApp ? 8_000 : 12_000);
+    }, nativeApp ? 12_000 : 18_000);
 
     const softRefresh = window.setInterval(() => {
       void refresh().catch(() => undefined);
@@ -413,18 +432,44 @@ export default function FieldClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.checkedOut, token, nativeApp, state.nama]);
 
+  useEffect(() => {
+    if (state.checkedOut) return;
+    const tick = () => {
+      if (isPastTrackingAutoClose()) void autoCloseDay();
+    };
+    tick();
+    const id = window.setInterval(tick, 20_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.checkedOut, token, gps]);
+
   async function onCheckin() {
-    if (!gps || !photo) {
-      setError("Ambil foto lokasi dan GPS dulu.");
+    if (!photo) {
+      setError("Ambil 1 foto dulu (kamera).");
       return;
     }
     setBusy("pagi");
     setError("");
     try {
-      await send("checkin_pagi", gps, photo);
+      let fix = gps;
+      if (!fix || fix.acc > 120) {
+        setGpsText("Mengambil GPS akurat untuk absensi…");
+        let best: GpsFix | null = fix;
+        for (let i = 0; i < 4; i++) {
+          const next = await readNativeOrBrowserGps();
+          if (!best || next.acc < best.acc) best = next;
+          if (best.acc <= 25) break;
+          await new Promise((r) => setTimeout(r, 700));
+        }
+        if (!best) throw new Error("GPS gagal. Nyalakan lokasi HP.");
+        fix = best;
+        setGps(best);
+      }
+      await send("checkin_pagi", fix, photo);
       setPhotoFile(null);
+      setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal check-in.");
+      setError(err instanceof Error ? err.message : "Gagal absensi pagi.");
     } finally {
       setBusy("");
     }
@@ -432,7 +477,7 @@ export default function FieldClient({
 
   async function onVisit() {
     if (!gps) {
-      setError("Ambil lokasi GPS dulu.");
+      setError("Tunggu GPS menyala dulu.");
       return;
     }
     setBusy("visit");
@@ -448,19 +493,33 @@ export default function FieldClient({
     }
   }
 
-  async function onSore() {
-    if (!gps) {
-      setError("Ambil lokasi GPS dulu.");
-      return;
-    }
-    setBusy("sore");
-    setError("");
+  /** Dipakai auto-close jam 18:00 — tidak ada tombol manual. */
+  async function autoCloseDay() {
+    if (autoClosedRef.current || state.checkedOut) return;
+    autoClosedRef.current = true;
     try {
-      await send("checkin_sore", gps, photo);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal check-in sore.");
-    } finally {
-      setBusy("");
+      let fix = gps || lastPos.current;
+      if (!fix) {
+        try {
+          fix = await readNativeOrBrowserGps();
+        } catch {
+          fix = null;
+        }
+      }
+      if (fix) {
+        try {
+          await send("checkin_sore", fix);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "";
+          if (!/berhenti|18:00|CHECKOUT/i.test(msg)) throw err;
+        }
+      }
+      setState((prev) => ({ ...prev, checkedOut: true }));
+      setWatching(false);
+      setGpsText(`GPS otomatis berhenti jam ${TRACKING_AUTO_CLOSE_HOUR}:00`);
+      void stopFieldTrackingNotify();
+    } catch {
+      autoClosedRef.current = false;
     }
   }
 
@@ -547,14 +606,18 @@ export default function FieldClient({
               }`}
             />
             <p className="text-base font-bold text-[#111]">
-              {state.checkedOut ? "Selesai kerja hari ini" : live ? "GPS menyala" : "Menyalakan GPS…"}
+              {state.checkedOut
+                ? `GPS berhenti · jam ${TRACKING_AUTO_CLOSE_HOUR}:00`
+                : live
+                  ? "GPS menyala"
+                  : "Menyalakan GPS…"}
             </p>
           </div>
           <p className="mt-1 text-sm leading-snug text-[#444]">
             {state.checkedOut
               ? "Besok buka app lagi. GPS langsung jalan sendiri."
               : live
-                ? "Lokasi dikirim otomatis ke owner. Tidak perlu check-in tiap pindah."
+                ? `Lokasi dikirim otomatis. Auto berhenti jam ${TRACKING_AUTO_CLOSE_HOUR}:00 — tanpa tombol selesai.`
                 : "Izinkan lokasi HP dulu."}
           </p>
           {!state.checkedOut ? <p className="mt-2 text-xs font-medium text-[#555]">{gpsText}</p> : null}
@@ -567,6 +630,43 @@ export default function FieldClient({
 
         {error ? (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        ) : null}
+
+        {/* Absensi pagi — kartu besar, 1 langkah */}
+        {!state.hasCheckinPagi && !state.checkedOut ? (
+          <section className={card}>
+            <p className="text-base font-bold">Absensi pagi</p>
+            <p className={`mt-1 ${tiny}`}>Cuma 1 foto. GPS diambil otomatis.</p>
+            <label className="mt-3 block">
+              <span className="flex min-h-24 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-[#B8952A]/50 bg-[#FFF8E8] px-3 py-4 text-sm font-semibold text-[#111]">
+                {preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={preview} alt="Absensi" className="max-h-40 rounded-lg" />
+                ) : (
+                  "📷 Ketuk ambil foto"
+                )}
+              </span>
+              <input
+                type="file"
+                accept="image/*,.heic,.heif"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => {
+                  setPhotoFile(e.target.files?.[0] || null);
+                  e.target.value = "";
+                  void grabGps();
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!photo || busy === "pagi"}
+              onClick={() => void onCheckin()}
+              className={`${gold} mt-3`}
+            >
+              {busy === "pagi" ? "Mengirim…" : "Kirim absensi pagi"}
+            </button>
+          </section>
         ) : null}
 
         {/* Tombol utama: QRIS */}
@@ -589,53 +689,13 @@ export default function FieldClient({
           </section>
         ) : null}
 
-        {/* Aksi kerja — cuma 2 tombol besar */}
         {!state.checkedOut ? (
           <section className={`${card} space-y-2`}>
-            <p className="text-base font-bold">Aksi cepat</p>
-            <button
-              type="button"
-              onClick={() => setShowExtras((v) => !v)}
-              className={ghost}
-            >
-              {showExtras ? "Tutup · catat toko / foto" : "Catat toko / foto (opsional)"}
+            <button type="button" onClick={() => setShowExtras((v) => !v)} className={ghost}>
+              {showExtras ? "Tutup · catat toko" : "Catat toko (opsional)"}
             </button>
             {showExtras ? (
               <div className="space-y-2 rounded-xl border border-dashed border-[#E8E8E4] bg-[#FAFAF8] p-3">
-                {!state.hasCheckinPagi ? (
-                  <>
-                    <p className="text-sm font-semibold text-[#111]">Foto absensi (boleh dilewati)</p>
-                    <label className="block">
-                      <span className="flex min-h-14 cursor-pointer items-center justify-center rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm text-[#555]">
-                        {preview ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={preview} alt="Foto" className="max-h-36 rounded-lg" />
-                        ) : (
-                          "Tap ambil foto"
-                        )}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*,.heic,.heif"
-                        capture="environment"
-                        className="sr-only"
-                        onChange={(e) => {
-                          setPhotoFile(e.target.files?.[0] || null);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      disabled={!gps || !photo || busy === "pagi"}
-                      onClick={() => void onCheckin()}
-                      className={ghost}
-                    >
-                      {busy === "pagi" ? "Menyimpan…" : "Kirim foto absensi"}
-                    </button>
-                  </>
-                ) : null}
-                <p className="pt-1 text-sm font-semibold text-[#111]">Catat nama toko</p>
                 <input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -644,7 +704,7 @@ export default function FieldClient({
                 />
                 <label className="block">
                   <span className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm text-[#555]">
-                    {preview ? "Foto siap · ganti?" : "Foto toko (opsional)"}
+                    {preview && state.hasCheckinPagi ? "Foto toko siap · ganti?" : "Foto toko (opsional)"}
                   </span>
                   <input
                     type="file"
@@ -663,10 +723,7 @@ export default function FieldClient({
               </div>
             ) : null}
             <button type="button" onClick={grabGps} className={ghost}>
-              Segarkan GPS
-            </button>
-            <button type="button" disabled={!gps || busy === "sore"} onClick={() => void onSore()} className={ghost}>
-              {busy === "sore" ? "Menyimpan…" : "Selesai kerja hari ini"}
+              Segarkan GPS (lebih akurat)
             </button>
           </section>
         ) : null}

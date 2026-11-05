@@ -18,7 +18,7 @@ const GOLD = "#C5A358";
 
 const KIND: Record<TrackingPoint["kind"], string> = {
   checkin_pagi: "Check-in",
-  checkin_sore: "Check-out",
+  checkin_sore: "Tutup 18:00",
   visit: "Nawar",
   ping: "Jejak",
   qris: "QRIS",

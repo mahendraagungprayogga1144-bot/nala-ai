@@ -138,12 +138,12 @@ export async function watchNativeOrBrowserGps(
       const id = await BackgroundGeolocation.addWatcher(
         {
           backgroundMessage:
-            "GPS live ke owner (mode Grab). Jangan swipe-close / force-stop. Lokasi: Izinkan selalu.",
+            "GPS live ke owner. Jangan swipe-close. Lokasi: Izinkan selalu. Auto stop jam 18:00.",
           backgroundTitle: "Henima · GPS live",
           requestPermissions: true,
           stale: false,
-          // 0 = tiap update OS (mirip Grab). Jangan pakai filter besar — diam = desk “Senyap”.
-          distanceFilter: 0,
+          // ~8 m: cukup rapat saat jalan, kurangi goyang saat diam.
+          distanceFilter: 8,
         },
         (location, error) => {
           if (error) {

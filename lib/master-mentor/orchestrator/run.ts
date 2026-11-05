@@ -5,6 +5,7 @@ import {
   businessPdfTitle,
   businessPdfUserHint,
   henimaBusinessTextToPdf,
+  isPdfExportFollowUp,
   pdfFileSlug,
   wantsBusinessPdf,
 } from "../chat/business-pdf";
@@ -116,6 +117,84 @@ export async function runMasterOrchestrator(opts: {
   }
 
   const pdfMode = wantsBusinessPdf(opts.question);
+  const pdfFromLast = pdfMode && isPdfExportFollowUp(opts.question);
+  const lastAssistant = [...(opts.history || [])]
+    .reverse()
+    .find((m) => m.role === "assistant" && m.content.trim().length > 40);
+  const priorUserAsk = [...(opts.history || [])]
+    .reverse()
+    .find((m) => m.role === "user")?.content;
+
+  // Fast path: "buatkan pdfnya" → PDF dari jawaban mentor sebelumnya (tanpa nulis ulang).
+  if (pdfFromLast && lastAssistant) {
+    onProgress({ type: "status", message: "Membuat PDF dari saran sebelumnya…" });
+    const title = businessPdfTitle(opts.question, priorUserAsk || null);
+    let pdf: OrchestratorPdfFile | null = null;
+    try {
+      const data = await henimaBusinessTextToPdf(title, lastAssistant.content);
+      pdf = {
+        name: `${pdfFileSlug(title)}.pdf`,
+        mediaType: "application/pdf",
+        data,
+        title,
+      };
+    } catch (err) {
+      onProgress({
+        type: "error",
+        message: err instanceof Error ? err.message : "Gagal buat PDF",
+      });
+      throw err instanceof Error ? err : new Error("Gagal buat PDF");
+    }
+    const reply = locale === "en"
+      ? `PDF ready from the previous mentor note: ${title}. Tap download below.`
+      : `PDF siap dari saran sebelumnya: ${title}. Unduh di bawah.`;
+    onProgress({ type: "token", text: reply });
+    onProgress({ type: "done", message: "PDF siap" });
+    return {
+      reply,
+      specialists: [],
+      sourcesUsed: [],
+      missing: [],
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        provider: provider.id,
+        model: provider.model,
+      },
+      businessId: opts.businessId || null,
+      complex: false,
+      routeReasons: ["pdf_from_last_reply"],
+      pdf,
+    };
+  }
+
+  if (pdfFromLast && !lastAssistant) {
+    onProgress({ type: "token", text: locale === "en"
+      ? "No previous mentor reply to turn into PDF. Ask your question first, then say “make the PDF”."
+      : "Belum ada saran mentor sebelumnya. Tanya dulu (mis. rencana sales), baru ketik “buatkan pdfnya”." });
+    onProgress({ type: "done", message: "Selesai" });
+    return {
+      reply: locale === "en"
+        ? "No previous mentor reply to turn into PDF. Ask your question first, then say “make the PDF”."
+        : "Belum ada saran mentor sebelumnya. Tanya dulu (mis. rencana sales), baru ketik “buatkan pdfnya”.",
+      specialists: [],
+      sourcesUsed: [],
+      missing: [],
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        provider: provider.id,
+        model: provider.model,
+      },
+      businessId: opts.businessId || null,
+      complex: false,
+      routeReasons: ["pdf_followup_no_history"],
+      pdf: null,
+    };
+  }
+
   const route = planSpecialistRoute(opts.question);
   // Cap fan-out: sequential Opus calls were timing out on Hobby before any reply.
   // PDF docs: chairman alone + memory (faster, fuller document).
@@ -413,7 +492,7 @@ export async function runMasterOrchestrator(opts: {
   if (pdfMode && reply.trim()) {
     onProgress({ type: "status", message: "Membuat file PDF…" });
     try {
-      const title = businessPdfTitle(opts.question);
+      const title = businessPdfTitle(opts.question, priorUserAsk || null);
       const data = await henimaBusinessTextToPdf(title, reply);
       pdf = {
         name: `${pdfFileSlug(title)}.pdf`,

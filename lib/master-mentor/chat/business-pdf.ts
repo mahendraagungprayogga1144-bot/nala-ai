@@ -9,7 +9,8 @@ import { toPlainChatText } from "./plain-text";
 export function wantsBusinessPdf(question: string): boolean {
   const q = question.trim();
   if (!q) return false;
-  if (/(buat|bikin|susun|unduh|download|export|jadikan|generate).{0,48}(pdf|dokumen)/i.test(q)) {
+  if (isPdfExportFollowUp(q)) return true;
+  if (/(buat|bikin|buatkan|bikinin|susun|unduh|download|export|jadikan|generate|kirim|kirimkan).{0,48}(pdf|dokumen)/i.test(q)) {
     return true;
   }
   return /\b(pdf|proposal|profil\s+perusahaan|company\s+profile|visi\s*misi|visi\s+perusahaan|misi\s+perusahaan|pitch(\s*deck)?|mou\b|kerja\s*sama|partnership|sop\b|peraturan\s+(perusahaan|karyawan|kepegawaian|penggajian)|kebijakan\s+(hr|sdm|gaji|penggajian)|panduan\s+wawancara|interview\s+guide|job\s*desc|deskripsi\s+pekerjaan|kontrak\s+kerja|company\s+deck|ringkasan\s+perusahaan|dokumen\s+(bisnis|perusahaan|internal)|brief\s+perusahaan|company\s+brief)\b/i.test(
@@ -17,18 +18,33 @@ export function wantsBusinessPdf(question: string): boolean {
   );
 }
 
-export function businessPdfTitle(question: string): string {
-  const q = question.toLowerCase();
+/**
+ * Short follow-up: "buatkan pdfnya" / "kirim pdf" → export last mentor reply.
+ */
+export function isPdfExportFollowUp(question: string): boolean {
+  const q = question.trim().toLowerCase().replace(/[!?.,]+$/g, "").trim();
+  if (!q || q.length > 100) return false;
+  if (/^(pdf|pdfnya)(\s+(dong|bro|ya|please|pls|sekarang))?$/.test(q)) return true;
+  if (/^(tolong\s+)?(buatkan|bikinin|bikin|buat|kirim|kirimkan|unduh|download|export)\s+(pdf|pdfnya|dokumen|dokumennya)(\s+(dong|bro|ya|please|pls|sekarang))?$/.test(q)) {
+    return true;
+  }
+  if (/^(mentor\s+)?(kirim|kirimkan)\s+(pdf|pdfnya)/.test(q)) return true;
+  return false;
+}
+
+export function businessPdfTitle(question: string, priorUserAsk?: string | null): string {
+  const q = `${question} ${priorUserAsk || ""}`.toLowerCase();
   if (/proposal|investor|pitch/.test(q)) return "Proposal Bisnis HENIMA";
   if (/profil|company\s+profile|ringkasan\s+perusahaan/.test(q)) return "Profil Perusahaan HENIMA";
   if (/visi|misi/.test(q)) return "Visi & Misi HENIMA";
-  if (/penggajian|gaji|payroll/.test(q)) return "Kebijakan Penggajian HENIMA";
+  if (/penggajian|gaji|payroll|rekrut|karyawan|sales/.test(q)) return "Rencana Tim & Komisi HENIMA";
   if (/peraturan|kebijakan\s+hr|kepegawaian/.test(q)) return "Peraturan Internal HENIMA";
   if (/wawancara|interview/.test(q)) return "Panduan Wawancara HENIMA";
   if (/sop/.test(q)) return "SOP Internal HENIMA";
   if (/kerja\s*sama|mou|partnership/.test(q)) return "Dokumen Kerja Sama HENIMA";
   if (/job\s*desc|deskripsi\s+pekerjaan/.test(q)) return "Job Description HENIMA";
-  return "Dokumen Bisnis HENIMA";
+  if (/penjualan|omzet|kas|stok/.test(q)) return "Rencana Bisnis HENIMA";
+  return "Catatan Mentor HENIMA";
 }
 
 export function buildBusinessPdfSystem(locale: "id" | "en" = "id"): string {

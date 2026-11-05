@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildChairmanSystem, buildSpecialistSystem } from "../agents/prompts";
-import { toPlainChatText } from "../chat/plain-text";
+import { looksTruncatedReply, toPlainChatText } from "../chat/plain-text";
 import type { AgentRunOutput, SpecialistBrief, SpecialistId } from "../agents/types";
 import { buildFinanceSnapshot } from "../finance/calculations";
 import type { MentorLocale } from "../i18n";
 import { retrieveMentorContext } from "../memory-retrieval";
 import { assertAnalyzeOnly } from "../permissions";
+import { getMentorProviderConfig } from "../providers/config";
 import { createMentorProvider, type MentorProvider, type ProviderUsage } from "../providers";
 import { ProviderConfigError, ProviderRuntimeError } from "../providers/types";
 import { logMentorUsage, sumUsage } from "../usage";
@@ -262,14 +263,19 @@ export async function runMasterOrchestrator(opts: {
     model: provider.model,
   };
 
+  const providerCfg = getMentorProviderConfig();
+  const chairmanMaxTokens = Math.max(providerCfg.maxTokens || 4096, 3200);
+  const chairmanTimeoutMs = Math.max(providerCfg.timeoutMs || 55_000, 90_000);
+  const chairmanSystem = buildChairmanSystem(route.complex, locale);
+
   try {
     if (opts.streamFinal && provider.stream) {
       const result = await provider.stream({
-        system: buildChairmanSystem(route.complex, locale),
+        system: chairmanSystem,
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
-        maxTokens: route.complex ? 1800 : 900,
-        timeoutMs: 45_000,
+        maxTokens: chairmanMaxTokens,
+        timeoutMs: chairmanTimeoutMs,
         handlers: {
           onText: (chunk) => onProgress({ type: "token", text: chunk }),
         },
@@ -278,16 +284,43 @@ export async function runMasterOrchestrator(opts: {
       chairmanUsage = result.usage;
     } else {
       const result = await provider.complete({
-        system: buildChairmanSystem(route.complex, locale),
+        system: chairmanSystem,
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
-        maxTokens: route.complex ? 1800 : 900,
-        timeoutMs: 45_000,
+        maxTokens: chairmanMaxTokens,
+        timeoutMs: chairmanTimeoutMs,
       });
       reply = result.text;
       chairmanUsage = result.usage;
       onProgress({ type: "token", text: reply });
     }
+
+    // One continuation if the model cut mid-list / mid-sentence (mentor must finish).
+    if (looksTruncatedReply(reply)) {
+      onProgress({ type: "status", message: "Mentor menyelesaikan jawaban…" });
+      const cont = await provider.complete({
+        system: chairmanSystem,
+        messages: [
+          { role: "user", content: chairmanUser },
+          { role: "assistant", content: reply },
+          {
+            role: "user",
+            content:
+              "Lanjutkan persis dari potongan terakhir. Jangan ulangi yang sudah ditulis. Selesaikan semua poin sampai tuntas. Plain text saja, tanpa markdown.",
+          },
+        ],
+        temperature: 0.3,
+        maxTokens: 1800,
+        timeoutMs: chairmanTimeoutMs,
+      });
+      if (cont.text.trim()) {
+        const extra = cont.text.trim();
+        reply = `${reply.trimEnd()}\n${extra}`;
+        onProgress({ type: "token", text: `\n${extra}` });
+        chairmanUsage = sumUsage([chairmanUsage, cont.usage]);
+      }
+    }
+
     usageParts.push(chairmanUsage);
     await logMentorUsage(opts.db, {
       ownerUserId: opts.ownerUserId,
@@ -332,14 +365,13 @@ export async function runMasterOrchestrator(opts: {
     },
   ];
 
+  // Keep missing for internal/API use — do not dump UUID/jargon into chat UI.
   const missingUi: string[] = [];
-  if (ownerFigures.length) {
-    missingUi.push("Angka dari chat (perkiraan). Simpan di Catatan uang biar jadi data resmi.");
-    if (context.financial.length) {
-      missingUi.push(...(finance?.missing || []).filter((m) => !/belum tersedia/i.test(m)));
-    }
-  } else {
-    missingUi.push(...context.missing, ...(finance?.missing || []));
+  if (!ownerFigures.length) {
+    missingUi.push(
+      ...context.missing.filter((m) => !/uuid|business:|owner_stated/i.test(m)),
+      ...(finance?.missing || []).filter((m) => !/belum tersedia|uuid/i.test(m)),
+    );
   }
 
   const result: OrchestratorResult = {

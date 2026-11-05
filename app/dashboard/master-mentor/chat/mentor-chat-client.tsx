@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MessageSquare, Plus, Send, Sparkles } from "lucide-react";
 import type { MentorPortfolioBusiness } from "@/lib/master-mentor/types";
 import { categoryLabel } from "@/lib/master-mentor/types";
-import { friendlySourceLabel, toPlainChatText } from "@/lib/master-mentor/chat/plain-text";
+import { toPlainChatText } from "@/lib/master-mentor/chat/plain-text";
 import { useMentorLocale } from "../components/mentor-locale-provider";
 
 type Conversation = {
@@ -399,15 +399,6 @@ export default function MentorChatClient({
                   ].join(" ")}
                 >
                   {m.role === "assistant" ? toPlainChatText(m.content) : m.content}
-                  {m.role === "assistant" && m.sources_used && m.sources_used.length > 0 ? (
-                    <p className="mt-2 text-[10px] text-[#9CA3AF]">
-                      {t.chat.sources}:{" "}
-                      {[...new Set(m.sources_used.map(friendlySourceLabel))].join(", ")}
-                    </p>
-                  ) : null}
-                  {m.role === "assistant" && m.missing && m.missing.length > 0 ? (
-                    <p className="mt-1 text-[10px] text-[#6B7280]">{m.missing[0]}</p>
-                  ) : null}
                 </div>
               ))
             )}

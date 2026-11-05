@@ -12,6 +12,7 @@ import { requireMentorOwnerPage } from "@/lib/master-mentor/authz";
 import { MASTER_MENTOR_BASE } from "@/lib/master-mentor/types";
 import PhaseBanner from "../components/phase-banner";
 import SectionCard from "../components/section-card";
+import SeedHenimaButton from "./seed-henima-button";
 
 const LINKS = [
   { href: `${MASTER_MENTOR_BASE}/memory/owner`, title: "Owner Profile", desc: "Vision, preferences, risk tolerance", icon: UserRound },
@@ -34,8 +35,9 @@ export default async function MemoryHubPage() {
           Long-term memory for owner, businesses, finance, decisions, strategy, and learning.
         </p>
       </header>
-      <div className="mb-5">
-        <PhaseBanner message="Phase 2 stores only owner-entered facts. Mentor chat will retrieve this memory in Phase 3 — never invent missing data. pgvector was not added; retrieval uses structured PostgreSQL queries." />
+      <div className="mb-5 space-y-3">
+        <PhaseBanner message="Memori hanya menyimpan fakta yang Anda (atau tombol isi HENIMA) masukkan. Mentor Chat tidak mengarang angka." />
+        <SeedHenimaButton />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {LINKS.map((item) => (

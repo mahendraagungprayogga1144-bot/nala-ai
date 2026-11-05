@@ -52,7 +52,7 @@ export default function PortfolioClient({
   const tableReady = notice.kind !== "missing_table";
 
   const title = useMemo(
-    () => (editingId ? "Edit business" : "Add business"),
+    () => (editingId ? "Edit bisnis" : "Tambah bisnis"),
     [editingId],
   );
 
@@ -143,11 +143,10 @@ export default function PortfolioClient({
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-[#111827]">
-            Business Portfolio
+            Bisnis Saya
           </h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            Manage businesses mentored by HENIMA AI. Structure is ready for HENIMA Perfume as
-            business #1.
+            Daftar bisnis yang di-mentor. HENIMA Perfume bisa jadi bisnis #1.
           </p>
         </div>
         <button
@@ -157,12 +156,12 @@ export default function PortfolioClient({
           className="inline-flex items-center gap-2 rounded-lg bg-[#111827] px-3.5 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
           <Plus size={15} />
-          Add business
+          Tambah bisnis
         </button>
       </header>
 
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Portfolio CRUD is owner-only and server-validated. No sample businesses are preloaded." />
+        <PhaseBanner message="Hanya owner yang bisa tambah/ubah. Tidak ada bisnis contoh otomatis." />
         {notice.kind === "missing_table" ? (
           <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
             {notice.message}
@@ -181,10 +180,10 @@ export default function PortfolioClient({
       </div>
 
       {openForm ? (
-        <SectionCard title={title} subtitle="Name, category, Gercep link, status, targets">
+        <SectionCard title={title} subtitle="Nama, kategori, tautan Gercep, status, target">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-medium text-[#4B5563] sm:col-span-2">
-              Business name
+              Nama bisnis
               <input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -194,7 +193,7 @@ export default function PortfolioClient({
               />
             </label>
             <label className="block text-xs font-medium text-[#4B5563] sm:col-span-2">
-              Tautan bisnis Gercep (untuk Phase 4 BI)
+              Tautan bisnis Gercep (buat angka operasional)
               <select
                 value={form.gercep_business_id}
                 onChange={(e) => setForm((f) => ({ ...f, gercep_business_id: e.target.value }))}
@@ -210,7 +209,7 @@ export default function PortfolioClient({
               </select>
             </label>
             <label className="block text-xs font-medium text-[#4B5563]">
-              Category
+              Kategori
               <select
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
@@ -238,25 +237,25 @@ export default function PortfolioClient({
               </select>
             </label>
             <label className="block text-xs font-medium text-[#4B5563] sm:col-span-2">
-              Description
+              Deskripsi
               <textarea
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 rows={3}
                 maxLength={2000}
                 className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#111827] outline-none focus:border-[#9CA3AF]"
-                placeholder="Short description of the business"
+                placeholder="Cerita singkat bisnis ini"
               />
             </label>
             <label className="block text-xs font-medium text-[#4B5563] sm:col-span-2">
-              Business targets
+              Target bisnis
               <textarea
                 value={form.targets}
                 onChange={(e) => setForm((f) => ({ ...f, targets: e.target.value }))}
                 rows={3}
                 maxLength={2000}
                 className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#111827] outline-none focus:border-[#9CA3AF]"
-                placeholder="e.g. Launch SKU set, monthly revenue goal, distribution targets"
+                placeholder="Mis. target omzet bulan ini, distribusi, launch SKU"
               />
             </label>
           </div>
@@ -267,7 +266,7 @@ export default function PortfolioClient({
               disabled={busy || !form.name.trim()}
               className="rounded-lg bg-[#111827] px-3.5 py-2 text-sm font-medium text-white disabled:opacity-40"
             >
-              {busy ? "Saving…" : "Save"}
+              {busy ? "Menyimpan…" : "Simpan"}
             </button>
             <button
               type="button"
@@ -278,7 +277,7 @@ export default function PortfolioClient({
               }}
               className="rounded-lg border border-[#E5E7EB] px-3.5 py-2 text-sm font-medium text-[#4B5563]"
             >
-              Cancel
+              Batal
             </button>
           </div>
         </SectionCard>
@@ -288,8 +287,8 @@ export default function PortfolioClient({
         {rows.length === 0 ? (
           <EmptyState
             icon={Briefcase}
-            title="Portfolio is empty"
-            description="No businesses registered yet. You can add HENIMA Perfume as the first business when you are ready. Nothing is invented on your behalf."
+            title="Belum ada bisnis"
+            description="Tambah HENIMA Perfume sebagai bisnis pertama kalau mau. Tidak ada data palsu yang diisi otomatis."
             action={
               tableReady ? (
                 <button
@@ -298,7 +297,7 @@ export default function PortfolioClient({
                   className="inline-flex items-center gap-2 rounded-lg bg-[#111827] px-3.5 py-2 text-xs font-medium text-white"
                 >
                   <Plus size={14} />
-                  Add HENIMA Perfume
+                  Tambah HENIMA Perfume
                 </button>
               ) : null
             }
@@ -339,19 +338,19 @@ export default function PortfolioClient({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[#FECACA] px-2.5 py-1.5 text-xs font-medium text-[#B91C1C] hover:bg-[#FEF2F2]"
                     >
                       <Trash2 size={13} />
-                      Delete
+                      Hapus
                     </button>
                   </div>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-[#4B5563]">
-                  {row.description || "No description provided."}
+                  {row.description || "Belum ada deskripsi."}
                 </p>
                 <div className="mt-3 rounded-lg border border-[#F3F4F6] bg-[#FAFAFA] px-3 py-2.5">
                   <p className="text-[11px] font-semibold tracking-wide text-[#9CA3AF] uppercase">
-                    Targets
+                    Target
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-[#4B5563]">
-                    {row.targets || "No targets set."}
+                    {row.targets || "Belum ada target."}
                   </p>
                 </div>
               </article>

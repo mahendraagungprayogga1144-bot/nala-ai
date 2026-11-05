@@ -40,12 +40,12 @@ export type OrchestratorResult = {
 };
 
 const LABELS: Record<SpecialistId, string> = {
-  chairman: "Chairman Agent",
-  strategy: "Strategy Agent",
-  cfo: "CFO Agent",
-  growth: "Growth Agent",
-  operations: "Operations Agent",
-  risk: "Risk Agent",
+  chairman: "Mentor",
+  strategy: "Strategi",
+  cfo: "Keuangan",
+  growth: "Growth",
+  operations: "Operasi",
+  risk: "Risiko",
 };
 
 async function runSpecialist(
@@ -102,10 +102,12 @@ export async function runMasterOrchestrator(opts: {
   const specialistsToRun = route.specialists.slice(0, 2);
   onProgress({
     type: "status",
-    message: `Routing: ${specialistsToRun.join(", ") || "—"} → Chairman`,
+    message: specialistsToRun.length
+      ? `Lagi lihat: ${specialistsToRun.map((s) => LABELS[s]).join(", ")}…`
+      : "Mentor lagi ngetik…",
   });
 
-  onProgress({ type: "status", message: "Mengambil Business Memory…" });
+  onProgress({ type: "status", message: "Baca memori bisnis…" });
   const context = await retrieveMentorContext(opts.db, opts.ownerUserId, {
     query: opts.question,
     businessId: opts.businessId || null,
@@ -115,7 +117,7 @@ export async function runMasterOrchestrator(opts: {
   const finance = route.includeFinance ? buildFinanceSnapshot(context.financial) : null;
   const memoryBlock = formatMemoryContext(context, finance);
 
-  onProgress({ type: "status", message: "Memuat Phase 4 operational intelligence…" });
+  onProgress({ type: "status", message: "Cek angka operasional…" });
   let intelligenceBlock = "";
   try {
     const intelPromise = buildIntelligencePack(
@@ -238,16 +240,16 @@ export async function runMasterOrchestrator(opts: {
     type: "specialist_start",
     specialist: "chairman",
     label: LABELS.chairman,
-    message: "Chairman Agent menyusun rekomendasi akhir…",
+    message: "Mentor lagi ngetik…",
   });
 
   const chairmanUser = [
     baseUser,
-    "CATATAN SPESIALIS (hanya yang benar-benar dijalankan):",
-    peerNotes || "(tidak ada spesialis domain — jawab langsung sebagai Chairman)",
+    "CATATAN TIM (kalau ada):",
+    peerNotes || "(tidak ada catatan tim — jawab langsung sebagai mentor)",
     route.complex
-      ? "Susun jawaban final terstruktur untuk pertanyaan kompleks."
-      : "Jawab final singkat dan langsung.",
+      ? "Jawab gaya chat dengan struktur ringan (inti → angka → rekomendasi → risiko)."
+      : "Jawab singkat seperti chat WhatsApp — enak dibaca.",
   ].join("\n\n");
 
   let reply = "";

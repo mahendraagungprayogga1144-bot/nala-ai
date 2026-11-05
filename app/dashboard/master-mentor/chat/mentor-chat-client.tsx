@@ -115,7 +115,7 @@ export default function MentorChatClient({
     };
 
     try {
-      setStatusLine("Mentor sedang mengetik…");
+      setStatusLine("Mentor lagi ngetik…");
       const res = await fetch("/api/master-mentor/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -186,7 +186,7 @@ export default function MentorChatClient({
             // Keep status short & human — hide long orchestrator jargon in the typing line.
             const raw = evt.message;
             if (/Orchestrator|Routing|provider|Memory|intelligence/i.test(raw)) {
-              setStatusLine("Mentor sedang mengetik…");
+              setStatusLine("Mentor lagi ngetik…");
             } else {
               setStatusLine(raw);
             }
@@ -198,7 +198,7 @@ export default function MentorChatClient({
               const others = prev.filter((s) => s.id !== id);
               return [...others, { id, label, status: "running" }];
             });
-            setStatusLine("Mentor sedang mengetik…");
+            setStatusLine("Mentor lagi ngetik…");
           }
           if (evt.type === "specialist_done" && typeof evt.specialist === "string") {
             const id = String(evt.specialist);
@@ -357,7 +357,7 @@ export default function MentorChatClient({
             </label>
             {busy ? (
               <div className="min-w-[160px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
-                <p className="text-xs font-medium text-[#4B5563]">Mentor mengetik…</p>
+                <p className="text-xs font-medium text-[#4B5563]">Mentor lagi ngetik…</p>
               </div>
             ) : specialists.length > 0 ? (
               <div className="min-w-[160px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
@@ -417,7 +417,7 @@ export default function MentorChatClient({
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF] [animation-delay:150ms]" />
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF] [animation-delay:300ms]" />
                 </span>
-                {statusLine || "Mentor sedang mengetik…"}
+                {statusLine || "Mentor lagi ngetik…"}
               </div>
             ) : null}
           </div>

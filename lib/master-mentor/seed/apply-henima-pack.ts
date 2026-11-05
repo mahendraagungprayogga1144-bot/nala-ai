@@ -89,7 +89,7 @@ export async function applyHenimaPerfumePack(
   filled.business = true;
 
   const { rows: existingFin } = await listFinancialRecords(db, ownerUserId, { businessId });
-  const haveMetric = new Set(existingFin.map((r) => r.metric_type));
+  const haveMetric = new Set<string>(existingFin.map((r) => r.metric_type));
   for (const seed of henimaFinancialSeeds(businessId, today)) {
     if (seed.amount === 0 && seed.transaction_category === "stok_v1_sampel") {
       // Skip zero-amount placeholder — stok sudah di business knowledge

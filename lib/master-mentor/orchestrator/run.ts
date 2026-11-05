@@ -59,6 +59,8 @@ async function runSpecialist(
     system,
     messages: [{ role: "user", content: userContent }],
     temperature: specialist === "cfo" ? 0.1 : 0.3,
+    maxTokens: 1600,
+    timeoutMs: 40_000,
   });
   return {
     specialist,
@@ -83,6 +85,7 @@ export async function runMasterOrchestrator(opts: {
   const onProgress = opts.onProgress || (() => {});
   const locale: MentorLocale = opts.locale === "en" ? "en" : "id";
 
+  onProgress({ type: "status", message: "Menyiapkan provider AI…" });
   let provider: MentorProvider;
   try {
     provider = createMentorProvider();
@@ -95,11 +98,14 @@ export async function runMasterOrchestrator(opts: {
   }
 
   const route = planSpecialistRoute(opts.question);
+  // Cap fan-out: sequential Opus calls were timing out on Hobby before any reply.
+  const specialistsToRun = route.specialists.slice(0, 2);
   onProgress({
     type: "status",
-    message: `Routing: ${route.specialists.join(", ")} → Chairman`,
+    message: `Routing: ${specialistsToRun.join(", ") || "—"} → Chairman`,
   });
 
+  onProgress({ type: "status", message: "Mengambil Business Memory…" });
   const context = await retrieveMentorContext(opts.db, opts.ownerUserId, {
     query: opts.question,
     businessId: opts.businessId || null,
@@ -112,15 +118,20 @@ export async function runMasterOrchestrator(opts: {
   onProgress({ type: "status", message: "Memuat Phase 4 operational intelligence…" });
   let intelligenceBlock = "";
   try {
-    const pack = await buildIntelligencePack(
-      opts.db,
-      opts.ownerUserId,
-      opts.businessId || context.businessId,
-      "last_30_days",
-    );
+    const pack = await Promise.race([
+      buildIntelligencePack(
+        opts.db,
+        opts.ownerUserId,
+        opts.businessId || context.businessId,
+        "last_30_days",
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("intelligence_timeout_10s")), 10_000),
+      ),
+    ]);
     intelligenceBlock = formatIntelligencePackForPrompt(pack);
   } catch (err) {
-    intelligenceBlock = `PHASE 4 OPERATIONAL INTELLIGENCE: gagal dimuat (${err instanceof Error ? err.message : "error"}). Jangan mengarang pengganti.`;
+    intelligenceBlock = `PHASE 4 OPERATIONAL INTELLIGENCE: gagal/timeout (${err instanceof Error ? err.message : "error"}). Lanjut dengan Financial Memory + angka chat saja — jangan mengarang.`;
   }
 
   const historyBlock =
@@ -155,63 +166,65 @@ export async function runMasterOrchestrator(opts: {
   const specialistOutputs: AgentRunOutput[] = [];
   const usageParts: ProviderUsage[] = [];
 
-  for (const specialist of route.specialists) {
-    onProgress({
-      type: "specialist_start",
-      specialist,
-      label: LABELS[specialist],
-      message: `${LABELS[specialist]} menganalisis…`,
-    });
-    try {
-      const out = await runSpecialist(provider, specialist, baseUser, locale);
-      specialistOutputs.push(out);
-      usageParts.push(out.usage);
-      await logMentorUsage(opts.db, {
-        ownerUserId: opts.ownerUserId,
-        conversationId: opts.conversationId,
-        specialist,
-        usage: out.usage,
-        success: true,
-      });
+  // Run domain specialists in parallel (was sequential → multi-minute hangs).
+  await Promise.all(
+    specialistsToRun.map(async (specialist) => {
       onProgress({
-        type: "specialist_done",
+        type: "specialist_start",
         specialist,
         label: LABELS[specialist],
-        message: `${LABELS[specialist]} selesai`,
+        message: `${LABELS[specialist]} menganalisis…`,
       });
-    } catch (err) {
-      const code = err instanceof ProviderRuntimeError ? err.code : "specialist_error";
-      const message = err instanceof Error ? err.message : "Specialist failed";
-      await logMentorUsage(opts.db, {
-        ownerUserId: opts.ownerUserId,
-        conversationId: opts.conversationId,
-        specialist,
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          estimatedCostUsd: 0,
-          provider: provider.id,
-          model: provider.model,
-        },
-        success: false,
-        errorCode: code,
-      });
-      onProgress({ type: "error", specialist, message });
-      // Continue with other specialists; chairman will note failures
-      specialistOutputs.push({
-        specialist,
-        label: LABELS[specialist],
-        analysis: `(Spesialis gagal: ${message})`,
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          estimatedCostUsd: 0,
-          provider: provider.id,
-          model: provider.model,
-        },
-      });
-    }
-  }
+      try {
+        const out = await runSpecialist(provider, specialist, baseUser, locale);
+        specialistOutputs.push(out);
+        usageParts.push(out.usage);
+        await logMentorUsage(opts.db, {
+          ownerUserId: opts.ownerUserId,
+          conversationId: opts.conversationId,
+          specialist,
+          usage: out.usage,
+          success: true,
+        });
+        onProgress({
+          type: "specialist_done",
+          specialist,
+          label: LABELS[specialist],
+          message: `${LABELS[specialist]} selesai`,
+        });
+      } catch (err) {
+        const code = err instanceof ProviderRuntimeError ? err.code : "specialist_error";
+        const message = err instanceof Error ? err.message : "Specialist failed";
+        await logMentorUsage(opts.db, {
+          ownerUserId: opts.ownerUserId,
+          conversationId: opts.conversationId,
+          specialist,
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostUsd: 0,
+            provider: provider.id,
+            model: provider.model,
+          },
+          success: false,
+          errorCode: code,
+        });
+        onProgress({ type: "error", specialist, message });
+        specialistOutputs.push({
+          specialist,
+          label: LABELS[specialist],
+          analysis: `(Spesialis gagal: ${message})`,
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            estimatedCostUsd: 0,
+            provider: provider.id,
+            model: provider.model,
+          },
+        });
+      }
+    }),
+  );
 
   const peerNotes = specialistOutputs
     .map((s) => `### ${s.label}\n${s.analysis}`)
@@ -248,6 +261,8 @@ export async function runMasterOrchestrator(opts: {
         system: buildChairmanSystem(route.complex, locale),
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
+        maxTokens: 2500,
+        timeoutMs: 55_000,
         handlers: {
           onText: (chunk) => onProgress({ type: "token", text: chunk }),
         },
@@ -259,6 +274,8 @@ export async function runMasterOrchestrator(opts: {
         system: buildChairmanSystem(route.complex, locale),
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
+        maxTokens: 2500,
+        timeoutMs: 55_000,
       });
       reply = result.text;
       chairmanUsage = result.usage;

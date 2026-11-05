@@ -136,7 +136,9 @@ export async function POST(request: Request) {
         const send = (obj: unknown) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         };
+        // Immediate flush so UI leaves "Menyiapkan…" even before DB/LLM work.
         send({ type: "meta", conversationId });
+        send({ type: "status", message: "Orchestrator mulai…" });
         try {
           const result = await runMasterOrchestrator({
             db,

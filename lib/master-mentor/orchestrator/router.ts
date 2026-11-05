@@ -45,7 +45,11 @@ export function planSpecialistRoute(question: string): RoutePlan {
     selected.add("growth");
     reasons.push("growth_topic");
   }
-  if (/sop|operasional|karyawan|produktivitas|inventory|stok|otomatis|proses|workforce/i.test(q)) {
+  // Prefer ops only when operational systems are the focus — not every "stok" mention with BEP/kas.
+  if (
+    /sop|operasional|karyawan|produktivitas|otomatis|proses|workforce/i.test(q) ||
+    (/\b(inventory|stok)\b/i.test(q) && !/bep|break.?even|\bkas\b|cash|omzet|laba/i.test(q))
+  ) {
     selected.add("operations");
     reasons.push("operations_topic");
   }

@@ -14,8 +14,8 @@ import { resolveMentorLocale } from "@/lib/master-mentor/i18n";
 import { cleanText } from "@/lib/master-mentor/text";
 
 export const dynamic = "force-dynamic";
-/** Multi-specialist Opus runs (CFO → Ops → Chairman) often exceed 60s on Hobby. */
-export const maxDuration = 300;
+/** Parallel specialists + chairman; keep within common Hobby-compatible budgets. */
+export const maxDuration = 120;
 
 export async function GET(request: Request) {
   return withMentorOwner(async ({ owner, db }) => {

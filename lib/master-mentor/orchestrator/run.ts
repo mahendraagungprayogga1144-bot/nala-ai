@@ -118,20 +118,24 @@ export async function runMasterOrchestrator(opts: {
   onProgress({ type: "status", message: "Memuat Phase 4 operational intelligence…" });
   let intelligenceBlock = "";
   try {
-    const pack = await Promise.race([
-      buildIntelligencePack(
-        opts.db,
-        opts.ownerUserId,
-        opts.businessId || context.businessId,
-        "last_30_days",
-      ),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("intelligence_timeout_10s")), 10_000),
-      ),
-    ]);
-    intelligenceBlock = formatIntelligencePackForPrompt(pack);
+    const intelPromise = buildIntelligencePack(
+      opts.db,
+      opts.ownerUserId,
+      opts.businessId || context.businessId,
+      "last_30_days",
+    );
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), 10_000);
+    });
+    const pack = await Promise.race([intelPromise, timeoutPromise]);
+    if (!pack) {
+      intelligenceBlock =
+        "PHASE 4 OPERATIONAL INTELLIGENCE: timeout 10s. Lanjut dengan Financial Memory + angka chat saja — jangan mengarang.";
+    } else {
+      intelligenceBlock = formatIntelligencePackForPrompt(pack);
+    }
   } catch (err) {
-    intelligenceBlock = `PHASE 4 OPERATIONAL INTELLIGENCE: gagal/timeout (${err instanceof Error ? err.message : "error"}). Lanjut dengan Financial Memory + angka chat saja — jangan mengarang.`;
+    intelligenceBlock = `PHASE 4 OPERATIONAL INTELLIGENCE: gagal (${err instanceof Error ? err.message : "error"}). Lanjut dengan Financial Memory + angka chat saja — jangan mengarang.`;
   }
 
   const historyBlock =

@@ -4,7 +4,6 @@ import {
   buildBusinessPdfSystem,
   businessPdfTitle,
   businessPdfUserHint,
-  henimaBusinessTextToPdf,
   isPdfExportFollowUp,
   pdfFileSlug,
   wantsBusinessPdf,
@@ -125,29 +124,19 @@ export async function runMasterOrchestrator(opts: {
     .reverse()
     .find((m) => m.role === "user")?.content;
 
-  // Fast path: "buatkan pdfnya" → PDF dari jawaban mentor sebelumnya (tanpa nulis ulang).
+  // Fast path: "buatkan pdfnya" → tombol unduh (file di-fetch API /chat/pdf).
   if (pdfFromLast && lastAssistant) {
-    onProgress({ type: "status", message: "Membuat PDF dari saran sebelumnya…" });
+    onProgress({ type: "status", message: "Menyiapkan unduhan PDF…" });
     const title = businessPdfTitle(opts.question, priorUserAsk || null);
-    let pdf: OrchestratorPdfFile | null = null;
-    try {
-      const data = await henimaBusinessTextToPdf(title, lastAssistant.content);
-      pdf = {
-        name: `${pdfFileSlug(title)}.pdf`,
-        mediaType: "application/pdf",
-        data,
-        title,
-      };
-    } catch (err) {
-      onProgress({
-        type: "error",
-        message: err instanceof Error ? err.message : "Gagal buat PDF",
-      });
-      throw err instanceof Error ? err : new Error("Gagal buat PDF");
-    }
+    const pdf: OrchestratorPdfFile = {
+      name: `${pdfFileSlug(title)}.pdf`,
+      mediaType: "application/pdf",
+      data: "",
+      title,
+    };
     const reply = locale === "en"
-      ? `PDF ready from the previous mentor note: ${title}. Tap download below.`
-      : `PDF siap dari saran sebelumnya: ${title}. Unduh di bawah.`;
+      ? `PDF ready from the previous mentor note: ${title}. Use the download button below.`
+      : `PDF siap dari saran sebelumnya: ${title}. Klik tombol Unduh PDF di bawah pesan ini.`;
     onProgress({ type: "token", text: reply });
     onProgress({ type: "done", message: "PDF siap" });
     return {
@@ -490,28 +479,19 @@ export async function runMasterOrchestrator(opts: {
 
   let pdf: OrchestratorPdfFile | null = null;
   if (pdfMode && reply.trim()) {
-    onProgress({ type: "status", message: "Membuat file PDF…" });
-    try {
-      const title = businessPdfTitle(opts.question, priorUserAsk || null);
-      const data = await henimaBusinessTextToPdf(title, reply);
-      pdf = {
-        name: `${pdfFileSlug(title)}.pdf`,
-        mediaType: "application/pdf",
-        data,
-        title,
-      };
-    } catch (err) {
-      onProgress({
-        type: "status",
-        message: `PDF gagal dibuat (${err instanceof Error ? err.message : "error"}). Teks dokumen tetap ada di chat.`,
-      });
-    }
+    const title = businessPdfTitle(opts.question, priorUserAsk || null);
+    pdf = {
+      name: `${pdfFileSlug(title)}.pdf`,
+      mediaType: "application/pdf",
+      data: "",
+      title,
+    };
   }
 
   const plainReply = toPlainChatText(reply);
   const chatReply =
     pdf && plainReply
-      ? `${plainReply}\n\nDokumen PDF siap diunduh: ${pdf.title}.`
+      ? `${plainReply}\n\nPDF siap — klik tombol Unduh PDF di bawah pesan ini.`
       : plainReply;
 
   const result: OrchestratorResult = {

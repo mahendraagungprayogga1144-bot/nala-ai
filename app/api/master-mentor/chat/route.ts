@@ -127,7 +127,10 @@ export async function POST(request: Request) {
         missing: result.missing,
         usage: result.usage,
         proposals,
-        pdf: result.pdf || null,
+        // Don't send base64 here — client fetches /chat/pdf (SSE/JSON size).
+        pdf: result.pdf
+          ? { ready: true, title: result.pdf.title, name: result.pdf.name }
+          : null,
       });
     }
 
@@ -180,7 +183,10 @@ export async function POST(request: Request) {
             missing: result.missing,
             usage: result.usage,
             proposals,
-            pdf: result.pdf || null,
+            // Metadata only — full PDF via POST /api/master-mentor/chat/pdf
+            pdf: result.pdf
+              ? { ready: true, title: result.pdf.title, name: result.pdf.name }
+              : null,
           });
         } catch (err) {
           const msg =

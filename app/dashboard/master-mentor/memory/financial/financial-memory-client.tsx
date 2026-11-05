@@ -176,9 +176,9 @@ export default function FinancialMemoryClient({
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-[#111827]">Catatan Keuangan</h1>
+          <h1 className="text-2xl font-semibold text-[#111827]">Catatan uang</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            Angka resmi bisnis. Mentor Chat tidak mengisi halaman ini otomatis — isi di sini, baru chat lagi.
+            Angka bisnis resmi. Chat mentor tidak isi otomatis — tulis di sini dulu, baru chat lagi.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

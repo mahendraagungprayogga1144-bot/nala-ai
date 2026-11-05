@@ -105,9 +105,9 @@ export default function DecisionsClient({
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-[#111827]">Decision History</h1>
+          <h1 className="text-2xl font-semibold text-[#111827]">Keputusan</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            Compare expected vs actual outcomes. Never invent decision history.
+            Bandingkan harapan vs hasil nyata. Tidak ada keputusan fiktif.
           </p>
         </div>
         <PrimaryButton
@@ -119,11 +119,11 @@ export default function DecisionsClient({
             setOpen(true);
           }}
         >
-          Add decision
+          Tambah keputusan
         </PrimaryButton>
       </header>
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Decision memory is owner-authored. Mentor retrieval will cite these records with sources." />
+        <PhaseBanner message="Kamu yang tulis. Mentor nanti pakai catatan ini sebagai sumber." />
         {notice ? <ErrorBox message={notice} /> : null}
         <ErrorBox message={error} />
       </div>

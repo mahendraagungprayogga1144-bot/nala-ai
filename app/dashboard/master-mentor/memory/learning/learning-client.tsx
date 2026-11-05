@@ -104,9 +104,9 @@ export default function LearningClient({
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-[#111827]">Learning History</h1>
+          <h1 className="text-2xl font-semibold text-[#111827]">Pelajaran</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            Lessons with evidence. Do not store AI assumptions as facts.
+            Lesson pakai bukti. Jangan simpan asumsi AI sebagai fakta.
           </p>
         </div>
         <PrimaryButton
@@ -118,11 +118,11 @@ export default function LearningClient({
             setOpen(true);
           }}
         >
-          Add learning
+          Tambah pelajaran
         </PrimaryButton>
       </header>
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Each learning should cite evidence. Optional link to a related decision in the same business." />
+        <PhaseBanner message="Cantumkan bukti. Boleh taut ke keputusan terkait di bisnis yang sama." />
         {notice ? <ErrorBox message={notice} /> : null}
         <ErrorBox message={error} />
       </div>

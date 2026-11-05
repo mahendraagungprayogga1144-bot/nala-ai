@@ -79,13 +79,13 @@ export default function BusinessMemoryClient({
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-[#111827]">Business Knowledge</h1>
+        <h1 className="text-2xl font-semibold text-[#111827]">Info bisnis</h1>
         <p className="mt-1 text-sm text-[#6B7280]">
-          Separate profile per business_id. Multi-business ready — HENIMA Perfume can be first, not exclusive.
+          Profil per bisnis. HENIMA Perfume boleh jadi yang pertama — tidak harus satu-satunya.
         </p>
       </header>
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Create businesses in Business Portfolio first, then enrich knowledge here." />
+        <PhaseBanner message="Buat bisnis di Bisnis Saya dulu, baru lengkapi info di sini." />
         {notice ? <ErrorBox message={notice} /> : null}
         <ErrorBox message={error} />
       </div>

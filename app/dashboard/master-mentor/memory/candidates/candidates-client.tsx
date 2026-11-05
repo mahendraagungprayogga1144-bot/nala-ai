@@ -47,13 +47,13 @@ export default function CandidatesClient({
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-[#111827]">Pending Approvals</h1>
+        <h1 className="text-2xl font-semibold text-[#111827]">Menunggu OK</h1>
         <p className="mt-1 text-sm text-[#6B7280]">
-          Automatic Memory foundation: candidates must be approved before becoming durable facts.
+          Usulan dari chat harus kamu setujui dulu sebelum jadi memori tetap.
         </p>
       </header>
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Conversations will propose candidates in Phase 3. Classification separates fact, preference, assumption, and recommendation. Nothing overwrites older memory silently." />
+        <PhaseBanner message="Chat bisa usulkan fakta / preferensi / asumsi / saran. Tidak ada yang menimpa memori lama tanpa OK kamu." />
         {notice ? <ErrorBox message={notice} /> : null}
         <ErrorBox message={error} />
       </div>
@@ -61,7 +61,7 @@ export default function CandidatesClient({
       {rows.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
-          title="No pending candidates"
+          title="Belum ada yang menunggu OK"
           description="When Mentor Chat proposes a memory later, it will appear here for your approval."
         />
       ) : (

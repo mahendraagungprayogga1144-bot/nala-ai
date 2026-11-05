@@ -77,21 +77,21 @@ export default function OwnerMemoryClient({ initial }: { initial: OwnerMemory })
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-[#111827]">Owner Profile</h1>
+        <h1 className="text-2xl font-semibold text-[#111827]">Profil kamu</h1>
         <p className="mt-1 text-sm text-[#6B7280]">
-          Only information you provide is stored. Nothing is inferred.
+          Cuma yang kamu tulis yang disimpan. Tidak ada tebak-tebakan.
         </p>
       </header>
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Owner memory is personal context for mentoring. Leave fields blank if not ready — blank is not a guessed value." />
+        <PhaseBanner message="Ini konteks pribadi buat mentor. Kosong = belum diisi, bukan nilai tebakan." />
         <ErrorBox message={error} />
       </div>
-      <SectionCard title="Owner memory fields" subtitle="Editable by owner only">
+      <SectionCard title="Data profil" subtitle="Hanya owner yang bisa edit">
         <div className="grid gap-3">
-          <Field label="Business vision">
+          <Field label="Visi bisnis">
             <TextArea rows={3} value={form.business_vision} onChange={(e) => set("business_vision", e.target.value)} />
           </Field>
-          <Field label="Long-term goals">
+          <Field label="Tujuan jangka panjang">
             <TextArea rows={3} value={form.long_term_goals} onChange={(e) => set("long_term_goals", e.target.value)} />
           </Field>
           <Field label="Preferred communication style">

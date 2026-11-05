@@ -106,8 +106,8 @@ export default function StrategyClient({
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-[#111827]">Strategic Plans</h1>
-          <p className="mt-1 text-sm text-[#6B7280]">Draft · Active · Completed · Paused · Cancelled</p>
+          <h1 className="text-2xl font-semibold text-[#111827]">Rencana</h1>
+          <p className="mt-1 text-sm text-[#6B7280]">Draft · Aktif · Selesai · Pause · Batal</p>
         </div>
         <PrimaryButton
           type="button"
@@ -118,11 +118,11 @@ export default function StrategyClient({
             setOpen(true);
           }}
         >
-          Add plan
+          Tambah rencana
         </PrimaryButton>
       </header>
       <div className="mb-5 space-y-3">
-        <PhaseBanner message="Strategic memory is structured owner input — not AI-generated plans." />
+        <PhaseBanner message="Rencana dari kamu — bukan generate AI." />
         {notice ? <ErrorBox message={notice} /> : null}
         <ErrorBox message={error} />
       </div>

@@ -19,6 +19,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MENTOR_NAV, MASTER_MENTOR_BASE } from "@/lib/master-mentor/types";
+import { useMentorLocale } from "./mentor-locale-provider";
 
 const ICONS: Record<string, typeof LayoutDashboard> = {
   overview: LayoutDashboard,
@@ -46,11 +47,14 @@ export default function MentorNav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const { t } = useMentorLocale();
 
   const isActive = (href: string) => {
     if (href === MASTER_MENTOR_BASE) return pathname === MASTER_MENTOR_BASE;
     return pathname === href || pathname.startsWith(`${href}/`);
   };
+
+  const labelFor = (id: string, fallback: string) => t.nav[id] || fallback;
 
   return (
     <aside className="flex h-full w-full flex-col border-r border-[#E5E7EB] bg-white">
@@ -58,8 +62,8 @@ export default function MentorNav({
         <p className="text-[11px] font-semibold tracking-[0.14em] text-[#9CA3AF] uppercase">
           HENIMA AI
         </p>
-        <h1 className="mt-1 text-base font-semibold text-[#111827]">Business Master Mentor</h1>
-        <p className="mt-1 text-xs text-[#6B7280]">Signed in as {ownerName}</p>
+        <h1 className="mt-1 text-base font-semibold text-[#111827]">{t.brandSubtitle}</h1>
+        <p className="mt-1 text-xs text-[#6B7280]">{t.signedInAs(ownerName)}</p>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
@@ -81,7 +85,7 @@ export default function MentorNav({
                 ].join(" ")}
               >
                 <Icon size={16} strokeWidth={1.75} />
-                <span className="font-medium">{item.label}</span>
+                <span className="font-medium">{labelFor(item.id, item.label)}</span>
               </Link>
               {item.children ? (
                 <div className="mt-0.5 space-y-0.5 border-l border-[#E5E7EB] ml-5 pl-2">
@@ -102,7 +106,7 @@ export default function MentorNav({
                         ].join(" ")}
                       >
                         <ChildIcon size={14} strokeWidth={1.75} />
-                        {child.label}
+                        {labelFor(child.id, child.label)}
                       </Link>
                     );
                   })}
@@ -120,7 +124,7 @@ export default function MentorNav({
           className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[#6B7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827]"
         >
           <ArrowLeft size={15} strokeWidth={1.75} />
-          Back to Gercep OS
+          {t.backToGercep}
         </Link>
       </div>
     </aside>

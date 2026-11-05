@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import type { MentorLocale } from "@/lib/master-mentor/i18n";
 import MentorNav from "./mentor-nav";
+import { MentorLocaleProvider, useMentorLocale } from "./mentor-locale-provider";
 
-export default function MentorShell({
+function MentorShellInner({
   ownerName,
   children,
 }: {
@@ -13,6 +15,7 @@ export default function MentorShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { t } = useMentorLocale();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openForPath, setOpenForPath] = useState(pathname);
   const drawerOpen = mobileOpen && openForPath === pathname;
@@ -34,7 +37,7 @@ export default function MentorShell({
         <div className="fixed inset-0 z-[70] md:hidden">
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t.closeMenu}
             className="absolute inset-0 bg-black/30"
             onClick={closeMenu}
           />
@@ -50,17 +53,33 @@ export default function MentorShell({
             type="button"
             onClick={openMenu}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E7EB] text-[#374151]"
-            aria-label="Open menu"
+            aria-label={t.openMenu}
           >
             {drawerOpen ? <X size={16} /> : <Menu size={16} />}
           </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[#111827]">HENIMA AI</p>
-            <p className="truncate text-xs text-[#6B7280]">Business Master Mentor</p>
+            <p className="truncate text-xs text-[#6B7280]">{t.brandSubtitle}</p>
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-white">{children}</main>
       </div>
     </div>
+  );
+}
+
+export default function MentorShell({
+  ownerName,
+  initialLocale,
+  children,
+}: {
+  ownerName: string;
+  initialLocale?: MentorLocale;
+  children: React.ReactNode;
+}) {
+  return (
+    <MentorLocaleProvider initialLocale={initialLocale}>
+      <MentorShellInner ownerName={ownerName}>{children}</MentorShellInner>
+    </MentorLocaleProvider>
   );
 }

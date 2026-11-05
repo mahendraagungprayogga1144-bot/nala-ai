@@ -9,6 +9,7 @@ import {
 import { runMasterOrchestrator } from "@/lib/master-mentor/orchestrator/run";
 import { ProviderConfigError, ProviderRuntimeError } from "@/lib/master-mentor/providers";
 import { MentorValidationError } from "@/lib/master-mentor/types";
+import { resolveMentorLocale } from "@/lib/master-mentor/i18n";
 import { cleanText } from "@/lib/master-mentor/text";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     conversationId?: string;
     businessId?: string;
     stream?: boolean;
+    locale?: string;
   };
   try {
     body = await request.json();
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pesan kosong.", code: "validation_error" }, { status: 400 });
   }
 
+  const locale = resolveMentorLocale(body.locale);
   const db = await createClient();
   const wantStream = body.stream !== false;
 
@@ -92,6 +95,7 @@ export async function POST(request: Request) {
         businessId: cleanText(body.businessId, 80) || null,
         history,
         conversationId,
+        locale,
         streamFinal: false,
       });
       const saved = await appendMessage(db, owner.userId, {
@@ -128,6 +132,7 @@ export async function POST(request: Request) {
             businessId: cleanText(body.businessId, 80) || null,
             history,
             conversationId,
+            locale,
             streamFinal: true,
             onProgress: (e) => send(e),
           });

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildChairmanSystem, buildSpecialistSystem } from "../agents/prompts";
 import type { AgentRunOutput, SpecialistBrief, SpecialistId } from "../agents/types";
 import { buildFinanceSnapshot } from "../finance/calculations";
+import type { MentorLocale } from "../i18n";
 import { retrieveMentorContext } from "../memory-retrieval";
 import { assertAnalyzeOnly } from "../permissions";
 import { createMentorProvider, type MentorProvider, type ProviderUsage } from "../providers";
@@ -43,8 +44,9 @@ async function runSpecialist(
   provider: MentorProvider,
   specialist: SpecialistId,
   userContent: string,
+  locale: MentorLocale,
 ): Promise<AgentRunOutput> {
-  const system = buildSpecialistSystem(specialist);
+  const system = buildSpecialistSystem(specialist, locale);
   const result = await provider.complete({
     system,
     messages: [{ role: "user", content: userContent }],
@@ -65,11 +67,13 @@ export async function runMasterOrchestrator(opts: {
   businessId?: string | null;
   history?: { role: "user" | "assistant"; content: string }[];
   conversationId?: string | null;
+  locale?: MentorLocale;
   onProgress?: (e: OrchestratorProgress) => void;
   streamFinal?: boolean;
 }): Promise<OrchestratorResult> {
   assertAnalyzeOnly();
   const onProgress = opts.onProgress || (() => {});
+  const locale: MentorLocale = opts.locale === "en" ? "en" : "id";
 
   let provider: MentorProvider;
   try {
@@ -126,7 +130,7 @@ export async function runMasterOrchestrator(opts: {
       message: `${LABELS[specialist]} menganalisis…`,
     });
     try {
-      const out = await runSpecialist(provider, specialist, baseUser);
+      const out = await runSpecialist(provider, specialist, baseUser, locale);
       specialistOutputs.push(out);
       usageParts.push(out.usage);
       await logMentorUsage(opts.db, {
@@ -208,7 +212,7 @@ export async function runMasterOrchestrator(opts: {
   try {
     if (opts.streamFinal && provider.stream) {
       const result = await provider.stream({
-        system: buildChairmanSystem(route.complex),
+        system: buildChairmanSystem(route.complex, locale),
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
         handlers: {
@@ -219,7 +223,7 @@ export async function runMasterOrchestrator(opts: {
       chairmanUsage = result.usage;
     } else {
       const result = await provider.complete({
-        system: buildChairmanSystem(route.complex),
+        system: buildChairmanSystem(route.complex, locale),
         messages: [{ role: "user", content: chairmanUser }],
         temperature: 0.35,
       });

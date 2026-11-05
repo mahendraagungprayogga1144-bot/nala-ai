@@ -5,6 +5,7 @@ import { Bot, MessageSquare, Plus, Send, Sparkles } from "lucide-react";
 import type { MentorPortfolioBusiness } from "@/lib/master-mentor/types";
 import { categoryLabel } from "@/lib/master-mentor/types";
 import PhaseBanner from "../components/phase-banner";
+import { useMentorLocale } from "../components/mentor-locale-provider";
 
 type Conversation = {
   id: string;
@@ -35,6 +36,7 @@ export default function MentorChatClient({
   ownerName: string;
   portfolio: MentorPortfolioBusiness[];
 }) {
+  const { locale, t } = useMentorLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -47,22 +49,22 @@ export default function MentorChatClient({
   const [search, setSearch] = useState("");
 
   const contextLabel = useMemo(() => {
-    if (!businessId) return "No business selected";
+    if (!businessId) return t.chat.noPortfolio;
     const row = portfolio.find((b) => b.id === businessId);
-    return row ? `${row.name} · ${categoryLabel(row.category)}` : "Unknown business";
-  }, [businessId, portfolio]);
+    return row ? `${row.name} · ${categoryLabel(row.category)}` : t.chat.noPortfolio;
+  }, [businessId, portfolio, t]);
 
   const loadConversations = async (q = "") => {
     const res = await fetch(`/api/master-mentor/chat?q=${encodeURIComponent(q)}`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Gagal memuat percakapan");
+    if (!res.ok) throw new Error(data.error || t.chat.failLoadConversations);
     setConversations(data.conversations || []);
   };
 
   const loadConversation = async (id: string) => {
     const res = await fetch(`/api/master-mentor/chat/${id}`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Gagal memuat pesan");
+    if (!res.ok) throw new Error(data.error || t.chat.failLoadMessages);
     setActiveId(id);
     setMessages(
       (data.messages || []).map((m: ChatMessage) => ({
@@ -78,6 +80,7 @@ export default function MentorChatClient({
 
   useEffect(() => {
     loadConversations().catch((e) => setError(e instanceof Error ? e.message : "Load failed"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   }, []);
 
   const startConversation = () => {
@@ -94,7 +97,7 @@ export default function MentorChatClient({
     setBusy(true);
     setError(null);
     setSpecialists([]);
-    setStatusLine("Menyiapkan Master Orchestrator…");
+    setStatusLine(t.chat.preparing);
     setDraft("");
 
     const userMsg: ChatMessage = { id: uid(), role: "user", content: text };
@@ -109,6 +112,7 @@ export default function MentorChatClient({
           message: text,
           conversationId: activeId,
           businessId: businessId || null,
+          locale,
           stream: true,
         }),
       });
@@ -217,17 +221,14 @@ export default function MentorChatClient({
       }
       await loadConversations(search);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengirim");
+      setError(err instanceof Error ? err.message : t.chat.failRespond);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId && !m.content
             ? {
                 ...m,
                 role: "system",
-                content:
-                  err instanceof Error
-                    ? err.message
-                    : "Master Mentor gagal merespons. Coba lagi atau periksa konfigurasi provider.",
+                content: err instanceof Error ? err.message : t.chat.failRespond,
               }
             : m,
         ),
@@ -243,8 +244,8 @@ export default function MentorChatClient({
       <div className="border-b border-[#E5E7EB] px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold text-[#111827]">Mentor Chat</h1>
-            <p className="mt-0.5 text-sm text-[#6B7280]">Consultation desk for {ownerName}</p>
+            <h1 className="text-lg font-semibold text-[#111827]">{t.chat.title}</h1>
+            <p className="mt-0.5 text-sm text-[#6B7280]">{t.chat.deskFor(ownerName)}</p>
           </div>
           <button
             type="button"
@@ -252,11 +253,11 @@ export default function MentorChatClient({
             className="inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#111827] hover:bg-[#F9FAFB]"
           >
             <Plus size={15} />
-            New conversation
+            {t.chat.newConversation}
           </button>
         </div>
         <div className="mt-3">
-          <PhaseBanner message="Phase 3 Master Orchestrator aktif. Spesialis hanya ditampilkan jika benar-benar dijalankan. Angka hanya dari Business Memory — tidak dikarang." />
+          <PhaseBanner message={t.chat.banner} />
         </div>
         {error ? (
           <div className="mt-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
@@ -268,14 +269,16 @@ export default function MentorChatClient({
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside className="flex max-h-[40vh] w-full shrink-0 flex-col border-b border-[#E5E7EB] lg:max-h-none lg:w-[280px] lg:border-r lg:border-b-0">
           <div className="border-b border-[#F3F4F6] px-4 py-3">
-            <p className="text-xs font-semibold tracking-wide text-[#9CA3AF] uppercase">Chat history</p>
+            <p className="text-xs font-semibold tracking-wide text-[#9CA3AF] uppercase">
+              {t.chat.history}
+            </p>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") loadConversations(search).catch(() => undefined);
               }}
-              placeholder="Search conversations…"
+              placeholder={t.chat.searchPlaceholder}
               className="mt-2 w-full rounded-lg border border-[#E5E7EB] px-2.5 py-1.5 text-sm outline-none focus:border-[#9CA3AF]"
             />
           </div>
@@ -283,7 +286,7 @@ export default function MentorChatClient({
             {conversations.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[#E5E7EB] px-3 py-8 text-center">
                 <MessageSquare size={16} className="mx-auto text-[#9CA3AF]" />
-                <p className="mt-2 text-xs text-[#6B7280]">No conversations yet.</p>
+                <p className="mt-2 text-xs text-[#6B7280]">{t.chat.noConversations}</p>
               </div>
             ) : (
               <ul className="space-y-1">
@@ -291,7 +294,9 @@ export default function MentorChatClient({
                   <li key={c.id}>
                     <button
                       type="button"
-                      onClick={() => loadConversation(c.id).catch((e) => setError(String(e.message || e)))}
+                      onClick={() =>
+                        loadConversation(c.id).catch((e) => setError(String(e.message || e)))
+                      }
                       className={[
                         "w-full rounded-lg px-3 py-2.5 text-left transition-colors",
                         activeId === c.id
@@ -311,14 +316,14 @@ export default function MentorChatClient({
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-3 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
             <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-[#6B7280]">
-              Business context
+              {t.chat.businessContext}
               <select
                 value={businessId}
                 onChange={(e) => setBusinessId(e.target.value)}
                 className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#111827] outline-none focus:border-[#9CA3AF]"
               >
                 {portfolio.length === 0 ? (
-                  <option value="">No portfolio business</option>
+                  <option value="">{t.chat.noPortfolio}</option>
                 ) : (
                   portfolio.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -330,18 +335,18 @@ export default function MentorChatClient({
             </label>
             <div className="min-w-[180px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
               <p className="text-[10px] font-semibold tracking-wide text-[#9CA3AF] uppercase">
-                Specialists
+                {t.chat.specialists}
               </p>
               {specialists.length === 0 ? (
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[#4B5563]">
                   <Bot size={13} />
-                  Idle
+                  {t.chat.idle}
                 </p>
               ) : (
                 <ul className="mt-1 space-y-0.5">
                   {specialists.map((s) => (
                     <li key={s.id} className="text-xs text-[#374151]">
-                      {s.label} · {s.status === "running" ? "running" : "done"}
+                      {s.label} · {s.status === "running" ? t.chat.running : t.chat.done}
                     </li>
                   ))}
                 </ul>
@@ -355,10 +360,9 @@ export default function MentorChatClient({
                 <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#E5E7EB] bg-[#FAFAFA]">
                   <Sparkles size={18} className="text-[#6B7280]" />
                 </div>
-                <p className="mt-3 text-sm font-medium text-[#111827]">Start a consultation</p>
+                <p className="mt-3 text-sm font-medium text-[#111827]">{t.chat.startTitle}</p>
                 <p className="mt-1 max-w-sm text-sm text-[#6B7280]">
-                  Context: {contextLabel}. Master Orchestrator will retrieve Business Memory and call
-                  only the specialists needed.
+                  {t.chat.startBody(contextLabel)}
                 </p>
               </div>
             ) : (
@@ -377,12 +381,12 @@ export default function MentorChatClient({
                   {m.content || (busy ? "…" : "")}
                   {m.role === "assistant" && m.sources_used && m.sources_used.length > 0 ? (
                     <p className="mt-2 text-[10px] text-[#9CA3AF]">
-                      Sources: {m.sources_used.join(", ")}
+                      {t.chat.sources}: {m.sources_used.join(", ")}
                     </p>
                   ) : null}
                   {m.role === "assistant" && m.missing && m.missing.length > 0 ? (
                     <p className="mt-1 text-[10px] text-[#B45309]">
-                      Missing: {m.missing.slice(0, 3).join(" · ")}
+                      {t.chat.missing}: {m.missing.slice(0, 3).join(" · ")}
                     </p>
                   ) : null}
                 </div>
@@ -398,7 +402,7 @@ export default function MentorChatClient({
                 onChange={(e) => setDraft(e.target.value)}
                 rows={2}
                 disabled={busy}
-                placeholder="Tulis pertanyaan bisnis untuk Master Mentor…"
+                placeholder={t.chat.placeholder}
                 className="min-h-[44px] flex-1 resize-none rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-sm text-[#111827] outline-none placeholder:text-[#9CA3AF] focus:border-[#9CA3AF] disabled:opacity-60"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -414,7 +418,7 @@ export default function MentorChatClient({
                 className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#111827] px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Send size={15} />
-                Send
+                {t.chat.send}
               </button>
             </div>
           </div>

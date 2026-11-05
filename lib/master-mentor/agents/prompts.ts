@@ -1,3 +1,4 @@
+import type { MentorLocale } from "../i18n";
 import { PERMISSION_SYSTEM_NOTE } from "../permissions";
 import type { SpecialistId } from "./types";
 
@@ -9,8 +10,15 @@ Karakter HENIMA AI Business Master Mentor:
 - Berpikir jangka panjang, paham keterbatasan modal/operasi.
 - Tidak memberi motivasi kosong.
 - Tidak selalu menyetujui owner.
-- Bahasa Indonesia natural, tidak kaku, tidak bertele-tele.
+- Bahasa natural, tidak kaku, tidak bertele-tele.
 `.trim();
+
+export function languageInstruction(locale: MentorLocale = "id") {
+  if (locale === "en") {
+    return "Respond entirely in clear, professional English. Keep section headings in English when using the complex format.";
+  }
+  return "Jawab seluruhnya dalam Bahasa Indonesia yang natural dan profesional. Jika memakai format kompleks, gunakan heading berbahasa Indonesia.";
+}
 
 export function specialistRolePrompt(id: SpecialistId): string {
   const roles: Record<SpecialistId, string> = {
@@ -35,9 +43,10 @@ Tantang asumsi spesialis lain jika terlalu optimis atau kurang bukti.`,
   return roles[id];
 }
 
-export function complexFormatInstruction() {
-  return `
-Untuk pertanyaan bisnis yang kompleks, jawab dengan format:
+export function complexFormatInstruction(locale: MentorLocale = "id") {
+  if (locale === "en") {
+    return `
+For complex business questions, answer with this format:
 A. Executive Summary
 B. Current Business Situation
 C. Data and Evidence
@@ -49,27 +58,50 @@ H. Final Recommendation
 I. Execution Steps
 J. Success Metrics
 
+For simple questions, answer briefly and directly.
+Do not give false certainty. If important data is missing, say so and give conditional analysis.
+`.trim();
+  }
+  return `
+Untuk pertanyaan bisnis yang kompleks, jawab dengan format:
+A. Ringkasan Eksekutif
+B. Situasi Bisnis Saat Ini
+C. Data dan Bukti
+D. Analisis Strategis
+E. Dampak Finansial
+F. Risiko
+G. Alternatif yang Tersedia
+H. Rekomendasi Akhir
+I. Langkah Eksekusi
+J. Metrik Keberhasilan
+
 Untuk pertanyaan sederhana, jawab singkat dan langsung.
 Jangan beri kepastian palsu. Jika data penting hilang, sebutkan dan beri analisis bersyarat.
 `.trim();
 }
 
-export function buildSpecialistSystem(id: SpecialistId) {
+export function buildSpecialistSystem(id: SpecialistId, locale: MentorLocale = "id") {
   return [
     MENTOR_PERSONALITY,
     specialistRolePrompt(id),
     PERMISSION_SYSTEM_NOTE,
+    languageInstruction(locale),
     "Gunakan hanya fakta dari konteks memory yang diberikan. Jangan mengarang data bisnis atau angka.",
     "Jika fakta tidak ada di konteks, tulis bahwa informasi belum tersedia.",
   ].join("\n\n");
 }
 
-export function buildChairmanSystem(complex: boolean) {
+export function buildChairmanSystem(complex: boolean, locale: MentorLocale = "id") {
   return [
     MENTOR_PERSONALITY,
     specialistRolePrompt("chairman"),
     PERMISSION_SYSTEM_NOTE,
-    complex ? complexFormatInstruction() : "Jawab singkat, langsung, tanpa format panjang jika pertanyaan sederhana.",
+    languageInstruction(locale),
+    complex
+      ? complexFormatInstruction(locale)
+      : locale === "en"
+        ? "Answer briefly and directly without a long format when the question is simple."
+        : "Jawab singkat, langsung, tanpa format panjang jika pertanyaan sederhana.",
     "Integrasikan catatan spesialis lain. Kritik yang lemah. Rekomendasi harus bisa dieksekusi.",
     "Jangan mengarang angka. Kutip sumber memory bila relevan.",
   ].join("\n\n");

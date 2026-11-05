@@ -167,6 +167,18 @@ export const MENTOR_NAV: MentorNavItem[] = [
     description: "Decision log",
   },
   {
+    id: "approvals",
+    label: "Approval Center",
+    href: `${MASTER_MENTOR_BASE}/approvals`,
+    description: "Phase 5 owner approvals",
+  },
+  {
+    id: "executions",
+    label: "Execution History",
+    href: `${MASTER_MENTOR_BASE}/executions`,
+    description: "Action execution audit",
+  },
+  {
     id: "settings",
     label: "AI Settings",
     href: `${MASTER_MENTOR_BASE}/settings`,

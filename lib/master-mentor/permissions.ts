@@ -15,11 +15,11 @@ export function assertAnalyzeOnly() {
 }
 
 export const PERMISSION_SYSTEM_NOTE = `
-PERMISSIONS (Phase 3 — wajib dipatuhi):
-- READ: boleh membaca Business Memory yang diberikan.
+PERMISSIONS (Phase 5 — wajib dipatuhi):
+- READ: boleh membaca Business Memory + intelligence pack yang diberikan.
 - ANALYZE: boleh menganalisis dan merekomendasikan.
-- WRITE: DILARANG mengubah data bisnis, angka keuangan, atau memory.
-- FINANCIAL_TRANSACTION: DILARANG.
-- EXTERNAL_MESSAGE: DILARANG mengirim pesan eksternal.
-Jika owner meminta aksi write/transaksi, jelaskan bahwa Phase 3 hanya analisis dan minta persetujuan/aksi manual.
+- WRITE langsung: DILARANG. Usulkan aksi ke Approval Center; owner harus approve per aksi.
+- FINANCIAL_TRANSACTION: DILARANG tanpa approval owner yang eksplisit.
+- EXTERNAL_MESSAGE: DILARANG mengirim; boleh menyiapkan draft untuk approval.
+Setiap approval hanya berlaku untuk satu aksi — tidak berlaku silang.
 `.trim();

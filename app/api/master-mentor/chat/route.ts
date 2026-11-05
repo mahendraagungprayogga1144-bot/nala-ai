@@ -9,6 +9,7 @@ import {
 import { runMasterOrchestrator } from "@/lib/master-mentor/orchestrator/run";
 import { ProviderConfigError, ProviderRuntimeError } from "@/lib/master-mentor/providers";
 import { MentorValidationError } from "@/lib/master-mentor/types";
+import { proposeFromChatTurn } from "@/lib/master-mentor/actions/propose-from-chat";
 import { resolveMentorLocale } from "@/lib/master-mentor/i18n";
 import { cleanText } from "@/lib/master-mentor/text";
 
@@ -107,6 +108,16 @@ export async function POST(request: Request) {
         missing: result.missing,
         usage: result.usage as unknown as Record<string, unknown>,
       });
+      const proposals = await proposeFromChatTurn(db, {
+        ownerUserId: owner.userId,
+        businessId: cleanText(body.businessId, 80) || null,
+        conversationId,
+        question: message,
+        reply: result.reply,
+        specialists: result.specialists,
+        missing: result.missing,
+        sourcesUsed: result.sourcesUsed,
+      });
       return NextResponse.json({
         conversationId,
         message: saved,
@@ -114,6 +125,7 @@ export async function POST(request: Request) {
         sourcesUsed: result.sourcesUsed,
         missing: result.missing,
         usage: result.usage,
+        proposals,
       });
     }
 
@@ -145,6 +157,16 @@ export async function POST(request: Request) {
             missing: result.missing,
             usage: result.usage as unknown as Record<string, unknown>,
           });
+          const proposals = await proposeFromChatTurn(db, {
+            ownerUserId: owner.userId,
+            businessId: cleanText(body.businessId, 80) || null,
+            conversationId,
+            question: message,
+            reply: result.reply,
+            specialists: result.specialists,
+            missing: result.missing,
+            sourcesUsed: result.sourcesUsed,
+          });
           send({
             type: "final",
             conversationId,
@@ -153,6 +175,7 @@ export async function POST(request: Request) {
             sourcesUsed: result.sourcesUsed,
             missing: result.missing,
             usage: result.usage,
+            proposals,
           });
         } catch (err) {
           const msg =

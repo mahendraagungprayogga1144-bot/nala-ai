@@ -45,6 +45,8 @@ const ICONS: Record<string, typeof LayoutDashboard> = {
   "intel-comparison": ClipboardList,
   "intel-reports": BookOpen,
   journal: BookOpen,
+  approvals: ShieldCheck,
+  executions: ClipboardList,
   settings: Settings,
 };
 

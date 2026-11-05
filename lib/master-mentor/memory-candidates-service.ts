@@ -157,5 +157,34 @@ export async function reviewCandidate(
     before,
     after: data,
   });
+
+  // Phase 5: approve promotes into canonical memory (one candidate = one promote).
+  if (action === "approve" || action === "correct") {
+    try {
+      const { promoteApprovedCandidate } = await import("./actions/promote-candidate");
+      const promoted = await promoteApprovedCandidate(db, ownerUserId, data as MemoryCandidate);
+      await writeAudit(db, {
+        ownerUserId,
+        businessId: before.business_id,
+        entityType: "memory_candidate",
+        entityId: id,
+        action: "update",
+        summary: `Promoted to ${promoted.kind}: ${promoted.detail}`,
+        after: promoted,
+      });
+    } catch (err) {
+      // Candidate stays approved; promotion failure is audited via thrown message to caller optionally
+      const msg = err instanceof Error ? err.message : "promote failed";
+      await writeAudit(db, {
+        ownerUserId,
+        businessId: before.business_id,
+        entityType: "memory_candidate",
+        entityId: id,
+        action: "update",
+        summary: `Approve ok but promote failed: ${msg}`,
+      });
+    }
+  }
+
   return data as MemoryCandidate;
 }

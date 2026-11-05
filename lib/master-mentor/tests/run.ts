@@ -349,5 +349,26 @@ const risks = buildRiskAlerts({
 assert.ok(risks.some((r) => r.id.startsWith("low_stock")));
 assert.ok(risks.every((r) => r.kind === "detected" || r.kind === "hypothesis"));
 
-console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4)");
+// ── Phase 5 actions ──────────────────────────────────────────────────────────
+import { parseProposeActionInput } from "../actions/action-service";
+import { isActionType, isRiskLevel } from "../actions/types";
+
+assert.equal(isActionType("note_recommendation"), true);
+assert.equal(isActionType("delete_everything"), false);
+assert.equal(isRiskLevel("high"), true);
+const act = parseProposeActionInput({
+  action_type: "record_decision",
+  title: "Tunda ekspansi",
+  description: "Cashflow tipis",
+  risk_level: "high",
+  business_id: bizA,
+});
+assert.equal(act.action_type, "record_decision");
+assert.equal(act.risk_level, "high");
+expectThrow(
+  () => parseProposeActionInput({ action_type: "hack", title: "x" }),
+  "action_type",
+);
+
+console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5)");
 

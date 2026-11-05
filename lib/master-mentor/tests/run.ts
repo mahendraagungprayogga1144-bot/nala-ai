@@ -412,7 +412,6 @@ import { canTransition, assertTransition } from "../autonomy/state-machine";
 import { planFromGoal } from "../autonomy/planner";
 import { levelAllowsTool } from "../autonomy/policy";
 import { registerBuiltinTools, getTool, listTools } from "../autonomy";
-import { planSpecialistRoute } from "../orchestrator/router";
 
 assert.equal(canTransition("pending", "planning"), true);
 assert.equal(canTransition("completed", "executing"), false);

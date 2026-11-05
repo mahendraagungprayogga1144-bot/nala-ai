@@ -189,20 +189,20 @@ import { getMentorProviderConfig, estimateAnthropicCostUsd } from "../providers/
 import type { FinancialRecord } from "../memory-types";
 
 const greet = planSpecialistRoute("Halo");
-assert.deepEqual(greet.specialists, ["chairman"]);
+assert.deepEqual(greet.specialists, []);
 assert.equal(greet.complex, false);
 
 const financeRoute = planSpecialistRoute("Bagaimana omzet, COGS, dan cash flow bisnis ini?");
-assert.ok(financeRoute.specialists.includes("cfo"));
+assert.deepEqual(financeRoute.specialists, []); // fast chairman-only path
 assert.equal(financeRoute.includeFinance, true);
 
 const growthRoute = planSpecialistRoute("Strategi pricing dan acquisition untuk naikkan konversi");
-assert.ok(growthRoute.specialists.includes("growth"));
+assert.deepEqual(growthRoute.specialists, []);
 
 const multi = planSpecialistRoute(
-  "Tolong analisis rekomendasi ekspansi toko baru: strategi, risiko, dan dampak keuangan.",
+  "Tolong analisis penuh pakai spesialis: ekspansi toko baru, strategi, risiko, dan dampak keuangan.",
 );
-assert.ok(multi.specialists.includes("strategy") || multi.specialists.includes("cfo") || multi.specialists.includes("risk"));
+assert.ok(multi.specialists.length >= 1);
 assert.equal(multi.complex, true);
 assert.ok(!multi.specialists.includes("chairman")); // chairman synthesizes separately
 

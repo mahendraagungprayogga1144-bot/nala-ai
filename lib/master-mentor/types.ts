@@ -101,8 +101,64 @@ export const MENTOR_NAV: MentorNavItem[] = [
   {
     id: "financial",
     label: "Financial Intelligence",
-    href: `${MASTER_MENTOR_BASE}/memory/financial`,
+    href: `${MASTER_MENTOR_BASE}/intelligence/financial`,
     description: "Finance insights desk",
+  },
+  {
+    id: "intelligence",
+    label: "Business Intelligence",
+    href: `${MASTER_MENTOR_BASE}/intelligence`,
+    description: "Phase 4 operational analytics",
+    children: [
+      {
+        id: "intel-performance",
+        label: "Business Performance",
+        href: `${MASTER_MENTOR_BASE}/intelligence/performance`,
+        description: "Revenue, orders, growth",
+      },
+      {
+        id: "intel-financial",
+        label: "Financial Intelligence",
+        href: `${MASTER_MENTOR_BASE}/intelligence/financial`,
+        description: "P&L, cash flow, margins",
+      },
+      {
+        id: "intel-growth",
+        label: "Growth Analytics",
+        href: `${MASTER_MENTOR_BASE}/intelligence/growth`,
+        description: "Products and channels",
+      },
+      {
+        id: "intel-people",
+        label: "People Analytics",
+        href: `${MASTER_MENTOR_BASE}/intelligence/people`,
+        description: "Sales and attendance",
+      },
+      {
+        id: "intel-inventory",
+        label: "Inventory Intelligence",
+        href: `${MASTER_MENTOR_BASE}/intelligence/inventory`,
+        description: "Stock and movement",
+      },
+      {
+        id: "intel-risk",
+        label: "Risk Monitoring",
+        href: `${MASTER_MENTOR_BASE}/intelligence/risk`,
+        description: "Detected alerts",
+      },
+      {
+        id: "intel-comparison",
+        label: "Business Comparison",
+        href: `${MASTER_MENTOR_BASE}/intelligence/comparison`,
+        description: "Multi-business compare",
+      },
+      {
+        id: "intel-reports",
+        label: "Reports",
+        href: `${MASTER_MENTOR_BASE}/intelligence/reports`,
+        description: "Daily/weekly/monthly reports",
+      },
+    ],
   },
   {
     id: "journal",
@@ -126,6 +182,7 @@ export type MentorPortfolioBusiness = {
   description: string;
   status: BusinessStatus;
   targets: string;
+  gercep_business_id?: string | null;
   business_model?: string;
   products_services?: string;
   target_customers?: string;

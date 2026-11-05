@@ -65,6 +65,7 @@ export type PortfolioInput = {
   description: string;
   status: string;
   targets: string;
+  gercep_business_id: string | null;
 };
 
 export function parsePortfolioInput(body: unknown): PortfolioInput {
@@ -77,6 +78,11 @@ export function parsePortfolioInput(body: unknown): PortfolioInput {
   const description = cleanText(raw.description, 2000);
   const status = cleanText(raw.status, 20).toLowerCase() || "draft";
   const targets = cleanText(raw.targets, 2000);
+  const gercepRaw = raw.gercep_business_id;
+  const gercep_business_id =
+    gercepRaw == null || gercepRaw === ""
+      ? null
+      : cleanText(gercepRaw, 80) || null;
 
   if (!name) throw new MentorValidationError("Nama bisnis wajib diisi.");
   if (!isBusinessCategory(category)) {
@@ -90,7 +96,7 @@ export function parsePortfolioInput(body: unknown): PortfolioInput {
     );
   }
 
-  return { name, category, description, status, targets };
+  return { name, category, description, status, targets, gercep_business_id };
 }
 
 export async function createPortfolioBusiness(
@@ -108,6 +114,7 @@ export async function createPortfolioBusiness(
       description: input.description,
       status: input.status,
       targets: input.targets,
+      gercep_business_id: input.gercep_business_id,
       created_at: now,
       updated_at: now,
     })
@@ -143,6 +150,7 @@ export async function updatePortfolioBusiness(
       description: input.description,
       status: input.status,
       targets: input.targets,
+      gercep_business_id: input.gercep_business_id,
       updated_at: new Date().toISOString(),
     })
     .eq("id", businessId)

@@ -8,5 +8,11 @@ export default async function PortfolioPage() {
   const db = await createClient();
   const { rows, notice } = await listPortfolioBusinesses(db, owner.userId);
 
-  return <PortfolioClient initialRows={rows} notice={notice} />;
+  return (
+    <PortfolioClient
+      initialRows={rows}
+      notice={notice}
+      gercepBusinesses={owner.gercepBusinesses}
+    />
+  );
 }

@@ -254,5 +254,100 @@ assert.ok(estimateAnthropicCostUsd(cfg.model, 1000, 1000) >= 0);
 // Cross-business finance isolation is enforced by business_id on records + assertOwnedBusiness in services
 assert.notEqual(bizA, bizB);
 
-console.log("master-mentor tests: ok (phase1+phase2+phase3)");
+// ── Phase 4 intelligence calculations ────────────────────────────────────────
+import {
+  buildFinancialIntelligence,
+  buildPerformanceAnalytics,
+  buildRiskAlerts,
+  dayCount,
+  priorWindow,
+  resolveIntelligencePeriod,
+} from "../intelligence";
+import type { BusinessFacts } from "../intelligence/types";
+
+const win = resolveIntelligencePeriod("last_7_days");
+assert.equal(win.days, 7);
+assert.equal(dayCount("2026-11-01", "2026-11-07"), 7);
+const prior = priorWindow("2026-11-08", "2026-11-14");
+assert.equal(prior.from, "2026-11-01");
+assert.equal(prior.to, "2026-11-07");
+
+const emptyFacts: BusinessFacts = {
+  gercepBusinessId: "g1",
+  gercepBusinessName: "Test",
+  mentorBusinessId: bizA,
+  mentorBusinessName: "Test Mentor",
+  window: { from: "2026-11-01", to: "2026-11-07", label: "test", days: 7 },
+  prior: { from: "2026-10-25", to: "2026-10-31", days: 7 },
+  transactions: [
+    {
+      business_id: "g1",
+      type: "pemasukan",
+      amount: 1_000_000,
+      category: "sales",
+      description: null,
+      transaction_date: "2026-11-02",
+    },
+    {
+      business_id: "g1",
+      type: "pengeluaran",
+      amount: 200_000,
+      category: "ops",
+      description: null,
+      transaction_date: "2026-11-03",
+    },
+  ],
+  priorTransactions: [
+    {
+      business_id: "g1",
+      type: "pemasukan",
+      amount: 800_000,
+      category: "sales",
+      description: null,
+      transaction_date: "2026-10-26",
+    },
+  ],
+  orders: [
+    {
+      id: "o1",
+      business_id: "g1",
+      total: 100_000,
+      laba: 40_000,
+      hpp: 60_000,
+      order_date: "2026-11-02",
+      source: "retail_kasir",
+      status: "paid",
+      catatan: null,
+      sales_id: null,
+      items: [{ product_id: "p1", qty: 2, product_name: "Parfum A", harga_jual: 50_000, hpp: 30_000 }],
+    },
+  ],
+  priorOrders: [],
+  products: [{ id: "p1", business_id: "g1", name: "Parfum A", stock: 3, cost: 30_000, price: 50_000 }],
+  stockMoves: [],
+  salesExpenses: [],
+  priorSalesExpenses: [],
+  staff: [],
+  trackingPoints: [],
+  notices: [],
+  missingSources: [],
+};
+
+const perf = buildPerformanceAnalytics(emptyFacts);
+assert.equal(perf.revenue.value, 1_100_000); // tx 1m + retail 100k
+assert.ok((perf.salesGrowthPct || 0) > 0);
+assert.equal(perf.orderCount.value, 1);
+
+const finIntel = buildFinancialIntelligence(emptyFacts);
+assert.ok(finIntel.profitAndLoss.netProfit.value != null);
+assert.equal(finIntel.forecast.nextPeriodRevenue.certainty, "forecast");
+
+const risks = buildRiskAlerts({
+  ...emptyFacts,
+  products: [{ id: "p1", business_id: "g1", name: "Parfum A", stock: 2, cost: 30_000, price: 50_000 }],
+});
+assert.ok(risks.some((r) => r.id.startsWith("low_stock")));
+assert.ok(risks.every((r) => r.kind === "detected" || r.kind === "hypothesis"));
+
+console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4)");
 

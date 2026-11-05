@@ -21,6 +21,7 @@ type FormState = {
   description: string;
   status: string;
   targets: string;
+  gercep_business_id: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -29,14 +30,17 @@ const emptyForm = (): FormState => ({
   description: "",
   status: "draft",
   targets: "",
+  gercep_business_id: "",
 });
 
 export default function PortfolioClient({
   initialRows,
   notice,
+  gercepBusinesses = [],
 }: {
   initialRows: MentorPortfolioBusiness[];
   notice: Notice;
+  gercepBusinesses?: { id: string; name: string; type: string | null }[];
 }) {
   const [rows, setRows] = useState(initialRows);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -76,6 +80,7 @@ export default function PortfolioClient({
       description: row.description,
       status: row.status,
       targets: row.targets,
+      gercep_business_id: row.gercep_business_id || "",
     });
     setOpenForm(true);
     setError(null);
@@ -176,7 +181,7 @@ export default function PortfolioClient({
       </div>
 
       {openForm ? (
-        <SectionCard title={title} subtitle="Name, category, description, status, targets">
+        <SectionCard title={title} subtitle="Name, category, Gercep link, status, targets">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-medium text-[#4B5563] sm:col-span-2">
               Business name
@@ -187,6 +192,22 @@ export default function PortfolioClient({
                 className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#111827] outline-none focus:border-[#9CA3AF]"
                 placeholder="HENIMA Perfume"
               />
+            </label>
+            <label className="block text-xs font-medium text-[#4B5563] sm:col-span-2">
+              Tautan bisnis Gercep (untuk Phase 4 BI)
+              <select
+                value={form.gercep_business_id}
+                onChange={(e) => setForm((f) => ({ ...f, gercep_business_id: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#111827] outline-none focus:border-[#9CA3AF]"
+              >
+                <option value="">— Belum ditautkan —</option>
+                {gercepBusinesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.type ? ` (${b.type})` : ""}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block text-xs font-medium text-[#4B5563]">
               Category

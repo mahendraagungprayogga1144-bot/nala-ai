@@ -24,6 +24,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "JSON tidak valid.", code: "invalid_json" }, { status: 400 });
     }
     const input = parsePortfolioInput(body);
+    if (input.gercep_business_id) {
+      const { assertOwnedGercepBusiness } = await import(
+        "@/lib/master-mentor/intelligence/resolve-business"
+      );
+      await assertOwnedGercepBusiness(db, owner.userId, input.gercep_business_id);
+    }
     const row = await createPortfolioBusiness(db, owner.userId, input);
     return NextResponse.json({ business: row }, { status: 201 });
   });

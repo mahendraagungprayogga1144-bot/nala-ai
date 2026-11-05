@@ -4,5 +4,5 @@ import { MASTER_MENTOR_BASE } from "@/lib/master-mentor/types";
 
 export default async function FinancialRedirect() {
   await requireMentorOwnerPage();
-  redirect(`${MASTER_MENTOR_BASE}/memory/financial`);
+  redirect(`${MASTER_MENTOR_BASE}/intelligence/financial`);
 }

@@ -8,6 +8,10 @@ import { assertAnalyzeOnly } from "../permissions";
 import { createMentorProvider, type MentorProvider, type ProviderUsage } from "../providers";
 import { ProviderConfigError, ProviderRuntimeError } from "../providers/types";
 import { logMentorUsage, sumUsage } from "../usage";
+import {
+  buildIntelligencePack,
+  formatIntelligencePackForPrompt,
+} from "../intelligence/pack";
 import { formatMemoryContext } from "./context-prompt";
 import { planSpecialistRoute } from "./router";
 
@@ -101,6 +105,20 @@ export async function runMasterOrchestrator(opts: {
   const finance = route.includeFinance ? buildFinanceSnapshot(context.financial) : null;
   const memoryBlock = formatMemoryContext(context, finance);
 
+  onProgress({ type: "status", message: "Memuat Phase 4 operational intelligence…" });
+  let intelligenceBlock = "";
+  try {
+    const pack = await buildIntelligencePack(
+      opts.db,
+      opts.ownerUserId,
+      opts.businessId || context.businessId,
+      "last_30_days",
+    );
+    intelligenceBlock = formatIntelligencePackForPrompt(pack);
+  } catch (err) {
+    intelligenceBlock = `PHASE 4 OPERATIONAL INTELLIGENCE: gagal dimuat (${err instanceof Error ? err.message : "error"}). Jangan mengarang pengganti.`;
+  }
+
   const historyBlock =
     opts.history && opts.history.length
       ? "RIWAYAT PERCAKAPAN (ringkas):\n" +
@@ -112,9 +130,10 @@ export async function runMasterOrchestrator(opts: {
 
   const baseUser = [
     memoryBlock,
+    intelligenceBlock,
     historyBlock,
     `PERTANYAAN OWNER:\n${opts.question}`,
-    "Ingat: jangan mengarang data. Jika missing, sebutkan.",
+    "Ingat: jangan mengarang data. Utamakan angka dari Phase 4 intelligence pack dan Financial Memory. Jika missing, sebutkan.",
   ]
     .filter(Boolean)
     .join("\n\n");

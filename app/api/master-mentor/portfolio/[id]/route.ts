@@ -21,6 +21,12 @@ export async function PATCH(
       return NextResponse.json({ error: "JSON tidak valid.", code: "invalid_json" }, { status: 400 });
     }
     const input = parsePortfolioInput(body);
+    if (input.gercep_business_id) {
+      const { assertOwnedGercepBusiness } = await import(
+        "@/lib/master-mentor/intelligence/resolve-business"
+      );
+      await assertOwnedGercepBusiness(db, owner.userId, input.gercep_business_id);
+    }
     const row = await updatePortfolioBusiness(db, owner.userId, id, input);
     return { business: row };
   });

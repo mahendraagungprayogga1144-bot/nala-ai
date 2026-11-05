@@ -221,19 +221,26 @@ export default function MentorChatClient({
       }
       await loadConversations(search);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.chat.failRespond);
+      const aborted = err instanceof Error && err.name === "AbortError";
+      const message = aborted
+        ? "Mentor terlalu lama merespons (timeout). Buat percakapan baru dan kirim pertanyaan lebih singkat. Pastikan ANTHROPIC_API_KEY di Vercel aktif — bukan OpenAI key."
+        : err instanceof Error
+          ? err.message
+          : t.chat.failRespond;
+      setError(message);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId && !m.content
             ? {
                 ...m,
                 role: "system",
-                content: err instanceof Error ? err.message : t.chat.failRespond,
+                content: message,
               }
             : m,
         ),
       );
     } finally {
+      window.clearTimeout(hangTimer);
       setBusy(false);
       setStatusLine("");
     }

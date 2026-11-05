@@ -11,45 +11,56 @@ export type RoutePlan = {
 const SIMPLE = /^(hai|halo|hi|hello|thanks|terima kasih|makasih|pagi|siang|sore|malam)\b/i;
 
 /**
- * Selective routing — do not call every specialist every time.
+ * Fast-by-default routing for chat-like UX.
+ * Specialists only when owner explicitly asks for deep multi-agent analysis.
+ * Otherwise Chairman alone (with finance memory when relevant) — much faster.
  */
 export function planSpecialistRoute(question: string): RoutePlan {
   const q = question.trim();
   const reasons: string[] = [];
+  const includeFinance =
+    detectTopics(q).includes("finance") ||
+    /break.?even|bep|roi|modal|cash|\bkas\b|hpp|margin|omzet|laba|revenue|keuangan/i.test(q);
+
   if (SIMPLE.test(q) && q.length < 40) {
     return {
-      specialists: ["chairman"],
+      specialists: [],
       complex: false,
       reasons: ["simple_greeting"],
       includeFinance: false,
     };
   }
 
+  const wantDeep =
+    /mendalam|pakai spesialis|multi.?agent|analisis penuh|full analysis|dengan cfo|dengan strategy/i.test(
+      q,
+    );
+
+  if (!wantDeep) {
+    reasons.push(includeFinance ? "fast_chairman_finance" : "fast_chairman");
+    return {
+      specialists: [],
+      complex: q.length > 200 || /analisis|rekomendasi|strategi|bandingkan/i.test(q),
+      reasons,
+      includeFinance,
+    };
+  }
+
   const topics = detectTopics(q);
   const selected = new Set<SpecialistId>();
-  let includeFinance = false;
-
-  if (topics.includes("finance") || /break.?even|roi|modal|cash|hpp|margin/i.test(q)) {
+  if (includeFinance) {
     selected.add("cfo");
-    includeFinance = true;
     reasons.push("finance_topic");
   }
   if (topics.includes("strategy") || /posisi|kompetitor|ekspansi|prioritas/i.test(q)) {
     selected.add("strategy");
     reasons.push("strategy_topic");
   }
-  if (topics.includes("learning") || /sales|marketing|acquisition|konversi|pricing|harga|retensi|distribusi/i.test(q)) {
-    // growth often co-occurs with learning wording; also explicit growth cues
-  }
   if (/sales|marketing|acquisition|konversi|pricing|harga jual|retensi|distribusi|iklan|funnel/i.test(q)) {
     selected.add("growth");
     reasons.push("growth_topic");
   }
-  // Prefer ops only when operational systems are the focus — not every "stok" mention with BEP/kas.
-  if (
-    /sop|operasional|karyawan|produktivitas|otomatis|proses|workforce/i.test(q) ||
-    (/\b(inventory|stok)\b/i.test(q) && !/bep|break.?even|\bkas\b|cash|omzet|laba/i.test(q))
-  ) {
+  if (/sop|operasional|karyawan|produktivitas|otomatis|proses|workforce/i.test(q)) {
     selected.add("operations");
     reasons.push("operations_topic");
   }
@@ -57,33 +68,16 @@ export function planSpecialistRoute(question: string): RoutePlan {
     selected.add("risk");
     reasons.push("risk_or_decision");
   }
-  if (topics.includes("owner") && selected.size === 0) {
-    selected.add("chairman");
-    reasons.push("owner_topic");
-  }
-
-  // Default: chairman + strategy for open business questions
   if (selected.size === 0) {
     selected.add("strategy");
-    selected.add("risk");
-    reasons.push("default_business");
+    reasons.push("default_deep");
   }
 
-  const complex =
-    selected.size >= 2 ||
-    /bandingkan|rekomendasi|analisis|strategi|keuangan|ekspansi|rencana/i.test(q) ||
-    q.length > 160;
-
-  // Chairman always synthesizes for complex multi-specialist runs
-  const specialists = Array.from(selected).filter((s) => s !== "chairman") as SpecialistId[];
-  if (complex || specialists.length === 0) {
-    // run specialists first then chairman; if only one domain keep chairman as synthesizer when complex
-  }
-
+  const specialists = Array.from(selected).filter((s) => s !== "chairman").slice(0, 2) as SpecialistId[];
   return {
-    specialists: specialists.length ? specialists : ["strategy"],
-    complex,
-    reasons,
+    specialists,
+    complex: true,
+    reasons: [...reasons, "deep_requested"],
     includeFinance: includeFinance || specialists.includes("cfo"),
   };
 }

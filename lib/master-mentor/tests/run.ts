@@ -412,13 +412,19 @@ import { canTransition, assertTransition } from "../autonomy/state-machine";
 import { planFromGoal } from "../autonomy/planner";
 import { levelAllowsTool } from "../autonomy/policy";
 import { registerBuiltinTools, getTool, listTools } from "../autonomy";
-import { MentorValidationError as MVE } from "../types";
+import { planSpecialistRoute } from "../orchestrator/router";
 
 assert.equal(canTransition("pending", "planning"), true);
 assert.equal(canTransition("completed", "executing"), false);
 assert.equal(levelAllowsTool(1, 0), true);
 assert.equal(levelAllowsTool(0, 2), false);
 expectThrow(() => assertTransition("completed", "executing"), "transisi");
+
+const fastRoute = planSpecialistRoute("Analisis BEP dan kas HENIMA dari memory.");
+assert.equal(fastRoute.specialists.length, 0);
+assert.equal(fastRoute.includeFinance, true);
+const deepRoute = planSpecialistRoute("Analisis penuh pakai spesialis keuangan dan risiko");
+assert.ok(deepRoute.specialists.length >= 1);
 
 const plan0 = planFromGoal("Analisis penjualan minggu ini dan cari cara meningkatkan keuntungan.", 0);
 assert.ok(plan0.steps.some((s) => s.tool_name === "memory.retrieve"));

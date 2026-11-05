@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bot, MessageSquare, Plus, Send, Sparkles } from "lucide-react";
+import { MessageSquare, Plus, Send, Sparkles } from "lucide-react";
 import type { MentorPortfolioBusiness } from "@/lib/master-mentor/types";
 import { categoryLabel } from "@/lib/master-mentor/types";
-import PhaseBanner from "../components/phase-banner";
 import { useMentorLocale } from "../components/mentor-locale-provider";
 
 type Conversation = {
@@ -102,12 +101,21 @@ export default function MentorChatClient({
 
     const userMsg: ChatMessage = { id: uid(), role: "user", content: text };
     const assistantId = uid();
-    setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }]);
+    // Only show user bubble first — no empty "…" assistant bubbles (normal chat UX).
+    setMessages((prev) => [...prev, userMsg]);
 
     const abort = new AbortController();
-    const hangTimer = window.setTimeout(() => abort.abort(), 280_000);
+    const hangTimer = window.setTimeout(() => abort.abort(), 120_000);
+
+    const ensureAssistant = () => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === assistantId)) return prev;
+        return [...prev, { id: assistantId, role: "assistant", content: "" }];
+      });
+    };
 
     try {
+      setStatusLine("Mentor sedang mengetik…");
       const res = await fetch("/api/master-mentor/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -130,6 +138,7 @@ export default function MentorChatClient({
       if (!ctype.includes("text/event-stream") || !res.body) {
         const data = await res.json();
         setActiveId(data.conversationId || activeId);
+        ensureAssistant();
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -174,7 +183,13 @@ export default function MentorChatClient({
             setActiveId(evt.conversationId);
           }
           if (evt.type === "status" && typeof evt.message === "string") {
-            setStatusLine(evt.message);
+            // Keep status short & human — hide long orchestrator jargon in the typing line.
+            const raw = evt.message;
+            if (/Orchestrator|Routing|provider|Memory|intelligence/i.test(raw)) {
+              setStatusLine("Mentor sedang mengetik…");
+            } else {
+              setStatusLine(raw);
+            }
           }
           if (evt.type === "specialist_start" && typeof evt.specialist === "string") {
             const id = String(evt.specialist);
@@ -183,7 +198,7 @@ export default function MentorChatClient({
               const others = prev.filter((s) => s.id !== id);
               return [...others, { id, label, status: "running" }];
             });
-            if (typeof evt.message === "string") setStatusLine(evt.message);
+            setStatusLine("Mentor sedang mengetik…");
           }
           if (evt.type === "specialist_done" && typeof evt.specialist === "string") {
             const id = String(evt.specialist);
@@ -192,8 +207,10 @@ export default function MentorChatClient({
             );
           }
           if (evt.type === "token" && typeof evt.text === "string") {
+            ensureAssistant();
             assembled += evt.text;
             const snap = assembled;
+            setStatusLine("");
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, content: snap } : m)),
             );
@@ -206,6 +223,7 @@ export default function MentorChatClient({
             const finalText =
               (evt.message as { content?: string } | undefined)?.content || assembled;
             const specs = ((evt.specialists as { id: string }[]) || []).map((s) => s.id);
+            ensureAssistant();
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
@@ -227,22 +245,18 @@ export default function MentorChatClient({
     } catch (err) {
       const aborted = err instanceof Error && err.name === "AbortError";
       const message = aborted
-        ? "Mentor terlalu lama merespons (timeout). Buat percakapan baru dan kirim pertanyaan lebih singkat. Pastikan ANTHROPIC_API_KEY di Vercel aktif — bukan OpenAI key."
+        ? "Balasan terlalu lama. Coba percakapan baru & pertanyaan lebih singkat. Cek ANTHROPIC_API_KEY di Vercel."
         : err instanceof Error
           ? err.message
           : t.chat.failRespond;
       setError(message);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId && !m.content
-            ? {
-                ...m,
-                role: "system",
-                content: message,
-              }
-            : m,
-        ),
-      );
+      setMessages((prev) => {
+        const withoutEmpty = prev.filter((m) => m.id !== assistantId || m.content);
+        return [
+          ...withoutEmpty,
+          { id: uid(), role: "system", content: message },
+        ];
+      });
     } finally {
       window.clearTimeout(hangTimer);
       setBusy(false);
@@ -266,9 +280,6 @@ export default function MentorChatClient({
             <Plus size={15} />
             {t.chat.newConversation}
           </button>
-        </div>
-        <div className="mt-3">
-          <PhaseBanner message={t.chat.banner} />
         </div>
         {error ? (
           <div className="mt-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
@@ -344,16 +355,15 @@ export default function MentorChatClient({
                 )}
               </select>
             </label>
-            <div className="min-w-[180px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
-              <p className="text-[10px] font-semibold tracking-wide text-[#9CA3AF] uppercase">
-                {t.chat.specialists}
-              </p>
-              {specialists.length === 0 ? (
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[#4B5563]">
-                  <Bot size={13} />
-                  {t.chat.idle}
+            {busy ? (
+              <div className="min-w-[160px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
+                <p className="text-xs font-medium text-[#4B5563]">Mentor mengetik…</p>
+              </div>
+            ) : specialists.length > 0 ? (
+              <div className="min-w-[160px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
+                <p className="text-[10px] font-semibold tracking-wide text-[#9CA3AF] uppercase">
+                  {t.chat.specialists}
                 </p>
-              ) : (
                 <ul className="mt-1 space-y-0.5">
                   {specialists.map((s) => (
                     <li key={s.id} className="text-xs text-[#374151]">
@@ -361,12 +371,12 @@ export default function MentorChatClient({
                     </li>
                   ))}
                 </ul>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
-            {messages.length === 0 ? (
+            {messages.length === 0 && !busy ? (
               <div className="flex h-full min-h-[220px] flex-col items-center justify-center text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#E5E7EB] bg-[#FAFAFA]">
                   <Sparkles size={18} className="text-[#6B7280]" />
@@ -377,33 +387,39 @@ export default function MentorChatClient({
                 </p>
               </div>
             ) : (
-              messages.map((m) => (
+              messages
+                .filter((m) => m.content.trim().length > 0)
+                .map((m) => (
                 <div
                   key={m.id}
                   className={[
-                    "max-w-[90%] rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
+                    "max-w-[90%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
                     m.role === "user"
-                      ? "ml-auto border-[#111827] bg-[#111827] text-white"
+                      ? "ml-auto bg-[#111827] text-white"
                       : m.role === "system"
-                        ? "border-[#FECACA] bg-[#FEF2F2] text-[#991B1B]"
-                        : "border-[#E5E7EB] bg-[#F9FAFB] text-[#374151]",
+                        ? "border border-[#FECACA] bg-[#FEF2F2] text-[#991B1B]"
+                        : "bg-[#F3F4F6] text-[#111827]",
                   ].join(" ")}
                 >
-                  {m.content || (busy ? "…" : "")}
+                  {m.content}
                   {m.role === "assistant" && m.sources_used && m.sources_used.length > 0 ? (
                     <p className="mt-2 text-[10px] text-[#9CA3AF]">
                       {t.chat.sources}: {m.sources_used.join(", ")}
                     </p>
                   ) : null}
-                  {m.role === "assistant" && m.missing && m.missing.length > 0 ? (
-                    <p className="mt-1 text-[10px] text-[#92400E]">
-                      Catatan: {m.missing.slice(0, 2).join(" · ")}
-                    </p>
-                  ) : null}
                 </div>
               ))
             )}
-            {statusLine ? <p className="text-xs text-[#6B7280]">{statusLine}</p> : null}
+            {busy ? (
+              <div className="flex max-w-[75%] items-center gap-2 rounded-2xl bg-[#F3F4F6] px-3.5 py-2.5 text-sm text-[#6B7280]">
+                <span className="inline-flex gap-1">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF]" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF] [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF] [animation-delay:300ms]" />
+                </span>
+                {statusLine || "Mentor sedang mengetik…"}
+              </div>
+            ) : null}
           </div>
 
           <div className="border-t border-[#E5E7EB] p-4 sm:px-5">

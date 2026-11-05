@@ -138,7 +138,7 @@ export async function POST(request: Request) {
         };
         // Immediate flush so UI leaves "Menyiapkan…" even before DB/LLM work.
         send({ type: "meta", conversationId });
-        send({ type: "status", message: "Orchestrator mulai…" });
+        send({ type: "status", message: "Mentor lagi ngetik…" });
         try {
           const result = await runMasterOrchestrator({
             db,

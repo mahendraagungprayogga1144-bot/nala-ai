@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildChairmanSystem, buildSpecialistSystem } from "../agents/prompts";
+import { toPlainChatText } from "../chat/plain-text";
 import type { AgentRunOutput, SpecialistBrief, SpecialistId } from "../agents/types";
 import { buildFinanceSnapshot } from "../finance/calculations";
 import type { MentorLocale } from "../i18n";
@@ -333,12 +334,8 @@ export async function runMasterOrchestrator(opts: {
 
   const missingUi: string[] = [];
   if (ownerFigures.length) {
-    missingUi.push(
-      "Angka dipakai dari chat (estimate). Simpan ke Memori → Catatan Keuangan agar jadi data resmi.",
-    );
-    if (!context.financial.length) {
-      /* skip harsh "Actual revenue belum tersedia" when chat figures already supplied */
-    } else {
+    missingUi.push("Angka dari chat (perkiraan). Simpan di Catatan uang biar jadi data resmi.");
+    if (context.financial.length) {
       missingUi.push(...(finance?.missing || []).filter((m) => !/belum tersedia/i.test(m)));
     }
   } else {
@@ -346,7 +343,7 @@ export async function runMasterOrchestrator(opts: {
   }
 
   const result: OrchestratorResult = {
-    reply,
+    reply: toPlainChatText(reply),
     specialists: briefs,
     sourcesUsed: [
       ...context.sourcesUsed,

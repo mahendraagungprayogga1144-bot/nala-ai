@@ -11,7 +11,7 @@ Vercel Cron (UTC → WIB)
   → optional WhatsApp owner notify + message drafts → Phase 5 Approval Center
 ```
 
-Timezone: **Asia/Jakarta** (daily 08:00, weekly Mon 09:00, alerts hourly).
+Timezone: **Asia/Jakarta** (daily briefing 08:00, weekly Mon 09:00, alerts daily 10:00). Hobby Vercel: max 1 run/day per cron.
 
 ## Integrations
 
@@ -29,7 +29,7 @@ Timezone: **Asia/Jakarta** (daily 08:00, weekly Mon 09:00, alerts hourly).
 |------------|-----|------|
 | `0 1 * * *` | 08:00 | `/api/cron/master-mentor/daily-briefing` |
 | `0 2 * * 1` | Senin 09:00 | `/api/cron/master-mentor/weekly-review` |
-| `0 * * * *` | setiap jam | `/api/cron/master-mentor/alerts` |
+| `0 3 * * *` | 10:00 | `/api/cron/master-mentor/alerts` (harian — Hobby Vercel tidak izinkan cron per jam) |
 
 Duplicate prevention: `UNIQUE (owner_user_id, idempotency_key)` on workflow runs.
 

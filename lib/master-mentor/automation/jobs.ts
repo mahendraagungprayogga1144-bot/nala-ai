@@ -157,18 +157,12 @@ export async function runAlertsAndIntegrationsJob() {
   const results: unknown[] = [];
 
   for (const ownerUserId of owners) {
-    const key = automationIdempotencyKey([ownerUserId, "alerts_sync", day, "h"]);
-    // allow hourly by appending hour bucket
-    const hour = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Jakarta",
-      hour: "2-digit",
-      hour12: false,
-    }).format(new Date());
-    const hourKey = automationIdempotencyKey([ownerUserId, "alerts_sync", day, hour]);
+    // Daily idempotency — Hobby Vercel allows at most one cron run per day.
+    const dayKey = automationIdempotencyKey([ownerUserId, "alerts_sync", day]);
     const { run, duplicate } = await beginWorkflowRun(admin, {
       ownerUserId,
       triggerType: "scheduled",
-      idempotencyKey: hourKey || key,
+      idempotencyKey: dayKey,
     });
     if (duplicate) {
       results.push({ ownerUserId, status: "skipped_duplicate" });

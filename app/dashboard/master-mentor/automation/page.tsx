@@ -29,7 +29,7 @@ export default async function AutomationHubPage() {
         </p>
       </header>
       <div className="mb-5">
-        <PhaseBanner message="Cron: daily 08:00 WIB, weekly Senin 09:00 WIB, alerts hourly. Set CRON_SECRET + SUPABASE_SERVICE_ROLE_KEY di Vercel." />
+        <PhaseBanner message="Cron: briefing 08:00 WIB, weekly Senin 09:00 WIB, alerts 10:00 WIB (harian — batas Hobby Vercel). Set CRON_SECRET + SUPABASE_SERVICE_ROLE_KEY di Vercel." />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {LINKS.map((l) => (

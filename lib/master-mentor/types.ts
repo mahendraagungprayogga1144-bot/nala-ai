@@ -179,6 +179,50 @@ export const MENTOR_NAV: MentorNavItem[] = [
     description: "Action execution audit",
   },
   {
+    id: "automation",
+    label: "Automation",
+    href: `${MASTER_MENTOR_BASE}/automation`,
+    description: "Phase 6 workflows & integrations",
+    children: [
+      {
+        id: "auto-workflows",
+        label: "Workflow Manager",
+        href: `${MASTER_MENTOR_BASE}/automation/workflows`,
+        description: "Workflow definitions",
+      },
+      {
+        id: "auto-schedules",
+        label: "Scheduled Tasks",
+        href: `${MASTER_MENTOR_BASE}/automation/schedules`,
+        description: "Cron jobs",
+      },
+      {
+        id: "auto-whatsapp",
+        label: "WhatsApp",
+        href: `${MASTER_MENTOR_BASE}/automation/whatsapp`,
+        description: "Official WA adapter",
+      },
+      {
+        id: "auto-shopee",
+        label: "Shopee",
+        href: `${MASTER_MENTOR_BASE}/automation/shopee`,
+        description: "Shopee adapter",
+      },
+      {
+        id: "auto-alerts",
+        label: "Smart Alerts",
+        href: `${MASTER_MENTOR_BASE}/automation/alerts`,
+        description: "Alert engine",
+      },
+      {
+        id: "auto-history",
+        label: "Run History",
+        href: `${MASTER_MENTOR_BASE}/automation/history`,
+        description: "Workflow runs",
+      },
+    ],
+  },
+  {
     id: "settings",
     label: "AI Settings",
     href: `${MASTER_MENTOR_BASE}/settings`,

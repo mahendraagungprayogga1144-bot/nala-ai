@@ -47,6 +47,13 @@ const ICONS: Record<string, typeof LayoutDashboard> = {
   journal: BookOpen,
   approvals: ShieldCheck,
   executions: ClipboardList,
+  automation: Brain,
+  "auto-workflows": ClipboardList,
+  "auto-schedules": BookOpen,
+  "auto-whatsapp": MessageSquare,
+  "auto-shopee": Briefcase,
+  "auto-alerts": ShieldCheck,
+  "auto-history": ClipboardList,
   settings: Settings,
 };
 

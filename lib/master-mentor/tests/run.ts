@@ -370,5 +370,27 @@ expectThrow(
   "action_type",
 );
 
-console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5)");
+// ── Phase 6 automation ───────────────────────────────────────────────────────
+import { automationIdempotencyKey, jakartaDayKey } from "../automation/idempotency";
+import { probeShopeeCapability } from "../automation/shopee-adapter";
+import { probeWhatsAppCapability } from "../automation/whatsapp-adapter";
+import { parseWorkflowInput } from "../automation/workflow-engine";
+
+assert.equal(automationIdempotencyKey(["a", "b"]).length, 48);
+assert.equal(jakartaDayKey(new Date("2026-11-05T17:00:00Z")).length, 10);
+const shopee = probeShopeeCapability();
+assert.equal(shopee.available, false);
+assert.ok(shopee.requiredCredentials.includes("SHOPEE_PARTNER_ID"));
+const wa = probeWhatsAppCapability();
+assert.ok(Array.isArray(wa.notes));
+const wf = parseWorkflowInput({
+  name: "Daily briefing",
+  trigger_type: "scheduled",
+  schedule_cron: "0 1 * * *",
+  require_approval: true,
+});
+assert.equal(wf.trigger_type, "scheduled");
+expectThrow(() => parseWorkflowInput({ name: "x", trigger_type: "magic" }), "trigger_type");
+
+console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5+phase6)");
 

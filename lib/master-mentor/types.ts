@@ -167,6 +167,38 @@ export const MENTOR_NAV: MentorNavItem[] = [
     description: "Decision log",
   },
   {
+    id: "autonomy",
+    label: "Autonomous Assistant",
+    href: `${MASTER_MENTOR_BASE}/autonomy`,
+    description: "Phase 7 bounded autonomy",
+    children: [
+      {
+        id: "auto-planner",
+        label: "Task Planner",
+        href: `${MASTER_MENTOR_BASE}/autonomy/planner`,
+        description: "Goal → plan",
+      },
+      {
+        id: "auto-monitor",
+        label: "Execution Monitor",
+        href: `${MASTER_MENTOR_BASE}/autonomy/monitor`,
+        description: "Task monitor",
+      },
+      {
+        id: "auto-permissions",
+        label: "Permission Settings",
+        href: `${MASTER_MENTOR_BASE}/autonomy/permissions`,
+        description: "Autonomy level & emergency stop",
+      },
+      {
+        id: "auto-tools",
+        label: "Tool Registry",
+        href: `${MASTER_MENTOR_BASE}/autonomy/tools`,
+        description: "Allowed tools",
+      },
+    ],
+  },
+  {
     id: "approvals",
     label: "Approval Center",
     href: `${MASTER_MENTOR_BASE}/approvals`,

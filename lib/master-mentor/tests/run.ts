@@ -407,5 +407,33 @@ assert.ok(stated.some((f) => f.label === "pengeluaran_pribadi" && f.amountIdrApp
 assert.ok(stated.some((f) => f.label === "jumlah_produk"));
 assert.ok(formatOwnerStatedFiguresForPrompt(stated).includes("OWNER SEBUTKAN"));
 
-console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5+phase6)");
+// ── Phase 7 autonomy ─────────────────────────────────────────────────────────
+import { canTransition, assertTransition } from "../autonomy/state-machine";
+import { planFromGoal } from "../autonomy/planner";
+import { levelAllowsTool } from "../autonomy/policy";
+import { registerBuiltinTools, getTool, listTools } from "../autonomy";
+import { MentorValidationError as MVE } from "../types";
+
+assert.equal(canTransition("pending", "planning"), true);
+assert.equal(canTransition("completed", "executing"), false);
+assert.equal(levelAllowsTool(1, 0), true);
+assert.equal(levelAllowsTool(0, 2), false);
+expectThrow(() => assertTransition("completed", "executing"), "transisi");
+
+const plan0 = planFromGoal("Analisis penjualan minggu ini dan cari cara meningkatkan keuntungan.", 0);
+assert.ok(plan0.steps.some((s) => s.tool_name === "memory.retrieve"));
+assert.ok(plan0.steps.every((s) => !s.tool_name.startsWith("action.")));
+assert.equal(plan0.permission_level, 0);
+
+const plan2 = planFromGoal("Kirim pesan WhatsApp follow-up pelanggan", 2);
+assert.ok(plan2.steps.some((s) => s.tool_name === "external.message_draft"));
+assert.ok(plan2.permission_level >= 2);
+
+registerBuiltinTools();
+registerBuiltinTools(); // idempotent
+assert.ok(getTool("memory.retrieve"));
+assert.ok(listTools().length >= 8);
+assert.equal(getTool("shell_exec"), null);
+
+console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5+phase6+phase7)");
 

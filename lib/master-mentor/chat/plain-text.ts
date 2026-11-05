@@ -8,15 +8,15 @@ export function toPlainChatText(input: string): string {
   // Fenced code → plain
   s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, "$1");
 
-  // Markdown tables → "Kolom — nilai" lines (drop separator rows)
-  s = s.replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/gm, "");
-  s = s.replace(/^\s*\|(.+)\|\s*$/gm, (_m, cols: string) =>
-    cols
+  // Markdown tables → plain lines (drop |---| separator rows)
+  s = s.replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*\n?/gm, "");
+  s = s.replace(/^\s*\|(.+?)\|\s*$/gm, (_m, cols: string) => {
+    const cells = cols
       .split("|")
       .map((c) => c.trim())
-      .filter(Boolean)
-      .join(" — "),
-  );
+      .filter((c) => c && !/^:?-{3,}:?$/.test(c));
+    return cells.length ? cells.join(" — ") : "";
+  });
 
   // ATX headings
   s = s.replace(/^#{1,6}\s+/gm, "");

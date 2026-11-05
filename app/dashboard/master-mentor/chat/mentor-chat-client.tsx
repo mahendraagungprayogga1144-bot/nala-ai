@@ -355,11 +355,7 @@ export default function MentorChatClient({
                 )}
               </select>
             </label>
-            {busy ? (
-              <div className="min-w-[160px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
-                <p className="text-xs font-medium text-[#4B5563]">Mentor lagi ngetik…</p>
-              </div>
-            ) : specialists.length > 0 ? (
+            {!busy && specialists.length > 0 ? (
               <div className="min-w-[160px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
                 <p className="text-[10px] font-semibold tracking-wide text-[#9CA3AF] uppercase">
                   {t.chat.specialists}
@@ -411,14 +407,9 @@ export default function MentorChatClient({
               ))
             )}
             {busy ? (
-              <div className="flex max-w-[75%] items-center gap-2 rounded-2xl bg-[#F3F4F6] px-3.5 py-2.5 text-sm text-[#6B7280]">
-                <span className="inline-flex gap-1">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF]" />
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF] [animation-delay:150ms]" />
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#9CA3AF] [animation-delay:300ms]" />
-                </span>
+              <p className="max-w-[75%] px-1 text-sm text-[#9CA3AF]">
                 {statusLine || "Mentor lagi ngetik…"}
-              </div>
+              </p>
             ) : null}
           </div>
 

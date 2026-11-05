@@ -194,7 +194,7 @@ export async function retrieveMentorContext(
   if (matchedFinance.length) sourcesUsed.push("financial_records");
   else if (wantFinance) {
     missing.push(
-      "Financial figures are not available in memory. Do not invent amounts — ask the owner to enter actual/estimate/projection records.",
+      "Financial Memory masih kosong. Pakai angka yang owner sebut di chat sebagai estimate (bukan official). Sarankan simpan ke Catatan Keuangan.",
     );
   }
 

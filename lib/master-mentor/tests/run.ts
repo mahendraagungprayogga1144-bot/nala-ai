@@ -392,5 +392,20 @@ const wf = parseWorkflowInput({
 assert.equal(wf.trigger_type, "scheduled");
 expectThrow(() => parseWorkflowInput({ name: "x", trigger_type: "magic" }), "trigger_type");
 
+// ── Owner-stated chat figures ────────────────────────────────────────────────
+import {
+  extractOwnerStatedFigures,
+  formatOwnerStatedFiguresForPrompt,
+} from "../chat/owner-stated-figures";
+
+const stated = extractOwnerStatedFigures(
+  "udah release 143 produk dalam 3 bulan omzet 16jt+ tapi sisa cuma 2jt karena bayar rumah 5jt",
+);
+assert.ok(stated.some((f) => f.label === "omzet" && f.amountIdrApprox === 16_000_000));
+assert.ok(stated.some((f) => f.label === "saldo_kas" && f.amountIdrApprox === 2_000_000));
+assert.ok(stated.some((f) => f.label === "pengeluaran_pribadi" && f.amountIdrApprox === 5_000_000));
+assert.ok(stated.some((f) => f.label === "jumlah_produk"));
+assert.ok(formatOwnerStatedFiguresForPrompt(stated).includes("OWNER SEBUTKAN"));
+
 console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5+phase6)");
 

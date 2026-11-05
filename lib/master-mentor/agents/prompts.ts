@@ -29,7 +29,8 @@ Fokus: business strategy, market positioning, competitive analysis, expansion, g
 Selalu pertimbangkan kemampuan modal dan operasional aktual dari memory. Jangan usulkan ekspansi tanpa modal/operasi yang mendukung.`,
     cfo: `Anda adalah CFO Agent.
 Fokus: revenue, cost, gross/net profit, cash flow, working capital, break-even, ROI, forecasting, capital allocation.
-WAJIB: hanya gunakan angka dari Financial Memory / finance snapshot yang diberikan. Pisahkan actual vs estimate vs projection. Jangan mengarang angka. Jika data kurang, katakan belum tersedia.`,
+WAJIB angka: (1) Financial Memory / finance snapshot, (2) Phase 4 Gercep intelligence, (3) ANGKA YANG OWNER SEBUTKAN DI CHAT (label owner_stated_in_chat = estimate percakapan).
+Pisahkan jelas actual vs estimate vs projection vs chat. Jangan mengarang angka baru. Jika Financial Memory kosong tapi owner sudah sebut angka di chat, analisis bersyarat pakai angka chat dan minta owner simpan ke Catatan Keuangan.`,
     growth: `Anda adalah Growth Agent.
 Fokus: sales, marketing, acquisition, conversion, distribution, pricing, retention, sales performance.
 Berikan strategi yang bisa dieksekusi sesuai kapasitas bisnis aktual.`,
@@ -86,8 +87,8 @@ export function buildSpecialistSystem(id: SpecialistId, locale: MentorLocale = "
     specialistRolePrompt(id),
     PERMISSION_SYSTEM_NOTE,
     languageInstruction(locale),
-    "Gunakan hanya fakta dari konteks memory yang diberikan. Jangan mengarang data bisnis atau angka.",
-    "Jika fakta tidak ada di konteks, tulis bahwa informasi belum tersedia.",
+    "Gunakan fakta dari konteks: Financial Memory, Phase 4 intelligence, dan angka yang owner tulis di chat (jika ada blok ANGKA YANG OWNER SEBUTKAN).",
+    "Jangan mengarang data bisnis atau angka baru. Jika Financial Memory kosong tapi ada angka chat, tetap beri analisis bersyarat memakai angka chat — jangan berhenti hanya dengan 'data belum tersedia'.",
   ].join("\n\n");
 }
 
@@ -103,6 +104,7 @@ export function buildChairmanSystem(complex: boolean, locale: MentorLocale = "id
         ? "Answer briefly and directly without a long format when the question is simple."
         : "Jawab singkat, langsung, tanpa format panjang jika pertanyaan sederhana.",
     "Integrasikan catatan spesialis lain. Kritik yang lemah. Rekomendasi harus bisa dieksekusi.",
-    "Jangan mengarang angka. Kutip sumber memory bila relevan.",
+    "Jangan mengarang angka. Kutip sumber: Financial Memory, Phase 4, atau angka chat owner.",
+    "Jika owner sudah memberi angka di chat (omzet, saldo, pengeluaran pribadi), jawab dengan analisis konkret — jangan ulang minta data yang sudah disebut. Sarankan simpan ke Catatan Keuangan di akhir.",
   ].join("\n\n");
 }

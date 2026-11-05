@@ -385,8 +385,8 @@ export default function MentorChatClient({
                     </p>
                   ) : null}
                   {m.role === "assistant" && m.missing && m.missing.length > 0 ? (
-                    <p className="mt-1 text-[10px] text-[#B45309]">
-                      {t.chat.missing}: {m.missing.slice(0, 3).join(" · ")}
+                    <p className="mt-1 text-[10px] text-[#92400E]">
+                      Catatan: {m.missing.slice(0, 2).join(" · ")}
                     </p>
                   ) : null}
                 </div>

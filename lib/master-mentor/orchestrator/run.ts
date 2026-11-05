@@ -12,6 +12,10 @@ import {
   buildIntelligencePack,
   formatIntelligencePackForPrompt,
 } from "../intelligence/pack";
+import {
+  extractOwnerStatedFigures,
+  formatOwnerStatedFiguresForPrompt,
+} from "../chat/owner-stated-figures";
 import { formatMemoryContext } from "./context-prompt";
 import { planSpecialistRoute } from "./router";
 
@@ -128,12 +132,22 @@ export async function runMasterOrchestrator(opts: {
           .join("\n")
       : "";
 
+  const chatCorpus = [
+    ...(opts.history || []).filter((m) => m.role === "user").map((m) => m.content),
+    opts.question,
+  ].join("\n");
+  const ownerFigures = extractOwnerStatedFigures(chatCorpus);
+  const ownerFiguresBlock = formatOwnerStatedFiguresForPrompt(ownerFigures);
+
   const baseUser = [
     memoryBlock,
     intelligenceBlock,
     historyBlock,
+    ownerFiguresBlock,
     `PERTANYAAN OWNER:\n${opts.question}`,
-    "Ingat: jangan mengarang data. Utamakan angka dari Phase 4 intelligence pack dan Financial Memory. Jika missing, sebutkan.",
+    ownerFigures.length
+      ? "Owner sudah memberi angka di chat. Analisis bersyarat dengan angka itu (estimate percakapan). Jangan mengarang angka lain. Jangan ulang minta data yang sudah disebut."
+      : "Jangan mengarang data. Utamakan angka dari Phase 4 intelligence pack dan Financial Memory. Jika missing, sebutkan dan tanya owner.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -294,14 +308,28 @@ export async function runMasterOrchestrator(opts: {
     },
   ];
 
+  const missingUi: string[] = [];
+  if (ownerFigures.length) {
+    missingUi.push(
+      "Angka dipakai dari chat (estimate). Simpan ke Memori → Catatan Keuangan agar jadi data resmi.",
+    );
+    if (!context.financial.length) {
+      /* skip harsh "Actual revenue belum tersedia" when chat figures already supplied */
+    } else {
+      missingUi.push(...(finance?.missing || []).filter((m) => !/belum tersedia/i.test(m)));
+    }
+  } else {
+    missingUi.push(...context.missing, ...(finance?.missing || []));
+  }
+
   const result: OrchestratorResult = {
     reply,
     specialists: briefs,
-    sourcesUsed: context.sourcesUsed,
-    missing: [
-      ...context.missing,
-      ...(finance?.missing || []),
+    sourcesUsed: [
+      ...context.sourcesUsed,
+      ...(ownerFigures.length ? ["owner_stated_in_chat"] : []),
     ],
+    missing: missingUi,
     usage: sumUsage(usageParts),
     businessId: context.businessId,
     complex: route.complex,

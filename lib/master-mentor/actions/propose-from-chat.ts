@@ -1,7 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { extractOwnerStatedFigures } from "../chat/owner-stated-figures";
 import { proposeMemoryCandidate } from "../memory-candidates-service";
 import { proposeAction } from "./action-service";
 import type { SpecialistBrief } from "../agents/types";
+
+const FIGURE_TO_METRIC: Record<string, string> = {
+  omzet: "revenue",
+  saldo_kas: "cash_balance",
+  laba: "net_profit",
+  modal: "investment",
+  pengeluaran_pribadi: "operating_expenses",
+};
 
 /**
  * After a Mentor Chat turn, propose owner-reviewable actions (Phase 5).
@@ -27,6 +36,7 @@ export async function proposeFromChatTurn(
 
   const ran = opts.specialists.filter((s) => s.ran).map((s) => s.id);
   const excerpt = reply.slice(0, 900);
+  const figures = extractOwnerStatedFigures(opts.question);
 
   try {
     const action = await proposeAction(db, opts.ownerUserId, {
@@ -73,6 +83,36 @@ export async function proposeFromChatTurn(
       candidateIds.push(cand.id);
     } catch {
       /* ignore */
+    }
+  }
+
+  // Financial figures typed in chat → pending candidates (owner must approve)
+  if (opts.businessId) {
+    const today = new Date().toISOString().slice(0, 10);
+    for (const fig of figures.slice(0, 4)) {
+      const metric = FIGURE_TO_METRIC[fig.label];
+      if (!metric || fig.amountIdrApprox == null) continue;
+      try {
+        const cand = await proposeMemoryCandidate(db, opts.ownerUserId, {
+          business_id: opts.businessId,
+          memory_kind: "financial",
+          classification: "assumption",
+          proposed_payload: {
+            metric_type: metric,
+            amount: fig.amountIdrApprox,
+            currency: "IDR",
+            certainty: "estimate",
+            transaction_date: today,
+            description: `Dari chat owner: ${fig.raw}`,
+            transaction_category: fig.label,
+            data_source: "owner_stated_in_chat",
+          },
+          source_ref: `conversation:${opts.conversationId || "new"}:fig:${fig.label}`,
+        });
+        candidateIds.push(cand.id);
+      } catch {
+        /* ignore */
+      }
     }
   }
 

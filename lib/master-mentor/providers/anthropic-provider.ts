@@ -29,6 +29,30 @@ function splitSystem(messages: ProviderChatMessage[], system: string) {
   return { system, messages: rest };
 }
 
+/** Newer Claude models (e.g. Opus 5.x) reject `temperature` as deprecated. */
+function modelAllowsTemperature(model: string): boolean {
+  const m = model.toLowerCase();
+  if (m.includes("opus-5") || /claude-opus-4-5|claude-opus-4\.5/.test(m)) return false;
+  return true;
+}
+
+function buildMessageParams(opts: {
+  model: string;
+  maxTokens: number;
+  system: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  temperature?: number;
+}) {
+  const base = {
+    model: opts.model,
+    max_tokens: opts.maxTokens,
+    system: opts.system,
+    messages: opts.messages,
+  };
+  if (!modelAllowsTemperature(opts.model)) return base;
+  return { ...base, temperature: opts.temperature ?? 0.3 };
+}
+
 export function createAnthropicProvider(): MentorProvider {
   const cfg = getMentorProviderConfig();
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
@@ -44,16 +68,18 @@ export function createAnthropicProvider(): MentorProvider {
     const split = splitSystem(messages, system);
     try {
       const res = await withTimeout(
-        client.messages.create({
-          model,
-          max_tokens: maxTokens || cfg.maxTokens,
-          temperature: temperature ?? 0.3,
-          system: split.system,
-          messages: split.messages.map((m) => ({
-            role: m.role === "assistant" ? "assistant" : "user",
-            content: m.content,
-          })),
-        }),
+        client.messages.create(
+          buildMessageParams({
+            model,
+            maxTokens: maxTokens || cfg.maxTokens,
+            temperature,
+            system: split.system,
+            messages: split.messages.map((m) => ({
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: m.content,
+            })),
+          }),
+        ),
         timeoutMs || cfg.timeoutMs,
       );
       const text = res.content
@@ -90,16 +116,18 @@ export function createAnthropicProvider(): MentorProvider {
   }) => {
     const split = splitSystem(messages, system);
     try {
-      const streamRes = client.messages.stream({
-        model,
-        max_tokens: maxTokens || cfg.maxTokens,
-        temperature: temperature ?? 0.3,
-        system: split.system,
-        messages: split.messages.map((m) => ({
-          role: m.role === "assistant" ? "assistant" : "user",
-          content: m.content,
-        })),
-      });
+      const streamRes = client.messages.stream(
+        buildMessageParams({
+          model,
+          maxTokens: maxTokens || cfg.maxTokens,
+          temperature,
+          system: split.system,
+          messages: split.messages.map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.content,
+          })),
+        }),
+      );
 
       let text = "";
       const finalPromise = withTimeout(

@@ -71,15 +71,6 @@ function groupPoints(points: TrackingPoint[], focusStaffId?: string) {
   return byStaff;
 }
 
-function trailPoints(ordered: TrackingPoint[], latest: TrackingPoint) {
-  const trail = ordered.filter((point, index) => {
-    if (point === latest) return false;
-    if (point.kind !== "ping") return true;
-    return index === 0 || index % 6 === 0;
-  });
-  return trail.length > 80 ? trail.filter((_, index) => index % Math.ceil(trail.length / 80) === 0) : trail;
-}
-
 /** Meter antar 2 titik (approx). */
 function metersBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -94,27 +85,60 @@ function metersBetween(a: { lat: number; lng: number }, b: { lat: number; lng: n
 }
 
 /**
- * Rapikan garis rute: GPS diam sering “goyang” di dalam lingkaran akurasi
- * → polyline zigzag. Skip ping yang terlalu dekat / masih di dalam jitter.
+ * Rapikan rute supaya enak dibaca:
+ * GPS diam/indoor sering “goyang” → banyak garis ke segala arah.
+ * 1) skip ping jelek / terlalu dekat
+ * 2) buang spike bolak-balik
  */
 function smoothRoute(ordered: TrackingPoint[]) {
   if (ordered.length <= 2) return ordered;
-  const out: TrackingPoint[] = [ordered[0]];
+
+  const spaced: TrackingPoint[] = [ordered[0]];
   for (let i = 1; i < ordered.length - 1; i++) {
     const point = ordered[i];
     if (point.kind !== "ping") {
-      out.push(point);
+      spaced.push(point);
       continue;
     }
-    const prev = out[out.length - 1];
+    // Titik akurasi jelek = sumber "banyak arah"
+    if ((point.accuracy_m || 999) > 90) continue;
+    const prev = spaced[spaced.length - 1];
     const dist = metersBetween(prev, point);
-    const jitter = Math.max(prev.accuracy_m || 0, point.accuracy_m || 0, 30) * 0.7;
-    if (dist < Math.max(35, jitter)) continue;
-    out.push(point);
+    const minMove = Math.max(70, Math.max(prev.accuracy_m || 45, point.accuracy_m || 45));
+    if (dist < minMove) continue;
+    spaced.push(point);
   }
   const last = ordered[ordered.length - 1];
-  if (out[out.length - 1] !== last) out.push(last);
+  if (spaced[spaced.length - 1] !== last) spaced.push(last);
+  if (spaced.length < 3) return spaced;
+
+  const out: TrackingPoint[] = [spaced[0]];
+  for (let i = 1; i < spaced.length - 1; i++) {
+    const prev = out[out.length - 1];
+    const cur = spaced[i];
+    const next = spaced[i + 1];
+    if (cur.kind !== "ping") {
+      out.push(cur);
+      continue;
+    }
+    const ab = metersBetween(prev, cur);
+    const bc = metersBetween(cur, next);
+    const ac = metersBetween(prev, next);
+    // Spike: keluar lalu balik — bikin bintang di peta
+    if (ac < 100 && ab + bc > ac * 1.6 && ab > 20 && bc > 20) continue;
+    out.push(cur);
+  }
+  out.push(spaced[spaced.length - 1]);
   return out;
+}
+
+function trailPoints(ordered: TrackingPoint[], latest: TrackingPoint) {
+  const cleaned = smoothRoute(ordered).filter((point) => point !== latest);
+  const trail = cleaned.filter((point, index) => {
+    if (point.kind !== "ping") return true;
+    return index === 0 || index % 3 === 0;
+  });
+  return trail.length > 40 ? trail.filter((_, index) => index % Math.ceil(trail.length / 40) === 0) : trail;
 }
 
 export default function TrackingMap({

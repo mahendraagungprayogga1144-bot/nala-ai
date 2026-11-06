@@ -47,14 +47,22 @@ type ChatMessage = {
   specialists?: string[];
   sources_used?: string[];
   missing?: string[];
-  pdf?: ChatPdf | null;
+  /** Show download button; file fetched on click (reliable). */
+  pdfReady?: boolean;
+  pdfTitle?: string;
 };
 
 function downloadPdf(file: ChatPdf) {
   const a = document.createElement("a");
   a.href = `data:${file.mediaType || "application/pdf"};base64,${file.data}`;
   a.download = file.name || "henima-dokumen.pdf";
+  document.body.appendChild(a);
   a.click();
+  a.remove();
+}
+
+function looksLikePdfOffer(content: string) {
+  return /PDF siap|Unduh PDF|unduh di bawah|dokumen PDF siap/i.test(content);
 }
 
 type SpecialistEvent = { id: string; label: string; status: "running" | "done" };
@@ -81,6 +89,7 @@ export default function MentorChatClient({
   const [specialists, setSpecialists] = useState<SpecialistEvent[]>([]);
   const [statusLine, setStatusLine] = useState("");
   const [search, setSearch] = useState("");
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
   const contextLabel = useMemo(() => {
     if (!businessId) return t.chat.noPortfolio;
@@ -108,8 +117,27 @@ export default function MentorChatClient({
         specialists: m.specialists,
         sources_used: m.sources_used,
         missing: m.missing,
+        pdfReady: m.role === "assistant" && looksLikePdfOffer(String(m.content || "")),
       })),
     );
+  };
+
+  const handleDownloadPdf = async (messageId: string, title?: string) => {
+    const convId = activeId;
+    if (!convId) {
+      setError("Buka percakapan dulu, lalu unduh PDF.");
+      return;
+    }
+    setPdfBusyId(messageId);
+    setError(null);
+    try {
+      const file = await fetchConversationPdf(convId, title);
+      downloadPdf(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal unduh PDF");
+    } finally {
+      setPdfBusyId(null);
+    }
   };
 
   useEffect(() => {
@@ -174,28 +202,19 @@ export default function MentorChatClient({
         const data = await res.json();
         setActiveId(data.conversationId || activeId);
         ensureAssistant();
-        let pdfFile: ChatPdf | null = null;
         const pdfMeta = data.pdf as PdfMeta | null;
-        if (pdfMeta?.ready && (data.conversationId || activeId)) {
-          try {
-            pdfFile = await fetchConversationPdf(
-              String(data.conversationId || activeId),
-              pdfMeta.title,
-            );
-          } catch {
-            pdfFile = null;
-          }
-        }
+        const content = data.message?.content || data.reply || "";
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
               ? {
                   ...m,
-                  content: data.message?.content || data.reply || "",
+                  content,
                   specialists: (data.specialists || []).map((s: { id: string }) => s.id),
                   sources_used: data.sourcesUsed,
                   missing: data.missing,
-                  pdf: pdfFile,
+                  pdfReady: Boolean(pdfMeta?.ready) || looksLikePdfOffer(content),
+                  pdfTitle: pdfMeta?.title,
                 }
               : m,
           ),
@@ -271,20 +290,7 @@ export default function MentorChatClient({
             const finalText =
               (evt.message as { content?: string } | undefined)?.content || assembled;
             const specs = ((evt.specialists as { id: string }[]) || []).map((s) => s.id);
-            const convId =
-              (typeof evt.conversationId === "string" && evt.conversationId) ||
-              activeId ||
-              "";
             const pdfMeta = evt.pdf as PdfMeta | null;
-            let pdfFile: ChatPdf | null = null;
-            if (pdfMeta?.ready && convId) {
-              setStatusLine("Menyiapkan tombol unduh PDF…");
-              try {
-                pdfFile = await fetchConversationPdf(convId, pdfMeta.title);
-              } catch {
-                pdfFile = null;
-              }
-            }
             ensureAssistant();
             setMessages((prev) =>
               prev.map((m) =>
@@ -295,7 +301,8 @@ export default function MentorChatClient({
                       specialists: specs,
                       sources_used: (evt.sourcesUsed as string[]) || [],
                       missing: (evt.missing as string[]) || [],
-                      pdf: pdfFile,
+                      pdfReady: Boolean(pdfMeta?.ready) || looksLikePdfOffer(finalText),
+                      pdfTitle: pdfMeta?.title,
                     }
                   : m,
               ),
@@ -461,14 +468,17 @@ export default function MentorChatClient({
                   ].join(" ")}
                 >
                   {m.role === "assistant" ? toPlainChatText(m.content) : m.content}
-                  {m.role === "assistant" && m.pdf?.data ? (
+                  {m.role === "assistant" && (m.pdfReady || looksLikePdfOffer(m.content)) ? (
                     <button
                       type="button"
-                      onClick={() => downloadPdf(m.pdf!)}
-                      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#111827] px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-[#1F2937]"
+                      disabled={pdfBusyId === m.id || !activeId}
+                      onClick={() => handleDownloadPdf(m.id, m.pdfTitle)}
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#111827] px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-[#1F2937] disabled:opacity-50"
                     >
                       <Download size={14} />
-                      Unduh PDF{m.pdf.title ? ` · ${m.pdf.title}` : ""}
+                      {pdfBusyId === m.id
+                        ? "Menyiapkan PDF…"
+                        : `Unduh PDF${m.pdfTitle ? ` · ${m.pdfTitle}` : ""}`}
                     </button>
                   ) : null}
                 </div>

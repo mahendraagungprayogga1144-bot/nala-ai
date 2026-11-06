@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { withMentorOwner } from "@/lib/master-mentor/authz";
 import { listMessages } from "@/lib/master-mentor/chat/conversation-service";
 import {
@@ -14,9 +13,16 @@ import { MentorValidationError } from "@/lib/master-mentor/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+function isPdfNotice(text: string) {
+  const t = text.trim();
+  if (/^PDF siap/i.test(t)) return true;
+  if (/klik tombol Unduh PDF/i.test(t) && t.length < 280) return true;
+  if (/Dokumen PDF siap/i.test(t) && t.length < 280) return true;
+  return false;
+}
+
 /**
- * Build/download a HENIMA business PDF from conversation content.
- * Avoids stuffing huge base64 into the chat SSE stream (which hid the download button).
+ * Build HENIMA business PDF from the best mentor reply in a conversation.
  */
 export async function POST(request: Request) {
   return withMentorOwner(async ({ owner, db }) => {
@@ -33,45 +39,49 @@ export async function POST(request: Request) {
     const rows = await listMessages(db, owner.userId, conversationId);
     if (!rows.length) throw new MentorValidationError("Percakapan kosong.");
 
-    // Prefer long mentor reply (skip short "PDF siap…" notices).
-    let source: { content: string; priorUser?: string } | null = null;
-    for (let i = rows.length - 1; i >= 0; i--) {
+    // Pick the longest real mentor reply (skip "PDF siap…" notices).
+    let best: { content: string; index: number; len: number } | null = null;
+    for (let i = 0; i < rows.length; i++) {
       const m = rows[i];
       if (m.role !== "assistant") continue;
       const text = String(m.content || "").trim();
-      if (text.length < 80) continue;
-      if (/^PDF siap/i.test(text)) continue;
-      if (/Dokumen PDF siap diunduh/i.test(text) && text.length < 200) continue;
-      let priorUser: string | undefined;
-      for (let j = i - 1; j >= 0; j--) {
-        if (rows[j].role === "user") {
-          priorUser = rows[j].content;
-          break;
-        }
+      if (text.length < 60) continue;
+      if (isPdfNotice(text)) continue;
+      if (!best || text.length >= best.len) {
+        best = { content: text, index: i, len: text.length };
       }
-      // If prior user was only "buatkan pdfnya", look one ask further for title context
-      if (priorUser && isPdfExportFollowUp(priorUser)) {
-        for (let j = i - 1; j >= 0; j--) {
-          if (rows[j].role === "user" && !isPdfExportFollowUp(rows[j].content)) {
-            priorUser = rows[j].content;
-            break;
-          }
-        }
-      }
-      source = { content: text, priorUser };
-      break;
     }
 
-    if (!source) {
+    if (!best) {
       throw new MentorValidationError(
-        "Belum ada isi mentor yang bisa dijadikan PDF. Tanya dulu, baru minta PDF.",
+        "Belum ada isi mentor yang bisa dijadikan PDF. Tanya dulu (saran/rencana), baru minta PDF.",
       );
+    }
+
+    let priorUser: string | undefined;
+    for (let j = best.index - 1; j >= 0; j--) {
+      if (rows[j].role !== "user") continue;
+      if (isPdfExportFollowUp(rows[j].content)) continue;
+      priorUser = rows[j].content;
+      break;
     }
 
     const title =
       cleanText(body.title, 120) ||
-      businessPdfTitle(source.priorUser || "dokumen", source.priorUser || null);
-    const data = await henimaBusinessTextToPdf(title, toPlainChatText(source.content));
+      businessPdfTitle(priorUser || "dokumen henima", priorUser || null);
+
+    let data: string;
+    try {
+      data = await henimaBusinessTextToPdf(title, toPlainChatText(best.content));
+    } catch (err) {
+      throw new MentorValidationError(
+        `Gagal render PDF: ${err instanceof Error ? err.message : "error"}`,
+      );
+    }
+
+    if (!data || data.length < 40) {
+      throw new MentorValidationError("File PDF kosong setelah render.");
+    }
 
     return {
       name: `${pdfFileSlug(title)}.pdf`,

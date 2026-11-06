@@ -23,6 +23,7 @@ import {
   buildMonthlyWhatsAppText,
   type MonthlyReportData,
 } from "./lib/monthly-report";
+import { downloadMonthlyReportPdf } from "./lib/monthly-report-download";
 import { openWhatsAppShare } from "@/app/dashboard/fnb/lib/shift-report";
 import { useOwnerLiveAlerts } from "./use-owner-live-alerts";
 import { trackClientEvent } from "@/lib/admin/track-event";
@@ -95,6 +96,7 @@ export default function DashboardOwnerClient({
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [pdfPreviewHtml, setPdfPreviewHtml] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [chartTab, setChartTab] = useState("Harian");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [userName, setUserName] = useState(initialUserName);
@@ -333,6 +335,20 @@ export default function DashboardOwnerClient({
     setPdfPreviewHtml(buildMonthlyReportPdfHtml(buildMonthlyData()));
   };
 
+  const downloadMonthlyPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await downloadMonthlyReportPdf(buildMonthlyData());
+    } catch (err) {
+      console.error("[owner-pdf]", err);
+      // Fallback: preview + print dialog kalau generate gagal
+      openMonthlyPdf();
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const shareMonthlyWa = () => {
     openWhatsAppShare(buildMonthlyWhatsAppText(buildMonthlyData()));
   };
@@ -429,8 +445,16 @@ export default function DashboardOwnerClient({
                     <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="dash-date-input" />
                   </label>
                   <button type="button" onClick={applyCustom} className="mb-2 w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 py-2 text-xs font-bold text-white">Terapkan</button>
-                  <button type="button" onClick={() => { setShowDatePicker(false); openMonthlyPdf(); }} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] py-2 text-xs text-slate-400 hover:text-slate-200">
-                    <Printer size={12} /> PDF rekap bulanan
+                  <button
+                    type="button"
+                    disabled={pdfBusy}
+                    onClick={() => {
+                      setShowDatePicker(false);
+                      void downloadMonthlyPdf();
+                    }}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] py-2 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50"
+                  >
+                    <Printer size={12} /> {pdfBusy ? "Menyiapkan PDF…" : "Unduh PDF rekap bulanan"}
                   </button>
                 </div>
               )}
@@ -466,12 +490,13 @@ export default function DashboardOwnerClient({
 
             <button
               type="button"
-              onClick={openMonthlyPdf}
-              className="hidden h-9 flex-shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.07] bg-[#151921] px-3 text-xs font-medium text-slate-400 hover:border-violet-500/40 hover:text-slate-200 sm:inline-flex"
+              onClick={() => void downloadMonthlyPdf()}
+              disabled={pdfBusy}
+              className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.07] bg-[#151921] px-3 text-xs font-medium text-slate-400 hover:border-violet-500/40 hover:text-slate-200 disabled:opacity-50"
               title="Unduh PDF rekap bulanan"
             >
               <Printer size={14} />
-              PDF
+              {pdfBusy ? "PDF…" : "PDF"}
             </button>
 
             <div className="relative" ref={notifRef}>
@@ -1134,10 +1159,13 @@ export default function DashboardOwnerClient({
               <p className="dash-card-title mb-4 border-b border-white/[0.06] pb-3">Ekspor Rekap</p>
               <button
                 type="button"
-                onClick={openMonthlyPdf}
-                className="flex w-full cursor-pointer items-center justify-between border-b border-white/[0.04] py-2 text-left hover:text-slate-300"
+                onClick={() => void downloadMonthlyPdf()}
+                disabled={pdfBusy}
+                className="flex w-full cursor-pointer items-center justify-between border-b border-white/[0.04] py-2 text-left hover:text-slate-300 disabled:opacity-50"
               >
-                <span className="text-xs text-slate-400">📄 PDF · laporan bulanan</span>
+                <span className="text-xs text-slate-400">
+                  {pdfBusy ? "📄 Menyiapkan PDF…" : "📄 Unduh PDF laporan bulanan"}
+                </span>
                 <ChevronRight size={11} className="text-slate-600" />
               </button>
               <button
@@ -1169,10 +1197,11 @@ export default function DashboardOwnerClient({
                 </button>
                 <button
                   type="button"
-                  onClick={openMonthlyPdf}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 py-2 text-xs font-bold text-white hover:opacity-90"
+                  onClick={() => void downloadMonthlyPdf()}
+                  disabled={pdfBusy}
+                  className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
                 >
-                  Unduh PDF
+                  {pdfBusy ? "Menyiapkan…" : "Unduh PDF"}
                 </button>
               </div>
             </div>

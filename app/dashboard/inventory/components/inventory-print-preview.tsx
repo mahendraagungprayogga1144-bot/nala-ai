@@ -30,7 +30,7 @@ export default function InventoryPrintPreview({
       <div className="flex h-14 flex-shrink-0 items-center justify-between border-b border-white/10 bg-[#0D0D1A] px-4">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-[#F0EFF8]">{title}</p>
-          <p className="text-[10px] text-[#8B8AA0]">Preview laporan · putih saat cetak</p>
+          <p className="text-[10px] text-[#8B8AA0]">Preview · di dialog cetak pilih “Save as PDF”</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -39,7 +39,7 @@ export default function InventoryPrintPreview({
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
             style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
           >
-            <Printer size={14} /> Cetak
+            <Printer size={14} /> Cetak / Simpan PDF
           </button>
           <button
             type="button"
@@ -77,7 +77,7 @@ export default function InventoryPrintPreview({
           className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
           style={{ background: "linear-gradient(135deg, #2DD4BF, #8B5CF6)", color: "#070711" }}
         >
-          <Printer size={16} /> Cetak Sekarang
+          <Printer size={16} /> Cetak / Simpan PDF
         </button>
       </div>
     </div>

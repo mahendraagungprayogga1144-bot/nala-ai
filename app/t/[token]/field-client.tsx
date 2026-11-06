@@ -13,6 +13,7 @@ import {
 import { startFieldTrackingNotify, stopFieldTrackingNotify } from "@/lib/henima-tracking/field-notify";
 import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
 import { isPastTrackingAutoClose, TRACKING_AUTO_CLOSE_HOUR } from "@/lib/henima-tracking/schedule";
+import { startNativeBackgroundTrack, stopNativeBackgroundTrack } from "@/lib/henima-tracking/native-track";
 
 export type FieldPoint = {
   id: string;
@@ -323,6 +324,7 @@ export default function FieldClient({
             setWatching(false);
             setGpsText(`GPS otomatis berhenti jam ${TRACKING_AUTO_CLOSE_HOUR}:00`);
             void stopFieldTrackingNotify();
+            void stopNativeBackgroundTrack();
             return;
           }
           pingFailStreak.current += 1;
@@ -370,6 +372,8 @@ export default function FieldClient({
 
     void holdWake();
     void startFieldTrackingNotify({ nama: state.nama });
+    // Native Android: service terpisah — GPS tetap kirim meski app di belakang.
+    void startNativeBackgroundTrack(token);
 
     // Titik pertama segera saat app/link dibuka.
     void readNativeOrBrowserGps()
@@ -428,6 +432,8 @@ export default function FieldClient({
       window.removeEventListener("focus", onVisibility);
       void wake?.release().catch(() => undefined);
       void stopFieldTrackingNotify();
+      // Jangan stop native track di cleanup visibility — biarkan hidup di belakang.
+      // Stop hanya saat checkout / jam 18.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.checkedOut, token, nativeApp, state.nama]);
@@ -518,6 +524,7 @@ export default function FieldClient({
       setWatching(false);
       setGpsText(`GPS otomatis berhenti jam ${TRACKING_AUTO_CLOSE_HOUR}:00`);
       void stopFieldTrackingNotify();
+      void stopNativeBackgroundTrack();
     } catch {
       autoClosedRef.current = false;
     }
@@ -617,7 +624,7 @@ export default function FieldClient({
             {state.checkedOut
               ? "Besok buka app lagi. GPS langsung jalan sendiri."
               : live
-                ? `Lokasi dikirim otomatis. Auto berhenti jam ${TRACKING_AUTO_CLOSE_HOUR}:00 — tanpa tombol selesai.`
+                ? `GPS jalan di belakang (seperti Grab). Auto stop jam ${TRACKING_AUTO_CLOSE_HOUR}:00. Jangan force-stop app.`
                 : "Izinkan lokasi HP dulu."}
           </p>
           {!state.checkedOut ? <p className="mt-2 text-xs font-medium text-[#555]">{gpsText}</p> : null}

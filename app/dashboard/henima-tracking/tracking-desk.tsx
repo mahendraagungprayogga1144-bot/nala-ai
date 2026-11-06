@@ -65,14 +65,14 @@ function snapshot(link: TrackingLink, points: TrackingPoint[]) {
   const liveToday = Boolean(last && !sore);
   const out = liveToday;
   const freshMs = last ? Date.now() - new Date(last.recorded_at).getTime() : Number.POSITIVE_INFINITY;
-  // Mirip Grab: Live = titik baru (<90 dtk). Lebih dari itu = HP berhenti / app ditutup.
+  // Live = baru; Aktif = masih kirim (boleh jeda singkat); Senyap = HP lama tidak kirim.
   const status = sore
     ? { label: "Selesai", tone: "off" as const }
     : !last
       ? { label: "Offline", tone: "off" as const }
-      : freshMs <= 90_000
+      : freshMs <= 3 * 60_000
         ? { label: "Live", tone: "road" as const }
-        : freshMs <= 5 * 60_000
+        : freshMs <= 20 * 60_000
           ? { label: "Aktif", tone: "road" as const }
           : { label: "Senyap", tone: "late" as const };
   return { mine, pagi, sore, visits, last, status, out };

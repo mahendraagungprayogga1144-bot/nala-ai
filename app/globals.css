@@ -3,8 +3,8 @@
 @layer base {
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
-    background: #070711;
-    color: #f0eff8;
+    background: #12141A;
+    color: #F4F1EA;
     /* clip = tidak mengunci scroll vertikal di Chrome Android (beda dari overflow-x:hidden) */
     overflow-x: clip;
     font-family: var(--font-geist-sans), system-ui, sans-serif;
@@ -16,8 +16,16 @@
     min-height: 100dvh;
   }
   /* Mobile-friendly taps — closer to native app feel */
-  button, a, [role="button"] {
+  button, a, summary, select, label, [role="button"], [role="tab"], [role="switch"] {
     touch-action: manipulation;
+    cursor: pointer;
+  }
+  button:disabled, [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 2px solid #E9D5FF;
+    outline-offset: 2px;
   }
   input, select, textarea {
     font-size: 16px; /* prevent iOS zoom on focus */
@@ -42,47 +50,35 @@
   }
 }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.3); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #8A8478; border-radius: 2px; }
 
 .holo-text {
-  background: linear-gradient(100deg, #2dd4bf, #8b5cf6, #ec4899, #2dd4bf);
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 6s ease-in-out infinite;
+  color: inherit;
+  background: none;
+  animation: none;
 }
 
-@keyframes shimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
-}
+.fade-up, .scale-in { animation: none; }
 
-.fade-up { animation: fadeUp 0.4s ease-out both; }
-.scale-in { animation: scaleIn 0.25s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* ── Dashboard tokens ── */
 .dashboard-card {
-  background: #151921;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-}
-.dashboard-card-hover {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: #1A1D24;
+  border: 1px solid #8A8478;
+  border-radius: 12px;
 }
 .dashboard-card-hover:hover {
-  border-color: rgba(124, 58, 237, 0.22);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  border-color: #8A8478;
 }
 
 .dash-header-btn {
@@ -91,25 +87,25 @@
   gap: 6px;
   height: 36px;
   padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: #151921;
+  border-radius: 8px;
+  border: 1px solid #8A8478;
+  background: #1A1D24;
   font-size: 13px;
-  color: #94a3b8;
+  color: #C8C2B6;
   white-space: nowrap;
   transition: border-color 0.15s, color 0.15s;
 }
 .dash-header-btn:hover {
-  border-color: rgba(124, 58, 237, 0.35);
-  color: #e2e8f0;
+  border-color: #8A8478;
+  color: #F4F1EA;
 }
 
 .dash-dropdown {
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #1a2030;
+  border-radius: 12px;
+  border: 1px solid #8A8478;
+  background: #1A1D24;
   padding: 16px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
 }
 
 .dash-date-input {
@@ -118,15 +114,15 @@
   height: 34px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #0b0e14;
+  border: 1px solid #8A8478;
+  background: #12141A;
   font-size: 12px;
-  color: #cbd5e1;
+  color: #F4F1EA;
   outline: none;
   color-scheme: dark;
 }
 .dash-date-input:focus {
-  border-color: rgba(124, 58, 237, 0.45);
+  border-color: #E9D5FF;
 }
 .dash-date-input::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
@@ -140,19 +136,18 @@
 }
 .dash-card-link {
   font-size: 11px;
-  color: #a78bfa;
-  transition: color 0.15s;
+  color: #E9D5FF;
 }
-.dash-card-link:hover { color: #c4b5fd; }
+.dash-card-link:hover { color: #F4F1EA; }
 
 .gercep-card {
-  background: #0d0d1a;
-  border: 0.5px solid rgba(255, 255, 255, 0.06);
-  border-radius: 13px;
+  background: #1A1D24;
+  border: 1px solid #8A8478;
+  border-radius: 12px;
 }
 .gercep-gradient-btn {
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
-  color: #fff;
+  background: #5B21B6;
+  color: #F8F5FF;
 }
 
 @media print {

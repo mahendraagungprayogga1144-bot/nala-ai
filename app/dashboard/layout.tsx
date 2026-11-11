@@ -40,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const avatarUrl = profile?.avatar_url || null;
 
   return (
-    <div className="flex min-h-screen w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8]">
+    <div className="flex min-h-screen w-full min-w-0 overflow-x-hidden bg-[#12141A] text-[#F4F1EA]">
       <DashboardShell
         businesses={list}
         activeBusiness={activeBusiness}

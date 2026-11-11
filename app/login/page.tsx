@@ -142,18 +142,16 @@ function LoginForm() {
   };
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[#0A0A12] px-6 text-[#F2F1F8]">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-[#12141A] px-6 text-[#F4F1EA]">
       <div className="w-full max-w-[400px]">
         <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-lg font-semibold">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-lg font-semibold">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-gercep.png" alt="Gercep AI" className="h-10 w-10 rounded-xl object-cover" />
-            <span>
-              Gercep<span className="holo-text">AI</span>
-            </span>
+            <img src="/logo-gercep.png" alt="" width={40} height={40} className="h-10 w-10 rounded-md object-cover" />
+            <span>Gercep AI</span>
           </Link>
           <h1 className="mt-6 mb-2 text-2xl font-semibold">{trackingNext ? "Masuk untuk check-in" : "Selamat datang lagi"}</h1>
-          <p className="text-sm text-[#8B8AA0]">
+          <p className="text-sm text-[#C8C2B6]">
             {trackingNext
               ? "Pakai akun HP sales kamu. Setelah masuk, kamu kembali ke halaman check-in."
               : "Masuk buat kelola semua bisnis kamu."}
@@ -162,58 +160,60 @@ function LoginForm() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-xs text-[#8B8AA0]">Email</label>
+            <label className="mb-1.5 block text-xs text-[#C8C2B6]" htmlFor="login-email">Email</label>
             <input
+              id="login-email"
               type="email"
               required
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#0F0F1A] px-4 py-3 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none"
+              className="w-full rounded-lg border border-[#8A8478] bg-[#1A1D24] px-4 py-3 text-[#F4F1EA] placeholder:text-[#A39E93]"
               placeholder="email@kamu.com"
             />
           </div>
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-xs text-[#8B8AA0]">Password</label>
-              <a href="/forgot-password" className="text-[11px] text-[#2DD4BF] hover:underline">
+              <label className="text-xs text-[#C8C2B6]" htmlFor="login-password">Password</label>
+              <a href="/forgot-password" className="text-[11px] text-[#E9D5FF] underline underline-offset-2">
                 Lupa kata sandi?
               </a>
             </div>
             <input
+              id="login-password"
               type="password"
               required
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#0F0F1A] px-4 py-3 text-[#F2F1F8] placeholder:text-[#8B8AA0] focus:border-[#2DD4BF]/50 focus:outline-none"
+              className="w-full rounded-lg border border-[#8A8478] bg-[#1A1D24] px-4 py-3 text-[#F4F1EA] placeholder:text-[#A39E93]"
               placeholder="Password kamu"
             />
           </div>
 
-          {error && <p className="text-sm text-[#EC4899]">{error}</p>}
+          {error && <p className="text-sm text-[#FB7185]" role="alert">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#8B5CF6] py-3.5 font-semibold text-[#0A0A12] disabled:opacity-50"
+            className="mt-2 min-h-11 w-full rounded-lg bg-[#5B21B6] py-3.5 font-semibold text-[#F8F5FF] hover:bg-[#4C1D95] disabled:opacity-50"
           >
             {loading ? "Masuk..." : "Masuk"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-[#8B8AA0]">
+        <p className="mt-6 text-center text-sm text-[#C8C2B6]">
           Belum punya akun?{" "}
           <a
             href={trackingNext ? `/signup?next=${encodeURIComponent(trackingNext)}` : "/signup"}
-            className="text-[#2DD4BF]"
+            className="text-[#E9D5FF] underline underline-offset-2"
           >
             {trackingNext ? "Daftar sekali untuk check-in" : `Daftar gratis · trial ${trialDays} hari`}
           </a>
         </p>
-        <p className="mt-3 text-center text-[10px] text-[#5A5B7A]">
+        <p className="mt-3 text-center text-xs text-[#C8C2B6]">
           Bantuan:{" "}
-          <a href={`mailto:${supportEmail}`} className="text-[#8B8AA0] underline">
+          <a href={`mailto:${supportEmail}`} className="underline underline-offset-2">
             {supportEmail}
           </a>
         </p>
@@ -226,8 +226,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-[100dvh] items-center justify-center bg-[#0A0A12] px-6 text-[#F2F1F8]">
-          <p className="text-sm text-[#8B8AA0]">Memuat...</p>
+        <main className="flex min-h-[100dvh] items-center justify-center bg-[#12141A] px-6 text-[#F4F1EA]">
+          <p className="text-sm text-[#C8C2B6]">Memuat formulir masuk.</p>
         </main>
       }
     >

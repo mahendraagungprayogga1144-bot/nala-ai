@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BusinessSwitcher from "./business-switcher";
 import { getSidebarModules, type DashboardModule } from "./lib/modules-registry";
-import { Shield, Sparkles, LogOut } from "lucide-react";
+import { Shield, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { FALLBACK_ADMIN_EMAIL, isAdminEmail } from "@/lib/auth/admin";
 import { trackClientEvent } from "@/lib/admin/track-event";
@@ -54,15 +54,15 @@ export default function Sidebar({
       "group flex items-center gap-3 rounded-xl transition-all duration-200",
       expanded ? (embedded ? "px-3 py-2.5" : "px-2.5 py-2") : "justify-center p-2",
       active
-        ? "bg-[#2DD4BF]/[0.12] text-[#E8FFFB] shadow-[inset_0_0_0_1px_rgba(45,212,191,0.22)]"
-        : "text-[#9B9AB5] hover:bg-white/[0.04] hover:text-[#E4E3F0]",
+        ? "bg-[#2A2140] text-[#F4F1EA]"
+        : "text-[#C8C2B6] hover:bg-[#1A1D24] hover:text-[#F4F1EA]",
     ].join(" ");
 
     return (
       <Link
         key={m.href + m.name}
         href={m.href}
-        prefetch
+        prefetch={false}
         onClick={() => onNavigate?.()}
         title={m.name}
         className={itemCls}
@@ -70,16 +70,16 @@ export default function Sidebar({
         <span
           className={[
             "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg",
-            active ? "bg-[#2DD4BF]/20 text-[#2DD4BF]" : "bg-white/[0.04] text-[#7A7998] group-hover:text-[#A8A7C0]",
+            active ? "bg-[#5B21B6] text-[#F8F5FF]" : "bg-[#1A1D24] text-[#C8C2B6] group-hover:text-[#F4F1EA]",
           ].join(" ")}
         >
-          <m.icon size={15} strokeWidth={1.75} />
+          <m.icon size={15} strokeWidth={1.75} aria-hidden="true" />
         </span>
         {expanded && (
           <>
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-tight">{m.name}</span>
             {m.status === "beta" && (
-              <span className="shrink-0 rounded-md bg-[#F59E0B]/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-[#F59E0B]/90">
+              <span className="shrink-0 rounded-md border border-[#8A8478] px-1.5 py-0.5 text-[10px] font-medium text-[#C8C2B6]">
                 Beta
               </span>
             )}
@@ -92,7 +92,7 @@ export default function Sidebar({
   return (
     <aside
       className={[
-        "relative flex min-h-0 flex-col overflow-hidden border-r border-white/[0.06] bg-[#0B0B16]",
+        "relative flex min-h-0 flex-col overflow-hidden border-r border-[#8A8478] bg-[#12141A]",
         embedded ? "h-full w-full border-r-0" : "fixed top-0 left-0 z-50 h-screen",
       ].join(" ")}
       style={{
@@ -102,30 +102,25 @@ export default function Sidebar({
       onMouseEnter={() => !embedded && setExpanded(true)}
       onMouseLeave={() => !embedded && setExpanded(false)}
     >
-      <div
-        className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full opacity-[0.12] blur-[70px]"
-        style={{ background: "radial-gradient(circle, #2DD4BF, transparent 70%)" }}
-      />
-
-      {/* Logo — desktop only (mobile top bar already shows brand) */}
       {!embedded && (
-        <div className="flex h-[60px] flex-shrink-0 items-center gap-2.5 border-b border-white/[0.06] px-4">
+        <div className="flex h-[60px] flex-shrink-0 items-center gap-2.5 border-b border-[#8A8478] px-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-gercep.png" alt="Gercep AI" className="h-7 w-7 flex-shrink-0 rounded-lg object-cover" />
+          <img src="/logo-gercep.png" alt="" width={28} height={28} className="h-7 w-7 flex-shrink-0 rounded-md object-cover" />
           {expanded && (
-            <span className="whitespace-nowrap text-sm font-bold tracking-tight text-[#F0EFF8]">
-              GERCEP <span className="holo-text">AI</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-[#F4F1EA]">
+              Gercep AI
             </span>
           )}
         </div>
       )}
 
       {embedded ? (
-        <div className="shrink-0 border-b border-white/[0.06] px-4 pb-2.5 pt-3">
-          <p className="text-[11px] font-medium tracking-[0.14em] text-[#5A5B7A] uppercase">Navigasi</p>
+        <div className="shrink-0 border-b border-[#8A8478] px-4 pb-2.5 pt-3">
           {activeBusiness?.name ? (
-            <p className="mt-1 truncate text-sm font-semibold text-[#F0EFF8]">{activeBusiness.name}</p>
-          ) : null}
+            <p className="truncate text-sm font-semibold text-[#F4F1EA]">{activeBusiness.name}</p>
+          ) : (
+            <p className="text-sm text-[#C8C2B6]">Menu</p>
+          )}
         </div>
       ) : null}
 
@@ -139,7 +134,7 @@ export default function Sidebar({
         {groups.map((g, gi) => (
           <div key={g.label} className={gi === 0 ? "" : "mt-4"}>
             {expanded && (
-              <p className="mb-1.5 px-2.5 text-[10px] font-semibold tracking-[0.12em] text-[#4A4B66] uppercase">
+              <p className="mb-1.5 px-2.5 text-[11px] font-medium text-[#A39E93]">
                 {g.label}
               </p>
             )}
@@ -150,18 +145,18 @@ export default function Sidebar({
 
       <div
         className={[
-          "shrink-0 space-y-2 border-t border-white/[0.06] bg-[#0B0B16] px-2.5 pt-2.5",
+          "shrink-0 space-y-2 border-t border-[#8A8478] bg-[#12141A] px-2.5 pt-2.5",
           embedded ? "pb-3" : "pb-3",
         ].join(" ")}
       >
         {expanded && isAdminEmail(userEmail, [FALLBACK_ADMIN_EMAIL]) && (
           <Link
             href="/admin"
-            prefetch
+            prefetch={false}
             onClick={() => onNavigate?.()}
-            className="flex items-center gap-2 rounded-xl border border-[#EC4899]/20 bg-[#EC4899]/[0.06] px-3 py-2 text-xs font-semibold text-[#EC4899] transition-colors hover:bg-[#EC4899]/10"
+            className="flex min-h-11 items-center gap-2 rounded-lg border border-[#8A8478] px-3 py-2 text-xs font-semibold text-[#F4F1EA] hover:bg-[#1A1D24]"
           >
-            <Shield size={14} />
+            <Shield size={14} aria-hidden="true" />
             Admin Panel
           </Link>
         )}
@@ -169,36 +164,33 @@ export default function Sidebar({
         {expanded && (
           <Link
             href="/dashboard/upgrade"
-            prefetch
+            prefetch={false}
             onClick={() => onNavigate?.()}
-            className="flex items-center gap-2.5 rounded-xl border border-[#8B5CF6]/25 bg-gradient-to-r from-[#8B5CF6]/15 to-[#2DD4BF]/10 px-3 py-2.5 transition-opacity hover:opacity-95"
+            className="flex min-h-11 items-center rounded-lg border border-[#8A8478] px-3 py-2 hover:bg-[#1A1D24]"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#8B5CF6]/25 text-[#C4B5FD]">
-              <Sparkles size={14} />
-            </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[12px] font-semibold text-[#F0EFF8]">Upgrade Pro</span>
-              <span className="block text-[10px] text-[#8B8AA0]">Semua fitur premium</span>
+              <span className="block text-[13px] font-semibold text-[#F4F1EA]">Lihat paket Pro</span>
+              <span className="block text-[11px] text-[#C8C2B6]">Kasir, marketplace, pajak</span>
             </span>
           </Link>
         )}
 
         {expanded && <BusinessSwitcher businesses={businesses} activeBusiness={activeBusiness} />}
 
-        <div className={expanded ? "flex items-center gap-2.5 rounded-xl bg-white/[0.03] px-2.5 py-2" : "flex justify-center py-1"}>
+        <div className={expanded ? "flex items-center gap-2.5 rounded-lg bg-[#1A1D24] px-2.5 py-2" : "flex justify-center py-1"}>
           {expanded ? (
             <>
-              <div className="gercep-gradient-btn flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#5B21B6] text-xs font-semibold text-[#F8F5FF]">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt={userName || "Owner"} className="h-full w-full object-cover" />
+                  <img src={avatarUrl} alt="" width={32} height={32} className="h-full w-full object-cover" />
                 ) : (
                   userName ? userName[0].toUpperCase() : "M"
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[12px] font-semibold text-[#F0EFF8]">{userName || "Owner"}</p>
-                <p className="text-[10px] text-[#5A5B7A]">
+                <p className="truncate text-[12px] font-semibold text-[#F4F1EA]">{userName || "Owner"}</p>
+                <p className="text-[11px] text-[#C8C2B6]">
                   {businesses.length} bisnis
                 </p>
               </div>
@@ -206,9 +198,10 @@ export default function Sidebar({
                 type="button"
                 onClick={handleLogout}
                 title="Keluar"
-                className="rounded-lg p-1.5 text-[#5A5B7A] transition-colors hover:bg-white/[0.05] hover:text-[#EC4899]"
+                aria-label="Keluar"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#C8C2B6] hover:bg-[#2A2140] hover:text-[#F4F1EA]"
               >
-                <LogOut size={14} />
+                <LogOut size={14} aria-hidden="true" />
               </button>
             </>
           ) : (
@@ -216,9 +209,10 @@ export default function Sidebar({
               type="button"
               onClick={handleLogout}
               title="Keluar"
-              className="rounded-lg p-2 text-[#5A5B7A] transition-colors hover:text-[#EC4899]"
+              aria-label="Keluar"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#C8C2B6] hover:text-[#F4F1EA]"
             >
-              <LogOut size={15} />
+              <LogOut size={15} aria-hidden="true" />
             </button>
           )}
         </div>

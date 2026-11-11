@@ -16,10 +16,17 @@ export default function TrialBanner() {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    const exp = readCookie("sub_expired") === "1";
-    const left = Number(readCookie("trial_days_left"));
-    setExpired(exp);
-    if (!exp && Number.isFinite(left)) setDaysLeft(left);
+    let alive = true;
+    queueMicrotask(() => {
+      if (!alive) return;
+      const exp = readCookie("sub_expired") === "1";
+      const left = Number(readCookie("trial_days_left"));
+      setExpired(exp);
+      if (!exp && Number.isFinite(left)) setDaysLeft(left);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   if (hidden) return null;
@@ -39,7 +46,7 @@ export default function TrialBanner() {
           <p>
             Trial berakhir. Upgrade untuk lanjut pakai fitur penuh.{" "}
             <Link href="/dashboard/upgrade" className="font-semibold underline">
-              Lihat paket →
+              Lihat paket
             </Link>
           </p>
         ) : (
@@ -61,7 +68,7 @@ export default function TrialBanner() {
         <button
           type="button"
           onClick={() => setHidden(true)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 opacity-60 hover:opacity-100"
+          className="absolute right-1 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center"
           aria-label="Tutup"
         >
           <X size={14} />

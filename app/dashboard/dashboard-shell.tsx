@@ -120,12 +120,12 @@ export default function DashboardShell({
   }
 
   return (
-    <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#070711] text-[#F2F1F8] md:flex">
+    <div className="min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#12141A] text-[#F4F1EA] md:flex">
       <SyncActiveBusiness businessId={activeBusiness?.id} />
       {/* Mobile top bar — naik di atas banner saat drawer terbuka. */}
       <div
         className={[
-          "fixed top-0 right-0 left-0 flex items-center justify-between border-b border-white/[0.06] bg-[#0B0B16]/92 px-4 backdrop-blur-xl md:hidden",
+          "fixed top-0 right-0 left-0 flex items-center justify-between border-b border-[#8A8478] bg-[#12141A] px-4 md:hidden",
           drawerOpen ? "z-[80]" : "z-50",
         ].join(" ")}
         style={{
@@ -135,13 +135,13 @@ export default function DashboardShell({
       >
         <div className="flex min-w-0 items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-gercep.png" alt="" className="h-7 w-7 rounded-lg object-cover" />
+          <img src="/logo-gercep.png" alt="" width={28} height={28} className="h-7 w-7 rounded-md object-cover" />
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold leading-tight tracking-tight">
-              Gercep<span className="holo-text">AI</span>
+              Gercep AI
             </p>
             {activeBusiness?.name ? (
-              <p className="truncate text-[10px] text-[#6B6A85]">{activeBusiness.name}</p>
+              <p className="truncate text-[11px] text-[#C8C2B6]">{activeBusiness.name}</p>
             ) : null}
           </div>
         </div>
@@ -152,9 +152,9 @@ export default function DashboardShell({
             setMobilePath(pathname);
             setMobileOpen((v) => !v);
           }}
-          className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06] active:bg-white/[0.08]"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[#8A8478] bg-[#1A1D24] hover:bg-[#2A2140]"
         >
-          {drawerOpen ? <X size={18} /> : <Menu size={18} />}
+          {drawerOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
         </button>
       </div>
 
@@ -164,11 +164,11 @@ export default function DashboardShell({
           <button
             type="button"
             aria-label="Tutup menu"
-            className="absolute inset-0 bg-[#05050C]/70 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-[#12141A]/80"
             onClick={() => setMobileOpen(false)}
           />
           <div
-            className="absolute bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] flex w-[min(19.5rem,88vw)] max-w-full flex-col overflow-hidden border-r border-white/[0.08] bg-[#0B0B16] pb-[env(safe-area-inset-bottom)] shadow-[8px_0_40px_rgba(0,0,0,0.45)]"
+            className="absolute bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] flex w-[min(19.5rem,88vw)] max-w-full flex-col overflow-hidden border-r border-[#8A8478] bg-[#12141A] pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
             <Sidebar
@@ -188,7 +188,7 @@ export default function DashboardShell({
 
       <main
         className={[
-          "w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto bg-[#070711]",
+          "w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto bg-[#12141A]",
           "pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]",
           "md:pt-0 md:pb-0",
           expanded ? "md:ml-[232px]" : "md:ml-16",
@@ -196,7 +196,7 @@ export default function DashboardShell({
         ].join(" ")}
       >
         {showAnnounce ? (
-          <div className="flex items-start gap-3 border-b border-[#38BDF8]/25 bg-[#38BDF8]/10 px-4 py-2.5 text-sm text-[#E0F2FE]">
+          <div className="flex items-start gap-3 border-b border-[#8A8478] bg-[#1A1D24] px-4 py-2.5 text-sm text-[#F4F1EA]">
             <p className="min-w-0 flex-1 leading-relaxed">
               {announcement!.message}
               {announcement!.link ? (
@@ -215,7 +215,7 @@ export default function DashboardShell({
             </p>
             <button
               type="button"
-              className="shrink-0 text-xs text-[#8B8AA0] hover:text-white"
+              className="inline-flex min-h-11 shrink-0 items-center px-2 text-xs text-[#C8C2B6] hover:text-[#F4F1EA]"
               onClick={() => {
                 sessionStorage.setItem("gercep_announce_dismissed", "1");
                 setAnnounceDismissed(true);

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://www.gercepos.id"),
   title: {
-    default: "Gercep AI — Aplikasi Bisnis UMKM",
+    default: "Gercep AI, aplikasi bisnis UMKM",
     template: "%s · Gercep AI",
   },
   description:
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "id_ID",
     siteName: "Gercep AI",
-    title: "Gercep AI — Aplikasi Bisnis UMKM",
+    title: "Gercep AI, aplikasi bisnis UMKM",
     description: "Inventory, kasir, keuangan, dan AI untuk pembisnis Indonesia.",
   },
 };
@@ -50,13 +50,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#070711" },
-    { media: "(prefers-color-scheme: light)", color: "#070711" },
-  ],
+  themeColor: "#12141A",
 };
 
 export default function RootLayout({

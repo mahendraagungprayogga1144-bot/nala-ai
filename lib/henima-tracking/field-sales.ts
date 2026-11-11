@@ -3,6 +3,7 @@ import { salesDb, type SalesDb } from "@/lib/henima-sales/db";
 import { createCustomer, findCustomerByPhone } from "@/lib/henima-sales/customer-service";
 import { confirmSale, listOrders, softDeleteOrder, updateOrder, type SalesOrder } from "@/lib/henima-sales/order-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
+import { listCommissionLedger } from "@/lib/henima-sales/commission-service";
 import { achievementFor, listTargets } from "@/lib/henima-sales/target-service";
 import {
   NotFoundError,
@@ -60,17 +61,22 @@ function money(n: number) {
 export async function loadFieldPortal(db: SalesDb, token: string) {
   const actor = await actorFromTrackingToken(db, token);
   const today = todayWib();
-  const [products, todayOrders, monthOrders, targets, monthly] = await Promise.all([
+  const monthFrom = `${today.slice(0, 8)}01`;
+  const [products, todayOrders, monthOrders, targets, monthly, commission] = await Promise.all([
     listProducts(db, actor.businessId),
     listOrders(db, actor, { from: today, to: today, salesId: actor.staffId, pageSize: 50 }),
     listOrders(db, actor, {
-      from: `${today.slice(0, 8)}01`,
+      from: monthFrom,
       to: today,
       salesId: actor.staffId,
       pageSize: 50,
     }),
     listTargets(db, actor, actor.staffId),
     achievementFor(db, actor, "monthly", actor.staffId),
+    listCommissionLedger(db, actor, { from: monthFrom, to: today, salesId: actor.staffId }).catch(() => ({
+      rows: [],
+      total: 0,
+    })),
   ]);
 
   const dayRows = todayOrders.rows || [];
@@ -105,6 +111,7 @@ export async function loadFieldPortal(db: SalesDb, token: string) {
       targetBulan: monthly.target,
       progressBulan: monthly.achievement,
       terjualBulan: monthly.sold,
+      bonusBulan: money(commission.total),
     },
     recent: dayRows.slice(0, 8).map(briefOrder),
     payments: dayRows.map(briefOrder),

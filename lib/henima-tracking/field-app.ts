@@ -46,3 +46,12 @@ export function readRememberedFieldToken() {
     return "";
   }
 }
+
+export function clearRememberedFieldToken() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(LAST_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}

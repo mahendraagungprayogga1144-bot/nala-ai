@@ -3,21 +3,36 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import {
+  BatteryCharging,
   Briefcase,
   Camera,
   ChevronRight,
+  CircleUserRound,
   ClipboardList,
   CreditCard,
+  CalendarDays,
+  CheckCircle2,
   FileBarChart,
+  Gift,
+  Headphones,
   Home,
+  Info,
+  LogOut,
   MapPinned,
+  PlusSquare,
   QrCode,
   ShoppingBag,
   Target,
   Wallet,
 } from "lucide-react";
-import { rememberFieldToken } from "@/lib/henima-tracking/field-app";
+import { clearRememberedFieldToken, getHenimaSalesApkUrl, rememberFieldToken } from "@/lib/henima-tracking/field-app";
 import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
+import { isNativeApp, openNativeLocationSettings } from "@/lib/henima-tracking/native-geo";
+import {
+  requestNativeIgnoreBatteryOptimizations,
+  stopNativeBackgroundTrack,
+} from "@/lib/henima-tracking/native-track";
+import InstallToHome from "../install-to-home";
 import FieldClient, { type FieldState } from "./field-client";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -25,10 +40,13 @@ const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-type Tab = "home" | "lokasi" | "jual" | "bayar" | "laporan" | "target";
+type Tab = "home" | "lokasi" | "jual" | "bayar" | "laporan" | "target" | "akun";
 
 /** Aksen status — tanpa emas. */
 const GREEN = "#2F9E68";
+/** Aksen menu Akun (sesuai mockup). */
+const AKUN_ACCENT = "#B8952A";
+const APP_VERSION = "1.4.0";
 
 type PortalProduct = { id: string; name: string; price: number; stock: number | null };
 type PortalOrder = {
@@ -60,11 +78,24 @@ type PortalData = {
     targetBulan: number;
     progressBulan: number;
     terjualBulan: number;
+    bonusBulan?: number;
   };
   recent: PortalOrder[];
   payments: PortalOrder[];
   monthOrders: PortalOrder[];
-  monthly: { sold: number; omzet: number; target: number; remaining: number; achievement: number };
+  monthly: {
+    sold: number;
+    omzet: number;
+    target: number;
+    remaining: number;
+    achievement: number;
+    from?: string;
+    to?: string;
+    revenueTarget?: number;
+    revenueRemaining?: number;
+    revenueAchievement?: number;
+    mode?: "revenue" | "quantity";
+  };
 };
 
 function rp(n: number) {
@@ -180,21 +211,13 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
               onRefresh={() => void refresh().catch((err) => setLoadError(err.message))}
             />
           ) : null}
-          {tab !== "home" ? (
+          {tab !== "home" && tab !== "akun" && tab !== "target" ? (
             <div className="mb-3 flex items-center justify-between gap-2">
               <button type="button" onClick={() => setTab("home")} className="text-sm font-semibold text-[#5C5C5C]">
                 ← Home
               </button>
               <p className="text-sm font-bold text-[#111]">
-                {tab === "jual"
-                  ? "Catat jual"
-                  : tab === "bayar"
-                    ? "Pembayaran"
-                    : tab === "laporan"
-                      ? "Laporan"
-                      : tab === "target"
-                        ? "Target"
-                        : ""}
+                {tab === "jual" ? "Catat jual" : tab === "bayar" ? "Pembayaran" : tab === "laporan" ? "Laporan" : ""}
               </p>
               <span className="w-12" />
             </div>
@@ -222,7 +245,18 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
             />
           ) : null}
           {tab === "laporan" ? <ReportView data={data} /> : null}
-          {tab === "target" ? <TargetView data={data} /> : null}
+          {tab === "target" ? <TargetView data={data} onBack={() => setTab("home")} /> : null}
+          {tab === "akun" ? (
+            <AccountView
+              nama={nama}
+              role={
+                !data?.actor.role || data.actor.role === "SALES"
+                  ? "Sales lapangan"
+                  : data.actor.role
+              }
+              onBack={() => setTab("home")}
+            />
+          ) : null}
         </main>
       ) : null}
 
@@ -234,11 +268,11 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
               { id: "jual", label: "Jual", icon: ShoppingBag },
               { id: "lokasi", label: "GPS", icon: MapPinned, fab: true },
               { id: "bayar", label: "Bayar", icon: CreditCard },
-              { id: "laporan", label: "Lapor", icon: FileBarChart },
+              { id: "akun", label: "Akun", icon: CircleUserRound },
             ] as const
           ).map((item) => {
             const Icon = item.icon;
-            const active = tab === item.id || (item.id === "home" && tab === "target");
+            const active = tab === item.id;
             if ("fab" in item && item.fab) {
               return (
                 <button
@@ -309,6 +343,7 @@ function HomeView({
     { label: "Laporan", icon: FileBarChart, onClick: () => onOpen("laporan") },
     { label: "Target", icon: Target, onClick: () => onOpen("target") },
     { label: "Kunjungan", icon: Briefcase, onClick: () => onOpen("lokasi") },
+    { label: "Akun", icon: CircleUserRound, onClick: () => onOpen("akun") },
   ];
 
   const recent = data?.recent || [];
@@ -1046,28 +1081,332 @@ function ReportView({ data }: { data: PortalData | null }) {
   );
 }
 
-function TargetView({ data }: { data: PortalData | null }) {
-  const m = data?.monthly;
-  const pct = Math.min(100, Math.round(m?.achievement || 0));
+function formatPeriodId(from?: string) {
+  if (!from) return "Bulan berjalan";
+  const start = new Date(`${from}T00:00:00+07:00`);
+  const endYmd = `${from.slice(0, 8)}${daysInMonth(from)}`;
+  const end = new Date(`${endYmd}T00:00:00+07:00`);
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(d);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function daysInMonth(ymd: string) {
+  const [y, m] = ymd.split("-").map(Number);
+  return String(new Date(y, m, 0).getDate()).padStart(2, "0");
+}
+
+function TargetRing({ pct }: { pct: number }) {
+  const size = 112;
+  const stroke = 10;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const offset = c - (clamped / 100) * c;
   return (
-    <div className="space-y-3">
-      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-5 text-center">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A]">Target bulan ini</p>
-        <p className="mt-3 text-5xl font-bold tabular-nums" style={{ color: GREEN }}>
-          {pct}%
-        </p>
-        <p className="mt-2 text-sm font-semibold text-[#111]">
-          {m?.sold || 0} / {m?.target || 0} botol
-        </p>
-        <div className="mx-auto mt-4 h-2.5 max-w-xs overflow-hidden rounded-full bg-[#EFEFEA]">
-          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: GREEN }} />
+    <div className="relative h-28 w-28 shrink-0">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EFEFEA" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={GREEN}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <p className="text-2xl font-bold tabular-nums text-[#111]">{Math.round(clamped)}%</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8A8A8A]">Tercapai</p>
+      </div>
+    </div>
+  );
+}
+
+function TargetView({ data, onBack }: { data: PortalData | null; onBack: () => void }) {
+  const m = data?.monthly;
+  const useRevenue = m?.mode === "revenue" || (m?.revenueTarget || 0) > 0;
+  const pct = Math.min(
+    100,
+    Math.round(useRevenue ? m?.revenueAchievement ?? m?.achievement ?? 0 : m?.achievement || 0),
+  );
+  const achieved = useRevenue ? m?.omzet || 0 : m?.sold || 0;
+  const goal = useRevenue ? m?.revenueTarget || 0 : m?.target || 0;
+  const remaining = useRevenue ? m?.revenueRemaining ?? Math.max(0, goal - achieved) : m?.remaining || 0;
+  const bonus = data?.stats.bonusBulan || 0;
+  const periodLabel = formatPeriodId(m?.from);
+
+  return (
+    <div className="space-y-4">
+      <header>
+        <button type="button" onClick={onBack} className="mb-2 text-sm font-semibold text-[#5C5C5C]" aria-label="Kembali">
+          ← Home
+        </button>
+        <h1 className="text-2xl font-bold tracking-tight text-[#111]">Target</h1>
+        <p className="mt-1 text-sm text-[#6B6B6B]">Pantau pencapaian target penjualan Anda.</p>
+      </header>
+
+      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <p className="text-sm font-bold text-[#111]">Pencapaian target</p>
+          <p className="text-[10px] font-medium text-[#8A8A8A]">Terakhir diperbarui hari ini</p>
         </div>
-        <p className="mt-3 text-sm text-[#6B6B6B]">Sisa {m?.remaining || 0} botol</p>
-        <p className="mt-1 text-sm font-bold text-[#111]">Omzet {rp(m?.omzet || 0)}</p>
+        <div className="flex items-center gap-4">
+          <TargetRing pct={pct} />
+          <div className="min-w-0 flex-1">
+            <p className="text-xl font-bold tabular-nums leading-tight text-[#111]">
+              {useRevenue ? rp(achieved) : `${achieved} botol`}
+            </p>
+            <p className="mt-1 text-xs text-[#6B6B6B]">
+              dari target {useRevenue ? rp(goal) : `${goal} botol`}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#F7F7F5] px-3 py-2.5">
+          <Wallet size={16} style={{ color: GREEN }} aria-hidden />
+          <p className="flex-1 text-xs text-[#6B6B6B]">Sisa jumlah yang perlu dicapai</p>
+          <p className="text-xs font-bold tabular-nums text-[#111]">
+            {useRevenue ? rp(remaining) : `${remaining} botol`}
+          </p>
+        </div>
+        {!useRevenue && (m?.omzet || 0) > 0 ? (
+          <p className="mt-2 text-xs text-[#8A8A8A]">Omzet bulan ini {rp(m?.omzet || 0)}</p>
+        ) : null}
       </section>
-      <p className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm leading-snug text-[#6B6B6B]">
-        Progress dari transaksi lunas. Bonus mengikuti aturan komisi di dashboard owner.
-      </p>
+
+      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
+        <div className="flex items-center gap-2">
+          <CalendarDays size={18} style={{ color: GREEN }} aria-hidden />
+          <p className="text-sm font-bold text-[#111]">Bulan ini</p>
+        </div>
+        <dl className="mt-3 space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <dt className="text-[#6B6B6B]">Periode</dt>
+            <dd className="text-right font-semibold text-[#111]">{periodLabel}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-[#6B6B6B]">Total tercapai</dt>
+            <dd className="font-semibold tabular-nums text-[#111]">
+              {useRevenue ? rp(achieved) : `${achieved} botol`}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-[#6B6B6B]">Persentase pencapaian</dt>
+            <dd className="font-semibold tabular-nums text-[#111]">{pct}%</dd>
+          </div>
+        </dl>
+        <div
+          className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-white"
+          style={{ background: GREEN }}
+        >
+          <CheckCircle2 size={16} aria-hidden />
+          <span className="flex-1">
+            {pct >= 100
+              ? "Selamat! Target bulan ini sudah tercapai."
+              : `Selamat! Target bulan ini tercapai ${pct}%.`}
+          </span>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
+        <div className="flex items-center gap-2">
+          <Gift size={18} style={{ color: GREEN }} aria-hidden />
+          <p className="text-sm font-bold text-[#111]">Bonus</p>
+        </div>
+        <p className="mt-2 text-sm leading-snug text-[#6B6B6B]">
+          Bonus akan dibayarkan jika target periode tercapai 100%.
+        </p>
+        <p className="mt-3 text-sm font-bold text-[#111]">
+          Bonus potensial:{" "}
+          <span style={{ color: GREEN }}>{rp(bonus)}</span>
+        </p>
+        <p className="mt-2 text-[11px] leading-snug text-[#8A8A8A]">
+          Syarat dan ketentuan berlaku sesuai kebijakan perusahaan. Angka dari komisi transaksi lunas bulan ini.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function AccountView({
+  nama,
+  role,
+  onBack,
+}: {
+  nama: string;
+  role: string;
+  onBack: () => void;
+}) {
+  const [hint, setHint] = useState("");
+  const [showInstall, setShowInstall] = useState(false);
+  const initial = (nama.trim().charAt(0) || "?").toUpperCase();
+  const apkUrl = getHenimaSalesApkUrl();
+
+  async function openLocation() {
+    setHint("");
+    if (await isNativeApp()) {
+      await openNativeLocationSettings();
+      setHint('Di pengaturan HP pilih "Izinkan selalu" untuk Henima Sales.');
+      return;
+    }
+    if (!navigator.geolocation) {
+      setHint("Browser ini tidak mendukung lokasi. Pakai APK Android.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      () => setHint("Izin lokasi sudah aktif di browser ini."),
+      () => setHint("Lokasi ditolak. Buka pengaturan browser → Izinkan lokasi untuk situs ini."),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  }
+
+  async function openBattery() {
+    setHint("");
+    const r = await requestNativeIgnoreBatteryOptimizations();
+    if (r.native && r.ok) {
+      setHint("Buka pengaturan baterai → jangan optimasi / tanpa batas untuk Henima Sales.");
+      return;
+    }
+    if (r.native) {
+      setHint("Tidak bisa membuka pengaturan baterai. Coba dari Pengaturan HP → Aplikasi → Henima Sales.");
+      return;
+    }
+    setHint("Fitur baterai tanpa batas hanya di APK Android. Install app native dulu.");
+    setShowInstall(true);
+  }
+
+  function contactAdmin() {
+    const text = encodeURIComponent(
+      `Halo admin HENIMA, saya ${nama || "sales"} butuh bantuan dari app Sales.`,
+    );
+    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function logout() {
+    setHint("");
+    try {
+      await stopNativeBackgroundTrack();
+    } catch {
+      /* ignore */
+    }
+    clearRememberedFieldToken();
+    window.location.assign("/t");
+  }
+
+  const rows: Array<{
+    id: string;
+    label: string;
+    icon: typeof MapPinned;
+    trailing?: string;
+    onClick: () => void;
+  }> = [
+    { id: "lokasi", label: "Izin lokasi", icon: MapPinned, onClick: () => void openLocation() },
+    {
+      id: "baterai",
+      label: "Baterai tanpa batas",
+      icon: BatteryCharging,
+      onClick: () => void openBattery(),
+    },
+    {
+      id: "install",
+      label: "Pasang ke layar utama",
+      icon: PlusSquare,
+      onClick: () => {
+        setShowInstall((v) => !v);
+        setHint("");
+      },
+    },
+    { id: "admin", label: "Hubungi admin", icon: Headphones, onClick: contactAdmin },
+    {
+      id: "versi",
+      label: "Versi app",
+      icon: Info,
+      trailing: APP_VERSION,
+      onClick: () => setHint(`Henima Sales v${APP_VERSION}`),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onBack} className="text-sm font-semibold text-[#5C5C5C]" aria-label="Kembali">
+          ←
+        </button>
+        <h1 className="text-xl font-bold tracking-tight" style={{ color: AKUN_ACCENT }}>
+          Akun
+        </h1>
+        <span className="w-6" />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1" style={{ background: AKUN_ACCENT }} />
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: AKUN_ACCENT }}>
+          HENIMA
+        </p>
+      </div>
+
+      <section className="flex items-center gap-3 rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3.5">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white"
+          style={{ background: AKUN_ACCENT }}
+          aria-hidden
+        >
+          {initial}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-bold text-[#111]">{nama || "Sales"}</p>
+          <p className="text-sm text-[#6B6B6B]">{role || "Sales lapangan"}</p>
+        </div>
+        <CircleUserRound size={20} style={{ color: AKUN_ACCENT }} aria-hidden />
+      </section>
+
+      <ul className="overflow-hidden rounded-2xl border border-[#E8E8E4] bg-white">
+        {rows.map((row, i) => {
+          const Icon = row.icon;
+          return (
+            <li key={row.id} className={i > 0 ? "border-t border-[#F0F0EC]" : ""}>
+              <button
+                type="button"
+                onClick={row.onClick}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-[#FAFAF8]"
+              >
+                <Icon size={20} style={{ color: AKUN_ACCENT }} aria-hidden />
+                <span className="flex-1 text-sm font-semibold text-[#111]">{row.label}</span>
+                {row.trailing ? (
+                  <span className="text-xs font-semibold text-[#8A8A8A]">{row.trailing}</span>
+                ) : null}
+                <ChevronRight size={16} className="text-[#C4C4C0]" aria-hidden />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {showInstall ? <InstallToHome apkUrl={apkUrl} /> : null}
+      {hint ? (
+        <p className="rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-xs leading-snug text-[#6B6B6B]">
+          {hint}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => void logout()}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 py-3.5 text-sm font-bold"
+        style={{ borderColor: AKUN_ACCENT, color: AKUN_ACCENT }}
+      >
+        <LogOut size={18} aria-hidden />
+        Logout
+      </button>
     </div>
   );
 }

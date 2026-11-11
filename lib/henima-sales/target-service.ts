@@ -114,7 +114,13 @@ export async function achievementFor(
   );
   const omzet = (data || []).reduce((s, o: { total: number }) => s + Number(o.total || 0), 0);
   const goal = Number(target?.quantity_target || 0);
-  const pct = goal > 0 ? Math.round((qty / goal) * 10000) / 100 : 0;
+  const revenueGoal = Number(target?.revenue_target || 0);
+  const qtyPct = goal > 0 ? Math.round((qty / goal) * 10000) / 100 : 0;
+  const revenuePct =
+    revenueGoal > 0 ? Math.round((omzet / revenueGoal) * 10000) / 100 : 0;
+  /** Utama: omzet jika ada revenue target; kalau tidak, pakai botol. */
+  const useRevenue = revenueGoal > 0;
+  const pct = useRevenue ? revenuePct : qtyPct;
   return {
     period,
     from: win.from,
@@ -124,5 +130,9 @@ export async function achievementFor(
     target: goal,
     remaining: Math.max(0, goal - qty),
     achievement: pct,
+    revenueTarget: revenueGoal,
+    revenueRemaining: Math.max(0, revenueGoal - omzet),
+    revenueAchievement: revenuePct,
+    mode: useRevenue ? ("revenue" as const) : ("quantity" as const),
   };
 }

@@ -86,3 +86,15 @@ export async function isNativeBackgroundTrackRunning() {
     return false;
   }
 }
+
+/** Buka pengaturan “abaikan optimasi baterai” (Android native). */
+export async function requestNativeIgnoreBatteryOptimizations() {
+  const p = await plugin();
+  if (!p) return { ok: false as const, native: false as const };
+  try {
+    await p.requestIgnoreBatteryOptimizations();
+    return { ok: true as const, native: true as const };
+  } catch {
+    return { ok: false as const, native: true as const };
+  }
+}

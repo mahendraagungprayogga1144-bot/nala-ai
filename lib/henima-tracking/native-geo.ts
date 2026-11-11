@@ -94,29 +94,57 @@ export async function ensureNativeLocationPermissions(): Promise<NativeLocationP
   }
 }
 
-export async function readNativeOrBrowserGps(): Promise<GeoFix> {
+/** Ambil GPS akurat: beberapa sample, pilih yang akurasinya terbaik. */
+export async function readNativeOrBrowserGps(opts?: { samples?: number }): Promise<GeoFix> {
+  const samples = Math.max(1, Math.min(5, opts?.samples ?? 3));
+
   if (await isNativeApp()) {
     await ensureNativeLocationPermissions();
     const { Geolocation } = await import("@capacitor/geolocation");
-    const pos = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: true,
-      timeout: 25000,
-      maximumAge: 0,
-    });
-    return {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      acc: Math.round(pos.coords.accuracy ?? 50),
-    };
+    let best: GeoFix | null = null;
+    for (let i = 0; i < samples; i++) {
+      try {
+        const pos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 20000,
+          maximumAge: 0,
+        });
+        const fix: GeoFix = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          acc: Math.round(pos.coords.accuracy ?? 50),
+        };
+        if (!best || fix.acc < best.acc) best = fix;
+        if (best.acc <= 12) break;
+      } catch (err) {
+        if (i === samples - 1 && !best) throw err;
+      }
+      if (i < samples - 1) await new Promise((r) => setTimeout(r, 400));
+    }
+    if (!best) throw new Error("GPS kosong");
+    return best;
   }
+
   if (!navigator.geolocation) throw new Error("GPS tidak tersedia.");
-  return await new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(browserFix(pos)),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
-  });
+  let best: GeoFix | null = null;
+  for (let i = 0; i < samples; i++) {
+    try {
+      const fix = await new Promise<GeoFix>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(browserFix(pos)),
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      });
+      if (!best || fix.acc < best.acc) best = fix;
+      if (best.acc <= 15) break;
+    } catch (err) {
+      if (i === samples - 1 && !best) throw err;
+    }
+    if (i < samples - 1) await new Promise((r) => setTimeout(r, 400));
+  }
+  if (!best) throw new Error("GPS kosong");
+  return best;
 }
 
 /**

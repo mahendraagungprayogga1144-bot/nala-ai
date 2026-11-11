@@ -9,13 +9,14 @@ import {
   LayoutDashboard,
   LogOut,
   MapPinned,
+  Radar,
   Settings,
   ShoppingBag,
   Target,
 } from "lucide-react";
 import LogoutButton from "../logout-button";
 
-export type TrackingNavKey = "dashboard" | "lokasi" | "riwayat";
+export type TrackingNavKey = "dashboard" | "lokasi" | "traccar" | "riwayat";
 
 const GOLD = "#C5A358";
 
@@ -24,13 +25,14 @@ type NavItem = {
   label: string;
   icon: typeof MapPinned;
   key?: TrackingNavKey;
-  panel?: "dashboard" | "lokasi";
+  panel?: "dashboard" | "lokasi" | "traccar";
   hash?: string;
 };
 
 const ITEMS: NavItem[] = [
   { href: "/dashboard/henima-tracking", label: "Dashboard", icon: LayoutDashboard, key: "dashboard", panel: "dashboard" },
   { href: "/dashboard/henima-tracking#lokasi", label: "Lokasi GPS", icon: MapPinned, key: "lokasi", panel: "lokasi" },
+  { href: "/dashboard/henima-tracking#traccar", label: "Server Traccar", icon: Radar, key: "traccar", panel: "traccar" },
   { href: "/dashboard/sales/orders", label: "Catat Penjualan", icon: ShoppingBag },
   { href: "/dashboard/sales/orders", label: "Pembayaran", icon: CreditCard },
   { href: "/dashboard/sales/reports", label: "Laporan", icon: FileBarChart },
@@ -58,7 +60,7 @@ export function TrackingSidebar({
   active: TrackingNavKey;
   open: boolean;
   onClose: () => void;
-  onPanel?: (panel: "dashboard" | "lokasi") => void;
+  onPanel?: (panel: "dashboard" | "lokasi" | "traccar") => void;
 }) {
   return (
     <>
@@ -77,7 +79,7 @@ export function TrackingSidebar({
               isActive ? "bg-[#F7F4EC] text-[#111]" : "text-[#6B6B6B] hover:bg-[#FAFAF8] hover:text-[#111]"
             }`;
 
-            if (item.panel && onPanel && (item.panel === "dashboard" || item.panel === "lokasi")) {
+            if (item.panel && onPanel && (item.panel === "dashboard" || item.panel === "lokasi" || item.panel === "traccar")) {
               return (
                 <button
                   key={item.label}

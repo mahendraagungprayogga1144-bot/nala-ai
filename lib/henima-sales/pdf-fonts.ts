@@ -1,3 +1,4 @@
+import "server-only";
 import { readFileSync } from "fs";
 import { join } from "path";
 import fontkit from "@pdf-lib/fontkit";

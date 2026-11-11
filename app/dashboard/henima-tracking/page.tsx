@@ -6,6 +6,7 @@ import { loadSalesContext } from "@/lib/henima-sales/page-context";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTrackingTable, loadTrackingDesk } from "@/lib/henima-tracking/service";
 import { loadOwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboard";
+import { traccarDashboardUrl } from "@/lib/henima-tracking/traccar";
 import { todayWib } from "@/lib/date";
 import TrackingDesk from "./tracking-desk";
 
@@ -48,6 +49,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
             ownerName={ownerName}
             qrisUrl={desk.qrisUrl}
             summary={summary}
+            traccarUrl={traccarDashboardUrl()}
           />
         </div>
       );

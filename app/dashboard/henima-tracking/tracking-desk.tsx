@@ -13,6 +13,7 @@ import { type OwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboar
 import TrackingMap, { staffColor } from "./tracking-map";
 import TrackingHome from "./tracking-home";
 import { TrackingSidebar } from "./tracking-nav";
+import TraccarPanel from "./traccar-panel";
 
 const GOLD = "#C5A358";
 
@@ -88,6 +89,7 @@ export default function TrackingDesk({
   ownerName,
   qrisUrl: initialQrisUrl,
   summary,
+  traccarUrl = "",
 }: {
   date: string;
   today: string;
@@ -98,6 +100,7 @@ export default function TrackingDesk({
   ownerName: string;
   qrisUrl?: string | null;
   summary?: OwnerDashboardSummary | null;
+  traccarUrl?: string;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState("");
@@ -115,13 +118,17 @@ export default function TrackingDesk({
   const [dayBusy, setDayBusy] = useState(false);
   const [qrisUrl, setQrisUrl] = useState(initialQrisUrl || "");
   const [qrisBusy, setQrisBusy] = useState(false);
-  const [panel, setPanel] = useState<"dashboard" | "lokasi">("dashboard");
+  const [panel, setPanel] = useState<"dashboard" | "lokasi" | "traccar">("dashboard");
   const viewDate = clientDay?.date ?? date;
   const viewPoints = clientDay?.points ?? points;
 
   useEffect(() => {
     const hash = window.location.hash.replace("#", "");
     if (!hash) return;
+    if (hash === "traccar") {
+      setPanel("traccar");
+      return;
+    }
     if (hash === "lokasi" || hash === "foto-checkin" || hash === "tambah-sales") {
       setPanel("lokasi");
     }
@@ -332,13 +339,15 @@ export default function TrackingDesk({
       `}</style>
 
       <TrackingSidebar
-        active={panel === "dashboard" ? "dashboard" : "lokasi"}
+        active={panel === "dashboard" ? "dashboard" : panel === "traccar" ? "traccar" : "lokasi"}
         open={navOpen}
         onClose={() => setNavOpen(false)}
         onPanel={(next) => {
           setPanel(next);
           if (next === "lokasi") {
             window.history.replaceState(null, "", "#lokasi");
+          } else if (next === "traccar") {
+            window.history.replaceState(null, "", "#traccar");
           } else {
             window.history.replaceState(null, "", "/dashboard/henima-tracking");
           }
@@ -355,6 +364,10 @@ export default function TrackingDesk({
               <div className="min-w-0">
                 <h1 className="text-[22px] font-bold tracking-tight text-[#111] md:text-[26px]">Lokasi GPS</h1>
                 <p className="mt-0.5 text-sm font-medium text-[#6B6B6B]">Pantau check-in, rute, dan foto sales secara real-time.</p>
+              </div>
+            ) : panel === "traccar" ? (
+              <div className="min-w-0 md:hidden">
+                <h1 className="text-lg font-bold tracking-tight text-[#111]">Server Traccar</h1>
               </div>
             ) : (
               <div className="min-w-0 md:hidden">
@@ -432,6 +445,8 @@ export default function TrackingDesk({
               Ringkasan penjualan belum bisa dimuat. Fitur GPS tetap tersedia di menu Lokasi GPS.
             </p>
           )}
+
+          {panel === "traccar" && <TraccarPanel dashboardUrl={traccarUrl} />}
 
           {panel === "lokasi" && (
             <>

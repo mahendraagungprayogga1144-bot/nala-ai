@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { pdfSafe } from "@/lib/henima-sales/nota";
+import { pdfSafe } from "@/lib/henima-sales/pdf-text";
 import { fmtRpFull } from "@/app/dashboard/inventory/lib/export-helpers";
 import type { MonthlyReportData } from "./monthly-report";
 

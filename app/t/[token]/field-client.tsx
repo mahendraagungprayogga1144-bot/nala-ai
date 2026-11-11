@@ -223,15 +223,21 @@ export default function FieldClient({
                     p_accuracy_m: accuracy,
                   })
                 ).error
-              : (
-                  await supabase.rpc("henima_tracking_field_titik", {
-                    p_token: token,
-                    p_lat: useFix.lat,
-                    p_lng: useFix.lng,
-                    p_accuracy_m: accuracy,
-                  })
-                ).error;
-    if (error) throw new Error(pesanDb(error.message));
+              : null;
+
+    if (kind === "ping") {
+      // Lewat API supaya titik juga bisa di-forward ke Traccar (akurasi ikut dikirim).
+      const response = await fetch(`/api/henima-tracking/field/${token}/ping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: useFix.lat, lng: useFix.lng, accuracy_m: accuracy }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(pesanDb(json.error || "Gagal kirim titik GPS."));
+      if (json.closed) throw new Error(pesanDb(json.error || "SUDAH_CHECKOUT"));
+    } else if (error) {
+      throw new Error(pesanDb(error.message));
+    }
     lastSent.current = Date.now();
     lastPos.current = useFix;
     // Ping sering — jangan refresh full setiap titik (bikin lag & skip update).
@@ -355,10 +361,10 @@ export default function FieldClient({
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
       const stale = Date.now() - lastSent.current > (nativeApp ? 8_000 : 12_000);
       const movedEnough = moved >= (nativeApp ? 0.00003 : 0.00005); // ~3–5 m
-      const accLimit = nativeApp ? 220 : document.hidden ? 280 : 180;
+      // Utamakan titik akurat; network kasar di dalam toko tetap boleh lewat heartbeat.
+      const accLimit = nativeApp ? 100 : document.hidden ? 160 : 80;
       if (force) {
-        // Heartbeat: kirim terus di mana pun sales berada; longgar di dalam gedung.
-        if (fix.acc > 350 && Date.now() - lastSent.current < 30_000) return;
+        if (fix.acc > 220 && Date.now() - lastSent.current < 25_000) return;
       } else {
         if (fix.acc > accLimit) return;
         if (!stale && !movedEnough) return;

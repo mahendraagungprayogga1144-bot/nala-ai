@@ -45,17 +45,22 @@ public class HenimaTrackService extends Service implements LocationListener {
 
   private static final String CHANNEL = "henima_gps_native";
   private static final int NOTIF_ID = 36010;
-  /** Update GPS lebih rapat supaya jejak sales tidak putus di jalan. */
-  private static final long MIN_TIME_MS = 5_000L;
+  /** Update GPS lebih rapat; prioritas chip GPS supaya akurat. */
+  private static final long MIN_TIME_MS = 4_000L;
   private static final float MIN_DIST_M = 3f;
   private static final long HEARTBEAT_MS = 10_000L;
   private static final long FORCE_POST_MS = 15_000L;
+  /** Titik bergerak: tolak network kasar kalau GPS bagus baru saja. */
+  private static final float ACC_GOOD_M = 35f;
+  private static final float ACC_MAX_MOVE_M = 120f;
+  private static final float ACC_MAX_FORCE_M = 250f;
   private static final String TAG = "HenimaTrack";
 
   private LocationManager locationManager;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final ExecutorService net = Executors.newSingleThreadExecutor();
   private Location lastPosted;
+  private Location lastGpsGood;
   private long lastPostAt = 0L;
   private PowerManager.WakeLock wakeLock;
 
@@ -192,6 +197,10 @@ public class HenimaTrackService extends Service implements LocationListener {
       stopSelfSafe();
       return;
     }
+    if (location != null && LocationManager.GPS_PROVIDER.equals(location.getProvider())
+        && location.hasAccuracy() && location.getAccuracy() <= ACC_GOOD_M) {
+      lastGpsGood = location;
+    }
     maybePost(location, false);
   }
 
@@ -199,28 +208,57 @@ public class HenimaTrackService extends Service implements LocationListener {
     if (location == null) return;
     long now = System.currentTimeMillis();
     float acc = location.hasAccuracy() ? location.getAccuracy() : 999f;
+    boolean fromGps = LocationManager.GPS_PROVIDER.equals(location.getProvider());
+
+    // Utamakan titik GPS akurat; network kasar dibuang kalau GPS bagus < 45 dtk.
+    if (!fromGps && lastGpsGood != null && now - lastGpsGood.getTime() < 45_000L) {
+      if (acc > ACC_GOOD_M || (location.hasAccuracy() && lastGpsGood.hasAccuracy()
+          && location.getAccuracy() > lastGpsGood.getAccuracy() + 15f)) {
+        if (!force) return;
+        location = lastGpsGood;
+        acc = location.hasAccuracy() ? location.getAccuracy() : acc;
+        fromGps = true;
+      }
+    }
 
     if (force) {
-      // Heartbeat: kirim minimal tiap FORCE_POST_MS, toleransi akurasi longgar di dalam gedung.
       boolean due = now - lastPostAt >= FORCE_POST_MS;
       if (!due && lastPosted != null) {
         float moved = location.distanceTo(lastPosted);
         if (moved < MIN_DIST_M) return;
       }
-      if (acc > 350f && now - lastPostAt < 45_000L) return;
+      if (acc > ACC_MAX_FORCE_M && now - lastPostAt < 45_000L) return;
     } else {
       if (lastPosted != null) {
         float moved = location.distanceTo(lastPosted);
         boolean stale = now - lastPostAt >= FORCE_POST_MS;
         if (moved < MIN_DIST_M && !stale) return;
-        if (acc > 220f && !stale) return;
-      } else if (acc > 300f && now - lastPostAt < 30_000L) {
+        float accLimit = fromGps ? ACC_MAX_MOVE_M : Math.min(ACC_MAX_MOVE_M, 80f);
+        if (acc > accLimit && !stale) return;
+      } else if (acc > ACC_MAX_FORCE_M && now - lastPostAt < 30_000L) {
         return;
       }
     }
     lastPosted = location;
     lastPostAt = now;
     postAsync(location);
+  }
+
+  private static Location pickBetter(Location a, Location b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    boolean aGps = LocationManager.GPS_PROVIDER.equals(a.getProvider());
+    boolean bGps = LocationManager.GPS_PROVIDER.equals(b.getProvider());
+    long ageA = System.currentTimeMillis() - a.getTime();
+    long ageB = System.currentTimeMillis() - b.getTime();
+    // GPS segar menang dari network.
+    if (aGps && !bGps && ageA < 60_000L) return a;
+    if (bGps && !aGps && ageB < 60_000L) return b;
+    if (ageA > 30_000L && ageB + 15_000L < ageA) return b;
+    if (ageB > 30_000L && ageA + 15_000L < ageB) return a;
+    if (!a.hasAccuracy()) return b;
+    if (!b.hasAccuracy()) return a;
+    return a.getAccuracy() <= b.getAccuracy() ? a : b;
   }
 
   private void postAsync(Location location) {
@@ -264,19 +302,6 @@ public class HenimaTrackService extends Service implements LocationListener {
         if (conn != null) conn.disconnect();
       }
     });
-  }
-
-  private static Location pickBetter(Location a, Location b) {
-    if (a == null) return b;
-    if (b == null) return a;
-    long ageA = System.currentTimeMillis() - a.getTime();
-    long ageB = System.currentTimeMillis() - b.getTime();
-    // Prefer lokasi lebih baru kalau beda > 30 detik.
-    if (ageA > 30_000L && ageB + 15_000L < ageA) return b;
-    if (ageB > 30_000L && ageA + 15_000L < ageB) return a;
-    if (!a.hasAccuracy()) return b;
-    if (!b.hasAccuracy()) return a;
-    return a.getAccuracy() <= b.getAccuracy() ? a : b;
   }
 
   private static boolean isPastCloseWib() {

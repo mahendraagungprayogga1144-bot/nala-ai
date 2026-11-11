@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveTrackingToken } from "@/lib/henima-tracking/service";
+import { forwardPingToTraccar } from "@/lib/henima-tracking/traccar";
 import { salesDb } from "@/lib/henima-sales/db";
 import { NotFoundError } from "@/lib/henima-sales/types";
 
@@ -45,6 +46,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       }
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+
+    // Mirror ke Traccar (opsional) — tidak mengganggu simpan HENIMA.
+    void forwardPingToTraccar({
+      token,
+      lat,
+      lng,
+      accuracy_m: accuracy,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

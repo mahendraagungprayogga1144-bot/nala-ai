@@ -7,8 +7,11 @@ import { listProducts } from "./staff-service";
 import { displayPhone } from "./phone";
 import { fmtDateLongId, fmtRp } from "./money";
 import { embedBrandFonts } from "./pdf-fonts";
+import { pdfSafe } from "./pdf-text";
 import { cleanProductLabel } from "./labels";
 import { discountPercentOf, formatDiscountPercent, priceAgainstRetail, type ProductRow } from "./types";
+
+export { pdfSafe } from "./pdf-text";
 
 export type NotaLine = {
   name: string;
@@ -43,15 +46,6 @@ export function formatNotaNumber(orderId: string, orderDate: string) {
   const day = /^\d{8}$/.test(ymd) ? ymd : "00000000";
   const short = orderId.replace(/-/g, "").slice(0, 6).toUpperCase();
   return `HNM-${day}-${short}`;
-}
-
-export function pdfSafe(text: string) {
-  return text
-    .replace(/×/g, "x")
-    .replace(/[—–]/g, "-")
-    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function statusLabel(status: string | null | undefined) {

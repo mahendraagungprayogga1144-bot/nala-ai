@@ -1,11 +1,15 @@
 import { withSalesActor, readJson, queryParam } from "@/lib/henima-sales/http";
 import {
+  deleteBonusRule,
+  deletePayrollLine,
+  deletePayrollRun,
   generatePayrollRun,
   listBonusRules,
   listHrEmployees,
   listPayrollRuns,
   markPayrollPaid,
   updateHrEmployee,
+  updatePayrollLine,
   upsertBonusRule,
 } from "@/lib/henima-sales/hr-payroll-service";
 import { SalesError } from "@/lib/henima-sales/types";
@@ -56,6 +60,21 @@ export async function POST(request: Request) {
       await generatePayrollRun(db, actor, periodYm);
     } else if (action === "mark_paid") {
       await markPayrollPaid(db, actor, String(body.runId || ""));
+    } else if (action === "update_line") {
+      await updatePayrollLine(db, actor, {
+        lineId: String(body.lineId || ""),
+        baseSalary: body.baseSalary == null ? undefined : Number(body.baseSalary),
+        commission: body.commission == null ? undefined : Number(body.commission),
+        targetBonus: body.targetBonus == null ? undefined : Number(body.targetBonus),
+        deduction: body.deduction == null ? undefined : Number(body.deduction),
+        note: body.note === undefined ? undefined : body.note,
+      });
+    } else if (action === "delete_line") {
+      await deletePayrollLine(db, actor, String(body.lineId || ""));
+    } else if (action === "delete_run") {
+      await deletePayrollRun(db, actor, String(body.runId || ""));
+    } else if (action === "delete_bonus") {
+      await deleteBonusRule(db, actor, String(body.ruleId || ""));
     } else {
       throw new SalesError("Aksi tidak dikenal.", "bad_action");
     }

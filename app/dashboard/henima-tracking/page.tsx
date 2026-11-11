@@ -75,6 +75,7 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
             }}
             hr={{
               canEdit: actor.role === "FOUNDER" || actor.role === "LEADER",
+              canManagePayroll: actor.role === "FOUNDER",
               employees: hrEmployees,
               bonusRules,
               payrollRuns,

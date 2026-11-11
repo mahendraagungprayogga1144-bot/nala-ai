@@ -39,6 +39,8 @@ export type PayrollLine = {
   total: number;
   achievementPct: number;
   note: string | null;
+  payDay: number;
+  bankAccount: string | null;
 };
 
 export type PayrollRun = {
@@ -78,6 +80,7 @@ export async function listHrEmployees(db: SalesDb, actor: Actor): Promise<HrEmpl
   const staff = await listStaff(db, actor);
   return staff
     .filter((s) => s.role === "SALES" || s.role === "LEADER")
+    .filter((s) => s.status !== "disabled")
     .map((s) => {
       const row = s as typeof s & {
         joined_at?: string | null;
@@ -97,7 +100,8 @@ export async function listHrEmployees(db: SalesDb, actor: Actor): Promise<HrEmpl
         bankAccount: row.bank_account || null,
         employmentNote: row.employment_note || null,
       };
-    });
+    })
+    .sort((a, b) => a.nama.localeCompare(b.nama, "id"));
 }
 
 export async function updateHrEmployee(
@@ -237,24 +241,30 @@ export async function listPayrollRuns(db: SalesDb, actor: Actor): Promise<Payrol
     )
     .in("run_id", runIds);
 
-  const staff = await listStaff(db, actor);
-  const nameMap = Object.fromEntries(staff.map((s) => [s.id, s.nama]));
+  const employees = await listHrEmployees(db, actor);
+  const empMap = Object.fromEntries(employees.map((e) => [e.id, e]));
 
   return runs.map((run) => {
     const runLines = (lines || [])
       .filter((l) => l.run_id === run.id)
-      .map((l) => ({
-        id: l.id,
-        salesId: l.sales_id,
-        salesName: nameMap[l.sales_id] || "Sales",
-        baseSalary: money(l.base_salary),
-        commission: money(l.commission),
-        targetBonus: money(l.target_bonus),
-        deduction: money(l.deduction),
-        total: money(l.total),
-        achievementPct: Number(l.achievement_pct || 0),
-        note: l.note,
-      }));
+      .map((l) => {
+        const emp = empMap[l.sales_id];
+        return {
+          id: l.id,
+          salesId: l.sales_id,
+          salesName: emp?.nama || "Sales",
+          baseSalary: money(l.base_salary),
+          commission: money(l.commission),
+          targetBonus: money(l.target_bonus),
+          deduction: money(l.deduction),
+          total: money(l.total),
+          achievementPct: Number(l.achievement_pct || 0),
+          note: l.note,
+          payDay: emp?.payDay || 25,
+          bankAccount: emp?.bankAccount || null,
+        };
+      })
+      .sort((a, b) => a.salesName.localeCompare(b.salesName, "id"));
     return {
       id: run.id,
       periodYm: run.period_ym,
@@ -278,8 +288,15 @@ export async function generatePayrollRun(db: SalesDb, actor: Actor, periodYm: st
   if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang menyusun penggajian.");
   const { from, to } = periodBounds(periodYm);
   const employees = (await listHrEmployees(db, actor)).filter((e) => e.status === "active");
+  if (!employees.length) {
+    throw new SalesError("Tidak ada sales aktif untuk digaji.", "payroll_empty");
+  }
   const rules = (await listBonusRules(db, actor)).filter((r) => r.active);
-  const payDay = employees[0]?.payDay || 25;
+  // Tanggal bayar run = mode tanggal gajian karyawan (fallback 25).
+  const dayCounts = new Map<number, number>();
+  for (const e of employees) dayCounts.set(e.payDay, (dayCounts.get(e.payDay) || 0) + 1);
+  const payDay =
+    [...dayCounts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] || 25;
   const payDate = payDateFor(periodYm, payDay);
 
   const { data: existing } = await db
@@ -362,13 +379,19 @@ export async function generatePayrollRun(db: SalesDb, actor: Actor, periodYm: st
           : 0;
     let targetBonus = 0;
     for (const rule of rules) {
-      if (rule.kind === "fixed" || pct >= rule.minAchievementPct) {
-        targetBonus += rule.bonusAmount;
-      }
+      const hit =
+        rule.kind === "fixed" ? true : pct >= rule.minAchievementPct;
+      if (hit) targetBonus += rule.bonusAmount;
     }
     const base = emp.baseSalary;
     const komisi = money(commission.total);
     const total = base + komisi + targetBonus;
+    const notes: string[] = [];
+    if (!emp.joinedAt) notes.push("Tanggal masuk belum diisi");
+    if (!base) notes.push("Gaji pokok 0");
+    if (pct >= 100) notes.push("Target tercapai");
+    else if (pct > 0) notes.push(`Pencapaian ${Math.round(pct)}%`);
+    if (emp.bankAccount) notes.push(`Rek: ${emp.bankAccount}`);
     lineRows.push({
       run_id: runId,
       business_id: actor.businessId,
@@ -379,7 +402,7 @@ export async function generatePayrollRun(db: SalesDb, actor: Actor, periodYm: st
       deduction: 0,
       total,
       achievement_pct: pct,
-      note: pct >= 100 ? "Target tercapai" : pct > 0 ? `Pencapaian ${Math.round(pct)}%` : null,
+      note: notes.length ? notes.join(" · ") : null,
     });
   }
 
@@ -408,5 +431,153 @@ export async function markPayrollPaid(db: SalesDb, actor: Actor, runId: string) 
     .eq("id", runId)
     .eq("business_id", actor.businessId);
   if (error) throw new SalesError(error.message, "payroll_pay");
+  return { ok: true };
+}
+
+export async function deleteBonusRule(db: SalesDb, actor: Actor, ruleId: string) {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang menghapus aturan bonus.");
+  if (!ruleId) throw new SalesError("ID aturan wajib.", "bonus_id");
+  const { error } = await db
+    .from("module_sales_hr_bonus_rules")
+    .delete()
+    .eq("id", ruleId)
+    .eq("business_id", actor.businessId);
+  if (error) throw new SalesError(error.message, "bonus_delete");
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "UPDATE_SETTINGS",
+    entityType: "hr_bonus_rule",
+    entityId: ruleId,
+    newValue: { deleted: true },
+  });
+  return { ok: true };
+}
+
+async function assertDraftRun(db: SalesDb, actor: Actor, runId: string) {
+  const { data: run, error } = await db
+    .from("module_sales_hr_payroll_runs")
+    .select("id, status")
+    .eq("id", runId)
+    .eq("business_id", actor.businessId)
+    .maybeSingle();
+  if (error) throw new SalesError(error.message, "payroll_read");
+  if (!run) throw new SalesError("Slip periode tidak ditemukan.", "payroll_missing");
+  if (run.status === "paid") {
+    throw new SalesError("Sudah dibayar — tidak bisa diubah/dihapus. Susun periode baru bila perlu.", "payroll_locked");
+  }
+  return run;
+}
+
+export async function updatePayrollLine(
+  db: SalesDb,
+  actor: Actor,
+  input: {
+    lineId: string;
+    baseSalary?: number;
+    commission?: number;
+    targetBonus?: number;
+    deduction?: number;
+    note?: string | null;
+  },
+) {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang mengedit slip gaji.");
+  if (!input.lineId) throw new SalesError("ID slip wajib.", "line_id");
+
+  const { data: line, error: readErr } = await db
+    .from("module_sales_hr_payroll_lines")
+    .select("id, run_id, base_salary, commission, target_bonus, deduction, note")
+    .eq("id", input.lineId)
+    .eq("business_id", actor.businessId)
+    .maybeSingle();
+  if (readErr) throw new SalesError(readErr.message, "line_read");
+  if (!line) throw new SalesError("Slip tidak ditemukan.", "line_missing");
+
+  await assertDraftRun(db, actor, line.run_id);
+
+  const base = input.baseSalary !== undefined ? money(input.baseSalary) : money(line.base_salary);
+  const commission = input.commission !== undefined ? money(input.commission) : money(line.commission);
+  const targetBonus = input.targetBonus !== undefined ? money(input.targetBonus) : money(line.target_bonus);
+  const deduction = input.deduction !== undefined ? money(input.deduction) : money(line.deduction);
+  const total = Math.max(0, base + commission + targetBonus - deduction);
+  const patch: Record<string, unknown> = {
+    base_salary: base,
+    commission,
+    target_bonus: targetBonus,
+    deduction,
+    total,
+  };
+  if (input.note !== undefined) patch.note = input.note?.trim() || null;
+
+  const { error } = await db
+    .from("module_sales_hr_payroll_lines")
+    .update(patch)
+    .eq("id", input.lineId)
+    .eq("business_id", actor.businessId);
+  if (error) throw new SalesError(error.message, "line_update");
+
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "UPDATE_SETTINGS",
+    entityType: "hr_payroll_line",
+    entityId: input.lineId,
+    newValue: patch,
+  });
+  return { ok: true };
+}
+
+export async function deletePayrollLine(db: SalesDb, actor: Actor, lineId: string) {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang menghapus slip.");
+  if (!lineId) throw new SalesError("ID slip wajib.", "line_id");
+
+  const { data: line, error: readErr } = await db
+    .from("module_sales_hr_payroll_lines")
+    .select("id, run_id")
+    .eq("id", lineId)
+    .eq("business_id", actor.businessId)
+    .maybeSingle();
+  if (readErr) throw new SalesError(readErr.message, "line_read");
+  if (!line) throw new SalesError("Slip tidak ditemukan.", "line_missing");
+
+  await assertDraftRun(db, actor, line.run_id);
+
+  const { error } = await db
+    .from("module_sales_hr_payroll_lines")
+    .delete()
+    .eq("id", lineId)
+    .eq("business_id", actor.businessId);
+  if (error) throw new SalesError(error.message, "line_delete");
+
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "UPDATE_SETTINGS",
+    entityType: "hr_payroll_line",
+    entityId: lineId,
+    newValue: { deleted: true },
+  });
+  return { ok: true };
+}
+
+export async function deletePayrollRun(db: SalesDb, actor: Actor, runId: string) {
+  if (actor.role !== "FOUNDER") throw new ForbiddenError("Hanya founder yang menghapus periode gaji.");
+  if (!runId) throw new SalesError("ID periode wajib.", "run_id");
+  await assertDraftRun(db, actor, runId);
+
+  const { error: linesErr } = await db.from("module_sales_hr_payroll_lines").delete().eq("run_id", runId);
+  if (linesErr) throw new SalesError(linesErr.message, "payroll_lines_delete");
+
+  const { error } = await db
+    .from("module_sales_hr_payroll_runs")
+    .delete()
+    .eq("id", runId)
+    .eq("business_id", actor.businessId);
+  if (error) throw new SalesError(error.message, "payroll_delete");
+
+  await writeAudit(db, actor, {
+    businessId: actor.businessId,
+    action: "UPDATE_SETTINGS",
+    entityType: "hr_payroll_run",
+    entityId: runId,
+    newValue: { deleted: true },
+  });
   return { ok: true };
 }

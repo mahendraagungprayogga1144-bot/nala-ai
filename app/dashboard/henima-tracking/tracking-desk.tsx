@@ -126,6 +126,7 @@ export default function TrackingDesk({
   } | null;
   hr?: {
     canEdit: boolean;
+    canManagePayroll: boolean;
     employees: {
       id: string;
       nama: string;
@@ -159,6 +160,9 @@ export default function TrackingDesk({
         deduction: number;
         total: number;
         achievementPct: number;
+        payDay?: number;
+        bankAccount?: string | null;
+        note?: string | null;
       }[];
       totals: { base: number; commission: number; bonus: number; deduction: number; total: number };
     }[];
@@ -581,6 +585,7 @@ export default function TrackingDesk({
               <TrackingHr
                 ownerName={ownerName}
                 canEdit={hr.canEdit}
+                canManagePayroll={hr.canManagePayroll}
                 employees={hr.employees}
                 bonusRules={hr.bonusRules}
                 payrollRuns={hr.payrollRuns}

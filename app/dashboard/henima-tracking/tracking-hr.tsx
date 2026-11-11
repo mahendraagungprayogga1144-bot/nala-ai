@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarDays, Gift, Users, Wallet } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ChevronLeft, Pencil, Trash2 } from "lucide-react";
 
 const GOLD = "#C5A358";
+
+type Tab = "karyawan" | "bonus" | "slip";
 
 type Employee = {
   id: string;
@@ -26,21 +28,26 @@ type BonusRule = {
   active: boolean;
 };
 
+type PayrollLine = {
+  id: string;
+  salesName: string;
+  baseSalary: number;
+  commission: number;
+  targetBonus: number;
+  deduction: number;
+  total: number;
+  achievementPct: number;
+  payDay?: number;
+  bankAccount?: string | null;
+  note?: string | null;
+};
+
 type PayrollRun = {
   id: string;
   periodYm: string;
   payDate: string;
   status: "draft" | "paid" | "void";
-  lines: {
-    id: string;
-    salesName: string;
-    baseSalary: number;
-    commission: number;
-    targetBonus: number;
-    deduction: number;
-    total: number;
-    achievementPct: number;
-  }[];
+  lines: PayrollLine[];
   totals: { base: number; commission: number; bonus: number; deduction: number; total: number };
 };
 
@@ -48,9 +55,27 @@ function rp(n: number) {
   return `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
 }
 
+function initials(nama: string) {
+  return (
+    nama
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() || "")
+      .join("") || "?"
+  );
+}
+
+function statusLabel(status: PayrollRun["status"]) {
+  if (status === "paid") return "Sudah dibayar";
+  if (status === "void") return "Dibatalkan";
+  return "Belum dibayar";
+}
+
 export default function TrackingHr({
   ownerName,
   canEdit,
+  canManagePayroll,
   employees: initialEmployees,
   bonusRules: initialRules,
   payrollRuns: initialRuns,
@@ -58,11 +83,13 @@ export default function TrackingHr({
 }: {
   ownerName: string;
   canEdit: boolean;
+  canManagePayroll: boolean;
   employees: Employee[];
   bonusRules: BonusRule[];
   payrollRuns: PayrollRun[];
   defaultPeriod: string;
 }) {
+  const [tab, setTab] = useState<Tab>("karyawan");
   const [employees, setEmployees] = useState(initialEmployees);
   const [bonusRules, setBonusRules] = useState(initialRules);
   const [payrollRuns, setPayrollRuns] = useState(initialRuns);
@@ -71,28 +98,72 @@ export default function TrackingHr({
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
-  const [editId, setEditId] = useState("");
-  const editing = employees.find((e) => e.id === editId);
+  const [editId, setEditId] = useState<string | null>(null);
+  const editing = employees.find((e) => e.id === editId) || null;
   const [joinedAt, setJoinedAt] = useState("");
   const [baseSalary, setBaseSalary] = useState("");
   const [payDay, setPayDay] = useState("25");
   const [bankAccount, setBankAccount] = useState("");
+  const [employmentNote, setEmploymentNote] = useState("");
 
+  const [bonusEditId, setBonusEditId] = useState<string | null>(null);
   const [bonusName, setBonusName] = useState("Bonus target 100%");
   const [bonusAmount, setBonusAmount] = useState("500000");
   const [bonusMin, setBonusMin] = useState("100");
 
+  const [openRunId, setOpenRunId] = useState(payrollRuns[0]?.id || "");
+  const [editLineId, setEditLineId] = useState<string | null>(null);
+  const [lineBase, setLineBase] = useState("");
+  const [lineCommission, setLineCommission] = useState("");
+  const [lineBonus, setLineBonus] = useState("");
+  const [lineDeduction, setLineDeduction] = useState("");
+
+  const openRun = payrollRuns.find((r) => r.id === openRunId) || payrollRuns[0] || null;
+  const editingLine =
+    openRun?.lines.find((l) => l.id === editLineId) ||
+    payrollRuns.flatMap((r) => r.lines).find((l) => l.id === editLineId) ||
+    null;
+
   function openEdit(emp: Employee) {
     setEditId(emp.id);
+    setEditLineId(null);
     setJoinedAt(emp.joinedAt || "");
-    setBaseSalary(String(emp.baseSalary || ""));
+    setBaseSalary(emp.baseSalary ? String(emp.baseSalary) : "");
     setPayDay(String(emp.payDay || 25));
     setBankAccount(emp.bankAccount || "");
+    setEmploymentNote(emp.employmentNote || "");
     setError("");
     setOk("");
   }
 
-  async function post(body: Record<string, unknown>) {
+  function openLineEdit(line: PayrollLine) {
+    setEditLineId(line.id);
+    setEditId(null);
+    setLineBase(String(line.baseSalary || 0));
+    setLineCommission(String(line.commission || 0));
+    setLineBonus(String(line.targetBonus || 0));
+    setLineDeduction(String(line.deduction || 0));
+    setError("");
+    setOk("");
+  }
+
+  function openBonusEdit(rule: BonusRule) {
+    setBonusEditId(rule.id);
+    setBonusName(rule.name);
+    setBonusMin(String(rule.minAchievementPct));
+    setBonusAmount(String(rule.bonusAmount));
+    setError("");
+    setOk("");
+  }
+
+  function resetBonusForm() {
+    setBonusEditId(null);
+    setBonusName("Bonus target 100%");
+    setBonusMin("100");
+    setBonusAmount("500000");
+  }
+
+  async function post(body: Record<string, unknown>, keepRunId = openRunId) {
     setBusy(true);
     setError("");
     setOk("");
@@ -106,7 +177,11 @@ export default function TrackingHr({
       if (!res.ok) throw new Error(json.error || "Gagal menyimpan.");
       if (json.employees) setEmployees(json.employees);
       if (json.bonusRules) setBonusRules(json.bonusRules);
-      if (json.payrollRuns) setPayrollRuns(json.payrollRuns);
+      if (json.payrollRuns) {
+        setPayrollRuns(json.payrollRuns);
+        const still = json.payrollRuns.find((r: PayrollRun) => r.id === keepRunId);
+        setOpenRunId(still?.id || json.payrollRuns[0]?.id || "");
+      }
       return json;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal.");
@@ -119,363 +194,722 @@ export default function TrackingHr({
   async function saveEmployee() {
     if (!editId) return;
     try {
-      await post({
+      const body: Record<string, unknown> = {
         action: "update_employee",
         staffId: editId,
         joinedAt: joinedAt || null,
-        baseSalary: Number(baseSalary || 0),
-        payDay: Number(payDay || 25),
         bankAccount: bankAccount || null,
-      });
-      setOk("Data HR sales disimpan.");
-      setEditId("");
+        employmentNote: employmentNote || null,
+      };
+      if (canManagePayroll) {
+        body.baseSalary = Number(baseSalary || 0);
+        body.payDay = Number(payDay || 25);
+      }
+      await post(body);
+      setOk("Data gaji tersimpan.");
+      setEditId(null);
     } catch {
       /* shown */
     }
   }
 
   async function saveBonus() {
+    if (!canManagePayroll) return;
+    const min = Number(bonusMin || 0);
+    const amount = Number(bonusAmount || 0);
+    if (!bonusName.trim()) {
+      setError("Nama aturan wajib diisi.");
+      return;
+    }
+    if (!Number.isFinite(min) || min < 0 || min > 200) {
+      setError("Min. target % harus antara 0–200.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      setError("Nominal bonus tidak valid.");
+      return;
+    }
     try {
       await post({
         action: "upsert_bonus",
+        id: bonusEditId,
         name: bonusName,
         kind: "target_pct",
-        minAchievementPct: Number(bonusMin || 100),
-        bonusAmount: Number(bonusAmount || 0),
+        minAchievementPct: min,
+        bonusAmount: amount,
         active: true,
       });
-      setOk("Aturan bonus disimpan.");
+      setOk(bonusEditId ? "Aturan bonus diubah." : "Aturan bonus ditambah.");
+      resetBonusForm();
+    } catch {
+      /* shown */
+    }
+  }
+
+  async function removeBonus(ruleId: string, name: string) {
+    if (!canManagePayroll) return;
+    if (!window.confirm(`Hapus aturan “${name}”?`)) return;
+    try {
+      await post({ action: "delete_bonus", ruleId });
+      if (bonusEditId === ruleId) resetBonusForm();
+      setOk("Aturan bonus dihapus.");
     } catch {
       /* shown */
     }
   }
 
   async function generate() {
+    if (!canManagePayroll) return;
+    const incomplete = employees.filter((e) => e.status === "active" && (!e.joinedAt || !e.baseSalary));
+    if (incomplete.length) {
+      const names = incomplete
+        .slice(0, 4)
+        .map((e) => e.nama)
+        .join(", ");
+      const more = incomplete.length > 4 ? ` (+${incomplete.length - 4} lain)` : "";
+      if (
+        !window.confirm(
+          `${incomplete.length} sales belum lengkap data gaji (${names}${more}). Tetap buat slip? Yang kosong tetap keluar Rp 0.`,
+        )
+      ) {
+        return;
+      }
+    }
+    const existing = payrollRuns.find((r) => r.periodYm === periodYm);
+    if (existing?.status === "draft") {
+      if (
+        !window.confirm(
+          `Slip ${periodYm} sudah ada (draft). Buat ulang akan menimpa semua ubahan manual di periode ini. Lanjut?`,
+        )
+      ) {
+        return;
+      }
+    }
+    if (existing?.status === "paid") {
+      setError(`Periode ${periodYm} sudah dibayar — tidak bisa dibuat ulang.`);
+      return;
+    }
     try {
       await post({ action: "generate_payroll", periodYm });
-      setOk(`Slip gaji ${periodYm} disusun (draft).`);
+      setOk(`Slip ${periodYm} siap. Satu bill per sales.`);
+      setTab("slip");
     } catch {
       /* shown */
     }
   }
 
   async function markPaid(runId: string) {
+    if (!canManagePayroll) return;
+    if (!window.confirm("Tandai semua slip periode ini sudah dibayar? Setelah itu tidak bisa diubah/dihapus.")) return;
     try {
-      await post({ action: "mark_paid", runId });
-      setOk("Penggajian ditandai sudah dibayar.");
+      await post({ action: "mark_paid", runId }, runId);
+      setOk("Semua slip periode ini ditandai sudah dibayar.");
     } catch {
       /* shown */
     }
   }
 
-  const latest = payrollRuns[0];
+  async function saveLine() {
+    if (!editLineId || !canManagePayroll) return;
+    try {
+      await post({
+        action: "update_line",
+        lineId: editLineId,
+        baseSalary: Number(lineBase || 0),
+        commission: Number(lineCommission || 0),
+        targetBonus: Number(lineBonus || 0),
+        deduction: Number(lineDeduction || 0),
+      });
+      setOk("Slip diubah.");
+      setEditLineId(null);
+      setTab("slip");
+    } catch {
+      /* shown */
+    }
+  }
+
+  async function removeLine(lineId: string, name: string) {
+    if (!canManagePayroll) return;
+    if (!window.confirm(`Hapus slip ${name}?`)) return;
+    try {
+      await post({ action: "delete_line", lineId });
+      if (editLineId === lineId) setEditLineId(null);
+      setOk(`Slip ${name} dihapus.`);
+    } catch {
+      /* shown */
+    }
+  }
+
+  async function removeRun(run: PayrollRun) {
+    if (!canManagePayroll) return;
+    if (!window.confirm(`Hapus semua slip periode ${run.periodYm}?`)) return;
+    try {
+      await post({ action: "delete_run", runId: run.id }, "");
+      setOk(`Periode ${run.periodYm} dihapus.`);
+      setEditLineId(null);
+    } catch {
+      /* shown */
+    }
+  }
+
   const activeCount = employees.filter((e) => e.status === "active").length;
+  const incompleteCount = employees.filter((e) => e.status === "active" && (!e.joinedAt || !e.baseSalary)).length;
+  const draftEditable = Boolean(canManagePayroll && openRun && openRun.status === "draft");
+
+  if (editing && canEdit) {
+    return (
+      <div className="mx-auto max-w-lg space-y-5">
+        <button
+          type="button"
+          onClick={() => setEditId(null)}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-[#6B6B6B]"
+        >
+          <ChevronLeft size={16} /> Kembali ke daftar
+        </button>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: GOLD }}>
+            Data gaji
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#111]">{editing.nama}</h1>
+          <p className="mt-1 text-sm text-[#6B6B6B]">
+            {editing.role}
+            {canManagePayroll
+              ? " · isi tanggal masuk, gaji pokok, dan tanggal gajian"
+              : " · leader bisa isi rekening & catatan; gaji pokok hanya founder"}
+          </p>
+        </div>
+        {error ? (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        ) : null}
+        <div className="space-y-4 border-t border-[#E8E8E4] pt-4">
+          <Field label="Tanggal masuk kerja">
+            <input
+              type="date"
+              className="w-full border-0 border-b border-[#E8E8E4] bg-transparent py-2 text-base text-[#111] outline-none focus:border-[#C5A358]"
+              value={joinedAt}
+              onChange={(e) => setJoinedAt(e.target.value)}
+            />
+          </Field>
+          <Field label="Tanggal gajian tiap bulan (1–28)">
+            <input
+              type="number"
+              min={1}
+              max={28}
+              disabled={!canManagePayroll}
+              className="w-full border-0 border-b border-[#E8E8E4] bg-transparent py-2 text-base text-[#111] outline-none focus:border-[#C5A358] disabled:opacity-50"
+              value={payDay}
+              onChange={(e) => setPayDay(e.target.value)}
+            />
+          </Field>
+          <Field label="Gaji pokok per bulan">
+            <MoneyInput value={baseSalary} onChange={setBaseSalary} disabled={!canManagePayroll} />
+          </Field>
+          <Field label="No. rekening / catatan transfer">
+            <input
+              className="w-full border-0 border-b border-[#E8E8E4] bg-transparent py-2 text-base text-[#111] outline-none focus:border-[#C5A358]"
+              value={bankAccount}
+              onChange={(e) => setBankAccount(e.target.value)}
+              placeholder="Opsional"
+            />
+          </Field>
+          <Field label="Catatan kerja">
+            <input
+              className="w-full border-0 border-b border-[#E8E8E4] bg-transparent py-2 text-base text-[#111] outline-none focus:border-[#C5A358]"
+              value={employmentNote}
+              onChange={(e) => setEmploymentNote(e.target.value)}
+              placeholder="Contoh: masa evaluasi, kontrak, dll."
+            />
+          </Field>
+        </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void saveEmployee()}
+          className="w-full rounded-xl py-3.5 text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: GOLD }}
+        >
+          {busy ? "Menyimpan…" : "Simpan data gaji"}
+        </button>
+      </div>
+    );
+  }
+
+  if (editingLine && canManagePayroll) {
+    const preview =
+      Number(lineBase || 0) + Number(lineCommission || 0) + Number(lineBonus || 0) - Number(lineDeduction || 0);
+    return (
+      <div className="mx-auto max-w-lg space-y-5">
+        <button
+          type="button"
+          onClick={() => setEditLineId(null)}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-[#6B6B6B]"
+        >
+          <ChevronLeft size={16} /> Kembali ke slip
+        </button>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: GOLD }}>
+            Edit slip
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#111]">{editingLine.salesName}</h1>
+          <p className="mt-1 text-sm text-[#6B6B6B]">Ubah nominal slip ini saja. Total dihitung otomatis.</p>
+        </div>
+        {error ? (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        ) : null}
+        <div className="space-y-4 border-t border-[#E8E8E4] pt-4">
+          <Field label="Gaji pokok">
+            <MoneyInput value={lineBase} onChange={setLineBase} />
+          </Field>
+          <Field label="Komisi">
+            <MoneyInput value={lineCommission} onChange={setLineCommission} />
+          </Field>
+          <Field label="Bonus target">
+            <MoneyInput value={lineBonus} onChange={setLineBonus} />
+          </Field>
+          <Field label="Potongan">
+            <MoneyInput value={lineDeduction} onChange={setLineDeduction} />
+          </Field>
+          <div className="flex items-end justify-between border-t border-[#E8E8E4] pt-3">
+            <span className="text-xs font-semibold text-[#6B6B6B]">Total</span>
+            <span className="text-xl font-bold tabular-nums" style={{ color: GOLD }}>
+              {rp(Math.max(0, preview))}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void saveLine()}
+            className="w-full rounded-xl py-3.5 text-sm font-bold text-white disabled:opacity-40"
+            style={{ background: GOLD }}
+          >
+            {busy ? "Menyimpan…" : "Simpan slip"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void removeLine(editingLine.id, editingLine.salesName)}
+            className="w-full rounded-xl border border-rose-200 py-3 text-sm font-bold text-rose-700 disabled:opacity-40"
+          >
+            Hapus slip ini
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.8fr)]">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-tight text-[#111] md:text-[30px]">
-            Selamat datang, {ownerName}
-          </h1>
-          <p className="mt-1 text-sm text-[#6B6B6B]">
-            HR sales: tanggal masuk, gaji pokok, jadwal gajian, komisi & bonus target.
-          </p>
-        </div>
-        <aside className="rounded-2xl border border-[#E8D9A8] bg-[#F7F4EC] px-4 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
-            HENIMA HR
-          </p>
-          <p className="mt-1 text-sm font-bold text-[#111]">{activeCount} sales aktif</p>
-          <p className="mt-0.5 text-xs text-[#6B6B6B]">Gajian tiap tanggal {employees[0]?.payDay || 25}</p>
-        </aside>
+      <div>
+        <h1 className="text-[26px] font-bold tracking-tight text-[#111] md:text-[28px]">HR & Gaji</h1>
+        <p className="mt-1 text-sm text-[#6B6B6B]">
+          {ownerName} · {activeCount} sales aktif
+          {incompleteCount ? ` · ${incompleteCount} belum lengkap data gaji` : ""}
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Stat icon={Users} label="Karyawan sales" value={`${activeCount}`} hint="Status aktif" />
-        <Stat
-          icon={Wallet}
-          label="Total gaji pokok"
-          value={rp(employees.filter((e) => e.status === "active").reduce((s, e) => s + e.baseSalary, 0))}
-          hint="Per bulan"
-        />
-        <Stat
-          icon={Gift}
-          label="Aturan bonus"
-          value={`${bonusRules.filter((r) => r.active).length}`}
-          hint="Aktif"
-        />
-        <Stat
-          icon={CalendarDays}
-          label="Slip terakhir"
-          value={latest ? latest.periodYm : "—"}
-          hint={latest ? latest.status : "Belum disusun"}
-        />
+      <div className="flex gap-1 border-b border-[#E8E8E4]">
+        {(
+          [
+            { id: "karyawan" as const, label: "Karyawan" },
+            { id: "bonus" as const, label: "Bonus" },
+            { id: "slip" as const, label: "Slip gaji" },
+          ] as const
+        ).map((item) => {
+          const on = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setTab(item.id);
+                setError("");
+                setOk("");
+              }}
+              className={`relative px-4 py-2.5 text-sm font-semibold transition ${
+                on ? "text-[#111]" : "text-[#8A8A8A] hover:text-[#111]"
+              }`}
+            >
+              {item.label}
+              {on ? (
+                <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full" style={{ background: GOLD }} />
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
-      {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-      {ok ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</p> : null}
+      {error ? (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+      ) : null}
+      {ok ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</p>
+      ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)] xl:col-span-2">
-          <h2 className="text-sm font-bold text-[#111]">Data karyawan sales</h2>
-          <p className="mt-1 text-xs text-[#6B6B6B]">Tanggal masuk · gaji pokok · tanggal gajian</p>
-          <ul className="mt-4 space-y-2">
-            {employees.map((emp) => (
-              <li
-                key={emp.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-[#111]">
-                    {emp.nama}{" "}
-                    <span className="text-xs font-semibold text-[#8A8A8A]">· {emp.role}</span>
-                  </p>
-                  <p className="text-xs text-[#6B6B6B]">
-                    Masuk {emp.joinedAt || "belum diisi"} · Gaji {rp(emp.baseSalary)} · Gajian tgl {emp.payDay}
-                  </p>
-                </div>
-                {canEdit ? (
+      {tab === "karyawan" ? (
+        <section className="space-y-2">
+          <p className="text-xs text-[#6B6B6B]">Ketuk orang untuk isi tanggal masuk & gaji. Satu form, satu orang.</p>
+          <ul className="divide-y divide-[#EFEFEA] rounded-2xl border border-[#E8E8E4] bg-white">
+            {employees.map((emp) => {
+              const incomplete = !emp.joinedAt || !emp.baseSalary;
+              return (
+                <li key={emp.id}>
                   <button
                     type="button"
-                    onClick={() => openEdit(emp)}
-                    className="rounded-xl border border-[#E8E8E4] px-3 py-1.5 text-xs font-bold text-[#111]"
+                    disabled={!canEdit}
+                    onClick={() => canEdit && openEdit(emp)}
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-[#FAFAF8] disabled:cursor-default"
                   >
-                    Edit HR
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ background: incomplete ? "#B8B8B0" : GOLD }}
+                    >
+                      {initials(emp.nama)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold text-[#111]">{emp.nama}</span>
+                      <span className="mt-0.5 block text-xs text-[#6B6B6B]">
+                        {incomplete
+                          ? "Belum lengkap — isi gaji dulu"
+                          : `Masuk ${emp.joinedAt} · ${rp(emp.baseSalary)} · gajian tgl ${emp.payDay}`}
+                      </span>
+                    </span>
+                    {canEdit ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold" style={{ color: GOLD }}>
+                        <Pencil size={12} /> Ubah
+                      </span>
+                    ) : null}
                   </button>
-                ) : null}
+                </li>
+              );
+            })}
+            {!employees.length ? (
+              <li className="px-4 py-8 text-center text-sm text-[#6B6B6B]">Belum ada sales. Tambah di Pengaturan.</li>
+            ) : null}
+          </ul>
+        </section>
+      ) : null}
+
+      {tab === "bonus" ? (
+        <section className="mx-auto max-w-lg space-y-5">
+          <div>
+            <h2 className="text-base font-bold text-[#111]">Aturan bonus target</h2>
+            <p className="mt-1 text-sm text-[#6B6B6B]">
+              Capai target → dapat bonus. Bisa ubah atau hapus tiap aturan.
+            </p>
+          </div>
+
+          <ul className="space-y-2">
+            {bonusRules.map((r) => (
+              <li key={r.id} className="rounded-xl border border-[#E8E8E4] bg-white px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-[#111]">{r.name}</p>
+                    <p className="mt-0.5 text-xs text-[#6B6B6B]">
+                      Capai ≥{r.minAchievementPct}% → dapat {rp(r.bonusAmount)}
+                      {!r.active ? " · nonaktif" : ""}
+                    </p>
+                  </div>
+                  {canManagePayroll ? (
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openBonusEdit(r)}
+                        className="inline-flex items-center gap-1 text-xs font-bold"
+                        style={{ color: GOLD }}
+                      >
+                        <Pencil size={12} /> Ubah
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void removeBonus(r.id, r.name)}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 disabled:opacity-40"
+                      >
+                        <Trash2 size={12} /> Hapus
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </li>
             ))}
-            {!employees.length && <p className="text-sm text-[#6B6B6B]">Belum ada sales. Tambah di Pengaturan.</p>}
+            {!bonusRules.length ? (
+              <p className="text-sm text-[#6B6B6B]">
+                {canManagePayroll ? "Belum ada aturan. Isi di bawah." : "Belum ada aturan bonus."}
+              </p>
+            ) : null}
           </ul>
 
-          {editing && canEdit ? (
-            <div className="mt-4 rounded-xl border border-[#E8D9A8] bg-[#F7F4EC] p-4">
-              <p className="text-sm font-bold text-[#111]">Edit · {editing.nama}</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <label className="text-xs font-semibold text-[#6B6B6B]">
-                  Tanggal masuk
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-sm"
-                    value={joinedAt}
-                    onChange={(e) => setJoinedAt(e.target.value)}
-                  />
-                </label>
-                <label className="text-xs font-semibold text-[#6B6B6B]">
-                  Tanggal gajian (1–28)
-                  <input
-                    type="number"
-                    min={1}
-                    max={28}
-                    className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-sm"
-                    value={payDay}
-                    onChange={(e) => setPayDay(e.target.value)}
-                  />
-                </label>
-                <label className="text-xs font-semibold text-[#6B6B6B]">
-                  Gaji pokok (Rp)
-                  <input
-                    type="number"
-                    min={0}
-                    className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-sm"
-                    value={baseSalary}
-                    onChange={(e) => setBaseSalary(e.target.value)}
-                  />
-                </label>
-                <label className="text-xs font-semibold text-[#6B6B6B]">
-                  Rekening
-                  <input
-                    className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-sm"
-                    value={bankAccount}
-                    onChange={(e) => setBankAccount(e.target.value)}
-                    placeholder="Opsional"
-                  />
-                </label>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void saveEmployee()}
-                  className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-                  style={{ background: GOLD }}
-                >
-                  Simpan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditId("")}
-                  className="rounded-xl border border-[#E8E8E4] px-4 py-2 text-sm font-bold"
-                >
-                  Batal
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="space-y-4">
-          <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-            <h2 className="text-sm font-bold text-[#111]">Aturan bonus</h2>
-            <p className="mt-1 text-xs text-[#6B6B6B]">Bonus jika target periode tercapai (mis. 100%).</p>
-            <ul className="mt-3 space-y-2">
-              {bonusRules.map((r) => (
-                <li key={r.id} className="rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-2 text-sm">
-                  <p className="font-bold text-[#111]">{r.name}</p>
-                  <p className="text-xs text-[#6B6B6B]">
-                    ≥{r.minAchievementPct}% → {rp(r.bonusAmount)} {r.active ? "" : "(nonaktif)"}
-                  </p>
-                </li>
-              ))}
-              {!bonusRules.length && <p className="text-sm text-[#6B6B6B]">Belum ada aturan bonus.</p>}
-            </ul>
-            {canEdit ? (
-              <div className="mt-3 space-y-2 border-t border-[#E8E8E4] pt-3">
+          {canManagePayroll ? (
+            <div className="space-y-4 border-t border-[#E8E8E4] pt-4">
+              <p className="text-sm font-bold text-[#111]">
+                {bonusEditId ? "Ubah aturan" : "Tambah aturan baru"}
+              </p>
+              <Field label="Nama aturan">
                 <input
-                  className="w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
+                  className="w-full border-0 border-b border-[#E8E8E4] bg-transparent py-2 text-base outline-none focus:border-[#C5A358]"
                   value={bonusName}
                   onChange={(e) => setBonusName(e.target.value)}
-                  placeholder="Nama aturan"
                 />
-                <div className="grid grid-cols-2 gap-2">
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Min. target %">
                   <input
-                    className="rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
                     type="number"
+                    className="w-full border-0 border-b border-[#E8E8E4] bg-transparent py-2 text-base outline-none focus:border-[#C5A358]"
                     value={bonusMin}
                     onChange={(e) => setBonusMin(e.target.value)}
-                    placeholder="Min %"
                   />
-                  <input
-                    className="rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
-                    type="number"
-                    value={bonusAmount}
-                    onChange={(e) => setBonusAmount(e.target.value)}
-                    placeholder="Bonus Rp"
-                  />
-                </div>
+                </Field>
+                <Field label="Nominal bonus">
+                  <MoneyInput value={bonusAmount} onChange={setBonusAmount} />
+                </Field>
+              </div>
+              <div className="flex gap-2">
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => void saveBonus()}
-                  className="w-full rounded-xl py-2.5 text-sm font-bold text-white disabled:opacity-40"
+                  className="flex-1 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-40"
                   style={{ background: GOLD }}
                 >
-                  Simpan aturan bonus
+                  {bonusEditId ? "Simpan perubahan" : "Tambah aturan"}
                 </button>
+                {bonusEditId ? (
+                  <button
+                    type="button"
+                    onClick={resetBonusForm}
+                    className="rounded-xl border border-[#E8E8E4] px-4 py-3 text-sm font-bold text-[#6B6B6B]"
+                  >
+                    Batal
+                  </button>
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
-          <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-            <h2 className="text-sm font-bold text-[#111]">Susun penggajian</h2>
-            <p className="mt-1 text-xs text-[#6B6B6B]">Gaji pokok + komisi lunas + bonus target</p>
-            <label className="mt-3 block text-xs font-semibold text-[#6B6B6B]">
-              Periode (YYYY-MM)
+      {tab === "slip" ? (
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#E8E8E4] bg-[#FAFAF8] px-4 py-3">
+            <label className="text-xs font-semibold text-[#6B6B6B]">
+              Periode
               <input
-                className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
+                type="month"
+                className="mt-1 block rounded-lg border border-[#E8E8E4] bg-white px-3 py-2 text-sm text-[#111]"
                 value={periodYm}
                 onChange={(e) => setPeriodYm(e.target.value)}
               />
             </label>
-            {canEdit ? (
+            {canManagePayroll ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void generate()}
-                className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold text-white disabled:opacity-40"
+                className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
                 style={{ background: GOLD }}
               >
-                {busy ? "Menyusun…" : "Susun slip gaji"}
+                {busy ? "Menyusun…" : "Buat slip bulan ini"}
               </button>
-            ) : null}
+            ) : (
+              <p className="pb-1 text-xs text-[#8A8A8A]">Hanya founder yang menyusun / mengubah slip.</p>
+            )}
           </div>
-        </section>
-      </div>
 
-      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-        <h2 className="text-sm font-bold text-[#111]">Slip penggajian</h2>
-        {!payrollRuns.length && <p className="mt-3 text-sm text-[#6B6B6B]">Belum ada slip. Susun periode dulu.</p>}
-        <div className="mt-3 space-y-4">
-          {payrollRuns.map((run) => (
-            <div key={run.id} className="rounded-xl border border-[#E8E8E4] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+          {incompleteCount && canManagePayroll ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {incompleteCount} sales belum lengkap (tanggal masuk / gaji pokok). Isi di tab Karyawan dulu biar
+              slip tidak Rp 0.
+            </p>
+          ) : null}
+
+          {payrollRuns.length > 1 ? (
+            <div className="flex flex-wrap gap-2">
+              {payrollRuns.map((run) => {
+                const on = openRun?.id === run.id;
+                return (
+                  <button
+                    key={run.id}
+                    type="button"
+                    onClick={() => setOpenRunId(run.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                      on ? "text-white" : "border border-[#E8E8E4] bg-white text-[#6B6B6B]"
+                    }`}
+                    style={on ? { background: GOLD } : undefined}
+                  >
+                    {run.periodYm}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {!openRun ? (
+            <p className="rounded-2xl border border-dashed border-[#E8E8E4] px-4 py-10 text-center text-sm text-[#6B6B6B]">
+              Belum ada slip. Pilih periode lalu tekan <strong>Buat slip bulan ini</strong>.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-bold text-[#111]">
-                    {run.periodYm} · bayar {run.payDate}
+                    Periode {openRun.periodYm} · bayar {openRun.payDate}
                   </p>
                   <p className="text-xs text-[#6B6B6B]">
-                    Status {run.status} · Total {rp(run.totals.total)}
+                    {statusLabel(openRun.status)} · total semua {rp(openRun.totals.total)} · {openRun.lines.length}{" "}
+                    bill terpisah
                   </p>
                 </div>
-                {canEdit && run.status === "draft" ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void markPaid(run.id)}
-                    className="rounded-xl border border-[#E8E8E4] px-3 py-1.5 text-xs font-bold"
-                  >
-                    Tandai dibayar
-                  </button>
+                {draftEditable ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void markPaid(openRun.id)}
+                      className="rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-xs font-bold text-[#111]"
+                    >
+                      Tandai semua sudah dibayar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void removeRun(openRun)}
+                      className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700"
+                    >
+                      Hapus periode
+                    </button>
+                  </div>
                 ) : null}
               </div>
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full min-w-[520px] text-left text-xs">
-                  <thead className="text-[#8A8A8A]">
-                    <tr>
-                      <th className="py-1 font-semibold">Sales</th>
-                      <th className="py-1 font-semibold">Pokok</th>
-                      <th className="py-1 font-semibold">Komisi</th>
-                      <th className="py-1 font-semibold">Bonus</th>
-                      <th className="py-1 font-semibold">Target %</th>
-                      <th className="py-1 font-semibold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {run.lines.map((l) => (
-                      <tr key={l.id} className="border-t border-[#F0F0EC]">
-                        <td className="py-1.5 font-semibold text-[#111]">{l.salesName}</td>
-                        <td className="py-1.5">{rp(l.baseSalary)}</td>
-                        <td className="py-1.5">{rp(l.commission)}</td>
-                        <td className="py-1.5">{rp(l.targetBonus)}</td>
-                        <td className="py-1.5">{Math.round(l.achievementPct)}%</td>
-                        <td className="py-1.5 font-bold" style={{ color: GOLD }}>
-                          {rp(l.total)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+
+              {!openRun.lines.length ? (
+                <p className="rounded-2xl border border-dashed border-[#E8E8E4] px-4 py-8 text-center text-sm text-[#6B6B6B]">
+                  Tidak ada slip di periode ini.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {openRun.lines.map((line) => (
+                    <article
+                      key={line.id}
+                      className="flex flex-col rounded-2xl border border-[#E8E8E4] bg-white p-4"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8A8A]">
+                            Slip gaji
+                          </p>
+                          <h3 className="mt-1 text-base font-bold text-[#111]">{line.salesName}</h3>
+                        </div>
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                            openRun.status === "paid"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-[#F7F4EC] text-[#8A7040]"
+                          }`}
+                        >
+                          {statusLabel(openRun.status)}
+                        </span>
+                      </div>
+
+                      <dl className="mt-4 flex-1 space-y-2 border-t border-[#F0F0EC] pt-3 text-sm">
+                        <Row label="Gaji pokok" value={rp(line.baseSalary)} />
+                        <Row label="Komisi" value={rp(line.commission)} />
+                        <Row label="Bonus target" value={rp(line.targetBonus)} />
+                        {line.deduction > 0 ? (
+                          <Row label="Potongan" value={`−${rp(line.deduction)}`} />
+                        ) : null}
+                        <Row label="Pencapaian target" value={`${Math.round(line.achievementPct)}%`} />
+                        <Row label="Gajian tgl" value={String(line.payDay || 25)} />
+                        {line.bankAccount ? <Row label="Rekening" value={line.bankAccount} /> : null}
+                      </dl>
+
+                      {line.note ? (
+                        <p className="mt-3 text-[11px] leading-snug text-[#8A8A8A]">{line.note}</p>
+                      ) : null}
+
+                      <div className="mt-4 flex items-end justify-between border-t border-[#E8E8E4] pt-3">
+                        <span className="text-xs font-semibold text-[#6B6B6B]">Total dibayar</span>
+                        <span className="text-lg font-bold tabular-nums" style={{ color: GOLD }}>
+                          {rp(line.total)}
+                        </span>
+                      </div>
+
+                      {draftEditable ? (
+                        <div className="mt-3 flex gap-2 border-t border-[#F0F0EC] pt-3">
+                          <button
+                            type="button"
+                            onClick={() => openLineEdit(line)}
+                            className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-[#E8E8E4] py-2 text-xs font-bold text-[#111]"
+                          >
+                            <Pencil size={12} /> Ubah
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void removeLine(line.id, line.salesName)}
+                            className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-rose-200 py-2 text-xs font-bold text-rose-700 disabled:opacity-40"
+                          >
+                            <Trash2 size={12} /> Hapus
+                          </button>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
 
-function Stat({
-  icon: Icon,
-  label,
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-[#6B6B6B]">{label}</span>
+      <span className="mt-1 block">{children}</span>
+    </label>
+  );
+}
+
+function MoneyInput({
   value,
-  hint,
+  onChange,
+  disabled,
 }: {
-  icon: typeof Users;
-  label: string;
   value: string;
-  hint: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">{label}</p>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F7F4EC]">
-          <Icon size={15} color={GOLD} />
-        </span>
-      </div>
-      <p className="mt-2 text-xl font-bold tabular-nums text-[#111]">{value}</p>
-      <p className="mt-1 text-xs text-[#6B6B6B]">{hint}</p>
+    <div
+      className={`flex items-baseline gap-2 border-b border-[#E8E8E4] focus-within:border-[#C5A358] ${
+        disabled ? "opacity-50" : ""
+      }`}
+    >
+      <span className="text-sm text-[#8A8A8A]">Rp</span>
+      <input
+        type="number"
+        min={0}
+        disabled={disabled}
+        className="w-full border-0 bg-transparent py-2 text-base tabular-nums text-[#111] outline-none disabled:cursor-not-allowed"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0"
+      />
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-[#6B6B6B]">{label}</dt>
+      <dd className="font-semibold tabular-nums text-[#111]">{value}</dd>
     </div>
   );
 }

@@ -5,13 +5,16 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   Download,
+  MapPin,
   MapPinned,
   Package,
   Search,
   ShoppingBag,
   Target,
+  Trophy,
   Users,
   Wallet,
 } from "lucide-react";
@@ -24,14 +27,17 @@ import { downloadCommandCenterPdf } from "@/lib/henima-tracking/dashboard-pdf";
 import type { TrackingLink, TrackingPoint } from "@/lib/henima-tracking/shared";
 
 const GOLD = "#C5A358";
+const INK = "#1A1A1A";
 
 function rp(n: number) {
   return `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
 }
 
-function clock(iso: string) {
+function dayClock(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {
     timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
@@ -42,14 +48,21 @@ function initials(nama: string) {
   return parts.map((part) => part[0]?.toUpperCase() || "").join("") || "?";
 }
 
+function productTone(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("afternoon")) return "bg-[#111] text-white";
+  if (n.includes("distance")) return "bg-white text-[#111] border border-[#E8E8E4]";
+  return "bg-[#F7F4EC] text-[#8A7040]";
+}
+
 function Delta({ current, previous }: { current: number; previous: number }) {
   const pct = pctChange(current, previous);
   if (!previous && !current) return <span className="text-xs text-[#8A8A8A]">vs periode lalu</span>;
   const up = pct >= 0;
   return (
     <span className={`text-xs font-semibold ${up ? "text-emerald-600" : "text-rose-600"}`}>
-      {up ? "+" : "−"}
-      {Math.abs(pct)}% vs periode lalu
+      {up ? "↑ +" : "↓ −"}
+      {Math.abs(pct)}%
     </span>
   );
 }
@@ -64,6 +77,8 @@ export type LiveSalesCard = {
   lat?: number | null;
   lng?: number | null;
 };
+
+type ActivityKind = "checkin" | "sale" | "target" | "gps";
 
 export default function TrackingHome({
   ownerName,
@@ -114,15 +129,22 @@ export default function TrackingHome({
     if (chartMode === "7") {
       return summary.chartDaily.slice(-7).map((r) => ({
         label: r.label,
+        fullLabel: r.ymd,
         value: r.omzet,
         target: r.target,
       }));
     }
     if (chartMode === "90") {
-      return summary.chartMonthly.map((r) => ({ label: r.label, value: r.omzet, target: r.target }));
+      return summary.chartMonthly.map((r) => ({
+        label: r.label,
+        fullLabel: r.label,
+        value: r.omzet,
+        target: r.target,
+      }));
     }
     return summary.chartDaily.slice(-30).map((r) => ({
       label: r.label,
+      fullLabel: r.ymd,
       value: r.omzet,
       target: r.target,
     }));
@@ -161,6 +183,7 @@ export default function TrackingHome({
       .slice(0, 12)
       .map((p) => {
         const sales = liveSales.find((s) => s.staffId === p.staff_id)?.nama || "Sales";
+        const isCheckin = p.kind === "checkin_pagi" || p.kind === "checkin_sore";
         const kindLabel =
           p.kind === "checkin_pagi"
             ? "check-in"
@@ -174,12 +197,14 @@ export default function TrackingHome({
         return {
           id: `gps-${p.id}`,
           at: p.recorded_at,
+          kind: (isCheckin ? "checkin" : "gps") as ActivityKind,
           text: `${sales} ${kindLabel}${p.note ? ` · ${p.note}` : ""}`,
         };
       });
     const fromSales = summary.recentSales.slice(0, 6).map((o) => ({
       id: `sale-${o.id}`,
       at: o.createdAt,
+      kind: "sale" as ActivityKind,
       text: `${o.salesName} catat penjualan ${o.productName} · ${rp(o.total)}`,
     }));
     const fromRank = summary.ranking
@@ -188,6 +213,7 @@ export default function TrackingHome({
       .map((r) => ({
         id: `rank-${r.salesId}`,
         at: new Date().toISOString(),
+        kind: "target" as ActivityKind,
         text: `${r.nama} mencapai target bulanan ${Math.round(r.pct)}%`,
       }));
     return [...fromGps, ...fromSales, ...fromRank]
@@ -250,30 +276,44 @@ export default function TrackingHome({
         </button>
       </div>
 
-      <section className="relative overflow-hidden rounded-2xl border border-[#E8D9A8] bg-[#F7F4EC]">
-        <div className="grid gap-4 p-5 md:grid-cols-[minmax(0,1.2fr)_minmax(200px,0.8fr)] md:items-end">
+      {/* Hero wallpaper seperti mockup */}
+      <section className="relative isolate overflow-hidden rounded-2xl min-h-[148px]">
+        <Image
+          src="/office-henima-hero.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover object-center"
+          sizes="(max-width: 1200px) 100vw, 900px"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(105deg, rgba(247,244,236,0.94) 0%, rgba(247,244,236,0.78) 42%, rgba(197,163,88,0.28) 100%)",
+          }}
+        />
+        <div className="relative z-10 grid gap-4 p-5 md:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.85fr)] md:items-center">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
-              HENIMA Sales
+              HENIMA Sales Command Center
             </p>
             <h1 className="mt-2 text-[26px] font-bold tracking-tight text-[#111] md:text-[32px]">
               Selamat datang, {ownerName}
             </h1>
-            <p className="mt-1 text-sm text-[#6B6B6B]">
-              Grow Together, Achieve More · rekap {summary.monthLabel}
+            <p className="mt-1 text-sm font-medium text-[#5C5C5C]">
+              Grow Together, Achieve More · {summary.monthLabel}
               {periodBusy ? " · memuat…" : ""}
             </p>
           </div>
-          <div className="relative mx-auto h-28 w-full max-w-[220px] md:mx-0 md:justify-self-end">
+          <div className="relative mx-auto h-32 w-full max-w-[200px] md:mx-0 md:justify-self-end">
             <Image
-              src="/henima-cyber-city.jpg"
+              src="/henima-tracking-bg.jpg"
               alt=""
               fill
-              className="rounded-xl object-cover"
-              sizes="220px"
-              priority={false}
+              className="rounded-xl object-cover shadow-[0_12px_28px_rgba(17,17,17,0.18)] ring-1 ring-white/60"
+              sizes="200px"
             />
-            <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-[#F7F4EC]/70 to-transparent" />
           </div>
         </div>
       </section>
@@ -314,43 +354,53 @@ export default function TrackingHome({
       </div>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)]">
-        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-bold text-[#111]">Performa penjualan</h2>
-              <p className="text-xs text-[#8A8A8A]">Omzet vs target · {summary.monthLabel}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex overflow-hidden rounded-full border border-[#E8E8E4] text-xs font-semibold">
-                {(
-                  [
-                    ["7", "7 Hari"],
-                    ["30", "30 Hari"],
-                    ["90", "90 Hari"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setChartMode(id)}
-                    className={`px-3 py-1.5 ${chartMode === id ? "bg-[#111] text-white" : "bg-white text-[#6B6B6B]"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+        <div className="overflow-hidden rounded-2xl border border-[#E8E8E4] bg-white">
+          <div
+            className="border-b border-[#F0EBE0] px-4 pb-3 pt-4"
+            style={{
+              background:
+                "linear-gradient(180deg, #FBF8F1 0%, #FFFFFF 70%)",
+            }}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-[#111]">Performa penjualan</h2>
+                <p className="text-xs text-[#8A8A8A]">Omzet vs target · {summary.monthLabel}</p>
               </div>
-              <button
-                type="button"
-                disabled={pdfBusy}
-                onClick={() => void exportPdf()}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E8E4] text-[#6B6B6B] hover:text-[#111]"
-                title="Unduh PDF rekap"
-              >
-                <Download size={14} />
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex overflow-hidden rounded-full border border-[#E8E8E4] bg-white text-xs font-semibold">
+                  {(
+                    [
+                      ["7", "7 Hari"],
+                      ["30", "30 Hari"],
+                      ["90", "90 Hari"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setChartMode(id)}
+                      className={`px-3 py-1.5 ${chartMode === id ? "bg-[#111] text-white" : "text-[#6B6B6B]"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  disabled={pdfBusy}
+                  onClick={() => void exportPdf()}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E8E4] bg-white text-[#6B6B6B] hover:text-[#111]"
+                  title="Unduh PDF rekap"
+                >
+                  <Download size={14} />
+                </button>
+              </div>
             </div>
           </div>
-          <SalesChart points={series} />
+          <div className="px-2 pb-3 pt-1 sm:px-4">
+            <SalesChart points={series} />
+          </div>
         </div>
 
         <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
@@ -363,15 +413,9 @@ export default function TrackingHome({
               Lihat semua lokasi
             </button>
           </div>
-          <div className="relative min-h-[200px] overflow-hidden rounded-xl border border-[#E8E8E4] bg-[#FAFAF8]">
-            <div
-              className="absolute inset-0 opacity-[0.35]"
-              style={{
-                backgroundImage:
-                  "linear-gradient(#E8E8E4 1px, transparent 1px), linear-gradient(90deg, #E8E8E4 1px, transparent 1px)",
-                backgroundSize: "28px 28px",
-              }}
-            />
+          <div className="relative min-h-[200px] overflow-hidden rounded-xl border border-[#E8E8E4]">
+            <Image src="/henima-cyber-city.jpg" alt="" fill className="object-cover opacity-40" sizes="360px" />
+            <div className="absolute inset-0 bg-[#FAFAF8]/55" />
             <div className="relative flex flex-wrap content-center gap-3 p-4">
               {filteredLive.slice(0, 8).map((s) => (
                 <button
@@ -426,7 +470,7 @@ export default function TrackingHome({
               </div>
               <p className="mt-1 truncate text-xs text-[#6B6B6B]">
                 {featured.note || "Lokasi terakhir dari app sales"}
-                {featured.recordedAt ? ` · ${clock(featured.recordedAt)}` : ""}
+                {featured.recordedAt ? ` · ${dayClock(featured.recordedAt)}` : ""}
               </p>
             </div>
           ) : null}
@@ -495,12 +539,11 @@ export default function TrackingHome({
           </div>
           <ul className="space-y-2.5">
             {recentSales.slice(0, 6).map((order) => (
-              <li key={order.id} className="flex items-center gap-3 rounded-xl border border-[#F0F0EC] px-2.5 py-2">
+              <li key={order.id} className="flex items-center gap-3 rounded-xl border border-[#F0F0EC] bg-[#FCFCFB] px-2.5 py-2.5">
                 <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7F4EC] text-[10px] font-bold"
-                  style={{ color: GOLD }}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold ${productTone(order.productName)}`}
                 >
-                  {initials(order.customerName)}
+                  {order.productName.slice(0, 2).toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-[#111]">{order.customerName}</p>
@@ -533,16 +576,36 @@ export default function TrackingHome({
             <h2 className="text-sm font-bold text-[#111]">Aktivitas terbaru</h2>
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Live</span>
           </div>
-          <ul className="space-y-3">
-            {activities.map((item) => (
-              <li key={item.id} className="flex gap-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: GOLD }} />
-                <div className="min-w-0">
-                  <p className="text-sm leading-snug text-[#111]">{item.text}</p>
-                  <p className="mt-0.5 text-[11px] text-[#8A8A8A]">{clock(item.at)}</p>
-                </div>
-              </li>
-            ))}
+          <ul className="space-y-3.5">
+            {activities.map((item) => {
+              const Icon =
+                item.kind === "checkin"
+                  ? CheckCircle2
+                  : item.kind === "sale"
+                    ? ShoppingBag
+                    : item.kind === "target"
+                      ? Trophy
+                      : MapPin;
+              const tone =
+                item.kind === "checkin"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : item.kind === "sale"
+                    ? "bg-sky-50 text-sky-700"
+                    : item.kind === "target"
+                      ? "bg-amber-50 text-amber-800"
+                      : "bg-[#F7F4EC] text-[#8A7040]";
+              return (
+                <li key={item.id} className="flex gap-3">
+                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone}`}>
+                    <Icon size={14} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm leading-snug text-[#111]">{item.text}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-[#8A8A8A]">{dayClock(item.at)}</p>
+                  </div>
+                </li>
+              );
+            })}
             {!activities.length && (
               <p className="text-sm text-[#6B6B6B]">Belum ada jejak GPS atau penjualan hari ini.</p>
             )}
@@ -582,10 +645,10 @@ function Metric({
   footer: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
+    <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_6px_18px_rgba(17,17,17,0.03)]">
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">{label}</p>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F7F4EC]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F7F4EC]">
           <Icon size={15} color={GOLD} />
         </span>
       </div>
@@ -595,36 +658,57 @@ function Metric({
   );
 }
 
-function SalesChart({ points }: { points: { label: string; value: number; target?: number }[] }) {
+function SalesChart({
+  points,
+}: {
+  points: { label: string; fullLabel?: string; value: number; target?: number }[];
+}) {
+  const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...points.map((p) => Math.max(p.value, p.target || 0)));
   const w = 560;
-  const h = 220;
-  const padX = 28;
-  const padY = 24;
+  const h = 236;
+  const padX = 36;
+  const padY = 28;
   const coords = points.map((p, i) => {
     const x = padX + (i * (w - padX * 2)) / Math.max(1, points.length - 1);
     const y = h - padY - (p.value / max) * (h - padY * 2);
     const ty = p.target != null ? h - padY - (p.target / max) * (h - padY * 2) : null;
     return { ...p, x, y, ty };
   });
+
   const line = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
-  const area = `${line} L${coords[coords.length - 1]?.x || padX},${h - padY} L${padX},${h - padY} Z`;
+  const area = line
+    ? `${line} L${coords[coords.length - 1]?.x || padX},${h - padY} L${padX},${h - padY} Z`
+    : "";
   const targetLine = coords
     .filter((c) => c.ty != null)
     .map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.ty}`)
     .join(" ");
+  const tip = hover != null ? coords[hover] : null;
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-[220px] w-full min-w-[320px]">
+    <div className="relative w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-[236px] w-full min-w-[320px]">
+        <defs>
+          <linearGradient id="henimaChartPaper" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#FBF8F1" stopOpacity="1" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+          </linearGradient>
+          <linearGradient id="henimaGoldFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={GOLD} stopOpacity="0.38" />
+            <stop offset="100%" stopColor={GOLD} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width={w} height={h} fill="url(#henimaChartPaper)" rx="12" />
+
         {[0, 0.33, 0.66, 1].map((t) => {
           const y = h - padY - t * (h - padY * 2);
-          const label = t === 0 ? "0" : t === 1 ? formatAxis(max) : "";
+          const label = t === 0 ? "0" : t === 1 ? formatAxis(max) : t === 0.66 ? formatAxis(max * 0.66) : "";
           return (
             <g key={t}>
-              <line x1={padX} x2={w - padX} y1={y} y2={y} stroke="#EFEFEA" strokeWidth="1" />
+              <line x1={padX} x2={w - padX} y1={y} y2={y} stroke="#EFE8DA" strokeWidth="1" />
               {label ? (
-                <text x={4} y={y + 4} fontSize="10" fill="#8A8A8A">
+                <text x={8} y={y + 4} fontSize="10" fill="#8A8A8A">
                   {label}
                 </text>
               ) : null}
@@ -634,28 +718,58 @@ function SalesChart({ points }: { points: { label: string; value: number; target
         {targetLine ? (
           <path d={targetLine} fill="none" stroke="#C9C4B8" strokeWidth="1.5" strokeDasharray="5 4" />
         ) : null}
-        <path d={area} fill="url(#henimaGoldFill)" opacity="0.35" />
-        <path d={line} fill="none" stroke={GOLD} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        {coords.map((c, i) =>
-          i % Math.ceil(coords.length / 8) === 0 || i === coords.length - 1 ? (
+        {area ? <path d={area} fill="url(#henimaGoldFill)" /> : null}
+        {line ? (
+          <path d={line} fill="none" stroke={INK} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />
+        ) : null}
+
+        {coords.map((c, i) => {
+          const showLabel = i % Math.ceil(coords.length / 6) === 0 || i === coords.length - 1;
+          return (
             <g key={c.label + c.x}>
-              <circle cx={c.x} cy={c.y} r="3.5" fill="#fff" stroke={GOLD} strokeWidth="2" />
-              <text x={c.x} y={h - 6} textAnchor="middle" fontSize="10" fill="#8A8A8A">
-                {c.label}
-              </text>
+              <circle
+                cx={c.x}
+                cy={c.y}
+                r={hover === i ? 5 : 0}
+                fill="#fff"
+                stroke={INK}
+                strokeWidth="2"
+                className="transition-all"
+              />
+              {showLabel ? (
+                <text x={c.x} y={h - 8} textAnchor="middle" fontSize="10" fill="#8A8A8A">
+                  {c.label}
+                </text>
+              ) : null}
+              <rect
+                x={c.x - 12}
+                y={padY}
+                width={24}
+                height={h - padY * 2}
+                fill="transparent"
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+              />
             </g>
-          ) : null,
-        )}
-        <defs>
-          <linearGradient id="henimaGoldFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={GOLD} stopOpacity="0.45" />
-            <stop offset="100%" stopColor={GOLD} stopOpacity="0" />
-          </linearGradient>
-        </defs>
+          );
+        })}
       </svg>
-      <div className="mt-1 flex gap-4 text-[10px] font-semibold text-[#8A8A8A]">
+
+      {tip ? (
+        <div
+          className="pointer-events-none absolute top-3 z-10 rounded-lg border border-[#E8E8E4] bg-white px-2.5 py-1.5 shadow-md"
+          style={{
+            left: `min(max(${(tip.x / w) * 100}% - 48px, 8px), calc(100% - 120px))`,
+          }}
+        >
+          <p className="text-[10px] font-semibold text-[#8A8A8A]">{tip.fullLabel || tip.label}</p>
+          <p className="text-xs font-bold tabular-nums text-[#111]">{rp(tip.value)}</p>
+        </div>
+      ) : null}
+
+      <div className="mt-1 flex gap-4 px-2 text-[10px] font-semibold text-[#8A8A8A]">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded" style={{ background: GOLD }} /> Omzet
+          <span className="h-0.5 w-4 rounded bg-[#1A1A1A]" /> Omzet
         </span>
         {points.some((p) => p.target) ? (
           <span className="inline-flex items-center gap-1.5">
@@ -664,7 +778,7 @@ function SalesChart({ points }: { points: { label: string; value: number; target
         ) : null}
       </div>
       {!points.some((p) => p.value > 0) && (
-        <p className="-mt-2 text-center text-xs text-[#8A8A8A]">Belum ada omzet pada periode ini.</p>
+        <p className="pb-2 text-center text-xs text-[#8A8A8A]">Belum ada omzet pada periode ini.</p>
       )}
     </div>
   );

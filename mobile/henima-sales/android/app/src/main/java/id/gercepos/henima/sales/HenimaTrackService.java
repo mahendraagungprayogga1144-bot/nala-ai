@@ -197,15 +197,28 @@ public class HenimaTrackService extends Service implements LocationListener {
       stopSelfSafe();
       return;
     }
-    if (location != null && LocationManager.GPS_PROVIDER.equals(location.getProvider())
+    if (location == null || isMockLocation(location)) return;
+    if (LocationManager.GPS_PROVIDER.equals(location.getProvider())
         && location.hasAccuracy() && location.getAccuracy() <= ACC_GOOD_M) {
       lastGpsGood = location;
     }
     maybePost(location, false);
   }
 
+  private static boolean isMockLocation(Location location) {
+    try {
+      if (Build.VERSION.SDK_INT >= 31) {
+        return location.isMock();
+      }
+      //noinspection deprecation
+      return location.isFromMockProvider();
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
   private void maybePost(Location location, boolean force) {
-    if (location == null) return;
+    if (location == null || isMockLocation(location)) return;
     long now = System.currentTimeMillis();
     float acc = location.hasAccuracy() ? location.getAccuracy() : 999f;
     boolean fromGps = LocationManager.GPS_PROVIDER.equals(location.getProvider());
@@ -279,6 +292,8 @@ public class HenimaTrackService extends Service implements LocationListener {
         body.put("lat", lat);
         body.put("lng", lng);
         body.put("accuracy_m", Math.round(acc));
+        body.put("mock", false);
+        body.put("provider", location.getProvider() == null ? "" : location.getProvider());
         byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
 
         conn = (HttpURLConnection) new URL(url).openConnection();

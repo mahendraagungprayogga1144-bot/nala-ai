@@ -1,17 +1,26 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
+  CalendarDays,
   ChevronRight,
+  Download,
   MapPinned,
   Package,
+  Search,
   ShoppingBag,
   Target,
   Users,
   Wallet,
 } from "lucide-react";
-import { type OwnerDashboardSummary, pctChange } from "@/lib/henima-tracking/owner-dashboard";
+import {
+  type DashboardPeriod,
+  type OwnerDashboardSummary,
+  pctChange,
+} from "@/lib/henima-tracking/owner-dashboard";
+import { downloadCommandCenterPdf } from "@/lib/henima-tracking/dashboard-pdf";
 import type { TrackingLink, TrackingPoint } from "@/lib/henima-tracking/shared";
 
 const GOLD = "#C5A358";
@@ -35,12 +44,12 @@ function initials(nama: string) {
 
 function Delta({ current, previous }: { current: number; previous: number }) {
   const pct = pctChange(current, previous);
-  if (!previous && !current) return <span className="text-xs text-[#8A8A8A]">vs bulan lalu</span>;
+  if (!previous && !current) return <span className="text-xs text-[#8A8A8A]">vs periode lalu</span>;
   const up = pct >= 0;
   return (
     <span className={`text-xs font-semibold ${up ? "text-emerald-600" : "text-rose-600"}`}>
       {up ? "+" : "−"}
-      {Math.abs(pct)}% vs bulan lalu
+      {Math.abs(pct)}% vs periode lalu
     </span>
   );
 }
@@ -58,7 +67,7 @@ export type LiveSalesCard = {
 
 export default function TrackingHome({
   ownerName,
-  summary,
+  summary: initialSummary,
   liveSales,
   activityPoints,
   onOpenLokasi,
@@ -72,7 +81,35 @@ export default function TrackingHome({
   onOpenLokasi: () => void;
   onFocusSales?: (staffId: string) => void;
 }) {
+  const [period, setPeriod] = useState<DashboardPeriod>("this_month");
+  const [summary, setSummary] = useState(initialSummary);
+  const [periodBusy, setPeriodBusy] = useState(false);
+  const [query, setQuery] = useState("");
   const [chartMode, setChartMode] = useState<"7" | "30" | "90">("30");
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setSummary(initialSummary);
+  }, [initialSummary]);
+
+  async function loadPeriod(next: DashboardPeriod) {
+    if (next === period) return;
+    setPeriod(next);
+    setPeriodBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/henima-tracking/dashboard?period=${next}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal memuat periode.");
+      setSummary(json.summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat periode.");
+    } finally {
+      setPeriodBusy(false);
+    }
+  }
+
   const series = useMemo(() => {
     if (chartMode === "7") {
       return summary.chartDaily.slice(-7).map((r) => ({
@@ -94,6 +131,29 @@ export default function TrackingHome({
   const online = liveSales.filter((s) => s.tone === "road").length;
   const aktif = liveSales.filter((s) => s.tone !== "off").length;
   const totalSales = liveSales.length;
+  const q = query.trim().toLowerCase();
+
+  const ranking = useMemo(() => {
+    const rows = summary.ranking;
+    if (!q) return rows;
+    return rows.filter((r) => r.nama.toLowerCase().includes(q));
+  }, [summary.ranking, q]);
+
+  const recentSales = useMemo(() => {
+    const rows = summary.recentSales;
+    if (!q) return rows;
+    return rows.filter(
+      (o) =>
+        o.customerName.toLowerCase().includes(q) ||
+        o.salesName.toLowerCase().includes(q) ||
+        o.productName.toLowerCase().includes(q),
+    );
+  }, [summary.recentSales, q]);
+
+  const filteredLive = useMemo(() => {
+    if (!q) return liveSales;
+    return liveSales.filter((s) => s.nama.toLowerCase().includes(q));
+  }, [liveSales, q]);
 
   const activities = useMemo(() => {
     const fromGps = activityPoints
@@ -135,27 +195,92 @@ export default function TrackingHome({
       .slice(0, 8);
   }, [activityPoints, liveSales, summary.ranking, summary.recentSales]);
 
-  const featured = liveSales.find((s) => s.tone === "road") || liveSales[0];
+  const featured = filteredLive.find((s) => s.tone === "road") || filteredLive[0];
+
+  async function exportPdf() {
+    setPdfBusy(true);
+    setError("");
+    try {
+      await downloadCommandCenterPdf({
+        ownerName,
+        periodLabel: summary.monthLabel,
+        summary,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal membuat PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)]">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-tight text-[#111] md:text-[30px]">
-            Selamat datang, {ownerName}
-          </h1>
-          <p className="mt-1 text-sm text-[#6B6B6B]">
-            Pantau performa tim sales HENIMA — omzet, target, dan GPS lapangan.
-          </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="relative min-w-[220px] flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8A8A]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cari sales, transaksi, atau pelanggan…"
+            className="w-full rounded-xl border border-[#E8E8E4] bg-white py-2.5 pl-9 pr-3 text-sm text-[#111] outline-none focus:border-[#C5A358]"
+          />
+        </label>
+        <div className="inline-flex items-center gap-2 rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-sm font-semibold text-[#111]">
+          <CalendarDays size={15} style={{ color: GOLD }} />
+          <select
+            value={period}
+            disabled={periodBusy}
+            onChange={(e) => void loadPeriod(e.target.value as DashboardPeriod)}
+            className="bg-transparent text-sm font-semibold outline-none disabled:opacity-50"
+            aria-label="Pilih bulan"
+          >
+            <option value="this_month">Bulan ini</option>
+            <option value="last_month">Bulan lalu</option>
+          </select>
         </div>
-        <aside className="relative overflow-hidden rounded-2xl border border-[#E8D9A8] bg-[#F7F4EC] px-4 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
-            HENIMA
-          </p>
-          <p className="mt-1 text-sm font-bold text-[#111]">Grow Together, Achieve More</p>
-          <p className="mt-0.5 text-xs text-[#6B6B6B]">{summary.monthLabel}</p>
-        </aside>
+        <button
+          type="button"
+          disabled={pdfBusy}
+          onClick={() => void exportPdf()}
+          className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: GOLD }}
+        >
+          <Download size={15} />
+          {pdfBusy ? "Menyusun PDF…" : "Unduh PDF"}
+        </button>
       </div>
+
+      <section className="relative overflow-hidden rounded-2xl border border-[#E8D9A8] bg-[#F7F4EC]">
+        <div className="grid gap-4 p-5 md:grid-cols-[minmax(0,1.2fr)_minmax(200px,0.8fr)] md:items-end">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
+              HENIMA Sales
+            </p>
+            <h1 className="mt-2 text-[26px] font-bold tracking-tight text-[#111] md:text-[32px]">
+              Selamat datang, {ownerName}
+            </h1>
+            <p className="mt-1 text-sm text-[#6B6B6B]">
+              Grow Together, Achieve More · rekap {summary.monthLabel}
+              {periodBusy ? " · memuat…" : ""}
+            </p>
+          </div>
+          <div className="relative mx-auto h-28 w-full max-w-[220px] md:mx-0 md:justify-self-end">
+            <Image
+              src="/henima-cyber-city.jpg"
+              alt=""
+              fill
+              className="rounded-xl object-cover"
+              sizes="220px"
+              priority={false}
+            />
+            <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-[#F7F4EC]/70 to-transparent" />
+          </div>
+        </div>
+      </section>
+
+      {error ? (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Metric
@@ -189,46 +314,52 @@ export default function TrackingHome({
       </div>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)]">
-        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-[#111]">Performa penjualan</h2>
-              <p className="text-xs text-[#8A8A8A]">Omzet vs target · data lunas (bukan Telegram)</p>
+              <p className="text-xs text-[#8A8A8A]">Omzet vs target · {summary.monthLabel}</p>
             </div>
-            <div className="flex overflow-hidden rounded-full border border-[#E8E8E4] text-xs font-semibold">
-              {(
-                [
-                  ["7", "7 Hari"],
-                  ["30", "30 Hari"],
-                  ["90", "90 Hari"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setChartMode(id)}
-                  className={`px-3 py-1.5 ${chartMode === id ? "bg-[#111] text-white" : "bg-white text-[#6B6B6B]"}`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex overflow-hidden rounded-full border border-[#E8E8E4] text-xs font-semibold">
+                {(
+                  [
+                    ["7", "7 Hari"],
+                    ["30", "30 Hari"],
+                    ["90", "90 Hari"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setChartMode(id)}
+                    className={`px-3 py-1.5 ${chartMode === id ? "bg-[#111] text-white" : "bg-white text-[#6B6B6B]"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={pdfBusy}
+                onClick={() => void exportPdf()}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E8E4] text-[#6B6B6B] hover:text-[#111]"
+                title="Unduh PDF rekap"
+              >
+                <Download size={14} />
+              </button>
             </div>
           </div>
           <SalesChart points={series} />
         </div>
 
-        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-[#111]">Live GPS</h2>
               <p className="text-xs text-[#8A8A8A]">Posisi sales lapangan hari ini</p>
             </div>
-            <button
-              type="button"
-              onClick={onOpenLokasi}
-              className="text-xs font-semibold"
-              style={{ color: GOLD }}
-            >
+            <button type="button" onClick={onOpenLokasi} className="text-xs font-semibold" style={{ color: GOLD }}>
               Lihat semua lokasi
             </button>
           </div>
@@ -242,7 +373,7 @@ export default function TrackingHome({
               }}
             />
             <div className="relative flex flex-wrap content-center gap-3 p-4">
-              {liveSales.slice(0, 8).map((s) => (
+              {filteredLive.slice(0, 8).map((s) => (
                 <button
                   key={s.staffId}
                   type="button"
@@ -271,7 +402,7 @@ export default function TrackingHome({
                   </span>
                 </button>
               ))}
-              {!liveSales.length && (
+              {!filteredLive.length && (
                 <p className="text-sm text-[#6B6B6B]">Belum ada sales terhubung. Tambah di Pengaturan.</p>
               )}
             </div>
@@ -303,15 +434,21 @@ export default function TrackingHome({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-[#111]">Peringkat sales</h2>
-            <Link href="/dashboard/sales/targets" className="text-xs font-semibold" style={{ color: GOLD }}>
-              Target & komisi
-            </Link>
+            <select
+              value={period}
+              disabled={periodBusy}
+              onChange={(e) => void loadPeriod(e.target.value as DashboardPeriod)}
+              className="rounded-lg border border-[#E8E8E4] bg-[#FAFAF8] px-2 py-1 text-xs font-semibold text-[#111]"
+            >
+              <option value="this_month">Bulan ini</option>
+              <option value="last_month">Bulan lalu</option>
+            </select>
           </div>
           <ul className="space-y-3">
-            {summary.ranking.slice(0, 5).map((row, i) => (
+            {ranking.slice(0, 5).map((row, i) => (
               <li key={row.salesId} className="flex items-center gap-3">
                 <span
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
@@ -324,6 +461,7 @@ export default function TrackingHome({
                     <p className="truncate text-sm font-bold text-[#111]">{row.nama}</p>
                     <p className="shrink-0 text-xs font-bold tabular-nums text-[#111]">{rp(row.omzet)}</p>
                   </div>
+                  <p className="mt-0.5 text-[11px] text-[#8A8A8A]">{row.qty} produk</p>
                   <div className="mt-1 flex items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#EFEFEA]">
                       <div
@@ -336,23 +474,32 @@ export default function TrackingHome({
                 </div>
               </li>
             ))}
-            {!summary.ranking.length && (
-              <p className="text-sm text-[#6B6B6B]">Belum ada penjualan lunas bulan ini.</p>
+            {!ranking.length && (
+              <p className="text-sm text-[#6B6B6B]">Belum ada penjualan lunas di {summary.monthLabel}.</p>
             )}
           </ul>
+          <Link href="/dashboard/sales/targets" className="mt-3 inline-block text-xs font-semibold" style={{ color: GOLD }}>
+            Target & komisi
+          </Link>
         </div>
 
-        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#111]">Transaksi terbaru</h2>
-            <Link href="/dashboard/sales/orders" className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#6B6B6B]">
+            <Link
+              href="/dashboard/sales/orders"
+              className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#6B6B6B]"
+            >
               Semua <ChevronRight size={12} />
             </Link>
           </div>
           <ul className="space-y-2.5">
-            {summary.recentSales.slice(0, 6).map((order) => (
+            {recentSales.slice(0, 6).map((order) => (
               <li key={order.id} className="flex items-center gap-3 rounded-xl border border-[#F0F0EC] px-2.5 py-2">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7F4EC] text-[10px] font-bold" style={{ color: GOLD }}>
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7F4EC] text-[10px] font-bold"
+                  style={{ color: GOLD }}
+                >
                   {initials(order.customerName)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -364,22 +511,24 @@ export default function TrackingHome({
                 <div className="shrink-0 text-right">
                   <p className="text-xs font-bold tabular-nums text-[#111]">{rp(order.total)}</p>
                   <span
-                    className={`text-[10px] font-bold ${
-                      order.status === "PAID" ? "text-emerald-600" : order.status === "PENDING" ? "text-amber-700" : "text-[#8A8A8A]"
+                    className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      order.status === "PAID"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : order.status === "PENDING"
+                          ? "bg-amber-50 text-amber-800"
+                          : "bg-[#F3F3F1] text-[#6B6B6B]"
                     }`}
                   >
-                    {order.status === "PAID" ? "Lunas" : order.status === "PENDING" ? "Pending" : order.status}
+                    {order.status === "PAID" ? "Paid" : order.status === "PENDING" ? "Pending" : order.status}
                   </span>
                 </div>
               </li>
             ))}
-            {!summary.recentSales.length && (
-              <p className="text-sm text-[#6B6B6B]">Belum ada transaksi dari app sales.</p>
-            )}
+            {!recentSales.length && <p className="text-sm text-[#6B6B6B]">Belum ada transaksi dari app sales.</p>}
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+        <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#111]">Aktivitas terbaru</h2>
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Live</span>
@@ -433,7 +582,7 @@ function Metric({
   footer: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+    <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">{label}</p>
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F7F4EC]">
@@ -455,8 +604,7 @@ function SalesChart({ points }: { points: { label: string; value: number; target
   const coords = points.map((p, i) => {
     const x = padX + (i * (w - padX * 2)) / Math.max(1, points.length - 1);
     const y = h - padY - (p.value / max) * (h - padY * 2);
-    const ty =
-      p.target != null ? h - padY - (p.target / max) * (h - padY * 2) : null;
+    const ty = p.target != null ? h - padY - (p.target / max) * (h - padY * 2) : null;
     return { ...p, x, y, ty };
   });
   const line = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");

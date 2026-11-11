@@ -62,7 +62,13 @@ function productKind(name: string): "afternoon" | "distance" | "other" {
   return "other";
 }
 
-export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Promise<OwnerDashboardSummary> {
+export type DashboardPeriod = "this_month" | "last_month";
+
+export async function loadOwnerDashboardSummary(
+  db: SalesDb,
+  actor: Actor,
+  period: DashboardPeriod = "this_month",
+): Promise<OwnerDashboardSummary> {
   const today = todayWib();
   const [thisMonth, lastMonth, monthAch, targets] = await Promise.all([
     buildSalesReport(db, actor, { kind: "this_month", rankBy: "revenue" }),
@@ -71,23 +77,26 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
     listTargets(db, actor),
   ]);
 
+  const primary = period === "last_month" ? lastMonth : thisMonth;
+  const previous = period === "last_month" ? null : lastMonth;
+
   const monthlyTarget =
     targets.find((t) => t.period_type === "monthly" && !t.sales_id) ||
     targets.find((t) => t.period_type === "monthly");
 
   const targetRevenue = money(monthlyTarget?.revenue_target || 0);
   const targetQty = money(monthlyTarget?.quantity_target || monthAch.target || 0);
-  const omzetBulan = money(thisMonth.totalRevenue);
+  const omzetBulan = money(primary.totalRevenue);
   const pencapaianPct =
     targetRevenue > 0
       ? Math.min(999, Math.round((omzetBulan / targetRevenue) * 1000) / 10)
       : targetQty > 0
-        ? Math.min(999, Math.round((monthAch.sold / targetQty) * 1000) / 10)
+        ? Math.min(999, Math.round((money(primary.totalQty) / targetQty) * 1000) / 10)
         : 0;
 
-  const bonusBulan = money(thisMonth.totalCommission);
+  const bonusBulan = money(primary.totalCommission);
 
-  const monthRange = periodRange("this_month");
+  const monthRange = periodRange(period);
   const { data: pendingRows } = await db
     .from("orders")
     .select("total")
@@ -168,14 +177,14 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
     }
     // Include current/last month report totals if outside 90d window edge
     if (i === 1) omzet = money(lastMonth.totalRevenue) || omzet;
-    if (i === 0) omzet = omzetBulan || omzet;
+    if (i === 0) omzet = money(thisMonth.totalRevenue) || omzet;
     const label = new Intl.DateTimeFormat("id-ID", { month: "short", timeZone: "UTC" }).format(
       new Date(Date.UTC(yr, mo - 1, 1)),
     );
     chartMonthly.push({ label, omzet });
   }
 
-  const products = (thisMonth.byProduct || []) as { name: string; qty: number; omzet: number }[];
+  const products = (primary.byProduct || []) as { name: string; qty: number; omzet: number }[];
   const afternoon = products.find((p) => productKind(p.name) === "afternoon");
   const distance = products.find((p) => productKind(p.name) === "distance");
   const topProducts = [
@@ -183,13 +192,9 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
     { name: distance?.name || "THE DISTANCE", qty: distance?.qty || 0, kind: "distance" as const },
   ];
 
-  const monthLabel = new Intl.DateTimeFormat("id-ID", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Jakarta",
-  }).format(new Date(`${today}T12:00:00+07:00`));
+  const monthLabel = periodRange(period).label;
 
-  const ranking = (thisMonth.ranking || [])
+  const ranking = (primary.ranking || [])
     .filter((r) => r.salesId !== "unknown")
     .map((r) => {
       const personal =
@@ -266,11 +271,11 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
   return {
     monthLabel,
     omzetBulan,
-    omzetBulanLalu: money(lastMonth.totalRevenue),
-    botolBulan: money(thisMonth.totalQty),
-    botolBulanLalu: money(lastMonth.totalQty),
-    transaksiBulan: money(thisMonth.totalOrders),
-    transaksiBulanLalu: money(lastMonth.totalOrders),
+    omzetBulanLalu: money(previous?.totalRevenue || 0),
+    botolBulan: money(primary.totalQty),
+    botolBulanLalu: money(previous?.totalQty || 0),
+    transaksiBulan: money(primary.totalOrders),
+    transaksiBulanLalu: money(previous?.totalOrders || 0),
     saldoPenjualan: omzetBulan,
     pendingTotal,
     targetRevenue,

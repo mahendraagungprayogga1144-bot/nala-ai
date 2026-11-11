@@ -79,7 +79,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     }
 
     // Cadangan diam ke Traccar (kalau TRACCAR_OSMAND_URL di-set) — owner tetap pantau di Lokasi GPS.
-    void forwardPingToTraccar({
+    // Await supaya rename nama sales sempat selesai di Vercel (void sering terpotong).
+    await forwardPingToTraccar({
       token,
       lat,
       lng,

@@ -26,7 +26,6 @@ function osmAndBase() {
       return "";
     }
   }
-  // Lokal default kalau dashboard Traccar juga lokal.
   const dash = traccarDashboardUrl();
   if (dash.includes("127.0.0.1") || dash.includes("localhost")) {
     return "http://127.0.0.1:5055";
@@ -46,54 +45,41 @@ function cleanDeviceName(nama: string | null | undefined) {
   return raw.slice(0, 80);
 }
 
-function sessionCookie(res: Response) {
-  const headers = res.headers as Headers & { getSetCookie?: () => string[] };
-  const parts = typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
-  if (parts.length) return parts.map((c) => c.split(";")[0]?.trim()).filter(Boolean).join("; ");
-  const raw = res.headers.get("set-cookie");
-  if (!raw) return "";
-  return raw
-    .split(/,(?=\s*[^;=]+=)/)
-    .map((c) => c.split(";")[0]?.trim())
-    .filter(Boolean)
-    .join("; ");
-}
-
-async function syncTraccarDeviceName(uniqueId: string, nama: string) {
-  const base = traccarDashboardUrl();
+function traccarBasicAuth() {
   const email = (process.env.TRACCAR_API_EMAIL || "").trim();
   const password = (process.env.TRACCAR_API_PASSWORD || "").trim();
-  if (!base || !email || !password || !nama) return;
+  if (!email || !password) return "";
+  return `Basic ${Buffer.from(`${email}:${password}`).toString("base64")}`;
+}
+
+/** Ganti name device di Traccar biar tampil nama sales, bukan henima-xxxx. */
+async function syncTraccarDeviceName(uniqueId: string, nama: string) {
+  const base = traccarDashboardUrl();
+  const auth = traccarBasicAuth();
+  if (!base || !auth || !nama) return;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const login = await fetch(`${base}/api/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ email, password }).toString(),
-      signal: controller.signal,
-      cache: "no-store",
-      redirect: "manual",
-    });
-    const cookie = sessionCookie(login);
-    if (!login.ok || !cookie) return;
-
-    const list = await fetch(`${base}/api/devices?uniqueId=${encodeURIComponent(uniqueId)}`, {
-      headers: { Cookie: cookie },
+    const list = await fetch(`${base}/api/devices`, {
+      headers: { Authorization: auth, Accept: "application/json" },
       signal: controller.signal,
       cache: "no-store",
     });
-    const devices = (await list.json().catch(() => [])) as Array<Record<string, unknown> & { id?: number; name?: string; uniqueId?: string }>;
-    if (!list.ok || !Array.isArray(devices) || devices.length === 0) return;
-    const device = devices.find((d) => d.uniqueId === uniqueId) || devices[0];
+    if (!list.ok) return;
+    const devices = (await list.json().catch(() => [])) as Array<
+      Record<string, unknown> & { id?: number; name?: string; uniqueId?: string }
+    >;
+    if (!Array.isArray(devices) || devices.length === 0) return;
+    const device = devices.find((d) => d.uniqueId === uniqueId);
     if (!device?.id || device.name === nama) return;
 
     await fetch(`${base}/api/devices/${device.id}`, {
       method: "PUT",
       headers: {
+        Authorization: auth,
+        Accept: "application/json",
         "Content-Type": "application/json",
-        Cookie: cookie,
       },
       body: JSON.stringify({ ...device, name: nama }),
       signal: controller.signal,
@@ -131,7 +117,6 @@ export async function forwardPingToTraccar(opts: {
     altitude: "0",
   });
   if (opts.accuracy_m != null && Number.isFinite(opts.accuracy_m)) {
-    // hdop ~ akurasi kasar (meter) agar Traccar bisa filter titik jelek.
     params.set("hdop", String(Math.max(0.5, Math.min(50, Number(opts.accuracy_m) / 5))));
     params.set("accuracy", String(Math.round(opts.accuracy_m)));
   }
@@ -144,8 +129,9 @@ export async function forwardPingToTraccar(opts: {
     clearTimeout(timer);
     const ok = res.ok || res.status === 200;
     const nama = cleanDeviceName(opts.nama);
+    // Await rename — di Vercel `void` sering diputus sebelum selesai.
     if (ok && nama) {
-      void syncTraccarDeviceName(id, nama);
+      await syncTraccarDeviceName(id, nama);
     }
     return { ok, skipped: false as const, status: res.status, deviceId: id };
   } catch {

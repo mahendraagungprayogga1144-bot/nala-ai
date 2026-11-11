@@ -99,6 +99,20 @@ function formatLiveDate(date: Date) {
   }).format(date);
 }
 
+/** Draft angka: boleh kosong saat mengetik (supaya 0 tidak nempel / menimpa). */
+function parseDigitDraft(raw: string) {
+  if (raw.trim() === "") return "";
+  if (!/^\d+$/.test(raw.trim())) return null;
+  return raw.trim().replace(/^0+(?=\d)/, "") || "0";
+}
+
+function draftToInt(raw: string, fallback: number, min: number) {
+  if (raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.round(n));
+}
+
 export default function SalesPortal({ token, field }: { token: string; field: FieldState }) {
   const [tab, setTab] = useState<Tab>("home");
   const [data, setData] = useState<PortalData | null>(null);
@@ -144,6 +158,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
           token={token}
           initial={field}
           embedded
+          onBack={() => setTab("home")}
           onStatusChange={setTrackLive}
         />
       </div>
@@ -454,8 +469,8 @@ function SaleView({
 }) {
   const [productId, setProductId] = useState(products[0]?.id || "");
   const selected = useMemo(() => products.find((p) => p.id === productId) || products[0], [products, productId]);
-  const [qty, setQty] = useState(1);
-  const [price, setPrice] = useState(selected?.price || 0);
+  const [qtyDraft, setQtyDraft] = useState("1");
+  const [priceDraft, setPriceDraft] = useState(String(selected?.price || 0));
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [method, setMethod] = useState<"CASH" | "TRANSFER" | "QRIS">("CASH");
@@ -468,11 +483,15 @@ function SaleView({
   useEffect(() => {
     if (selected) {
       setProductId(selected.id);
-      setPrice(selected.price);
+      setPriceDraft(String(selected.price));
     }
   }, [selected]);
 
   async function submit() {
+    const quantity = draftToInt(qtyDraft, 1, 1);
+    const unitPrice = draftToInt(priceDraft, selected?.price || 0, 0);
+    setQtyDraft(String(quantity));
+    setPriceDraft(String(unitPrice));
     setBusy(true);
     setError("");
     setOk("");
@@ -492,8 +511,8 @@ function SaleView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: selected?.id,
-          quantity: qty,
-          unitPrice: price,
+          quantity,
+          unitPrice,
           customerName,
           customerPhone,
           paymentMethod: method,
@@ -510,7 +529,7 @@ function SaleView({
       setCustomerPhone("");
       setNotes("");
       setProof(null);
-      setQty(1);
+      setQtyDraft("1");
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan.");
@@ -519,137 +538,162 @@ function SaleView({
     }
   }
 
+  const qtyNum = draftToInt(qtyDraft, 1, 1);
+  const priceNum = draftToInt(priceDraft, selected?.price || 0, 0);
+
   return (
-    <div className="space-y-4 pb-2">
-      <div>
-        <h1 className="text-xl font-bold">Catat Penjualan</h1>
-        <p className="mt-1 text-sm leading-snug text-[#6B6B6B]">Data langsung masuk database & terlihat di dashboard owner.</p>
-      </div>
+    <div className="space-y-3 pb-2">
       {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       {ok ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{ok}</p> : null}
 
-      <label className="block text-sm font-semibold">
-        Produk
-        <select
-          value={selected?.id || ""}
-          onChange={(e) => setProductId(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm"
-        >
-          {products.length === 0 && <option value="">Belum ada produk di bisnis</option>}
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} · {rp(p.price)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <section className="space-y-3 rounded-2xl border border-[#E8E8E4] bg-white p-4">
+        <label className="block text-sm font-semibold text-[#111]">
+          Produk
+          <select
+            value={selected?.id || ""}
+            onChange={(e) => setProductId(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-3.5 text-sm"
+          >
+            {products.length === 0 && <option value="">Belum ada produk</option>}
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block text-sm font-semibold">
-          Jumlah botol
+        <div>
+          <p className="text-sm font-semibold text-[#111]">Jumlah</p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setQtyDraft(String(Math.max(1, qtyNum - 1)))}
+              className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#E8E8E4] text-xl font-bold text-[#111]"
+            >
+              −
+            </button>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={qtyDraft}
+              onChange={(e) => {
+                const next = parseDigitDraft(e.target.value);
+                if (next !== null) setQtyDraft(next === "0" ? "" : next);
+              }}
+              onBlur={() => setQtyDraft(String(draftToInt(qtyDraft, 1, 1)))}
+              onFocus={(e) => e.currentTarget.select()}
+              className="h-12 min-w-0 flex-1 rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 text-center text-lg font-bold"
+            />
+            <button
+              type="button"
+              onClick={() => setQtyDraft(String(qtyNum + 1))}
+              className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#E8E8E4] text-xl font-bold text-[#111]"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <label className="block text-sm font-semibold text-[#111]">
+          Harga unit
           <input
-            type="number"
-            min={1}
-            value={qty}
-            onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-            className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={priceDraft}
+            onChange={(e) => {
+              const next = parseDigitDraft(e.target.value);
+              if (next !== null) setPriceDraft(next);
+            }}
+            onBlur={() => setPriceDraft(String(draftToInt(priceDraft, selected?.price || 0, 0)))}
+            onFocus={(e) => e.currentTarget.select()}
+            className="mt-1.5 w-full rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-3.5 text-sm font-semibold"
           />
         </label>
-        <label className="block text-sm font-semibold">
-          Harga jual
+
+        <div className="rounded-xl bg-[#F3F7F4] px-3 py-3">
+          <p className="text-xs font-medium text-[#6B6B6B]">Total</p>
+          <p className="text-2xl font-bold text-[#111]">{rp(qtyNum * priceNum)}</p>
+        </div>
+
+        <label className="block text-sm font-semibold text-[#111]">
+          Nama pelanggan
           <input
-            type="number"
-            min={0}
-            value={price}
-            onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))}
-            className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-3.5 text-sm"
+            placeholder="Nama pembeli"
           />
         </label>
-      </div>
 
-      <label className="block text-sm font-semibold">
-        Nama pelanggan
-        <input
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm"
-          placeholder="Nama pembeli"
-        />
-      </label>
-      <label className="block text-sm font-semibold">
-        WhatsApp (opsional)
-        <input
-          value={customerPhone}
-          onChange={(e) => setCustomerPhone(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm"
-          placeholder="08…"
-        />
-      </label>
+        <div>
+          <p className="text-sm font-semibold text-[#111]">Bayar</p>
+          <div className="mt-1.5 grid grid-cols-3 gap-2">
+            {(["CASH", "TRANSFER", "QRIS"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMethod(m)}
+                className={`rounded-xl border py-2.5 text-xs font-bold ${
+                  method === m ? "border-transparent text-white" : "border-[#E8E8E4] bg-white text-[#6B6B6B]"
+                }`}
+                style={method === m ? { background: GREEN } : undefined}
+              >
+                {m === "CASH" ? "Tunai" : m === "TRANSFER" ? "TF" : "QRIS"}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(["PAID", "PENDING"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatus(s)}
+                className={`rounded-xl border py-2.5 text-xs font-bold ${
+                  status === s ? "border-[#111] bg-[#111] text-white" : "border-[#E8E8E4] bg-white text-[#6B6B6B]"
+                }`}
+              >
+                {s === "PAID" ? "Lunas" : "Belum lunas"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        {(["CASH", "TRANSFER", "QRIS"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMethod(m)}
-            className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${
-              method === m ? "border-[#111] bg-[#111] text-white" : "border-[#E8E8E4] bg-white text-[#6B6B6B]"
-            }`}
-          >
-            {m === "CASH" ? "Tunai" : m === "TRANSFER" ? "Transfer" : "QRIS"}
-          </button>
-        ))}
-      </div>
+        <label className="block text-sm font-semibold text-[#111]">
+          Catatan <span className="font-normal text-[#8A8A8A]">(opsional)</span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className="mt-1.5 w-full rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-3 text-sm"
+            placeholder="Catatan singkat"
+          />
+        </label>
 
-      <div className="grid grid-cols-2 gap-2">
-        {(["PAID", "PENDING"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatus(s)}
-            className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${
-              status === s ? "border-[#111] bg-[#111] text-white" : "border-[#E8E8E4] bg-white text-[#6B6B6B]"
-            }`}
-          >
-            {s === "PAID" ? "Lunas" : "Belum lunas"}
-          </button>
-        ))}
-      </div>
-
-      <label className="block text-sm font-semibold">
-        Catatan
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          className="mt-1 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm"
-          placeholder="Opsional"
-        />
-      </label>
-
-      <label className="block text-sm font-semibold">
-        Bukti transaksi
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="mt-1 block w-full text-xs"
-          onChange={(e) => setProof(e.target.files?.[0] || null)}
-        />
-      </label>
-
-      <p className="text-sm font-semibold">
-        Total: <span className="text-lg">{rp(qty * price)}</span>
-      </p>
+        <label className="block text-sm font-semibold text-[#111]">
+          Bukti bayar <span className="font-normal text-[#8A8A8A]">(opsional)</span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="mt-1.5 block w-full text-xs"
+            onChange={(e) => setProof(e.target.files?.[0] || null)}
+          />
+        </label>
+      </section>
 
       <button
         type="button"
         disabled={busy || !selected || !customerName.trim()}
         onClick={() => void submit()}
-        className="w-full rounded-2xl bg-[#111] py-3.5 text-sm font-bold text-white disabled:opacity-40"
+        className="w-full rounded-2xl py-4 text-sm font-bold text-white disabled:opacity-40"
+        style={{ background: GREEN }}
       >
         {busy ? "Menyimpan…" : "Simpan penjualan"}
       </button>
+      <p className="text-center text-xs text-[#8A8A8A]">Pastikan data benar sebelum disimpan.</p>
     </div>
   );
 }
@@ -674,17 +718,19 @@ function PayView({
   const [busyId, setBusyId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProductId, setEditProductId] = useState("");
-  const [editQty, setEditQty] = useState(1);
-  const [editPrice, setEditPrice] = useState(0);
+  const [editQtyDraft, setEditQtyDraft] = useState("1");
+  const [editPriceDraft, setEditPriceDraft] = useState("0");
   const [editMethod, setEditMethod] = useState<"CASH" | "TRANSFER" | "QRIS">("CASH");
   const [editStatus, setEditStatus] = useState<"PAID" | "PENDING">("PAID");
   const [editNotes, setEditNotes] = useState("");
+  const editQty = draftToInt(editQtyDraft, 1, 1);
+  const editPrice = draftToInt(editPriceDraft, 0, 0);
 
   function startEdit(order: PortalOrder) {
     setEditingId(order.id);
     setEditProductId(order.productId || products[0]?.id || "");
-    setEditQty(Math.max(1, order.quantity || 1));
-    setEditPrice(Math.max(0, order.unitPrice || 0));
+    setEditQtyDraft(String(Math.max(1, order.quantity || 1)));
+    setEditPriceDraft(String(Math.max(0, order.unitPrice || 0)));
     const metode = (order.metode || "CASH").toUpperCase();
     setEditMethod(metode === "TRANSFER" || metode === "QRIS" ? metode : "CASH");
     setEditStatus(order.status === "PENDING" ? "PENDING" : "PAID");
@@ -715,6 +761,10 @@ function PayView({
   }
 
   async function saveEdit(orderId: string) {
+    const quantity = draftToInt(editQtyDraft, 1, 1);
+    const unitPrice = draftToInt(editPriceDraft, 0, 0);
+    setEditQtyDraft(String(quantity));
+    setEditPriceDraft(String(unitPrice));
     setBusyId(orderId);
     setError("");
     setOk("");
@@ -726,8 +776,8 @@ function PayView({
           action: "edit_sale",
           orderId,
           productId: editProductId,
-          quantity: editQty,
-          unitPrice: editPrice,
+          quantity,
+          unitPrice,
           paymentMethod: editMethod,
           paymentStatus: editStatus,
           notes: editNotes,
@@ -769,15 +819,17 @@ function PayView({
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Pembayaran</h1>
-      <p className="text-sm text-[#6B6B6B]">Salah input? Edit atau hapus transaksi hari ini di sini.</p>
-      <div className="grid grid-cols-2 gap-2">
-        <StatCard label="Setor tunai" value={rp(setorCash)} hint="Lunas hari ini" />
-        <StatCard label="Belum lunas" value={rp(pendingTotal)} hint={`${orders.filter((o) => o.status === "PENDING").length} order`} />
-      </div>
+    <div className="space-y-3">
       {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
       {ok && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{ok}</p>}
+      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A]">Belum lunas</p>
+        <p className="mt-1 text-3xl font-bold text-[#111]">{rp(pendingTotal)}</p>
+        <p className="mt-1 text-xs text-[#6B6B6B]">
+          {orders.filter((o) => o.status === "PENDING").length} order · setor cash hari ini {rp(setorCash)}
+        </p>
+      </section>
+      <p className="text-sm font-bold text-[#111]">Daftar tagihan</p>
       {!orders.length ? (
         <p className="rounded-2xl border border-dashed border-[#E8E8E4] bg-white px-4 py-8 text-center text-sm text-[#6B6B6B]">
           Belum ada transaksi hari ini.
@@ -805,7 +857,7 @@ function PayView({
                       onChange={(e) => {
                         setEditProductId(e.target.value);
                         const p = products.find((x) => x.id === e.target.value);
-                        if (p) setEditPrice(p.price);
+                        if (p) setEditPriceDraft(String(p.price));
                       }}
                       className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
                     >
@@ -820,20 +872,30 @@ function PayView({
                     <label className="block text-xs font-semibold">
                       Jumlah
                       <input
-                        type="number"
-                        min={1}
-                        value={editQty}
-                        onChange={(e) => setEditQty(Math.max(1, Number(e.target.value) || 1))}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={editQtyDraft}
+                        onChange={(e) => {
+                          const next = parseDigitDraft(e.target.value);
+                          if (next !== null) setEditQtyDraft(next === "0" ? "" : next);
+                        }}
+                        onBlur={() => setEditQtyDraft(String(draftToInt(editQtyDraft, 1, 1)))}
                         className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
                       />
                     </label>
                     <label className="block text-xs font-semibold">
                       Harga
                       <input
-                        type="number"
-                        min={0}
-                        value={editPrice}
-                        onChange={(e) => setEditPrice(Math.max(0, Number(e.target.value) || 0))}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={editPriceDraft}
+                        onChange={(e) => {
+                          const next = parseDigitDraft(e.target.value);
+                          if (next !== null) setEditPriceDraft(next);
+                        }}
+                        onBlur={() => setEditPriceDraft(String(draftToInt(editPriceDraft, 0, 0)))}
                         className="mt-1 w-full rounded-xl border border-[#E8E8E4] px-3 py-2 text-sm"
                       />
                     </label>
@@ -901,9 +963,10 @@ function PayView({
                       type="button"
                       disabled={busyId === order.id}
                       onClick={() => void markPaid(order.id)}
-                      className="col-span-2 rounded-xl border border-[#111] py-2 text-xs font-bold"
+                      className="col-span-2 rounded-xl py-2.5 text-xs font-bold text-white"
+                      style={{ background: GREEN }}
                     >
-                      {busyId === order.id ? "Menyimpan…" : "Tandai lunas"}
+                      {busyId === order.id ? "Menyimpan…" : "Tandai lunas / unggah bukti"}
                     </button>
                   )}
                   <button
@@ -951,24 +1014,30 @@ function ReportView({ data }: { data: PortalData | null }) {
   const best = [...top.entries()].sort((a, b) => b[1] - a[1])[0];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Laporan Penjualan</h1>
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Omzet hari ini" value={rp(data?.stats.omzetHari || 0)} hint={`${data?.stats.transaksiHari || 0} order`} />
-        <StatCard label="Omzet bulan ini" value={rp(omzet || data?.stats.omzetBulan || 0)} hint={`${bottles || data?.stats.terjualBulan || 0} botol`} />
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard label="Omzet hari ini" value={rp(data?.stats.omzetHari || 0)} hint={`${data?.stats.transaksiHari || 0} transaksi`} />
+        <StatCard label="Omzet bulan" value={rp(omzet || data?.stats.omzetBulan || 0)} hint="Bulan berjalan" />
+        <StatCard label="Transaksi" value={`${data?.stats.transaksiHari || 0}`} hint="Hari ini" />
+        <StatCard label="Botol" value={`${bottles || data?.stats.terjualBulan || 0}`} hint="Bulan ini" />
       </div>
       <div className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">Produk terlaris (bulan ini)</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">Produk terlaris</p>
         <p className="mt-1 text-sm font-bold">{best ? `${best[0]} · ${best[1]} botol` : "Belum ada data"}</p>
       </div>
+      <p className="text-sm font-bold text-[#111]">Penjualan terbaru</p>
       <ul className="space-y-2">
         {month.slice(0, 20).map((order) => (
           <li key={order.id} className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm">
             <div className="flex justify-between gap-2">
-              <span className="font-semibold">{order.orderDate}</span>
-              <span className="font-bold">{rp(order.total)}</span>
+              <span className="font-semibold">{order.items || "Transaksi"}</span>
+              <span className="font-bold" style={{ color: GREEN }}>
+                {rp(order.total)}
+              </span>
             </div>
-            <p className="mt-0.5 text-xs text-[#6B6B6B]">{order.items}</p>
+            <p className="mt-0.5 text-xs text-[#6B6B6B]">
+              {order.orderDate} · {clock(order.createdAt)}
+            </p>
           </li>
         ))}
         {!month.length && <p className="text-sm text-[#6B6B6B]">Belum ada transaksi bulan ini.</p>}
@@ -981,22 +1050,23 @@ function TargetView({ data }: { data: PortalData | null }) {
   const m = data?.monthly;
   const pct = Math.min(100, Math.round(m?.achievement || 0));
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Target & Bonus</h1>
-      <div className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A8A8A]">Target bulanan</p>
-        <p className="mt-1 text-2xl font-bold">
+    <div className="space-y-3">
+      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-5 text-center">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A]">Target bulan ini</p>
+        <p className="mt-3 text-5xl font-bold tabular-nums" style={{ color: GREEN }}>
+          {pct}%
+        </p>
+        <p className="mt-2 text-sm font-semibold text-[#111]">
           {m?.sold || 0} / {m?.target || 0} botol
         </p>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFEFEA]">
+        <div className="mx-auto mt-4 h-2.5 max-w-xs overflow-hidden rounded-full bg-[#EFEFEA]">
           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: GREEN }} />
         </div>
-        <p className="mt-2 text-xs text-[#6B6B6B]">
-          Progress {pct}% · sisa {m?.remaining || 0} botol · omzet {rp(m?.omzet || 0)}
-        </p>
-      </div>
-      <p className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm text-[#6B6B6B]">
-        Bonus mengikuti aturan komisi yang diatur owner di dashboard Gercep OS (Sales → Komisi). Portal ini menampilkan progress target real dari transaksi lunas.
+        <p className="mt-3 text-sm text-[#6B6B6B]">Sisa {m?.remaining || 0} botol</p>
+        <p className="mt-1 text-sm font-bold text-[#111]">Omzet {rp(m?.omzet || 0)}</p>
+      </section>
+      <p className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm leading-snug text-[#6B6B6B]">
+        Progress dari transaksi lunas. Bonus mengikuti aturan komisi di dashboard owner.
       </p>
     </div>
   );

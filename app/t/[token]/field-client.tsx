@@ -626,7 +626,7 @@ export default function FieldClient({
             </button>
           ) : null}
           <div className="min-w-0">
-            <p className="text-sm font-bold">HENIMA GPS</p>
+            <p className="text-sm font-bold">Lokasi GPS</p>
             <p className={`truncate ${tiny}`}>{state.nama}</p>
           </div>
         </div>
@@ -636,45 +636,30 @@ export default function FieldClient({
       </header>
 
       <div className="mx-auto max-w-md space-y-3 px-4 py-4">
-        {/* 1 status besar — biar sales langsung paham */}
-        <section
-          className={
-            state.checkedOut
-              ? "rounded-2xl border border-[#E8D7A8] bg-[#FFF8E8] p-4"
-              : live
-                ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
-                : "rounded-2xl border border-amber-200 bg-amber-50 p-4"
-          }
-        >
-          <div className="flex items-center gap-2">
+        <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A]">Status GPS</p>
+              <p className="mt-1 text-base font-bold text-[#111]">
+                {state.checkedOut
+                  ? `Berhenti · jam ${TRACKING_AUTO_CLOSE_HOUR}:00`
+                  : live
+                    ? "GPS hidup"
+                    : "Menyalakan…"}
+              </p>
+            </div>
             <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                state.checkedOut ? "bg-[#B8952A]" : live ? "bg-emerald-500" : "bg-amber-500"
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                state.checkedOut ? "bg-[#F3F3F1] text-[#6B6B6B]" : live ? "bg-[#EAF7F0] text-[#2F9E68]" : "bg-amber-50 text-amber-700"
               }`}
-            />
-            <p className="text-base font-bold text-[#111]">
-              {state.checkedOut
-                ? `GPS berhenti · jam ${TRACKING_AUTO_CLOSE_HOUR}:00`
-                : live
-                  ? "GPS menyala"
-                  : "Menyalakan GPS…"}
-            </p>
+            >
+              {state.checkedOut ? "Off" : live ? "On" : "…"}
+            </span>
           </div>
-          <p className="mt-1 text-sm leading-snug text-[#444]">
-            {state.checkedOut
-              ? "Besok buka app lagi. GPS langsung jalan sendiri."
-              : live
-                ? nativeApp
-                  ? `GPS jalan di belakang (seperti Grab). Auto stop jam ${TRACKING_AUTO_CLOSE_HOUR}:00. Jangan force-stop app.`
-                  : `GPS aktif di Chrome. Auto stop jam ${TRACKING_AUTO_CLOSE_HOUR}:00.`
-                : "Izinkan lokasi HP dulu."}
-          </p>
           {!state.checkedOut ? <p className="mt-2 text-xs font-medium text-[#555]">{gpsText}</p> : null}
           {!nativeApp && !state.checkedOut ? (
-            <p className="mt-3 rounded-xl border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs leading-snug text-amber-950">
-              Pakai <span className="font-semibold">app HENIMA Sales</span>, jangan Chrome saja. Kalau RAM dikosongkan / Chrome
-              di-swipe, GPS di browser <span className="font-semibold">mati</span>. Di app, GPS bisa nyala lagi sendiri +
-              notifikasi tetap ada.
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950">
+              Untuk GPS tahan clear RAM, pasang <span className="font-semibold">app HENIMA Sales</span>.
             </p>
           ) : null}
           {nativeApp && !state.checkedOut ? (
@@ -688,18 +673,22 @@ export default function FieldClient({
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
         ) : null}
 
-        {/* Absensi pagi — kartu besar, 1 langkah */}
         {!state.hasCheckinPagi && !state.checkedOut ? (
           <section className={card}>
-            <p className="text-base font-bold">Absensi pagi</p>
-            <p className={`mt-1 ${tiny}`}>Cuma 1 foto. GPS diambil otomatis.</p>
+            <p className="text-base font-bold">Check-in lokasi</p>
+            <p className={`mt-1 ${tiny}`}>Ambil 1 foto di lokasi kerja. GPS dicatat otomatis.</p>
             <label className="mt-3 block">
-              <span className="flex min-h-24 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-[#B8952A]/50 bg-[#FFF8E8] px-3 py-4 text-sm font-semibold text-[#111]">
+              <span className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-[#2F9E68]/40 bg-[#F3F7F4] px-3 py-4 text-sm font-semibold text-[#111]">
                 {preview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={preview} alt="Absensi" className="max-h-40 rounded-lg" />
                 ) : (
-                  "📷 Ketuk ambil foto"
+                  <>
+                    <span className="text-2xl" aria-hidden>
+                      📷
+                    </span>
+                    <span>Ambil foto</span>
+                  </>
                 )}
               </span>
               <input

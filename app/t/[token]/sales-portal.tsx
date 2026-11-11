@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import {
+  Briefcase,
+  Camera,
   ChevronRight,
+  ClipboardList,
   CreditCard,
   FileBarChart,
   Home,
   MapPinned,
+  QrCode,
   ShoppingBag,
   Target,
+  Wallet,
 } from "lucide-react";
 import { rememberFieldToken } from "@/lib/henima-tracking/field-app";
 import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
-import InstallToHome from "../install-to-home";
 import FieldClient, { type FieldState } from "./field-client";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -22,6 +26,9 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 type Tab = "home" | "lokasi" | "jual" | "bayar" | "laporan" | "target";
+
+/** Aksen status — tanpa emas. */
+const GREEN = "#2F9E68";
 
 type PortalProduct = { id: string; name: string; price: number; stock: number | null };
 type PortalOrder = {
@@ -60,8 +67,6 @@ type PortalData = {
   monthly: { sold: number; omzet: number; target: number; remaining: number; achievement: number };
 };
 
-const GOLD = "#B8952A";
-
 function rp(n: number) {
   return `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
 }
@@ -72,6 +77,26 @@ function clock(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+function formatLiveClock(date: Date) {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+function formatLiveDate(date: Date) {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
 export default function SalesPortal({ token, field }: { token: string; field: FieldState }) {
@@ -124,81 +149,100 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
       </div>
 
       {tab !== "lokasi" ? (
-        <>
-          <header className="sticky top-0 z-20 border-b border-[#E8E8E4] bg-white/95 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur">
-            <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[15px] font-bold tracking-[0.08em]">HENIMA</p>
-                <p className="truncate text-[11px] font-medium text-[#6B6B6B]">Sales Dashboard</p>
-              </div>
-              <div className="flex max-w-[48%] shrink-0 items-center gap-2 rounded-full border border-[#E8E8E4] bg-white px-2.5 py-1.5">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#111] text-[10px] font-bold text-white">
-                  {nama.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="truncate text-xs font-semibold">{nama}</span>
-              </div>
-            </div>
-            {gpsLive ? (
-              <p className="mx-auto mt-2 max-w-lg truncate rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-                GPS {trackLive.watching ? "live" : "menyambung"} · titik terus update
+        <main className="mx-auto max-w-lg px-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(6.25rem+env(safe-area-inset-bottom,0px))]">
+          {loadError ? (
+            <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>
+          ) : null}
+
+          {tab === "home" ? (
+            <HomeView
+              nama={nama}
+              data={data}
+              hasCheckin={Boolean(field.hasCheckinPagi || trackLive.checkedIn)}
+              checkedOut={trackLive.checkedOut}
+              gpsLive={gpsLive && trackLive.watching}
+              onOpen={setTab}
+              onRefresh={() => void refresh().catch((err) => setLoadError(err.message))}
+            />
+          ) : null}
+          {tab !== "home" ? (
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <button type="button" onClick={() => setTab("home")} className="text-sm font-semibold text-[#5C5C5C]">
+                ← Home
+              </button>
+              <p className="text-sm font-bold text-[#111]">
+                {tab === "jual"
+                  ? "Catat jual"
+                  : tab === "bayar"
+                    ? "Pembayaran"
+                    : tab === "laporan"
+                      ? "Laporan"
+                      : tab === "target"
+                        ? "Target"
+                        : ""}
               </p>
-            ) : null}
-          </header>
-
-          <main className="mx-auto max-w-lg px-4 pt-4 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))]">
-            {loadError ? (
-              <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>
-            ) : null}
-
-            {tab === "home" ? (
-              <HomeView
-                nama={nama}
-                data={data}
-                onOpen={setTab}
-                onRefresh={() => void refresh().catch((err) => setLoadError(err.message))}
-              />
-            ) : null}
-            {tab === "jual" ? (
-              <SaleView
-                token={token}
-                products={data?.products || []}
-                busy={busy}
-                setBusy={setBusy}
-                onDone={() => {
-                  void refresh();
-                  setTab("bayar");
-                }}
-              />
-            ) : null}
-            {tab === "bayar" ? (
-              <PayView
-                token={token}
-                products={data?.products || []}
-                orders={data?.payments || []}
-                setorCash={data?.stats.setorCash || 0}
-                pendingTotal={data?.stats.pendingTotal || 0}
-                onChanged={() => void refresh()}
-              />
-            ) : null}
-            {tab === "laporan" ? <ReportView data={data} /> : null}
-            {tab === "target" ? <TargetView data={data} /> : null}
-          </main>
-        </>
+              <span className="w-12" />
+            </div>
+          ) : null}
+          {tab === "jual" ? (
+            <SaleView
+              token={token}
+              products={data?.products || []}
+              busy={busy}
+              setBusy={setBusy}
+              onDone={() => {
+                void refresh();
+                setTab("bayar");
+              }}
+            />
+          ) : null}
+          {tab === "bayar" ? (
+            <PayView
+              token={token}
+              products={data?.products || []}
+              orders={data?.payments || []}
+              setorCash={data?.stats.setorCash || 0}
+              pendingTotal={data?.stats.pendingTotal || 0}
+              onChanged={() => void refresh()}
+            />
+          ) : null}
+          {tab === "laporan" ? <ReportView data={data} /> : null}
+          {tab === "target" ? <TargetView data={data} /> : null}
+        </main>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8E8E4] bg-white/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-5 px-1 pt-1.5 pb-1">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8E8E4] bg-white pb-[env(safe-area-inset-bottom,0px)]">
+        <div className="relative mx-auto grid max-w-lg grid-cols-5 items-end px-1 pt-2 pb-1">
           {(
             [
-              { id: "lokasi", label: "GPS", icon: MapPinned },
-              { id: "jual", label: "Jual", icon: ShoppingBag },
               { id: "home", label: "Home", icon: Home },
+              { id: "jual", label: "Jual", icon: ShoppingBag },
+              { id: "lokasi", label: "GPS", icon: MapPinned, fab: true },
               { id: "bayar", label: "Bayar", icon: CreditCard },
               { id: "laporan", label: "Lapor", icon: FileBarChart },
             ] as const
           ).map((item) => {
             const Icon = item.icon;
             const active = tab === item.id || (item.id === "home" && tab === "target");
+            if ("fab" in item && item.fab) {
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTab("lokasi")}
+                  className="-mt-5 flex flex-col items-center justify-end gap-0.5"
+                  aria-label="Lokasi GPS"
+                >
+                  <span
+                    className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_8px_20px_rgba(47,158,104,0.35)]"
+                    style={{ background: GREEN }}
+                  >
+                    <MapPinned size={22} strokeWidth={2.4} />
+                  </span>
+                  <span className={`text-[10px] font-semibold ${active ? "text-[#111]" : "text-[#8A8A8A]"}`}>GPS</span>
+                </button>
+              );
+            }
             return (
               <button
                 key={item.id}
@@ -208,7 +252,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
                   active ? "text-[#111]" : "text-[#8A8A8A]"
                 }`}
               >
-                <Icon size={18} strokeWidth={active ? 2.4 : 1.8} color={active ? GOLD : undefined} />
+                <Icon size={18} strokeWidth={active ? 2.4 : 1.8} color={active ? GREEN : undefined} />
                 <span className="truncate">{item.label}</span>
               </button>
             );
@@ -222,105 +266,136 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
 function HomeView({
   nama,
   data,
+  hasCheckin,
+  checkedOut,
+  gpsLive,
   onOpen,
   onRefresh,
 }: {
   nama: string;
   data: PortalData | null;
+  hasCheckin: boolean;
+  checkedOut: boolean;
+  gpsLive: boolean;
   onOpen: (tab: Tab) => void;
   onRefresh: () => void;
 }) {
-  const stats = data?.stats;
-  const [showInstall, setShowInstall] = useState(false);
-
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    let alive = true;
-    void import("@/lib/henima-tracking/native-geo").then(async ({ isNativeApp }) => {
-      const native = await isNativeApp();
-      if (alive) setShowInstall(!native);
-    });
-    return () => {
-      alive = false;
-    };
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
   }, []);
+
+  const grid: Array<{ label: string; icon: typeof MapPinned; onClick: () => void }> = [
+    { label: "Hadir GPS", icon: MapPinned, onClick: () => onOpen("lokasi") },
+    { label: "QRIS", icon: QrCode, onClick: () => onOpen("lokasi") },
+    { label: "Catat jual", icon: ClipboardList, onClick: () => onOpen("jual") },
+    { label: "Bayar", icon: Wallet, onClick: () => onOpen("bayar") },
+    { label: "Laporan", icon: FileBarChart, onClick: () => onOpen("laporan") },
+    { label: "Target", icon: Target, onClick: () => onOpen("target") },
+    { label: "Kunjungan", icon: Briefcase, onClick: () => onOpen("lokasi") },
+  ];
+
+  const recent = data?.recent || [];
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>
-          Selamat datang
+      <header className="flex items-start justify-between gap-3 pt-1">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-bold tracking-tight text-[#111]">{nama}</h1>
+          <p className="mt-0.5 text-sm text-[#6B6B6B]">Sales lapangan · HENIMA</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#111] text-sm font-bold text-white"
+          aria-label="Muat ulang"
+        >
+          {nama.slice(0, 1).toUpperCase()}
+        </button>
+      </header>
+
+      <div className="text-center">
+        <p className="text-[2.35rem] font-bold leading-none tracking-tight" style={{ color: GREEN }}>
+          {formatLiveClock(now)}
         </p>
-        <h1 className="mt-1 break-words text-xl font-bold tracking-tight sm:text-2xl">{nama}</h1>
-        <p className="mt-1 text-sm leading-snug text-[#6B6B6B]">Semangat hari ini, tingkatkan penjualan HENIMA.</p>
-        <button type="button" onClick={onRefresh} className="mt-3 text-xs font-semibold text-[#6B6B6B] underline">
-          Muat ulang data
+        <p className="mt-2 text-sm text-[#6B6B6B]">Hari ini: {formatLiveDate(now)}</p>
+        {gpsLive ? (
+          <p className="mt-2 text-xs font-semibold" style={{ color: GREEN }}>
+            GPS hidup · update otomatis
+          </p>
+        ) : null}
+      </div>
+
+      <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-[#E8E8E4] bg-white">
+        <button type="button" onClick={() => onOpen("lokasi")} className="flex items-center gap-3 border-r border-[#E8E8E4] px-3 py-3.5 text-left">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAF7F0]" style={{ color: GREEN }}>
+            <Camera size={18} />
+          </span>
+          <span>
+            <span className="block text-sm font-bold text-[#111]">Check-in</span>
+            <span className="block text-xs font-semibold" style={{ color: GREEN }}>
+              {hasCheckin ? "Sudah absen" : "Belum absen"}
+            </span>
+          </span>
+        </button>
+        <button type="button" onClick={() => onOpen("lokasi")} className="flex items-center gap-3 px-3 py-3.5 text-left">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F3F3F1] text-[#6B6B6B]">
+            <Camera size={18} />
+          </span>
+          <span>
+            <span className="block text-sm font-bold text-[#111]">Selesai kerja</span>
+            <span className="block text-xs font-semibold text-[#6B6B6B]">{checkedOut ? "Selesai" : "Belum"}</span>
+          </span>
         </button>
       </section>
 
-      {showInstall ? <InstallToHome /> : null}
-
-      <div className="grid grid-cols-3 gap-2">
-        <StatCard label="Penjualan" value={rp(stats?.omzetHari || 0)} hint="Hari ini" />
-        <StatCard label="Transaksi" value={`${stats?.transaksiHari || 0}`} hint={`${stats?.botolHari || 0} botol`} />
-        <StatCard label="Setor tunai" value={rp(stats?.setorCash || 0)} hint="Lunas cash" />
-      </div>
-
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-bold">Menu Utama</h2>
-          <button type="button" onClick={() => onOpen("target")} className="text-xs font-semibold" style={{ color: GOLD }}>
-            Target →
-          </button>
-        </div>
-        <div className="space-y-2">
-          <MenuRow icon={MapPinned} title="Lokasi GPS" desc="GPS otomatis · QRIS · selesai kerja" onClick={() => onOpen("lokasi")} />
-          <MenuRow icon={ShoppingBag} title="Catat Penjualan" desc="Input order & jumlah" onClick={() => onOpen("jual")} />
-          <MenuRow icon={CreditCard} title="Pembayaran" desc="Lunas / belum · bukti transfer" onClick={() => onOpen("bayar")} />
-          <MenuRow icon={FileBarChart} title="Laporan" desc="Omzet hari ini & bulan" onClick={() => onOpen("laporan")} />
-          <MenuRow icon={Target} title="Target & Bonus" desc="Progress target bulanan" onClick={() => onOpen("target")} />
+      <section className="rounded-2xl border border-[#E8E8E4] bg-white p-3">
+        <div className="grid grid-cols-4 gap-2">
+          {grid.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={item.onClick}
+                className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#EEEEEC] bg-[#FAFAF8] px-1 py-2"
+              >
+                <Icon size={20} className="text-[#333]" strokeWidth={1.85} />
+                <span className="text-center text-[10px] font-semibold leading-tight text-[#333]">{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-bold">Aktivitas Terbaru</h2>
-        {!data?.recent.length ? (
-          <p className="rounded-2xl border border-dashed border-[#E8E8E4] bg-white px-4 py-6 text-center text-sm text-[#6B6B6B]">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-[#111]">Transaksi terbaru</h2>
+          <button type="button" onClick={() => onOpen("laporan")} className="text-xs font-semibold text-[#6B6B6B]">
+            Laporan
+          </button>
+        </div>
+        {!recent.length ? (
+          <p className="rounded-2xl border border-dashed border-[#E8E8E4] bg-white px-4 py-5 text-center text-sm text-[#6B6B6B]">
             Belum ada transaksi hari ini.
           </p>
         ) : (
-          <ul className="space-y-2">
-            {data.recent.map((order) => (
-              <li key={order.id} className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{order.status === "PAID" ? "Pembayaran lunas" : "Penjualan baru"}</p>
-                    <p className="mt-0.5 text-xs text-[#6B6B6B]">{order.items || "Transaksi"}</p>
-                  </div>
-                  <p className="text-xs font-medium text-[#8A8A8A]">{clock(order.createdAt)}</p>
-                </div>
-                <p className="mt-1 text-sm font-bold">{rp(order.total)}</p>
+          <ul className="flex gap-2 overflow-x-auto pb-1">
+            {recent.slice(0, 6).map((order) => (
+              <li key={order.id} className="min-w-[9.5rem] rounded-2xl border border-[#E8E8E4] bg-white px-3 py-3">
+                <p className="text-[11px] font-medium text-[#8A8A8A]">{clock(order.createdAt)}</p>
+                <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#111]">{order.items || "Transaksi"}</p>
+                <p className="mt-2 text-sm font-bold" style={{ color: GREEN }}>
+                  {rp(order.total)}
+                </p>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-[#E8E8E4] bg-[#F3EEE4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-bold">Butuh bantuan?</p>
-          <p className="text-xs leading-snug text-[#6B6B6B]">Hubungi tim HENIMA jika ada kendala.</p>
-        </div>
-        <a
-          href="https://wa.me/"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#111] px-3 py-2 text-xs font-semibold text-white"
-        >
-          Hubungi Admin
-        </a>
-      </section>
-
-      <p className="pb-1 text-center text-[11px] font-medium tracking-wide text-[#8A8A8A]">HENIMA · Together We Grow</p>
+      {/* Riwayat GPS sengaja tidak ditampilkan ke sales — hanya owner di dashboard. */}
     </div>
   );
 }
@@ -914,7 +989,7 @@ function TargetView({ data }: { data: PortalData | null }) {
           {m?.sold || 0} / {m?.target || 0} botol
         </p>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFEFEA]">
-          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: GOLD }} />
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: GREEN }} />
         </div>
         <p className="mt-2 text-xs text-[#6B6B6B]">
           Progress {pct}% · sisa {m?.remaining || 0} botol · omzet {rp(m?.omzet || 0)}

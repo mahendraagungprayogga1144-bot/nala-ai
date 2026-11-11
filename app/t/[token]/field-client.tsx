@@ -784,10 +784,10 @@ export default function FieldClient({
           </section>
         ) : null}
 
-        {/* Riwayat disembunyikan default */}
+        {/* Catatan kerja sales (bukan jejak GPS — jejak GPS hanya di owner). */}
         <section className={card}>
           <button type="button" onClick={() => setShowHistory((v) => !v)} className="flex w-full items-center justify-between text-left">
-            <span className="text-base font-bold text-[#111]">Riwayat hari ini</span>
+            <span className="text-base font-bold text-[#111]">Catatan hari ini</span>
             <span className={tiny}>{showHistory ? "Sembunyikan" : `${visits.length} catatan`}</span>
           </button>
           {showHistory ? (

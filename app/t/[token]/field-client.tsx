@@ -327,10 +327,14 @@ export default function FieldClient({
             void stopNativeBackgroundTrack();
             return;
           }
+          // BELUM_CHECKIN / error jaringan: jangan matikan watcher — terus coba.
           pingFailStreak.current += 1;
           if (pingFailStreak.current <= 2 || pingFailStreak.current % 8 === 0) {
             setError(`GPS: ${msg}`);
             setGpsText(`Gagal kirim · ${msg}`);
+          }
+          if (nativeApp && pingFailStreak.current % 5 === 0) {
+            void startNativeBackgroundTrack(token);
           }
         })
         .finally(() => {
@@ -343,18 +347,18 @@ export default function FieldClient({
 
     const pushPing = (fix: GpsFix, force = false) => {
       if (!alive || isPastTrackingAutoClose()) return;
-      // Jangan pakai titik jelek ke state aksi (biar absensi/QRIS lebih akurat).
-      if (!force || fix.acc <= 100) setGps(fix);
+      // Update UI: terima akurasi longgar supaya sales di dalam toko tetap kelihatan live.
+      if (!force || fix.acc <= 200) setGps(fix);
       setGpsText(`Live · akurasi ±${fix.acc} m${document.hidden ? " · belakang" : ""}`);
       setWatching(true);
       const prev = lastPos.current;
       const moved = prev ? Math.hypot(fix.lat - prev.lat, fix.lng - prev.lng) : 1;
-      const stale = Date.now() - lastSent.current > (nativeApp ? 10_000 : 15_000);
-      const movedEnough = moved >= (nativeApp ? 0.00005 : 0.00008); // ~5–9 m
-      const accLimit = nativeApp ? 80 : document.hidden ? 180 : 100;
+      const stale = Date.now() - lastSent.current > (nativeApp ? 8_000 : 12_000);
+      const movedEnough = moved >= (nativeApp ? 0.00003 : 0.00005); // ~3–5 m
+      const accLimit = nativeApp ? 220 : document.hidden ? 280 : 180;
       if (force) {
-        // Heartbeat: kirim hanya kalau cukup akurat, atau sudah lama banget.
-        if (fix.acc > 120 && Date.now() - lastSent.current < 45_000) return;
+        // Heartbeat: kirim terus di mana pun sales berada; longgar di dalam gedung.
+        if (fix.acc > 350 && Date.now() - lastSent.current < 30_000) return;
       } else {
         if (fix.acc > accLimit) return;
         if (!stale && !movedEnough) return;
@@ -395,12 +399,14 @@ export default function FieldClient({
       setWatching(true);
     });
 
-    // Heartbeat: tetap kirim meski diam, tapi filter akurasi di pushPing.
+    // Heartbeat: tetap kirim meski diam / di dalam toko.
     const forceTimer = window.setInterval(() => {
       void readNativeOrBrowserGps()
         .then((fix) => pushPing(fix, true))
         .catch(() => undefined);
-    }, nativeApp ? 12_000 : 18_000);
+      // Pastikan service native tidak mati diam-diam di OEM agresif.
+      if (nativeApp) void startNativeBackgroundTrack(token);
+    }, nativeApp ? 10_000 : 15_000);
 
     const softRefresh = window.setInterval(() => {
       void refresh().catch(() => undefined);
@@ -412,6 +418,7 @@ export default function FieldClient({
       void readNativeOrBrowserGps()
         .then((fix) => pushPing(fix, true))
         .catch(() => undefined);
+      void startNativeBackgroundTrack(token);
       if (!hidden) {
         void holdWake();
         void startFieldTrackingNotify({ nama: state.nama });
@@ -474,6 +481,9 @@ export default function FieldClient({
       await send("checkin_pagi", fix, photo);
       setPhotoFile(null);
       setError("");
+      // Setelah absen: paksa GPS native hidup terus ke mana pun sales pergi.
+      void startNativeBackgroundTrack(token);
+      void startFieldTrackingNotify({ nama: state.nama });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal absensi pagi.");
     } finally {

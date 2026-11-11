@@ -142,8 +142,8 @@ export async function watchNativeOrBrowserGps(
           backgroundTitle: "Henima · GPS live",
           requestPermissions: true,
           stale: false,
-          // ~8 m: cukup rapat saat jalan, kurangi goyang saat diam.
-          distanceFilter: 8,
+          // ~5 m: jejak lebih rapat saat sales pindah lokasi.
+          distanceFilter: 5,
         },
         (location, error) => {
           if (error) {

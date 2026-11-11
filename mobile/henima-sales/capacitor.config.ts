@@ -17,6 +17,8 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
     backgroundColor: "#F7F7F5",
+    // Bridge lama: background-geolocation + plugin custom lebih stabil di OEM Indonesia.
+    useLegacyBridge: true,
   },
   plugins: {
     Geolocation: {

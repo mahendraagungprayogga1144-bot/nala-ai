@@ -27,7 +27,10 @@ import com.getcapacitor.annotation.PermissionCallback;
           strings = {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
-          })
+          }),
+      @Permission(
+          alias = "background",
+          strings = { Manifest.permission.ACCESS_BACKGROUND_LOCATION })
     })
 public class HenimaTrackPlugin extends Plugin {
 
@@ -43,10 +46,13 @@ public class HenimaTrackPlugin extends Plugin {
       requestPermissionForAlias("location", call, "locationPermsCallback");
       return;
     }
-    HenimaTrackService.start(getContext(), token.toLowerCase(), apiBase == null ? "https://www.gercepos.id" : apiBase);
-    JSObject ret = new JSObject();
-    ret.put("ok", true);
-    call.resolve(ret);
+    // Android 10+: minta "Izinkan selalu" sekali (kalau masih prompt).
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        && getPermissionState("background") == com.getcapacitor.PermissionState.PROMPT) {
+      requestPermissionForAlias("background", call, "backgroundPermsCallback");
+      return;
+    }
+    startServiceFromCall(call);
   }
 
   @PermissionCallback
@@ -56,6 +62,25 @@ public class HenimaTrackPlugin extends Plugin {
     } else {
       call.reject("Izin lokasi ditolak");
     }
+  }
+
+  @PermissionCallback
+  private void backgroundPermsCallback(PluginCall call) {
+    // Tetap start meski background ditolak — foreground service masih kirim saat notifikasi hidup.
+    startServiceFromCall(call);
+  }
+
+  private void startServiceFromCall(PluginCall call) {
+    String token = call.getString("token", "");
+    String apiBase = call.getString("apiBase", "https://www.gercepos.id");
+    if (token == null || token.length() != 32) {
+      call.reject("Token tracking tidak valid");
+      return;
+    }
+    HenimaTrackService.start(getContext(), token.toLowerCase(), apiBase == null ? "https://www.gercepos.id" : apiBase);
+    JSObject ret = new JSObject();
+    ret.put("ok", true);
+    call.resolve(ret);
   }
 
   @PluginMethod

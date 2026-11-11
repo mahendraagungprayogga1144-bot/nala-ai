@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
@@ -44,8 +45,11 @@ public class HenimaTrackService extends Service implements LocationListener {
 
   private static final String CHANNEL = "henima_gps_native";
   private static final int NOTIF_ID = 36010;
-  private static final long MIN_TIME_MS = 12_000L;
-  private static final float MIN_DIST_M = 8f;
+  /** Update GPS lebih rapat supaya jejak sales tidak putus di jalan. */
+  private static final long MIN_TIME_MS = 5_000L;
+  private static final float MIN_DIST_M = 3f;
+  private static final long HEARTBEAT_MS = 10_000L;
+  private static final long FORCE_POST_MS = 15_000L;
   private static final String TAG = "HenimaTrack";
 
   private LocationManager locationManager;
@@ -53,6 +57,7 @@ public class HenimaTrackService extends Service implements LocationListener {
   private final ExecutorService net = Executors.newSingleThreadExecutor();
   private Location lastPosted;
   private long lastPostAt = 0L;
+  private PowerManager.WakeLock wakeLock;
 
   private final Runnable heartbeat = new Runnable() {
     @Override
@@ -63,14 +68,15 @@ public class HenimaTrackService extends Service implements LocationListener {
       }
       try {
         if (locationManager != null) {
-          Location gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-          Location netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-          Location best = pickBetter(gps, netLoc);
+          Location gps = safeLast(LocationManager.GPS_PROVIDER);
+          Location netLoc = safeLast(LocationManager.NETWORK_PROVIDER);
+          Location passive = safeLast(LocationManager.PASSIVE_PROVIDER);
+          Location best = pickBetter(pickBetter(gps, netLoc), passive);
           if (best != null) maybePost(best, true);
         }
       } catch (SecurityException ignored) {
       }
-      handler.postDelayed(this, 20_000L);
+      handler.postDelayed(this, HEARTBEAT_MS);
     }
   };
 
@@ -99,7 +105,8 @@ public class HenimaTrackService extends Service implements LocationListener {
   public void onCreate() {
     super.onCreate();
     ensureChannel();
-    Notification n = buildNotification("GPS live · kirim otomatis ke owner");
+    acquireWakeLock();
+    Notification n = buildNotification("GPS live · jejak sales jalan terus");
     if (Build.VERSION.SDK_INT >= 34) {
       startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
     } else {
@@ -125,14 +132,53 @@ public class HenimaTrackService extends Service implements LocationListener {
     return START_STICKY;
   }
 
+  private void acquireWakeLock() {
+    try {
+      PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+      if (pm == null) return;
+      wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "henima:gps");
+      wakeLock.setReferenceCounted(false);
+      if (!wakeLock.isHeld()) wakeLock.acquire(12 * 60 * 60 * 1000L);
+    } catch (Exception e) {
+      Log.w(TAG, "wake lock failed", e);
+    }
+  }
+
+  private void releaseWakeLock() {
+    try {
+      if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+    } catch (Exception ignored) {
+    }
+    wakeLock = null;
+  }
+
+  private Location safeLast(String provider) {
+    try {
+      if (locationManager == null || !locationManager.isProviderEnabled(provider)) return null;
+      return locationManager.getLastKnownLocation(provider);
+    } catch (SecurityException | IllegalArgumentException e) {
+      return null;
+    }
+  }
+
   private void startListening() {
     if (locationManager == null) return;
     try {
+      locationManager.removeUpdates(this);
+    } catch (Exception ignored) {
+    }
+    try {
       if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_TIME_MS, MIN_DIST_M, this, Looper.getMainLooper());
+        locationManager.requestLocationUpdates(
+            LocationManager.GPS_PROVIDER, MIN_TIME_MS, MIN_DIST_M, this, Looper.getMainLooper());
       }
       if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_TIME_MS, MIN_DIST_M * 1.5f, this, Looper.getMainLooper());
+        locationManager.requestLocationUpdates(
+            LocationManager.NETWORK_PROVIDER, MIN_TIME_MS, MIN_DIST_M, this, Looper.getMainLooper());
+      }
+      if (locationManager.isProviderEnabled(LocationManager.PASSIVE_PROVIDER)) {
+        locationManager.requestLocationUpdates(
+            LocationManager.PASSIVE_PROVIDER, MIN_TIME_MS, MIN_DIST_M, this, Looper.getMainLooper());
       }
     } catch (SecurityException e) {
       Log.w(TAG, "location permission missing", e);
@@ -152,14 +198,25 @@ public class HenimaTrackService extends Service implements LocationListener {
   private void maybePost(Location location, boolean force) {
     if (location == null) return;
     long now = System.currentTimeMillis();
-    if (!force && lastPosted != null) {
-      float moved = location.distanceTo(lastPosted);
-      boolean stale = now - lastPostAt > 45_000L;
-      if (moved < MIN_DIST_M && !stale) return;
-      // Skip titik jelek kecuali sudah lama
-      if (location.getAccuracy() > 120f && !stale) return;
-    } else if (!force && location.getAccuracy() > 150f && now - lastPostAt < 60_000L) {
-      return;
+    float acc = location.hasAccuracy() ? location.getAccuracy() : 999f;
+
+    if (force) {
+      // Heartbeat: kirim minimal tiap FORCE_POST_MS, toleransi akurasi longgar di dalam gedung.
+      boolean due = now - lastPostAt >= FORCE_POST_MS;
+      if (!due && lastPosted != null) {
+        float moved = location.distanceTo(lastPosted);
+        if (moved < MIN_DIST_M) return;
+      }
+      if (acc > 350f && now - lastPostAt < 45_000L) return;
+    } else {
+      if (lastPosted != null) {
+        float moved = location.distanceTo(lastPosted);
+        boolean stale = now - lastPostAt >= FORCE_POST_MS;
+        if (moved < MIN_DIST_M && !stale) return;
+        if (acc > 220f && !stale) return;
+      } else if (acc > 300f && now - lastPostAt < 30_000L) {
+        return;
+      }
     }
     lastPosted = location;
     lastPostAt = now;
@@ -198,7 +255,7 @@ public class HenimaTrackService extends Service implements LocationListener {
         }
         int code = conn.getResponseCode();
         if (code == 409) {
-          // Auto close jam 18 / sudah checkout
+          // Hanya auto-close / checkout yang menghentikan service.
           handler.post(this::stopSelfSafe);
         }
       } catch (Exception e) {
@@ -212,6 +269,11 @@ public class HenimaTrackService extends Service implements LocationListener {
   private static Location pickBetter(Location a, Location b) {
     if (a == null) return b;
     if (b == null) return a;
+    long ageA = System.currentTimeMillis() - a.getTime();
+    long ageB = System.currentTimeMillis() - b.getTime();
+    // Prefer lokasi lebih baru kalau beda > 30 detik.
+    if (ageA > 30_000L && ageB + 15_000L < ageA) return b;
+    if (ageB > 30_000L && ageA + 15_000L < ageB) return a;
     if (!a.hasAccuracy()) return b;
     if (!b.hasAccuracy()) return a;
     return a.getAccuracy() <= b.getAccuracy() ? a : b;
@@ -256,6 +318,7 @@ public class HenimaTrackService extends Service implements LocationListener {
     } catch (Exception ignored) {
     }
     handler.removeCallbacks(heartbeat);
+    releaseWakeLock();
     stopForeground(true);
     stopSelf();
   }
@@ -267,6 +330,7 @@ public class HenimaTrackService extends Service implements LocationListener {
       if (locationManager != null) locationManager.removeUpdates(this);
     } catch (Exception ignored) {
     }
+    releaseWakeLock();
     net.shutdownNow();
     super.onDestroy();
   }
@@ -280,7 +344,9 @@ public class HenimaTrackService extends Service implements LocationListener {
   public void onStatusChanged(String provider, int status, Bundle extras) {}
 
   @Override
-  public void onProviderEnabled(String provider) {}
+  public void onProviderEnabled(String provider) {
+    startListening();
+  }
 
   @Override
   public void onProviderDisabled(String provider) {}

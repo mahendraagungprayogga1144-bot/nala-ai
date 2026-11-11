@@ -39,6 +39,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       if (msg.includes("SUDAH_CHECKOUT")) {
         return NextResponse.json({ ok: false, closed: true, error: msg }, { status: 409 });
       }
+      // Jangan matikan service native untuk error non-checkout (mis. schema lama).
+      if (msg.includes("BELUM_CHECKIN")) {
+        return NextResponse.json({ ok: false, needCheckin: true, error: msg }, { status: 200 });
+      }
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 

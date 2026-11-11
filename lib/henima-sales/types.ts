@@ -219,6 +219,11 @@ export type StaffRow = {
   telepon: string | null;
   invite_code: string | null;
   status: string;
+  joined_at?: string | null;
+  base_salary?: number | null;
+  pay_day?: number | null;
+  bank_account?: string | null;
+  employment_note?: string | null;
 };
 
 export type ProductRow = {

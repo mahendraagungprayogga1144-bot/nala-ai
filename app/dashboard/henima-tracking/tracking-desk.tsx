@@ -14,6 +14,7 @@ import TrackingMap, { staffColor } from "./tracking-map";
 import TrackingHome from "./tracking-home";
 import { TrackingSidebar, type TrackingPanel } from "./tracking-nav";
 import TrackingStock from "./tracking-stock";
+import TrackingHr from "./tracking-hr";
 
 const GOLD = "#C5A358";
 
@@ -90,6 +91,7 @@ export default function TrackingDesk({
   qrisUrl: initialQrisUrl,
   summary,
   stock,
+  hr,
 }: {
   date: string;
   today: string;
@@ -122,6 +124,46 @@ export default function TrackingDesk({
     products: { id: string; name: string; stock: number }[];
     staff: { id: string; nama: string }[];
   } | null;
+  hr?: {
+    canEdit: boolean;
+    employees: {
+      id: string;
+      nama: string;
+      role: string;
+      status: string;
+      joinedAt: string | null;
+      baseSalary: number;
+      payDay: number;
+      bankAccount: string | null;
+      employmentNote: string | null;
+    }[];
+    bonusRules: {
+      id: string;
+      name: string;
+      kind: "target_pct" | "fixed";
+      minAchievementPct: number;
+      bonusAmount: number;
+      active: boolean;
+    }[];
+    payrollRuns: {
+      id: string;
+      periodYm: string;
+      payDate: string;
+      status: "draft" | "paid" | "void";
+      lines: {
+        id: string;
+        salesName: string;
+        baseSalary: number;
+        commission: number;
+        targetBonus: number;
+        deduction: number;
+        total: number;
+        achievementPct: number;
+      }[];
+      totals: { base: number; commission: number; bonus: number; deduction: number; total: number };
+    }[];
+    defaultPeriod: string;
+  } | null;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState("");
@@ -149,6 +191,10 @@ export default function TrackingDesk({
     // #traccar lama → satukan ke Lokasi GPS (satu pusat pantau Gercep/HENIMA).
     if (hash === "stok") {
       setPanel("stok");
+      return;
+    }
+    if (hash === "hr") {
+      setPanel("hr");
       return;
     }
     if (hash === "traccar" || hash === "lokasi" || hash === "foto-checkin" || hash === "tambah-sales") {
@@ -365,7 +411,15 @@ export default function TrackingDesk({
       `}</style>
 
       <TrackingSidebar
-        active={panel === "dashboard" ? "dashboard" : panel === "stok" ? "stok" : "lokasi"}
+        active={
+          panel === "dashboard"
+            ? "dashboard"
+            : panel === "stok"
+              ? "stok"
+              : panel === "hr"
+                ? "hr"
+                : "lokasi"
+        }
         open={navOpen}
         onClose={() => setNavOpen(false)}
         ownerName={ownerName}
@@ -375,6 +429,8 @@ export default function TrackingDesk({
             window.history.replaceState(null, "", "#lokasi");
           } else if (next === "stok") {
             window.history.replaceState(null, "", "#stok");
+          } else if (next === "hr") {
+            window.history.replaceState(null, "", "#hr");
           } else {
             window.history.replaceState(null, "", "/dashboard/henima-tracking");
           }
@@ -397,6 +453,10 @@ export default function TrackingDesk({
             ) : panel === "stok" ? (
               <div className="min-w-0 md:hidden">
                 <h1 className="text-lg font-bold tracking-tight text-[#111]">Stok Gudang</h1>
+              </div>
+            ) : panel === "hr" ? (
+              <div className="min-w-0 md:hidden">
+                <h1 className="text-lg font-bold tracking-tight text-[#111]">HR & Gaji</h1>
               </div>
             ) : (
               <div className="min-w-0 md:hidden">
@@ -513,6 +573,24 @@ export default function TrackingDesk({
           {panel === "stok" && !stock ? (
             <p className="rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-4 py-6 text-sm text-[#6B6B6B]">
               Data stok belum siap. Jalankan migration hand stock di Supabase, lalu muat ulang.
+            </p>
+          ) : null}
+
+          {panel === "hr" && hr ? (
+            <div id="hr">
+              <TrackingHr
+                ownerName={ownerName}
+                canEdit={hr.canEdit}
+                employees={hr.employees}
+                bonusRules={hr.bonusRules}
+                payrollRuns={hr.payrollRuns}
+                defaultPeriod={hr.defaultPeriod}
+              />
+            </div>
+          ) : null}
+          {panel === "hr" && !hr ? (
+            <p className="rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-4 py-6 text-sm text-[#6B6B6B]">
+              Data HR belum siap. Jalankan migration HR payroll di Supabase, lalu muat ulang.
             </p>
           ) : null}
 

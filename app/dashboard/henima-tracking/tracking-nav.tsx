@@ -14,12 +14,13 @@ import {
   Settings,
   ShoppingBag,
   Target,
+  UserCog,
   Users,
 } from "lucide-react";
 import LogoutButton from "../logout-button";
 
-export type TrackingNavKey = "dashboard" | "lokasi" | "stok" | "riwayat";
-export type TrackingPanel = "dashboard" | "lokasi" | "stok";
+export type TrackingNavKey = "dashboard" | "lokasi" | "stok" | "hr" | "riwayat";
+export type TrackingPanel = "dashboard" | "lokasi" | "stok" | "hr";
 
 const GOLD = "#C5A358";
 
@@ -41,6 +42,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/sales/customers", label: "Customer CRM", icon: Users },
   { href: "/dashboard/sales/targets", label: "Target & Komisi", icon: Target },
   { href: "/dashboard/henima-tracking#stok", label: "Stok Gudang", icon: Boxes, key: "stok", panel: "stok" },
+  { href: "/dashboard/henima-tracking#hr", label: "HR & Gaji", icon: UserCog, key: "hr", panel: "hr" },
   { href: "/dashboard/sales/reports", label: "Laporan", icon: FileBarChart },
   { href: "/dashboard/henima-tracking/riwayat", label: "Riwayat GPS", icon: History, key: "riwayat" },
   { href: "/dashboard/henima-tracking#tambah-sales", label: "Pengaturan", icon: Settings, hash: "tambah-sales", panel: "lokasi" },

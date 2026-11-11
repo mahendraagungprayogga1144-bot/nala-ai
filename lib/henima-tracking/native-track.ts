@@ -1,13 +1,13 @@
 /**
  * GPS native Android — service terpisah dari WebView.
- * Titik tetap terkirim meski app di belakang / layar mati (mirip Grab).
+ * Titik ke HENIMA + opsional langsung ke server Traccar (OsmAnd), tanpa Traccar Client.
  */
 
 import { isNativeApp } from "@/lib/henima-tracking/native-geo";
 import { isPastTrackingAutoClose } from "@/lib/henima-tracking/schedule";
 
 type HenimaTrackPlugin = {
-  start: (opts: { token: string; apiBase: string }) => Promise<{ ok?: boolean }>;
+  start: (opts: { token: string; apiBase: string; traccarOsmAnd?: string }) => Promise<{ ok?: boolean }>;
   stop: () => Promise<{ ok?: boolean }>;
   isRunning: () => Promise<{ running?: boolean }>;
   requestIgnoreBatteryOptimizations: () => Promise<{ ok?: boolean }>;
@@ -28,6 +28,21 @@ function apiBase() {
   return window.location.origin || "https://www.gercepos.id";
 }
 
+/** URL OsmAnd Traccar publik (bukan 127.0.0.1 kalau sales di lapangan). */
+function traccarOsmAndUrl() {
+  const raw = (process.env.NEXT_PUBLIC_TRACCAR_OSMAND_URL || "").trim();
+  if (!raw) return "";
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    // Localhost tidak berguna di HP sales di luar.
+    if (u.hostname === "127.0.0.1" || u.hostname === "localhost") return "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
 export async function startNativeBackgroundTrack(token: string) {
   const clean = token.trim().toLowerCase();
   if (!/^[a-f0-9]{32}$/.test(clean)) return false;
@@ -35,8 +50,11 @@ export async function startNativeBackgroundTrack(token: string) {
   const p = await plugin();
   if (!p) return false;
   try {
-    await p.start({ token: clean, apiBase: apiBase() });
-    // Minta bebas battery optimization sekali (OEM sering bunuh GPS).
+    await p.start({
+      token: clean,
+      apiBase: apiBase(),
+      traccarOsmAnd: traccarOsmAndUrl(),
+    });
     try {
       await p.requestIgnoreBatteryOptimizations();
     } catch {

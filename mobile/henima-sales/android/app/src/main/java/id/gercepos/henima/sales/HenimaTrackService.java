@@ -41,6 +41,7 @@ public class HenimaTrackService extends Service implements LocationListener {
   public static final String PREFS = "henima_track";
   public static final String KEY_TOKEN = "token";
   public static final String KEY_API = "api_base";
+  public static final String KEY_TRACCAR = "traccar_osmand";
   public static final String KEY_ACTIVE = "active";
 
   private static final String CHANNEL = "henima_gps_native";
@@ -86,10 +87,15 @@ public class HenimaTrackService extends Service implements LocationListener {
   };
 
   public static void start(Context ctx, String token, String apiBase) {
+    start(ctx, token, apiBase, "");
+  }
+
+  public static void start(Context ctx, String token, String apiBase, String traccarOsmAnd) {
     SharedPreferences p = ctx.getSharedPreferences(PREFS, MODE_PRIVATE);
     p.edit()
         .putString(KEY_TOKEN, token)
         .putString(KEY_API, apiBase)
+        .putString(KEY_TRACCAR, traccarOsmAnd == null ? "" : traccarOsmAnd.trim())
         .putBoolean(KEY_ACTIVE, true)
         .apply();
     Intent i = new Intent(ctx, HenimaTrackService.class);
@@ -278,45 +284,84 @@ public class HenimaTrackService extends Service implements LocationListener {
     SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
     final String token = p.getString(KEY_TOKEN, "");
     String api = p.getString(KEY_API, "https://www.gercepos.id");
+    String traccar = p.getString(KEY_TRACCAR, "");
     if (token.isEmpty()) return;
     if (api.endsWith("/")) api = api.substring(0, api.length() - 1);
-    final String url = api + "/api/henima-tracking/field/" + token + "/ping";
+    if (traccar.endsWith("/")) traccar = traccar.substring(0, traccar.length() - 1);
+    final String henimaUrl = api + "/api/henima-tracking/field/" + token + "/ping";
+    final String traccarBase = traccar;
     final double lat = location.getLatitude();
     final double lng = location.getLongitude();
     final float acc = location.hasAccuracy() ? location.getAccuracy() : 50f;
+    final String provider = location.getProvider() == null ? "" : location.getProvider();
 
     net.execute(() -> {
-      HttpURLConnection conn = null;
-      try {
-        JSONObject body = new JSONObject();
-        body.put("lat", lat);
-        body.put("lng", lng);
-        body.put("accuracy_m", Math.round(acc));
-        body.put("mock", false);
-        body.put("provider", location.getProvider() == null ? "" : location.getProvider());
-        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
-
-        conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(20000);
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/json");
-        try (OutputStream os = conn.getOutputStream()) {
-          os.write(bytes);
-        }
-        int code = conn.getResponseCode();
-        if (code == 409) {
-          // Hanya auto-close / checkout yang menghentikan service.
-          handler.post(this::stopSelfSafe);
-        }
-      } catch (Exception e) {
-        Log.w(TAG, "ping failed", e);
-      } finally {
-        if (conn != null) conn.disconnect();
+      // 1) HENIMA (absen/jual/pantau owner)
+      postHenima(henimaUrl, token, lat, lng, acc, provider);
+      // 2) Traccar OsmAnd langsung dari HP (mesin GPS) — tanpa Traccar Client
+      if (!traccarBase.isEmpty()) {
+        postTraccarOsmAnd(traccarBase, token, lat, lng, acc);
       }
     });
+  }
+
+  private void postHenima(String url, String token, double lat, double lng, float acc, String provider) {
+    HttpURLConnection conn = null;
+    try {
+      JSONObject body = new JSONObject();
+      body.put("lat", lat);
+      body.put("lng", lng);
+      body.put("accuracy_m", Math.round(acc));
+      body.put("mock", false);
+      body.put("provider", provider);
+      byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+
+      conn = (HttpURLConnection) new URL(url).openConnection();
+      conn.setConnectTimeout(15000);
+      conn.setReadTimeout(20000);
+      conn.setRequestMethod("POST");
+      conn.setDoOutput(true);
+      conn.setRequestProperty("Content-Type", "application/json");
+      conn.setRequestProperty("Accept", "application/json");
+      try (OutputStream os = conn.getOutputStream()) {
+        os.write(bytes);
+      }
+      int code = conn.getResponseCode();
+      if (code == 409) {
+        handler.post(this::stopSelfSafe);
+      }
+    } catch (Exception e) {
+      Log.w(TAG, "henima ping failed", e);
+    } finally {
+      if (conn != null) conn.disconnect();
+    }
+  }
+
+  /** Protokol OsmAnd Traccar — HP → server Traccar langsung. */
+  private void postTraccarOsmAnd(String base, String token, double lat, double lng, float acc) {
+    HttpURLConnection conn = null;
+    try {
+      String id = "henima-" + (token.length() >= 16 ? token.substring(0, 16) : token);
+      StringBuilder q = new StringBuilder();
+      q.append("id=").append(id);
+      q.append("&lat=").append(lat);
+      q.append("&lon=").append(lng);
+      q.append("&timestamp=").append(System.currentTimeMillis() / 1000L);
+      q.append("&speed=0&bearing=0&altitude=0");
+      q.append("&accuracy=").append(Math.round(acc));
+      q.append("&hdop=").append(Math.max(0.5, Math.min(50.0, acc / 5.0)));
+      String url = base.contains("?") ? base + "&" + q : base + "/?" + q;
+
+      conn = (HttpURLConnection) new URL(url).openConnection();
+      conn.setConnectTimeout(8000);
+      conn.setReadTimeout(8000);
+      conn.setRequestMethod("GET");
+      conn.getResponseCode();
+    } catch (Exception e) {
+      Log.w(TAG, "traccar osmand failed", e);
+    } finally {
+      if (conn != null) conn.disconnect();
+    }
   }
 
   private static boolean isPastCloseWib() {

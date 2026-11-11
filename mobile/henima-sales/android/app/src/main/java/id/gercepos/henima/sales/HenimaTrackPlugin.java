@@ -73,11 +73,16 @@ public class HenimaTrackPlugin extends Plugin {
   private void startServiceFromCall(PluginCall call) {
     String token = call.getString("token", "");
     String apiBase = call.getString("apiBase", "https://www.gercepos.id");
+    String traccarOsmAnd = call.getString("traccarOsmAnd", "");
     if (token == null || token.length() != 32) {
       call.reject("Token tracking tidak valid");
       return;
     }
-    HenimaTrackService.start(getContext(), token.toLowerCase(), apiBase == null ? "https://www.gercepos.id" : apiBase);
+    HenimaTrackService.start(
+        getContext(),
+        token.toLowerCase(),
+        apiBase == null ? "https://www.gercepos.id" : apiBase,
+        traccarOsmAnd == null ? "" : traccarOsmAnd);
     JSObject ret = new JSObject();
     ret.put("ok", true);
     call.resolve(ret);

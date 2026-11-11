@@ -13,7 +13,7 @@ import { type OwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboar
 import TrackingMap, { staffColor } from "./tracking-map";
 import TrackingHome from "./tracking-home";
 import { TrackingSidebar, type TrackingPanel } from "./tracking-nav";
-import StockClient from "../sales/stock/stock-client";
+import TrackingStock from "./tracking-stock";
 
 const GOLD = "#C5A358";
 
@@ -395,11 +395,8 @@ export default function TrackingDesk({
                 </p>
               </div>
             ) : panel === "stok" ? (
-              <div className="min-w-0">
-                <h1 className="text-[22px] font-bold tracking-tight text-[#111] md:text-[26px]">Stok Gudang</h1>
-                <p className="mt-0.5 text-sm font-medium text-[#6B6B6B]">
-                  Ambil dari gudang → stok di tangan sales → otomatis berkurang saat jual.
-                </p>
+              <div className="min-w-0 md:hidden">
+                <h1 className="text-lg font-bold tracking-tight text-[#111]">Stok Gudang</h1>
               </div>
             ) : (
               <div className="min-w-0 md:hidden">
@@ -499,8 +496,12 @@ export default function TrackingDesk({
 
           {panel === "stok" && stock ? (
             <div id="stok">
-              <StockClient
-                variant="light"
+              <TrackingStock
+                ownerName={ownerName}
+                summary={summary}
+                salesAktif={aktif}
+                salesOnline={links.filter((link) => cards.get(link.staffId)?.status.tone === "road").length}
+                salesTotal={links.length}
                 canEdit={stock.canEdit}
                 hand={stock.hand}
                 issues={stock.issues}

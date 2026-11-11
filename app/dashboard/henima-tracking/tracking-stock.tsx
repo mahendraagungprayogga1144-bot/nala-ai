@@ -337,9 +337,11 @@ export default function TrackingStock({
                       {row.salesName} {row.direction === "issue" ? "mengambil" : "mengembalikan"} {row.qty} pcs{" "}
                       {row.productName}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-[#8A8A8A]">
+                    <p className="mt-0.5 text-[11px] font-medium text-[#8A8A8A]">
                       {new Intl.DateTimeFormat("id-ID", {
                         timeZone: "Asia/Jakarta",
+                        day: "numeric",
+                        month: "short",
                         hour: "2-digit",
                         minute: "2-digit",
                       }).format(new Date(row.createdAt))}

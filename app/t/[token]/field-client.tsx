@@ -237,6 +237,13 @@ export default function FieldClient({
       if (json.closed) throw new Error(pesanDb(json.error || "SUDAH_CHECKOUT"));
     } else if (error) {
       throw new Error(pesanDb(error.message));
+    } else {
+      // Check-in / kunjungan / QRIS: cadangan ke Traccar (gagal diam, HENIMA tetap utama).
+      void fetch(`/api/henima-tracking/field/${token}/traccar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: useFix.lat, lng: useFix.lng, accuracy_m: accuracy }),
+      }).catch(() => {});
     }
     lastSent.current = Date.now();
     lastPos.current = useFix;

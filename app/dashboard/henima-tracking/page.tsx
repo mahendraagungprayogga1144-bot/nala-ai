@@ -6,6 +6,8 @@ import { loadSalesContext } from "@/lib/henima-sales/page-context";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTrackingTable, loadTrackingDesk } from "@/lib/henima-tracking/service";
 import { loadOwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboard";
+import { listHandStock, listStockIssues } from "@/lib/henima-sales/hand-stock-service";
+import { listProducts, listStaff } from "@/lib/henima-sales/staff-service";
 import { todayWib } from "@/lib/date";
 import TrackingDesk from "./tracking-desk";
 
@@ -26,9 +28,13 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
   return guardPage("Henima Tracking", async () => {
     try {
       const [{ actor, db }, session] = await Promise.all([loadSalesContext(), createClient()]);
-      const [desk, summary] = await Promise.all([
+      const [desk, summary, hand, issues, products, staff] = await Promise.all([
         loadTrackingDesk(db, session, actor, day),
         loadOwnerDashboardSummary(db, actor).catch(() => null),
+        listHandStock(db, actor).catch(() => []),
+        actor.role === "SALES" ? Promise.resolve([]) : listStockIssues(db, actor).catch(() => []),
+        listProducts(db, actor.businessId).catch(() => []),
+        listStaff(db, actor).catch(() => []),
       ]);
       const { data: auth } = await session.auth.getUser();
       let ownerName = "Owner";
@@ -48,6 +54,16 @@ export default async function HenimaTrackingPage({ searchParams }: { searchParam
             ownerName={ownerName}
             qrisUrl={desk.qrisUrl}
             summary={summary}
+            stock={{
+              canEdit: actor.role !== "SALES",
+              hand,
+              issues,
+              products: products.map((p) => ({ id: p.id, name: p.name, stock: p.stock ?? 0 })),
+              staff: staff
+                .filter((s) => s.role === "SALES" || s.role === "LEADER")
+                .filter((s) => s.status === "active" || s.status === "pending")
+                .map((s) => ({ id: s.id, nama: s.nama })),
+            }}
           />
         </div>
       );

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLinkStatus } from "next/link";
 import {
+  Boxes,
   CreditCard,
   FileBarChart,
   History,
@@ -17,7 +18,8 @@ import {
 } from "lucide-react";
 import LogoutButton from "../logout-button";
 
-export type TrackingNavKey = "dashboard" | "lokasi" | "riwayat";
+export type TrackingNavKey = "dashboard" | "lokasi" | "stok" | "riwayat";
+export type TrackingPanel = "dashboard" | "lokasi" | "stok";
 
 const GOLD = "#C5A358";
 
@@ -26,7 +28,7 @@ type NavItem = {
   label: string;
   icon: typeof MapPinned;
   key?: TrackingNavKey;
-  panel?: "dashboard" | "lokasi";
+  panel?: TrackingPanel;
   hash?: string;
 };
 
@@ -38,7 +40,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/sales/studio", label: "Produk", icon: Package },
   { href: "/dashboard/sales/customers", label: "Customer CRM", icon: Users },
   { href: "/dashboard/sales/targets", label: "Target & Komisi", icon: Target },
-  { href: "/dashboard/sales/stock", label: "Stok Gudang", icon: Package },
+  { href: "/dashboard/henima-tracking#stok", label: "Stok Gudang", icon: Boxes, key: "stok", panel: "stok" },
   { href: "/dashboard/sales/reports", label: "Laporan", icon: FileBarChart },
   { href: "/dashboard/henima-tracking/riwayat", label: "Riwayat GPS", icon: History, key: "riwayat" },
   { href: "/dashboard/henima-tracking#tambah-sales", label: "Pengaturan", icon: Settings, hash: "tambah-sales", panel: "lokasi" },
@@ -64,7 +66,7 @@ export function TrackingSidebar({
   active: TrackingNavKey;
   open: boolean;
   onClose: () => void;
-  onPanel?: (panel: "dashboard" | "lokasi") => void;
+  onPanel?: (panel: TrackingPanel) => void;
   ownerName?: string;
 }) {
   return (
@@ -84,7 +86,7 @@ export function TrackingSidebar({
               isActive ? "bg-[#F7F4EC] text-[#111]" : "text-[#6B6B6B] hover:bg-[#FAFAF8] hover:text-[#111]"
             }`;
 
-            if (item.panel && onPanel && (item.panel === "dashboard" || item.panel === "lokasi")) {
+            if (item.panel && onPanel) {
               return (
                 <button
                   key={item.label}

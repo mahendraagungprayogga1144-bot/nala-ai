@@ -12,7 +12,8 @@ import { mapsUrl, type TrackingLink, type TrackingPoint } from "@/lib/henima-tra
 import { type OwnerDashboardSummary } from "@/lib/henima-tracking/owner-dashboard";
 import TrackingMap, { staffColor } from "./tracking-map";
 import TrackingHome from "./tracking-home";
-import { TrackingSidebar } from "./tracking-nav";
+import { TrackingSidebar, type TrackingPanel } from "./tracking-nav";
+import StockClient from "../sales/stock/stock-client";
 
 const GOLD = "#C5A358";
 
@@ -88,6 +89,7 @@ export default function TrackingDesk({
   ownerName,
   qrisUrl: initialQrisUrl,
   summary,
+  stock,
 }: {
   date: string;
   today: string;
@@ -98,6 +100,28 @@ export default function TrackingDesk({
   ownerName: string;
   qrisUrl?: string | null;
   summary?: OwnerDashboardSummary | null;
+  stock?: {
+    canEdit: boolean;
+    hand: {
+      salesId: string;
+      salesName: string;
+      productId: string;
+      productName: string;
+      qty: number;
+      warehouseStock: number;
+    }[];
+    issues: {
+      id: string;
+      salesName: string;
+      productName: string;
+      qty: number;
+      direction: "issue" | "return";
+      note: string | null;
+      createdAt: string;
+    }[];
+    products: { id: string; name: string; stock: number }[];
+    staff: { id: string; nama: string }[];
+  } | null;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState("");
@@ -115,7 +139,7 @@ export default function TrackingDesk({
   const [dayBusy, setDayBusy] = useState(false);
   const [qrisUrl, setQrisUrl] = useState(initialQrisUrl || "");
   const [qrisBusy, setQrisBusy] = useState(false);
-  const [panel, setPanel] = useState<"dashboard" | "lokasi">("dashboard");
+  const [panel, setPanel] = useState<TrackingPanel>("dashboard");
   const viewDate = clientDay?.date ?? date;
   const viewPoints = clientDay?.points ?? points;
 
@@ -123,6 +147,10 @@ export default function TrackingDesk({
     const hash = window.location.hash.replace("#", "");
     if (!hash) return;
     // #traccar lama → satukan ke Lokasi GPS (satu pusat pantau Gercep/HENIMA).
+    if (hash === "stok") {
+      setPanel("stok");
+      return;
+    }
     if (hash === "traccar" || hash === "lokasi" || hash === "foto-checkin" || hash === "tambah-sales") {
       setPanel("lokasi");
       if (hash === "traccar") {
@@ -337,7 +365,7 @@ export default function TrackingDesk({
       `}</style>
 
       <TrackingSidebar
-        active={panel === "dashboard" ? "dashboard" : "lokasi"}
+        active={panel === "dashboard" ? "dashboard" : panel === "stok" ? "stok" : "lokasi"}
         open={navOpen}
         onClose={() => setNavOpen(false)}
         ownerName={ownerName}
@@ -345,6 +373,8 @@ export default function TrackingDesk({
           setPanel(next);
           if (next === "lokasi") {
             window.history.replaceState(null, "", "#lokasi");
+          } else if (next === "stok") {
+            window.history.replaceState(null, "", "#stok");
           } else {
             window.history.replaceState(null, "", "/dashboard/henima-tracking");
           }
@@ -362,6 +392,13 @@ export default function TrackingDesk({
                 <h1 className="text-[22px] font-bold tracking-tight text-[#111] md:text-[26px]">Lokasi GPS</h1>
                 <p className="mt-0.5 text-sm font-medium text-[#6B6B6B]">
                   Pusat pantau Gercep OS · HENIMA — check-in, rute, foto sales real-time.
+                </p>
+              </div>
+            ) : panel === "stok" ? (
+              <div className="min-w-0">
+                <h1 className="text-[22px] font-bold tracking-tight text-[#111] md:text-[26px]">Stok Gudang</h1>
+                <p className="mt-0.5 text-sm font-medium text-[#6B6B6B]">
+                  Ambil dari gudang → stok di tangan sales → otomatis berkurang saat jual.
                 </p>
               </div>
             ) : (
@@ -459,6 +496,24 @@ export default function TrackingDesk({
               Ringkasan penjualan belum bisa dimuat. Fitur GPS tetap tersedia di menu Lokasi GPS.
             </p>
           )}
+
+          {panel === "stok" && stock ? (
+            <div id="stok">
+              <StockClient
+                variant="light"
+                canEdit={stock.canEdit}
+                hand={stock.hand}
+                issues={stock.issues}
+                products={stock.products}
+                staff={stock.staff}
+              />
+            </div>
+          ) : null}
+          {panel === "stok" && !stock ? (
+            <p className="rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-4 py-6 text-sm text-[#6B6B6B]">
+              Data stok belum siap. Jalankan migration hand stock di Supabase, lalu muat ulang.
+            </p>
+          ) : null}
 
           {panel === "lokasi" && (
             <>

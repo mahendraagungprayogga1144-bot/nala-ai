@@ -84,6 +84,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       lat,
       lng,
       accuracy_m: accuracy,
+      nama: staff.nama,
     });
 
     return NextResponse.json({ ok: true });

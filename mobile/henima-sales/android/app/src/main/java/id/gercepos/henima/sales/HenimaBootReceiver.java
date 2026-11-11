@@ -23,8 +23,10 @@ public class HenimaBootReceiver extends BroadcastReceiver {
     SharedPreferences p = context.getSharedPreferences(HenimaTrackService.PREFS, Context.MODE_PRIVATE);
     String token = p.getString(HenimaTrackService.KEY_TOKEN, "");
     String api = p.getString(HenimaTrackService.KEY_API, "https://www.gercepos.id");
+    String traccar = p.getString(HenimaTrackService.KEY_TRACCAR, "");
     boolean want = p.getBoolean(HenimaTrackService.KEY_ACTIVE, false);
     if (!want || token.length() != 32) return;
-    HenimaTrackService.start(context, token, api);
+    HenimaTrackService.start(context, token, api, traccar);
   }
 }
+

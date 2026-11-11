@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   try {
     const { token } = await params;
     const db = salesDb();
-    await resolveTrackingToken(db, token);
+    const { staff } = await resolveTrackingToken(db, token);
 
     const body = await request.json().catch(() => ({}));
     const lat = Number(body?.lat);
@@ -27,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       lat,
       lng,
       accuracy_m: accuracy,
+      nama: staff.nama,
     });
 
     return NextResponse.json({ ok: Boolean(result.ok), skipped: Boolean(result.skipped), deviceId: result.deviceId ?? null });

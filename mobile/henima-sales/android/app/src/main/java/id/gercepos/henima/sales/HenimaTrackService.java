@@ -1,5 +1,6 @@
 package id.gercepos.henima.sales;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -18,6 +19,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
@@ -104,12 +106,63 @@ public class HenimaTrackService extends Service implements LocationListener {
     } else {
       ctx.startService(i);
     }
+    scheduleWatchdog(ctx);
   }
 
   public static void stop(Context ctx) {
     SharedPreferences p = ctx.getSharedPreferences(PREFS, MODE_PRIVATE);
     p.edit().putBoolean(KEY_ACTIVE, false).apply();
+    cancelWatchdog(ctx);
     ctx.stopService(new Intent(ctx, HenimaTrackService.class));
+  }
+
+  /** Alarm berkala: kalau service mati karena clear RAM / OEM, nyala lagi. */
+  public static void scheduleWatchdog(Context ctx) {
+    try {
+      AlarmManager am = (AlarmManager) ctx.getSystemService(ALARM_SERVICE);
+      if (am == null) return;
+      PendingIntent pi = watchdogPending(ctx);
+      long interval = 12 * 60 * 1000L;
+      long first = SystemClock.elapsedRealtime() + 60_000L;
+      am.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, first, interval, pi);
+    } catch (Exception e) {
+      Log.w(TAG, "schedule watchdog failed", e);
+    }
+  }
+
+  /** Restart cepat setelah swipe / task removed. */
+  public static void scheduleQuickRestart(Context ctx) {
+    try {
+      AlarmManager am = (AlarmManager) ctx.getSystemService(ALARM_SERVICE);
+      if (am == null) return;
+      PendingIntent pi = watchdogPending(ctx);
+      long when = SystemClock.elapsedRealtime() + 3_000L;
+      if (Build.VERSION.SDK_INT >= 23) {
+        am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, when, pi);
+      } else {
+        am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, when, pi);
+      }
+    } catch (Exception e) {
+      Log.w(TAG, "quick restart failed", e);
+    }
+  }
+
+  public static void cancelWatchdog(Context ctx) {
+    try {
+      AlarmManager am = (AlarmManager) ctx.getSystemService(ALARM_SERVICE);
+      if (am == null) return;
+      am.cancel(watchdogPending(ctx));
+    } catch (Exception e) {
+      Log.w(TAG, "cancel watchdog failed", e);
+    }
+  }
+
+  private static PendingIntent watchdogPending(Context ctx) {
+    Intent i = new Intent(ctx, HenimaWatchdogReceiver.class);
+    i.setAction(HenimaWatchdogReceiver.ACTION_WATCHDOG);
+    int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+    if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
+    return PendingIntent.getBroadcast(ctx, 4401, i, flags);
   }
 
   @Override
@@ -398,6 +451,7 @@ public class HenimaTrackService extends Service implements LocationListener {
   private void stopSelfSafe() {
     SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
     p.edit().putBoolean(KEY_ACTIVE, false).apply();
+    cancelWatchdog(this);
     try {
       if (locationManager != null) locationManager.removeUpdates(this);
     } catch (Exception ignored) {
@@ -409,6 +463,17 @@ public class HenimaTrackService extends Service implements LocationListener {
   }
 
   @Override
+  public void onTaskRemoved(Intent rootIntent) {
+    // Clear recent / swipe app: jangan anggap sesi selesai — jadwalkan nyala lagi.
+    SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+    if (p.getBoolean(KEY_ACTIVE, false) && !isPastCloseWib()) {
+      scheduleQuickRestart(getApplicationContext());
+      scheduleWatchdog(getApplicationContext());
+    }
+    super.onTaskRemoved(rootIntent);
+  }
+
+  @Override
   public void onDestroy() {
     handler.removeCallbacks(heartbeat);
     try {
@@ -416,6 +481,12 @@ public class HenimaTrackService extends Service implements LocationListener {
     } catch (Exception ignored) {
     }
     releaseWakeLock();
+    SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+    boolean want = p.getBoolean(KEY_ACTIVE, false) && !isPastCloseWib();
+    if (want) {
+      scheduleQuickRestart(getApplicationContext());
+      scheduleWatchdog(getApplicationContext());
+    }
     net.shutdownNow();
     super.onDestroy();
   }

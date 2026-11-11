@@ -433,8 +433,25 @@ export default function FieldClient({
         .catch(() => undefined);
       void startNativeBackgroundTrack(token);
       if (!hidden) {
+        // Chrome dibuka lagi setelah swipe/RAM: nyalakan ulang pantauan di tab ini.
+        setWatching(true);
         void holdWake();
         void startFieldTrackingNotify({ nama: state.nama });
+        void watchNativeOrBrowserGps(
+          (fix) => pushPing(fix),
+          (message) => {
+            setWatching(false);
+            if (message) setPermHint(message);
+          },
+        ).then((handle) => {
+          if (!alive) {
+            handle.stop();
+            return;
+          }
+          stopWatch?.();
+          stopWatch = handle.stop;
+          setWatching(true);
+        });
       }
     }
 
@@ -647,10 +664,19 @@ export default function FieldClient({
             {state.checkedOut
               ? "Besok buka app lagi. GPS langsung jalan sendiri."
               : live
-                ? `GPS jalan di belakang (seperti Grab). Auto stop jam ${TRACKING_AUTO_CLOSE_HOUR}:00. Jangan force-stop app.`
+                ? nativeApp
+                  ? `GPS jalan di belakang (seperti Grab). Auto stop jam ${TRACKING_AUTO_CLOSE_HOUR}:00. Jangan force-stop app.`
+                  : `GPS aktif di Chrome. Auto stop jam ${TRACKING_AUTO_CLOSE_HOUR}:00.`
                 : "Izinkan lokasi HP dulu."}
           </p>
           {!state.checkedOut ? <p className="mt-2 text-xs font-medium text-[#555]">{gpsText}</p> : null}
+          {!nativeApp && !state.checkedOut ? (
+            <p className="mt-3 rounded-xl border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs leading-snug text-amber-950">
+              Pakai <span className="font-semibold">app HENIMA Sales</span>, jangan Chrome saja. Kalau RAM dikosongkan / Chrome
+              di-swipe, GPS di browser <span className="font-semibold">mati</span>. Di app, GPS bisa nyala lagi sendiri +
+              notifikasi tetap ada.
+            </p>
+          ) : null}
           {nativeApp && !state.checkedOut ? (
             <button type="button" onClick={() => void openNativeLocationSettings()} className={`${ghost} mt-3`}>
               Izinkan lokasi selalu

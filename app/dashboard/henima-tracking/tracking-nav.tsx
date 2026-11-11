@@ -38,6 +38,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/sales/studio", label: "Produk", icon: Package },
   { href: "/dashboard/sales/customers", label: "Customer CRM", icon: Users },
   { href: "/dashboard/sales/targets", label: "Target & Komisi", icon: Target },
+  { href: "/dashboard/sales/stock", label: "Stok Gudang", icon: Package },
   { href: "/dashboard/sales/reports", label: "Laporan", icon: FileBarChart },
   { href: "/dashboard/henima-tracking/riwayat", label: "Riwayat GPS", icon: History, key: "riwayat" },
   { href: "/dashboard/henima-tracking#tambah-sales", label: "Pengaturan", icon: Settings, hash: "tambah-sales", panel: "lokasi" },

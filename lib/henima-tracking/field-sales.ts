@@ -4,6 +4,7 @@ import { createCustomer, findCustomerByPhone } from "@/lib/henima-sales/customer
 import { confirmSale, listOrders, softDeleteOrder, updateOrder, type SalesOrder } from "@/lib/henima-sales/order-service";
 import { listProducts } from "@/lib/henima-sales/staff-service";
 import { listCommissionLedger } from "@/lib/henima-sales/commission-service";
+import { listHandStock } from "@/lib/henima-sales/hand-stock-service";
 import { achievementFor, listTargets } from "@/lib/henima-sales/target-service";
 import {
   NotFoundError,
@@ -62,7 +63,7 @@ export async function loadFieldPortal(db: SalesDb, token: string) {
   const actor = await actorFromTrackingToken(db, token);
   const today = todayWib();
   const monthFrom = `${today.slice(0, 8)}01`;
-  const [products, todayOrders, monthOrders, targets, monthly, commission] = await Promise.all([
+  const [products, todayOrders, monthOrders, targets, monthly, commission, handStock] = await Promise.all([
     listProducts(db, actor.businessId),
     listOrders(db, actor, { from: today, to: today, salesId: actor.staffId, pageSize: 50 }),
     listOrders(db, actor, {
@@ -77,6 +78,7 @@ export async function loadFieldPortal(db: SalesDb, token: string) {
       rows: [],
       total: 0,
     })),
+    listHandStock(db, actor, actor.staffId).catch(() => []),
   ]);
 
   const dayRows = todayOrders.rows || [];
@@ -123,6 +125,11 @@ export async function loadFieldPortal(db: SalesDb, token: string) {
       revenue: t.revenue_target,
     })),
     monthly,
+    handStock: handStock.map((h) => ({
+      productId: h.productId,
+      productName: h.productName,
+      qty: h.qty,
+    })),
   };
 }
 

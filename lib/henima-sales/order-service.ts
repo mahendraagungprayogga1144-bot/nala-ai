@@ -84,6 +84,13 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
     if (!product) throw new SalesError(`Produk tidak valid: ${line.productName}.`, "product_invalid");
   }
 
+  const { assertHandStockForSale, settleSaleAgainstHandStock } = await import("./hand-stock-service");
+  await assertHandStockForSale(
+    db,
+    actor,
+    lines.map((l) => ({ productId: l.productId, productName: l.productName, quantity: l.quantity })),
+  );
+
   const priced = priceAgainstRetail(lines, products, {
     discount: input.discount,
     discountPercent: input.discountPercent,
@@ -124,10 +131,15 @@ export async function confirmSale(db: SalesDb, actor: Actor, input: ConfirmSaleI
     throw new SalesError(rpcMessage(error), "confirm_failed", 500);
   }
 
+  await settleSaleAgainstHandStock(db, actor, [
+    { productId: pricedInput.productId, quantity: priced.lines[0].quantity },
+  ]);
+
   return finishConfirm(db, actor, pricedInput, data, pricedInput.productName, priced.lines[0].quantity);
 }
 
 async function confirmSaleItems(db: SalesDb, actor: Actor, input: ConfirmSaleInput, lines: SaleLine[]) {
+  const { settleSaleAgainstHandStock } = await import("./hand-stock-service");
   const { data, error } = await db.rpc("henima_confirm_sale_items", {
     p_business_id: actor.businessId,
     p_owner_user_id: actor.ownerUserId,
@@ -151,6 +163,12 @@ async function confirmSaleItems(db: SalesDb, actor: Actor, input: ConfirmSaleInp
     salesLogError("confirm_sale_items", error, { businessId: actor.businessId, staffId: actor.staffId });
     throw new SalesError(rpcMessage(error), "confirm_failed", 500);
   }
+
+  await settleSaleAgainstHandStock(
+    db,
+    actor,
+    lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+  );
 
   return finishConfirm(
     db,

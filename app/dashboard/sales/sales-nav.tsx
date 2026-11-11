@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/dashboard/sales/testimonials", label: "Testimonials" },
   { href: "/dashboard/sales/follow-ups", label: "Follow Ups" },
   { href: "/dashboard/sales/targets", label: "Targets" },
+  { href: "/dashboard/sales/stock", label: "Stok Gudang" },
   { href: "/dashboard/sales/commissions", label: "Commissions" },
   { href: "/dashboard/sales/reports", label: "Reports" },
   { href: "/dashboard/sales/team", label: "Settings" },

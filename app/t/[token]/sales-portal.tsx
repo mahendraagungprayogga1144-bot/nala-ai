@@ -83,6 +83,7 @@ type PortalData = {
   recent: PortalOrder[];
   payments: PortalOrder[];
   monthOrders: PortalOrder[];
+  handStock?: { productId: string; productName: string; qty: number }[];
   monthly: {
     sold: number;
     omzet: number;
@@ -226,6 +227,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
             <SaleView
               token={token}
               products={data?.products || []}
+              handStock={data?.handStock || []}
               busy={busy}
               setBusy={setBusy}
               onDone={() => {
@@ -459,6 +461,27 @@ function HomeView({
         </div>
       </button>
 
+      {(data?.handStock || []).length > 0 ? (
+        <section className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3">
+          <p className="text-sm font-bold text-[#111]">Stok di tangan</p>
+          <p className="mt-0.5 text-xs text-[#6B6B6B]">Dari gudang · berkurang otomatis saat jual</p>
+          <ul className="mt-2 space-y-1.5">
+            {(data?.handStock || []).map((row) => (
+              <li key={row.productId} className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-semibold text-[#111]">{row.productName}</span>
+                <span className="font-bold tabular-nums" style={{ color: GREEN }}>
+                  {row.qty} pcs
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <p className="rounded-xl border border-[#E8E8E4] bg-white px-3 py-2 text-xs text-[#6B6B6B]">
+          Belum ada stok di tangan. Minta owner catat ambil gudang di menu Stok Gudang.
+        </p>
+      )}
+
       <section className="rounded-2xl border border-[#E8E8E4] bg-white p-3">
         <div className="grid grid-cols-4 gap-2">
           {grid.map((item) => {
@@ -551,18 +574,21 @@ function MenuRow({
 function SaleView({
   token,
   products,
+  handStock,
   busy,
   setBusy,
   onDone,
 }: {
   token: string;
   products: PortalProduct[];
+  handStock: { productId: string; productName: string; qty: number }[];
   busy: boolean;
   setBusy: (v: boolean) => void;
   onDone: () => void;
 }) {
   const [productId, setProductId] = useState(products[0]?.id || "");
   const selected = useMemo(() => products.find((p) => p.id === productId) || products[0], [products, productId]);
+  const handQty = handStock.find((h) => h.productId === selected?.id)?.qty;
   const [qtyDraft, setQtyDraft] = useState("1");
   const [priceDraft, setPriceDraft] = useState(String(selected?.price || 0));
   const [customerName, setCustomerName] = useState("");
@@ -649,13 +675,24 @@ function SaleView({
             className="mt-1.5 w-full rounded-xl border border-[#E8E8E4] bg-[#FAFAF8] px-3 py-3.5 text-sm"
           >
             {products.length === 0 && <option value="">Belum ada produk</option>}
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
+            {products.map((p) => {
+              const hq = handStock.find((h) => h.productId === p.id)?.qty;
+              return (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {hq != null ? ` · di tangan ${hq}` : ""}
+                </option>
+              );
+            })}
           </select>
         </label>
+        {handQty != null ? (
+          <p className="text-xs font-semibold" style={{ color: GREEN }}>
+            Stok di tangan: {handQty} pcs
+          </p>
+        ) : (
+          <p className="text-xs text-[#6B6B6B]">Belum ada stok di tangan untuk produk ini. Minta ambil gudang ke owner.</p>
+        )}
 
         <div>
           <p className="text-sm font-semibold text-[#111]">Jumlah</p>

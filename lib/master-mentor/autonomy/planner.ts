@@ -18,6 +18,7 @@ export function planFromGoal(goal: string, maxLevel: AutonomyLevel): TaskPlan {
   const wantsFinance = /omzet|laba|profit|kas|cash|keuangan|margin|bep|untung|revenue|cogs/i.test(g);
   const wantsSales = /penjualan|sales|minggu|bulan|order|conversion|growth/i.test(g);
   const wantsStock = /stok|inventory|pabrik|v1|v2|sampel/i.test(g);
+  const wantsSeo = /seo|keyword|ranking|organik|backlink|openseo|trafik web/i.test(g);
   const wantsMessage = /kirim|whatsapp|wa |pesan|follow.?up pelanggan/i.test(g);
   const wantsWriteFin = /catat keuangan|simpan angka|tulis financial/i.test(g);
 
@@ -40,6 +41,15 @@ export function planFromGoal(goal: string, maxLevel: AutonomyLevel): TaskPlan {
       title: "Snapshot Financial Memory",
       tool_name: "finance.snapshot",
       specialist: "cfo",
+    });
+  }
+
+  if (wantsSeo) {
+    steps.push({
+      title: "Ambil brief SEO OpenSEO",
+      tool_name: "seo.brief",
+      specialist: "growth",
+      input: { query: goal.slice(0, 400) },
     });
   }
 

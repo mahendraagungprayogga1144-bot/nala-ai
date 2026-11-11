@@ -199,6 +199,10 @@ assert.equal(financeRoute.includeFinance, true);
 const growthRoute = planSpecialistRoute("Strategi pricing dan acquisition untuk naikkan konversi");
 assert.deepEqual(growthRoute.specialists, []);
 
+const seoRoute = planSpecialistRoute("Bantu riset keyword SEO untuk gercepos.id");
+assert.equal(seoRoute.includeSeo, true);
+assert.deepEqual(seoRoute.specialists, []); // fast path tetap chairman, SEO diinject ke konteks
+
 const multi = planSpecialistRoute(
   "Tolong analisis penuh pakai spesialis: ekspansi toko baru, strategi, risiko, dan dampak keuangan.",
 );
@@ -437,8 +441,12 @@ assert.ok(plan2.permission_level >= 2);
 registerBuiltinTools();
 registerBuiltinTools(); // idempotent
 assert.ok(getTool("memory.retrieve"));
+assert.ok(getTool("seo.brief"));
 assert.ok(listTools().length >= 8);
 assert.equal(getTool("shell_exec"), null);
+
+const seoPlan = planFromGoal("Riset SEO keyword dan ranking organik HENIMA", 0);
+assert.ok(seoPlan.steps.some((s) => s.tool_name === "seo.brief"));
 
 console.log("master-mentor tests: ok (phase1+phase2+phase3+phase4+phase5+phase6+phase7)");
 

@@ -5,6 +5,12 @@ import { listPortfolioBusinesses } from "../../portfolio-service";
 import { proposeAction } from "../../actions/action-service";
 import { proposeMemoryCandidate } from "../../memory-candidates-service";
 import { registerTool } from "../tool-registry";
+import { buildSeoBrief } from "../../seo/context";
+import {
+  callOpenSeoTool,
+  getOpenSeoConfig,
+  resolveOpenSeoProjectId,
+} from "../../seo/openseo-client";
 
 let registered = false;
 
@@ -335,6 +341,57 @@ export function registerBuiltinTools() {
       const issues = [...mem.missing];
       if (!mem.business) issues.push("Business memory kosong");
       return { healthy: issues.length === 0, issues, sourcesUsed: mem.sourcesUsed };
+    },
+  });
+
+  registerTool({
+    name: "seo.brief",
+    description: "Ambil ringkasan SEO OpenSEO (domain overview + keyword + backlink) untuk HENIMA.",
+    permissionLevel: 0,
+    risk: "low",
+    requiresApproval: false,
+    businessScoped: false,
+    inputSchema: { query: "string?" },
+    outputSchema: { configured: "boolean", sourcesUsed: "string[]", missing: "string[]" },
+    handler: async (_ctx, input) => {
+      const brief = await buildSeoBrief({
+        question: String(input.query || "seo henima gercepos"),
+      });
+      return {
+        configured: brief.configured,
+        domain: brief.domain,
+        projectId: brief.projectId,
+        sourcesUsed: brief.sourcesUsed,
+        missing: brief.missing,
+        summary: brief.summary.slice(0, 4000),
+      };
+    },
+  });
+
+  registerTool({
+    name: "seo.research_keywords",
+    description: "Riset keyword via OpenSEO MCP (butuh OPENSEO_API_KEY + project).",
+    permissionLevel: 0,
+    risk: "low",
+    requiresApproval: false,
+    businessScoped: false,
+    inputSchema: { seeds: "string[]" },
+    outputSchema: { ok: "boolean", text: "string" },
+    handler: async (_ctx, input) => {
+      const cfg = getOpenSeoConfig();
+      if (!cfg) return { ok: false, text: "", error: "OPENSEO_API_KEY belum di-set" };
+      const projectId = await resolveOpenSeoProjectId();
+      if (!projectId) return { ok: false, text: "", error: "Project OpenSEO tidak ditemukan" };
+      const seeds = Array.isArray(input.seeds)
+        ? input.seeds.map(String).filter(Boolean).slice(0, 5)
+        : ["henima", "parfum"];
+      const out = await callOpenSeoTool("research_keywords", {
+        projectId,
+        seeds: seeds.map((seed) => ({ seed })),
+      });
+      return out.ok
+        ? { ok: true, text: out.text.slice(0, 5000), seeds }
+        : { ok: false, text: "", error: out.error, seeds };
     },
   });
 }

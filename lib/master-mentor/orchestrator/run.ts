@@ -28,6 +28,7 @@ import {
 } from "../chat/owner-stated-figures";
 import { formatMemoryContext } from "./context-prompt";
 import { planSpecialistRoute } from "./router";
+import { buildSeoBrief, formatSeoBriefForPrompt } from "../seo/context";
 
 
 export type OrchestratorProgress = {
@@ -247,15 +248,36 @@ export async function runMasterOrchestrator(opts: {
   const ownerFigures = extractOwnerStatedFigures(chatCorpus);
   const ownerFiguresBlock = formatOwnerStatedFiguresForPrompt(ownerFigures);
 
+  let seoBlock = "";
+  const seoSources: string[] = [];
+  if (route.includeSeo || /seo|keyword|ranking|organik|openseo/i.test(opts.question)) {
+    onProgress({ type: "status", message: "Cek data SEO OpenSEO…" });
+    try {
+      const seoPromise = buildSeoBrief({ question: opts.question, timeoutMs: 16_000 });
+      const seoTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 18_000));
+      const seo = await Promise.race([seoPromise, seoTimeout]);
+      if (seo) {
+        seoBlock = formatSeoBriefForPrompt(seo);
+        seoSources.push(...seo.sourcesUsed);
+      } else {
+        seoBlock =
+          "OPENSEO: timeout. Lanjut tanpa angka SEO live — jangan mengarang volume/ranking.";
+      }
+    } catch (err) {
+      seoBlock = `OPENSEO: gagal (${err instanceof Error ? err.message : "error"}). Jangan mengarang data SEO.`;
+    }
+  }
+
   const baseUser = [
     memoryBlock,
     intelligenceBlock,
+    seoBlock,
     historyBlock,
     ownerFiguresBlock,
     `PERTANYAAN OWNER:\n${opts.question}`,
     ownerFigures.length
       ? "Owner sudah memberi angka di chat. Analisis bersyarat dengan angka itu (estimate percakapan). Jangan mengarang angka lain. Jangan ulang minta data yang sudah disebut."
-      : "Jangan mengarang data. Utamakan angka dari Phase 4 intelligence pack dan Financial Memory. Jika missing, sebutkan dan tanya owner.",
+      : "Jangan mengarang data. Utamakan angka dari Phase 4 intelligence pack, Financial Memory, dan OpenSEO (jika ada). Jika missing, sebutkan dan tanya owner.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -499,6 +521,7 @@ export async function runMasterOrchestrator(opts: {
     specialists: briefs,
     sourcesUsed: [
       ...context.sourcesUsed,
+      ...seoSources,
       ...(ownerFigures.length ? ["owner_stated_in_chat"] : []),
     ],
     missing: missingUi,

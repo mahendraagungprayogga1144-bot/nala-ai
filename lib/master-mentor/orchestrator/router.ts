@@ -6,6 +6,7 @@ export type RoutePlan = {
   complex: boolean;
   reasons: string[];
   includeFinance: boolean;
+  includeSeo: boolean;
 };
 
 const SIMPLE = /^(hai|halo|hi|hello|thanks|terima kasih|makasih|pagi|siang|sore|malam)\b/i;
@@ -21,6 +22,10 @@ export function planSpecialistRoute(question: string): RoutePlan {
   const includeFinance =
     detectTopics(q).includes("finance") ||
     /break.?even|bep|roi|modal|cash|\bkas\b|hpp|margin|omzet|laba|revenue|keuangan/i.test(q);
+  const includeSeo =
+    /seo|keyword|ranking|rank|backlink|serp|organik|organic|search console|trafik web|meta title|ahrefs|semrush|openseo|gercepos\.id/i.test(
+      q,
+    );
 
   if (SIMPLE.test(q) && q.length < 40) {
     return {
@@ -28,6 +33,7 @@ export function planSpecialistRoute(question: string): RoutePlan {
       complex: false,
       reasons: ["simple_greeting"],
       includeFinance: false,
+      includeSeo: false,
     };
   }
 
@@ -38,11 +44,13 @@ export function planSpecialistRoute(question: string): RoutePlan {
 
   if (!wantDeep) {
     reasons.push(includeFinance ? "fast_chairman_finance" : "fast_chairman");
+    if (includeSeo) reasons.push("seo_topic");
     return {
       specialists: [],
-      complex: q.length > 200 || /analisis|rekomendasi|strategi|bandingkan/i.test(q),
+      complex: q.length > 200 || /analisis|rekomendasi|strategi|bandingkan|seo/i.test(q),
       reasons,
       includeFinance,
+      includeSeo,
     };
   }
 
@@ -56,9 +64,12 @@ export function planSpecialistRoute(question: string): RoutePlan {
     selected.add("strategy");
     reasons.push("strategy_topic");
   }
-  if (/sales|marketing|acquisition|konversi|pricing|harga jual|retensi|distribusi|iklan|funnel/i.test(q)) {
+  if (
+    includeSeo ||
+    /sales|marketing|acquisition|konversi|pricing|harga jual|retensi|distribusi|iklan|funnel/i.test(q)
+  ) {
     selected.add("growth");
-    reasons.push("growth_topic");
+    reasons.push(includeSeo ? "seo_growth_topic" : "growth_topic");
   }
   if (/sop|operasional|karyawan|produktivitas|otomatis|proses|workforce/i.test(q)) {
     selected.add("operations");
@@ -79,5 +90,6 @@ export function planSpecialistRoute(question: string): RoutePlan {
     complex: true,
     reasons: [...reasons, "deep_requested"],
     includeFinance: includeFinance || specialists.includes("cfo"),
+    includeSeo,
   };
 }

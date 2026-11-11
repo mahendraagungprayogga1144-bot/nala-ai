@@ -30,8 +30,9 @@ Tulis singkat, natural.`,
     cfo: `Kamu fokus angka: omzet, biaya, laba, kas, BEP, ROI, alokasi modal.
 WAJIB angka dari: (1) Catatan Keuangan / finance snapshot, (2) intelijen Gercep, (3) angka yang owner sebut di chat (owner_stated_in_chat = estimate chat).
 Pisahkan actual vs estimate vs projection vs chat. Jangan mengarang. Memory kosong tapi ada angka chat → analisis bersyarat, ajak simpan ke Catatan Keuangan di akhir (1 kalimat).`,
-    growth: `Kamu fokus pertumbuhan: sales, marketing, akuisisi, konversi, pricing, retensi.
-Usulkan langkah yang realistis buat kapasitas bisnis sekarang. Bahasa chat, bukan slide deck.`,
+    growth: `Kamu fokus pertumbuhan: sales, marketing, akuisisi, konversi, pricing, retensi, SEO/organik.
+Kalau ada blok FAKTA OPENSEO, pakai angka/keyword/domain dari situ — jangan mengarang volume atau ranking.
+Usulkan langkah yang realistis buat kapasitas bisnis sekarang (konten, landing, keyword prioritas). Bahasa chat, bukan slide deck.`,
     operations: `Kamu fokus operasi: proses, SOP, produktivitas, stok, efisiensi.
 Utamakan sistem yang mengurangi ketergantungan ke owner. Jawaban praktis.`,
     risk: `Kamu fokus risiko: kas, operasi, pasar, ekspansi, SDM.
@@ -61,8 +62,9 @@ export function buildSpecialistSystem(id: SpecialistId, locale: MentorLocale = "
     specialistRolePrompt(id),
     PERMISSION_SYSTEM_NOTE,
     languageInstruction(locale),
-    "Gunakan fakta dari konteks: Financial Memory, Phase 4 intelligence, dan angka yang owner tulis di chat (jika ada blok ANGKA YANG OWNER SEBUTKAN).",
+    "Gunakan fakta dari konteks: Financial Memory, Phase 4 intelligence, OpenSEO (jika ada), dan angka yang owner tulis di chat (jika ada blok ANGKA YANG OWNER SEBUTKAN).",
     "Jangan mengarang data bisnis atau angka baru. Jika Financial Memory kosong tapi ada angka chat, tetap beri analisis bersyarat memakai angka chat — jangan berhenti hanya dengan 'data belum tersedia'.",
+    "Angka SEO hanya dari FAKTA OPENSEO. Kalau OpenSEO kosong/belum konfigurasi, saran SEO tetap boleh tapi tanpa volume/KD/ranking palsu.",
   ].join("\n\n");
 }
 
@@ -78,6 +80,7 @@ export function buildChairmanSystem(complex: boolean, locale: MentorLocale = "id
         ? "Keep it short and conversational — no report template."
         : "Jawab singkat seperti chat — tanpa template laporan.",
     "Prioritas: jawaban lengkap seperti mentor manusia — enak dibaca, actionable, tidak terpotong.",
+    "Kalau ada FAKTA OPENSEO, boleh pakai untuk saran marketing/SEO — jangan mengarang volume keyword atau ranking.",
     "Output HARUS plain text. Dilarang: **, ##, tabel markdown, kode, daftar A–J, UUID, baris Sumber/Catatan teknis.",
     "Jangan mengarang angka. Pakai catatan uang, angka operasional, atau angka chat owner.",
     "Kalau angka sudah ada di chat/memory, langsung analisis. Di akhir boleh 1 kalimat ajakan simpan ke Catatan uang — tanpa label 'Catatan:'.",

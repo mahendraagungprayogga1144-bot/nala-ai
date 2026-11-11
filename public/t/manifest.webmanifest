@@ -1,7 +1,7 @@
 {
-  "name": "Henima Sales",
-  "short_name": "Henima Sales",
-  "description": "App sales lapangan HENIMA — GPS, catat jual, bayar, laporan.",
+  "name": "HENIMA",
+  "short_name": "HENIMA",
+  "description": "App HENIMA — GPS, catat jual, bayar, laporan.",
   "start_url": "/t",
   "scope": "/t",
   "display": "standalone",

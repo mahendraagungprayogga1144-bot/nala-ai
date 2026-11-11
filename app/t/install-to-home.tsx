@@ -42,21 +42,21 @@ export default function InstallToHome({ apkUrl = "" }: { apkUrl?: string }) {
 
   if (mode === "installed") {
     return (
-      <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-        Henima Sales sudah terpasang di layar utama. Buka dari ikon HP supaya GPS & notif jalan.
+      <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        App sudah terpasang di layar utama. Buka dari ikon HP supaya GPS & notif jalan.
       </p>
     );
   }
 
   if (mode === "ios") {
     return (
-      <section className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
+      <section className="rounded-xl border border-[#E8E8E4] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(17,17,17,0.04)]">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111] text-white">
             <Smartphone size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold text-[#111]">Pasang Henima Sales di iPhone</p>
+            <p className="text-sm font-bold text-[#111]">Pasang di iPhone</p>
             <p className="mt-1 text-xs leading-relaxed text-[#6B6B6B]">
               Tidak ada APK di iPhone. Pasang dari Safari supaya ikon muncul di layar utama & App Library.
             </p>
@@ -78,7 +78,7 @@ export default function InstallToHome({ apkUrl = "" }: { apkUrl?: string }) {
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-[#B8952A]">4.</span>
-            Buka ikon <span className="font-semibold">Henima Sales</span> → izinkan Lokasi Selalu + Notifikasi.
+            Buka ikon <span className="font-semibold">HENIMA</span> → izinkan Lokasi Selalu + Notifikasi.
           </li>
         </ol>
       </section>
@@ -87,7 +87,7 @@ export default function InstallToHome({ apkUrl = "" }: { apkUrl?: string }) {
 
   if (mode === "android") {
     return (
-      <section className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-4">
+      <section className="rounded-xl border border-[#E8E8E4] bg-white px-4 py-4">
         <p className="text-sm font-bold text-[#111]">Android</p>
         <p className="mt-1 text-xs text-[#6B6B6B]">
           Lebih kuat pakai APK native. Atau di Chrome: menu ⋮ → <span className="font-semibold">Install app / Tambahkan ke layar utama</span>.
@@ -97,7 +97,7 @@ export default function InstallToHome({ apkUrl = "" }: { apkUrl?: string }) {
             href={apkUrl}
             className="mt-3 flex w-full items-center justify-center rounded-2xl bg-[#111] py-3 text-sm font-semibold text-white"
           >
-            Unduh APK Henima Sales
+            Unduh APK
           </a>
         ) : null}
       </section>
@@ -105,7 +105,7 @@ export default function InstallToHome({ apkUrl = "" }: { apkUrl?: string }) {
   }
 
   return (
-    <section className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm text-[#6B6B6B]">
+    <section className="rounded-xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm text-[#6B6B6B]">
       Di iPhone: buka Safari → Bagikan → Tambah ke Layar Utama. Di Android: install APK atau Install app dari Chrome.
     </section>
   );

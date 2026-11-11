@@ -47,13 +47,43 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
 
   return (
     <main className={`${jakarta.className} mx-auto flex min-h-[100dvh] max-w-lg flex-col justify-center px-5 py-10 text-[#111]`}>
-      <p className="text-[15px] font-bold tracking-[0.08em]">HENIMA</p>
-      <h1 className="mt-1 text-2xl font-bold tracking-tight">Sales Lapangan</h1>
+      <h1 className="text-[15px] font-bold tracking-[0.08em]">HENIMA</h1>
       <p className="mt-2 text-sm text-[#6B6B6B]">
         {native
           ? "App khusus tracking & catat jual. Tidak membuka Gercep OS internal."
           : "iPhone: pasang ke layar utama dari Safari. Android: APK atau Install app."}
       </p>
+
+      <section
+        className="mt-5 flex items-end gap-3 overflow-hidden rounded-3xl border border-[#E8E8E4] bg-[#F7F4EE]"
+        aria-label="Semangat tim"
+      >
+        <div className="relative h-[9.5rem] w-[7.25rem] shrink-0 overflow-hidden bg-[#F7F4EE]">
+          <img
+            src="/office-founder-calm.png"
+            alt=""
+            width={140}
+            height={160}
+            className="absolute inset-0 h-full w-full scale-[1.35] object-cover object-[50%_6%]"
+            draggable={false}
+          />
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#F7F4EE]/0 via-transparent to-[#F7F4EE]"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#F7F4EE] to-transparent"
+            aria-hidden
+          />
+        </div>
+        <div className="min-w-0 flex-1 pb-4 pr-4 pt-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#B8952A]">Tim Henima</p>
+          <p className="mt-1 text-[17px] font-bold leading-snug tracking-tight">Semangat hari ini.</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-[#4A4A4A]">
+            Pasang app, paste link dari leader, langsung siap catat jual & tracking.
+          </p>
+        </div>
+      </section>
 
       {!native ? (
         <div className="mt-5">
@@ -78,13 +108,13 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="https://…/t/… atau token"
-              className="mt-1.5 w-full rounded-xl border border-[#E8E8E4] bg-white px-3 py-3 text-sm outline-none focus:border-[#B8952A]"
+              className="mt-1.5 w-full rounded-lg border border-[#E8E8E4] bg-white px-3 py-3 text-sm outline-none focus:border-[#B8952A]"
             />
           </label>
           <button
             type="button"
             onClick={fromPasteLink}
-            className="w-full rounded-2xl border border-[#E8E8E4] bg-white py-3 text-sm font-semibold"
+            className="w-full rounded-xl border border-[#E8E8E4] bg-white py-3 text-sm font-semibold"
           >
             Buka portal sales
           </button>
@@ -92,7 +122,7 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
         </div>
       ) : (
         <div className="mt-6 space-y-3">
-          <p className="rounded-2xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm text-[#6B6B6B]">
+          <p className="rounded-xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm leading-relaxed text-[#6B6B6B]">
             Minta <span className="font-semibold text-[#111]">link HP</span> ke leader (tombol Salin Link HP di
             Tracking). Buka di Safari → pasang ke layar utama. Jangan pakai login Gercep OS.
           </p>

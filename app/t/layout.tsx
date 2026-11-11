@@ -6,16 +6,16 @@ import FieldAppGuard from "./field-app-guard";
 /**
  * Shell khusus link lapangan (/t/...) biar Chrome HP bisa di-scroll
  * + kunci app Cap agar tidak masuk Gercep OS internal.
- * Metadata PWA: iPhone bisa “Tambah ke Layar Utama” sebagai Henima Sales.
+ * Metadata PWA: iPhone bisa “Tambah ke Layar Utama” sebagai HENIMA.
  */
 export const metadata: Metadata = {
-  title: "Henima Sales",
-  applicationName: "Henima Sales",
-  description: "App sales lapangan HENIMA — GPS, catat jual, bayar, laporan.",
+  title: "HENIMA",
+  applicationName: "HENIMA",
+  description: "App HENIMA — GPS, catat jual, bayar, laporan.",
   manifest: "/t/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Henima Sales",
+    title: "HENIMA",
     statusBarStyle: "default",
   },
   icons: {

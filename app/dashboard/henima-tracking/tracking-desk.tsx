@@ -340,6 +340,7 @@ export default function TrackingDesk({
         active={panel === "dashboard" ? "dashboard" : "lokasi"}
         open={navOpen}
         onClose={() => setNavOpen(false)}
+        ownerName={ownerName}
         onPanel={(next) => {
           setPanel(next);
           if (next === "lokasi") {
@@ -428,9 +429,28 @@ export default function TrackingDesk({
             <TrackingHome
               ownerName={ownerName}
               summary={summary}
+              liveSales={links.map((link) => {
+                const snap = cards.get(link.staffId);
+                return {
+                  staffId: link.staffId,
+                  nama: link.nama,
+                  status: snap?.status.label || "Offline",
+                  tone: snap?.status.tone || "off",
+                  note: snap?.last?.note || null,
+                  recordedAt: snap?.last?.recorded_at || null,
+                  lat: snap?.last?.lat ?? null,
+                  lng: snap?.last?.lng ?? null,
+                };
+              })}
+              activityPoints={viewDate === today ? viewPoints : []}
+              links={links}
               onOpenLokasi={() => {
                 setPanel("lokasi");
                 window.history.replaceState(null, "", "#lokasi");
+              }}
+              onFocusSales={(staffId) => {
+                setFocus(staffId);
+                setDetail(staffId);
               }}
             />
           )}

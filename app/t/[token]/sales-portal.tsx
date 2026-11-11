@@ -347,6 +347,17 @@ function HomeView({
   ];
 
   const recent = data?.recent || [];
+  const m = data?.monthly;
+  const useRevenue = m?.mode === "revenue" || (m?.revenueTarget || 0) > 0;
+  const targetPct = Math.min(
+    100,
+    Math.round(useRevenue ? m?.revenueAchievement ?? m?.achievement ?? 0 : m?.achievement || 0),
+  );
+  const targetAchieved = useRevenue ? m?.omzet || 0 : m?.sold || 0;
+  const targetGoal = useRevenue ? m?.revenueTarget || 0 : m?.target || 0;
+  const targetRemaining = useRevenue
+    ? m?.revenueRemaining ?? Math.max(0, targetGoal - targetAchieved)
+    : m?.remaining || 0;
 
   return (
     <div className="space-y-4">
@@ -399,6 +410,54 @@ function HomeView({
           </span>
         </button>
       </section>
+
+      <button
+        type="button"
+        onClick={() => onOpen("target")}
+        className="w-full rounded-2xl border border-[#E8E8E4] bg-white p-4 text-left shadow-[0_8px_24px_rgba(17,17,17,0.04)] active:bg-[#FAFAF8]"
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-sm font-bold text-[#111]">Target bulan ini</p>
+          <span className="text-xs font-semibold" style={{ color: GREEN }}>
+            Lihat detail →
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative h-16 w-16 shrink-0">
+            <svg width={64} height={64} viewBox="0 0 64 64" className="-rotate-90" aria-hidden>
+              <circle cx={32} cy={32} r={26} fill="none" stroke="#EFEFEA" strokeWidth={7} />
+              <circle
+                cx={32}
+                cy={32}
+                r={26}
+                fill="none"
+                stroke={GREEN}
+                strokeWidth={7}
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 26}
+                strokeDashoffset={2 * Math.PI * 26 * (1 - targetPct / 100)}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-sm font-bold tabular-nums text-[#111]">{targetPct}%</span>
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-bold tabular-nums text-[#111]">
+              {useRevenue ? rp(targetAchieved) : `${targetAchieved} botol`}
+            </p>
+            <p className="mt-0.5 text-xs text-[#6B6B6B]">
+              dari {useRevenue ? rp(targetGoal) : `${targetGoal} botol`}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-[#6B6B6B]">
+              Sisa {useRevenue ? rp(targetRemaining) : `${targetRemaining} botol`}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFEFEA]">
+          <div className="h-full rounded-full" style={{ width: `${targetPct}%`, background: GREEN }} />
+        </div>
+      </button>
 
       <section className="rounded-2xl border border-[#E8E8E4] bg-white p-3">
         <div className="grid grid-cols-4 gap-2">

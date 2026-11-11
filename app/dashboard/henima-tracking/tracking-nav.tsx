@@ -9,9 +9,11 @@ import {
   LayoutDashboard,
   LogOut,
   MapPinned,
+  Package,
   Settings,
   ShoppingBag,
   Target,
+  Users,
 } from "lucide-react";
 import LogoutButton from "../logout-button";
 
@@ -31,10 +33,12 @@ type NavItem = {
 const ITEMS: NavItem[] = [
   { href: "/dashboard/henima-tracking", label: "Dashboard", icon: LayoutDashboard, key: "dashboard", panel: "dashboard" },
   { href: "/dashboard/henima-tracking#lokasi", label: "Lokasi GPS", icon: MapPinned, key: "lokasi", panel: "lokasi" },
-  { href: "/dashboard/sales/orders", label: "Catat Penjualan", icon: ShoppingBag },
+  { href: "/dashboard/sales/orders", label: "Penjualan", icon: ShoppingBag },
   { href: "/dashboard/sales/orders", label: "Pembayaran", icon: CreditCard },
+  { href: "/dashboard/sales/studio", label: "Produk", icon: Package },
+  { href: "/dashboard/sales/customers", label: "Customer CRM", icon: Users },
+  { href: "/dashboard/sales/targets", label: "Target & Komisi", icon: Target },
   { href: "/dashboard/sales/reports", label: "Laporan", icon: FileBarChart },
-  { href: "/dashboard/sales/targets", label: "Target & Bonus", icon: Target },
   { href: "/dashboard/henima-tracking/riwayat", label: "Riwayat GPS", icon: History, key: "riwayat" },
   { href: "/dashboard/henima-tracking#tambah-sales", label: "Pengaturan", icon: Settings, hash: "tambah-sales", panel: "lokasi" },
 ];
@@ -54,11 +58,13 @@ export function TrackingSidebar({
   open,
   onClose,
   onPanel,
+  ownerName,
 }: {
   active: TrackingNavKey;
   open: boolean;
   onClose: () => void;
   onPanel?: (panel: "dashboard" | "lokasi") => void;
+  ownerName?: string;
 }) {
   return (
     <>
@@ -67,9 +73,9 @@ export function TrackingSidebar({
       >
         <div className="px-5 pb-2 pt-6">
           <p className="text-[22px] font-bold tracking-[0.06em] text-[#111]">HENIMA</p>
-          <p className="mt-1 text-xs font-medium tracking-wide text-[#8A8A8A]">Tracking</p>
+          <p className="mt-1 text-xs font-medium tracking-wide text-[#8A8A8A]">Sales Command Center</p>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
           {ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = item.key === active;
@@ -133,6 +139,31 @@ export function TrackingSidebar({
           })}
         </nav>
         <div className="border-t border-[#E8E8E4] p-3">
+          <div className="mb-2 rounded-2xl border border-[#E8D9A8] bg-[#F7F4EC] px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: GOLD }}>
+              Departemen Sales
+            </p>
+            <p className="mt-0.5 text-xs font-semibold text-[#111]">Data dari app lapangan & order lunas</p>
+          </div>
+          {ownerName ? (
+            <div className="mb-2 flex items-center gap-2 px-1 py-1">
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
+                style={{ background: GOLD }}
+              >
+                {ownerName
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((p) => p[0]?.toUpperCase() || "")
+                  .join("") || "O"}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-[#111]">{ownerName}</p>
+                <p className="text-[10px] text-[#8A8A8A]">Owner</p>
+              </div>
+            </div>
+          ) : null}
           <LogoutButton className="flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left text-sm font-semibold text-[#6B6B6B] hover:bg-[#FAFAF8] hover:text-[#111]">
             <>
               <LogOut size={16} />

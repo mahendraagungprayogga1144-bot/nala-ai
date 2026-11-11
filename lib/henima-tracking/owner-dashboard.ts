@@ -12,6 +12,8 @@ export type OwnerDashboardSummary = {
   omzetBulanLalu: number;
   botolBulan: number;
   botolBulanLalu: number;
+  transaksiBulan: number;
+  transaksiBulanLalu: number;
   saldoPenjualan: number;
   pendingTotal: number;
   targetRevenue: number;
@@ -19,10 +21,29 @@ export type OwnerDashboardSummary = {
   pencapaianOmzet: number;
   pencapaianPct: number;
   bonusBulan: number;
-  chartDaily: { label: string; ymd: string; omzet: number }[];
-  chartWeekly: { label: string; omzet: number }[];
-  chartMonthly: { label: string; omzet: number }[];
+  chartDaily: { label: string; ymd: string; omzet: number; target?: number }[];
+  chartWeekly: { label: string; omzet: number; target?: number }[];
+  chartMonthly: { label: string; omzet: number; target?: number }[];
   topProducts: { name: string; qty: number; kind: "afternoon" | "distance" | "other" }[];
+  ranking: {
+    salesId: string;
+    nama: string;
+    omzet: number;
+    qty: number;
+    count: number;
+    target: number;
+    pct: number;
+  }[];
+  recentSales: {
+    id: string;
+    salesName: string;
+    customerName: string;
+    productName: string;
+    total: number;
+    status: string;
+    orderDate: string;
+    createdAt: string;
+  }[];
 };
 
 function money(n: number) {
@@ -44,8 +65,8 @@ function productKind(name: string): "afternoon" | "distance" | "other" {
 export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Promise<OwnerDashboardSummary> {
   const today = todayWib();
   const [thisMonth, lastMonth, monthAch, targets] = await Promise.all([
-    buildSalesReport(db, actor, { kind: "this_month" }),
-    buildSalesReport(db, actor, { kind: "last_month" }),
+    buildSalesReport(db, actor, { kind: "this_month", rankBy: "revenue" }),
+    buildSalesReport(db, actor, { kind: "last_month", rankBy: "revenue" }),
     achievementFor(db, actor, "monthly"),
     listTargets(db, actor),
   ]);
@@ -95,13 +116,18 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
     dayMap[String(row.order_date)] = (dayMap[String(row.order_date)] || 0) + money(row.total);
   }
 
+  const daysInThisMonth = Number(today.slice(8)) || 1;
+  const dailyTarget =
+    targetRevenue > 0 ? Math.round(targetRevenue / Math.max(28, daysInThisMonth)) : 0;
+
   const chartDaily: OwnerDashboardSummary["chartDaily"] = [];
-  for (let i = 6; i >= 0; i -= 1) {
+  for (let i = 29; i >= 0; i -= 1) {
     const ymd = addDaysYmd(today, -i);
     chartDaily.push({
       ymd,
       label: String(Number(ymd.slice(8))),
       omzet: dayMap[ymd] || 0,
+      target: dailyTarget || undefined,
     });
   }
 
@@ -115,7 +141,11 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
       if (ymd > today) break;
       omzet += dayMap[ymd] || 0;
     }
-    chartWeekly.push({ label: `${from.slice(8)}–${to.slice(8)}`, omzet });
+    chartWeekly.push({
+      label: `${from.slice(8)}–${to.slice(8)}`,
+      omzet,
+      target: dailyTarget ? dailyTarget * 7 : undefined,
+    });
   }
 
   // Last 6 calendar months from paid rows
@@ -159,12 +189,88 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
     timeZone: "Asia/Jakarta",
   }).format(new Date(`${today}T12:00:00+07:00`));
 
+  const ranking = (thisMonth.ranking || [])
+    .filter((r) => r.salesId !== "unknown")
+    .map((r) => {
+      const personal =
+        targets.find((t) => t.period_type === "monthly" && t.sales_id === r.salesId) || monthlyTarget;
+      const goal =
+        money(personal?.revenue_target || 0) ||
+        (targetRevenue > 0 ? targetRevenue : money(personal?.quantity_target || targetQty || 0));
+      const useRev = money(personal?.revenue_target || 0) > 0 || targetRevenue > 0;
+      const value = useRev ? money(r.revenue) : money(r.qty);
+      const pct = goal > 0 ? Math.min(999, Math.round((value / goal) * 1000) / 10) : 0;
+      return {
+        salesId: r.salesId,
+        nama: r.nama,
+        omzet: money(r.revenue),
+        qty: money(r.qty),
+        count: money(r.count),
+        target: goal,
+        pct,
+      };
+    })
+    .sort((a, b) => b.omzet - a.omzet)
+    .slice(0, 8);
+
+  const { data: recentRows } = await db
+    .from("orders")
+    .select("id, total, payment_status, order_date, created_at, sales_id, customer_id, order_items(product_name_snapshot, qty)")
+    .eq("business_id", actor.businessId)
+    .eq("source", SALES_ORDER_SOURCE)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  type RecentOrderRow = {
+    id: string;
+    total: number;
+    payment_status: string;
+    order_date: string;
+    created_at: string;
+    sales_id: string | null;
+    customer_id: string | null;
+    order_items?: { product_name_snapshot?: string; qty?: number }[] | null;
+  };
+  const recentList = (recentRows || []) as RecentOrderRow[];
+  const recentStaffIds = [...new Set(recentList.map((r) => r.sales_id).filter(Boolean))] as string[];
+  const recentCustIds = [...new Set(recentList.map((r) => r.customer_id).filter(Boolean))] as string[];
+  const [{ data: recentStaff }, { data: recentCust }] = await Promise.all([
+    recentStaffIds.length
+      ? db.from("module_sales_staff").select("id, nama").in("id", recentStaffIds)
+      : Promise.resolve({ data: [] as { id: string; nama: string }[] }),
+    recentCustIds.length
+      ? db.from("module_crm_customers").select("id, nama").in("id", recentCustIds)
+      : Promise.resolve({ data: [] as { id: string; nama: string }[] }),
+  ]);
+  const recentStaffMap = Object.fromEntries((recentStaff || []).map((s) => [s.id, s.nama]));
+  const recentCustMap = Object.fromEntries((recentCust || []).map((c) => [c.id, c.nama]));
+
+  const recentSales: OwnerDashboardSummary["recentSales"] = recentList.map((row) => {
+    const first = row.order_items?.[0];
+    const productName = first
+      ? `${first.product_name_snapshot || "Produk"}${first.qty ? ` ×${first.qty}` : ""}`
+      : "Penjualan";
+    return {
+      id: row.id,
+      salesName: (row.sales_id && recentStaffMap[row.sales_id]) || "Sales",
+      customerName: (row.customer_id && recentCustMap[row.customer_id]) || "Pelanggan",
+      productName,
+      total: money(row.total),
+      status: row.payment_status || "PENDING",
+      orderDate: row.order_date,
+      createdAt: row.created_at,
+    };
+  });
+
   return {
     monthLabel,
     omzetBulan,
     omzetBulanLalu: money(lastMonth.totalRevenue),
     botolBulan: money(thisMonth.totalQty),
     botolBulanLalu: money(lastMonth.totalQty),
+    transaksiBulan: money(thisMonth.totalOrders),
+    transaksiBulanLalu: money(lastMonth.totalOrders),
     saldoPenjualan: omzetBulan,
     pendingTotal,
     targetRevenue,
@@ -176,5 +282,7 @@ export async function loadOwnerDashboardSummary(db: SalesDb, actor: Actor): Prom
     chartWeekly,
     chartMonthly,
     topProducts,
+    ranking,
+    recentSales,
   };
 }

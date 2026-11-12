@@ -46,7 +46,7 @@ type Tab = "home" | "lokasi" | "jual" | "bayar" | "laporan" | "target" | "akun";
 const GREEN = "#2F9E68";
 /** Aksen menu Akun (sesuai mockup). */
 const AKUN_ACCENT = "#B8952A";
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.4.1";
 
 type PortalProduct = { id: string; name: string; price: number; stock: number | null };
 type PortalOrder = {

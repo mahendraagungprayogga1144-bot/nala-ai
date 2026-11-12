@@ -151,6 +151,18 @@ async function syncTraccarDeviceName(uniqueId: string, nama: string) {
   }
 }
 
+/** Arah gerak (derajat 0–360) dari dua titik lat/lng. */
+export function bearingBetween(fromLat: number, fromLng: number, toLat: number, toLng: number) {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const toDeg = (r: number) => (r * 180) / Math.PI;
+  const φ1 = toRad(fromLat);
+  const φ2 = toRad(toLat);
+  const Δλ = toRad(toLng - fromLng);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
 /**
  * Kirim satu titik ke Traccar (OsmAnd). Tidak melempar — gagal diam agar GPS HENIMA tetap jalan.
  * https://www.traccar.org/osmand/
@@ -161,18 +173,30 @@ export async function forwardPingToTraccar(opts: {
   lng: number;
   accuracy_m?: number | null;
   nama?: string | null;
+  /** Derajat 0–360 — panah arah di peta Traccar */
+  bearing?: number | null;
+  /** m/s — OsmAnd expects knots-ish via speed; we send m/s * 1.94384 if needed; Traccar OsmAnd uses knots in some versions — send km/h via `speed` as documented: speed in knots. Use m/s * 1.943844. */
+  speed_mps?: number | null;
 }) {
   const base = osmAndBase();
   if (!base) return { ok: false as const, skipped: true as const };
 
   const id = traccarDeviceId(opts.token);
+  const bearing =
+    opts.bearing != null && Number.isFinite(opts.bearing)
+      ? Math.max(0, Math.min(360, Number(opts.bearing)))
+      : 0;
+  const speedKnots =
+    opts.speed_mps != null && Number.isFinite(opts.speed_mps) && opts.speed_mps > 0
+      ? Math.max(0, Number(opts.speed_mps) * 1.943844)
+      : 0;
   const params = new URLSearchParams({
     id,
     lat: String(opts.lat),
     lon: String(opts.lng),
     timestamp: String(Math.floor(Date.now() / 1000)),
-    speed: "0",
-    bearing: "0",
+    speed: String(speedKnots),
+    bearing: String(bearing),
     altitude: "0",
   });
   if (opts.accuracy_m != null && Number.isFinite(opts.accuracy_m)) {

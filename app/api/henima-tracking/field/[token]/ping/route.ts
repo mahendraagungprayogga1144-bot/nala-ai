@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { dayWindow, resolveTrackingToken } from "@/lib/henima-tracking/service";
 import { isSuspiciousJump } from "@/lib/henima-tracking/ping-guard";
-import { forwardPingToTraccar } from "@/lib/henima-tracking/traccar";
+import { bearingBetween, forwardPingToTraccar } from "@/lib/henima-tracking/traccar";
 import { salesDb } from "@/lib/henima-sales/db";
 import { NotFoundError } from "@/lib/henima-sales/types";
 
@@ -80,12 +80,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
     // Cadangan diam ke Traccar (kalau TRACCAR_OSMAND_URL di-set) — owner tetap pantau di Lokasi GPS.
     // Await supaya rename nama sales sempat selesai di Vercel (void sering terpotong).
+    let bearing: number | null = null;
+    let speed_mps: number | null = null;
+    const bodyBearing = body?.bearing ?? body?.heading;
+    const bodySpeed = body?.speed_mps ?? body?.speed;
+    if (bodyBearing != null && Number.isFinite(Number(bodyBearing))) {
+      bearing = Number(bodyBearing);
+    } else if (last) {
+      const distRough =
+        Math.hypot(lat - Number(last.lat), lng - Number(last.lng)) * 111_000;
+      if (distRough > 3) {
+        bearing = bearingBetween(Number(last.lat), Number(last.lng), lat, lng);
+        const dtSec = Math.max(
+          1,
+          (Date.now() - new Date(last.recorded_at).getTime()) / 1000,
+        );
+        speed_mps = Math.min(40, distRough / dtSec);
+      }
+    }
+    if (bodySpeed != null && Number.isFinite(Number(bodySpeed))) {
+      speed_mps = Number(bodySpeed);
+    }
     await forwardPingToTraccar({
       token,
       lat,
       lng,
       accuracy_m: accuracy,
       nama: staff.nama,
+      bearing,
+      speed_mps,
     });
 
     return NextResponse.json({ ok: true });

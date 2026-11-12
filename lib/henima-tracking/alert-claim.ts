@@ -17,17 +17,17 @@ function missingTable(msg: string) {
 }
 
 /** Cadangan dedupe in-memory kalau tabel migrasi belum ada (anti spam + tetap kirim). */
-const memCooldown = new Map<string, { at: number; count: number }>();
+const memoryClaims = new Map<string, { at: number; count: number }>();
 
 function memKey(businessId: string, day: string, kind: string, staffId: string | null) {
   return `${businessId}|${day}|${kind}|${staffId || "-"}`;
 }
 
 function memClaim(key: string, cooldownMs: number): { ok: boolean; count: number } {
-  const hit = memBag.get(key);
+  const hit = memoryClaims.get(key);
   const now = Date.now();
   if (!hit) {
-    memBag.set(key, { at: now, count: 1 });
+    memoryClaims.set(key, { at: now, count: 1 });
     return { ok: true, count: 1 };
   }
   if (now - hit.at < cooldownMs) return { ok: false, count: hit.count };
@@ -75,7 +75,7 @@ export async function claimOrRemind(
       last_sent_at: new Date().toISOString(),
     });
     if (!error) {
-      memBag.set(key, { at: Date.now(), count: 1 });
+      memoryClaims.set(key, { at: Date.now(), count: 1 });
       return { ok: true, count: 1 };
     }
     const msg = error.message || "";
@@ -96,7 +96,7 @@ export async function claimOrRemind(
     })
     .eq("id", row.id);
   if (upErr) return memClaim(key, cooldownMs);
-  memBag.set(key, { at: Date.now(), count: nextCount });
+  memoryClaims.set(key, { at: Date.now(), count: nextCount });
   return { ok: true, count: nextCount };
 }
 
@@ -117,7 +117,7 @@ export async function claimOnce(
     last_sent_at: new Date().toISOString(),
   });
   if (!error) {
-    memBag.set(key, { at: Date.now(), count: 1 });
+    memoryClaims.set(key, { at: Date.now(), count: 1 });
     return true;
   }
   const msg = error.message || "";

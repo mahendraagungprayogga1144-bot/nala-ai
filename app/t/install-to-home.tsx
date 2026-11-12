@@ -40,13 +40,8 @@ export default function InstallToHome({ apkUrl = "" }: { apkUrl?: string }) {
 
   if (mode === "loading") return null;
 
-  if (mode === "installed") {
-    return (
-      <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-        App sudah terpasang di layar utama. Buka dari ikon HP supaya GPS & notif jalan.
-      </p>
-    );
-  }
+  // Sudah di layar utama: jangan tampilkan status teknis (GPS/notif) ke sales.
+  if (mode === "installed") return null;
 
   if (mode === "ios") {
     return (

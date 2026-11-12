@@ -36,6 +36,7 @@ import {
   type HenimaApkRelease,
 } from "@/lib/henima-tracking/field-app";
 import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
+import { scheduleSalesCoachNotifications } from "@/lib/henima-tracking/field-notify";
 import { isNativeApp, openNativeLocationSettings } from "@/lib/henima-tracking/native-geo";
 import {
   requestNativeIgnoreBatteryOptimizations,
@@ -182,6 +183,15 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
   useEffect(() => {
     void fetchHenimaApkRelease().then(setApkRelease);
   }, []);
+
+  useEffect(() => {
+    if (!data?.actor.nama) return;
+    void scheduleSalesCoachNotifications({
+      nama: data.actor.nama,
+      omzetHari: data.stats?.omzetHari || 0,
+      transaksiHari: data.stats?.transaksiHari || 0,
+    });
+  }, [data?.actor.nama, data?.stats?.omzetHari, data?.stats?.transaksiHari]);
 
   const nama = data?.actor.nama || field.nama;
   const gpsLive = !trackLive.checkedOut;

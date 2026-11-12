@@ -180,11 +180,12 @@ export async function openIssuesNudge(db: SalesDb, businessId: string) {
   const absen = people.filter((p) => !p.checkinPagi || p.label === "Offline");
   const zero = hour >= 14 ? people.filter((p) => (p.checkinPagi || p.lastAt) && !p.checkinSore && p.visits === 0) : [];
   if (!senyap.length && !sepi.length && !absen.length && !zero.length) return null;
-  const bits: string[] = ["—", "Masih perlu follow-up (jangan kecolongan):"];
-  if (senyap.length) bits.push(`Senyap: ${senyap.map((p) => p.nama).join(", ")}. Sudah dihubungi?`);
-  if (sepi.length) bits.push(`Mulai sepi: ${sepi.map((p) => p.nama).join(", ")}. Pantau.`);
-  if (absen.length) bits.push(`Belum absen/offline: ${absen.map((p) => p.nama).join(", ")}.`);
-  if (zero.length) bits.push(`0 kunjungan: ${zero.map((p) => p.nama).join(", ")}.`);
+  const bits: string[] = ["Follow-up:"];
+  if (senyap.length) bits.push(`Senyap → ${senyap.map((p) => p.nama).join(", ")}`);
+  if (sepi.length) bits.push(`Sepi → ${sepi.map((p) => p.nama).join(", ")}`);
+  if (absen.length) bits.push(`Offline/belum absen → ${absen.map((p) => p.nama).join(", ")}`);
+  if (zero.length) bits.push(`0 kunjungan → ${zero.map((p) => p.nama).join(", ")}`);
+  bits.push("Sudah dihubungi?");
   return bits.join("\n");
 }
 

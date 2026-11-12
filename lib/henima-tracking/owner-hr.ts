@@ -135,51 +135,48 @@ export async function loadHrFieldRoster(db: SalesDb, businessId: string): Promis
   });
 }
 
-export function formatHrBrief(people: FieldPerson[], title = "Ringkas HRD lapangan") {
+function personLine(p: FieldPerson) {
+  const absen = p.checkinPagi ? "absen✓" : "belum absen";
+  if (!p.lastAt || p.minutesAgo == null) {
+    return `• ${p.nama} · ${absen} · kunjungan ${p.visits}`;
+  }
+  return `• ${p.nama} · ${clockWib(p.lastAt)} (±${p.minutesAgo}m) · ${absen} · kunjungan ${p.visits}`;
+}
+
+export function formatHrBrief(people: FieldPerson[], title = "Ringkas lapangan") {
   const parts = wibParts();
   const label = `${String(parts.day).padStart(2, "0")}/${String(parts.month).padStart(2, "0")}`;
-  const counts: Record<FieldStatusLabel, number> = {
-    Live: 0,
-    Aktif: 0,
-    Sepi: 0,
-    Senyap: 0,
-    Offline: 0,
-    Selesai: 0,
-  };
-  for (const p of people) counts[p.label] += 1;
+  const order: FieldStatusLabel[] = ["Senyap", "Sepi", "Offline", "Live", "Aktif", "Selesai"];
+  const groups = new Map<FieldStatusLabel, FieldPerson[]>();
+  for (const key of order) groups.set(key, []);
+  for (const p of people) groups.get(p.label)?.push(p);
 
-  const lines = [
-    "HRD Henima",
-    `${title} · ${label} · data live dari GPS`,
-    `Live ${counts.Live} · Aktif ${counts.Aktif} · Sepi ${counts.Sepi} · Senyap ${counts.Senyap} · Offline ${counts.Offline} · Selesai ${counts.Selesai}`,
-    "",
-  ];
+  const counts = order.map((k) => `${k} ${(groups.get(k) || []).length}`).join(" · ");
+  const lines = [`HRD Henima — ${title}`, `${label} · GPS live`, counts, ""];
 
   if (!people.length) {
-    lines.push("Belum ada sales/leader aktif di tim.");
+    lines.push("Belum ada sales aktif.");
     return lines.join("\n");
   }
 
-  for (const p of people) {
-    const last =
-      p.lastAt && p.minutesAgo != null
-        ? `titik terakhir ${clockWib(p.lastAt)} WIB (±${p.minutesAgo} mnt)`
-        : "belum ada titik hari ini";
-    const absen = p.checkinPagi ? "absen pagi ✓" : "belum absen pagi";
-    const visit = `kunjungan ${p.visits}`;
-    lines.push(`• ${p.nama} — ${p.label}`);
-    lines.push(`  ${last} · ${absen} · ${visit}`);
-    if (p.label === "Senyap" || p.label === "Sepi" || p.label === "Offline") {
-      lines.push(`  Arti: ${p.meaning}`);
-    }
+  for (const key of order) {
+    const list = groups.get(key) || [];
+    if (!list.length) continue;
+    lines.push(`${key.toUpperCase()}`);
+    for (const p of list) lines.push(personLine(p));
+    lines.push("");
   }
 
-  const hour = wibHourNow();
-  if (hour >= TRACKING_AUTO_CLOSE_HOUR) {
-    lines.push("", `Catatan: di atas jam ${TRACKING_AUTO_CLOSE_HOUR}:00 WIB sesi GPS otomatis tutup.`);
+  lines.push(
+    "Keterangan singkat:",
+    "Senyap = app kemungkinan dimatikan (>20m tanpa GPS).",
+    "Sepi = jeda 10–20m. Offline = belum ada titik hari ini.",
+    "Live/Aktif = GPS masih kirim.",
+  );
+  if (wibHourNow() >= TRACKING_AUTO_CLOSE_HOUR) {
+    lines.push(`Sesi GPS auto-tutup jam ${TRACKING_AUTO_CLOSE_HOUR}:00 WIB.`);
   }
-  lines.push("", `Sumber: titik GPS hari ini (${todayWib()}). Angka di atas dari database, bukan tebakan.`);
-  return lines.join("\n");
+  return lines.join("\n").trim();
 }
 
 export function formatSenyapAlert(person: FieldPerson, remindCount = 1) {
@@ -193,17 +190,13 @@ export function formatSenyapAlert(person: FieldPerson, remindCount = 1) {
       : `HRD Henima — pengingat #${remindCount} (masih belum normal)`;
   return [
     head,
-    `${person.nama} status SENYAP.`,
+    `${person.nama} — SENYAP`,
     last,
-    `Absen pagi: ${person.checkinPagi ? "sudah" : "belum"} · Kunjungan hari ini: ${person.visits}.`,
-    "",
-    "Arti akurat:",
-    "App di HP sales berhenti kirim lokasi. Bukan tebak “diam di rumah”.",
-    "Penyebab paling sering: Force stop, clear RAM, swipe+bunuh app, atau hemat baterai mematikan app.",
-    "",
+    `Absen: ${person.checkinPagi ? "sudah" : "belum"} · Kunjungan: ${person.visits}`,
+    "Artinya: app berhenti kirim GPS (Force stop / clear RAM / hemat baterai).",
     remindCount <= 1
-      ? "Sudah dihubungi? Minta buka lagi Henima Sales + izinkan lokasi."
-      : `Masih Senyap. Sudah sempat chat ${person.nama}? Kalau belum, hubungi sekarang. Kalau sudah, minta jangan Force stop / matikan app.`,
+      ? "Sudah dihubungi? Minta buka lagi Henima Sales."
+      : `Masih Senyap. Sudah chat ${person.nama}?`,
   ].join("\n");
 }
 

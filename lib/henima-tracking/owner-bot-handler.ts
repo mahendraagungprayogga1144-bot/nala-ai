@@ -80,7 +80,8 @@ export async function handleOwnerBotUpdate(db: SalesDb, update: TgUpdate) {
   }
 
   if (wantsStatus) {
-    await ownerSendMessage(chatId, await withNudge(await ownerStatusText(db, businessId)));
+    // Laporan status sudah lengkap — tanpa nudge biar tidak acak-acakan.
+    await ownerSendMessage(chatId, await ownerStatusText(db, businessId));
     return;
   }
 

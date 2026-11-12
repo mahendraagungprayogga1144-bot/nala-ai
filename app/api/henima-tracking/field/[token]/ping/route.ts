@@ -1,7 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { dayWindow, resolveTrackingToken } from "@/lib/henima-tracking/service";
 import { isSuspiciousJump } from "@/lib/henima-tracking/ping-guard";
 import { bearingBetween, forwardPingToTraccar } from "@/lib/henima-tracking/traccar";
+import { notifyOwnerIncident, watchSilentForBusiness } from "@/lib/henima-tracking/silent-watch";
+import { ownerBotConfigured } from "@/lib/henima-tracking/owner-bot";
 import { salesDb } from "@/lib/henima-sales/db";
 import { NotFoundError } from "@/lib/henima-sales/types";
 
@@ -24,6 +26,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const mock = body?.mock === true || body?.mock === 1 || body?.mock === "1";
 
     if (mock) {
+      if (ownerBotConfigured()) {
+        after(async () => {
+          try {
+            await notifyOwnerIncident(db, {
+              businessId: staff.business_id,
+              staffId: staff.id,
+              nama: staff.nama,
+              kind: "mock",
+            });
+          } catch {
+            /* ignore */
+          }
+        });
+      }
       return NextResponse.json({ error: "Lokasi palsu (mock GPS) ditolak." }, { status: 400 });
     }
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
@@ -57,6 +73,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         toLng: lng,
       })
     ) {
+      if (ownerBotConfigured()) {
+        after(async () => {
+          try {
+            await notifyOwnerIncident(db, {
+              businessId: staff.business_id,
+              staffId: staff.id,
+              nama: staff.nama,
+              kind: "lompatan",
+              detail: "Titik meloncat terlalu cepat dibanding GPS sebelumnya hari ini.",
+            });
+          } catch {
+            /* ignore */
+          }
+        });
+      }
       return NextResponse.json({ error: "Lompatan lokasi tidak wajar ditolak." }, { status: 400 });
     }
 
@@ -110,6 +141,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       bearing,
       speed_mps,
     });
+
+    // Bot asisten owner: cek rekan Senyap tanpa ganggu bot sales.
+    if (ownerBotConfigured()) {
+      const businessId = staff.business_id;
+      after(async () => {
+        try {
+          await watchSilentForBusiness(db, businessId);
+        } catch {
+          /* ignore */
+        }
+      });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -67,16 +67,26 @@ function snapshot(link: TrackingLink, points: TrackingPoint[]) {
   const liveToday = Boolean(last && !sore);
   const out = liveToday;
   const freshMs = last ? Date.now() - new Date(last.recorded_at).getTime() : Number.POSITIVE_INFINITY;
-  // Live = baru; Aktif = masih kirim (boleh jeda singkat); Senyap = HP lama tidak kirim.
+  // Live → Aktif → Sepi (>10m) → Senyap (>20m). Sepi = early warn supaya tidak kecolongan.
   const status = sore
-    ? { label: "Selesai", tone: "off" as const }
+    ? { label: "Selesai", tone: "off" as const, hint: "Sudah check-out / auto stop sore." }
     : !last
-      ? { label: "Offline", tone: "off" as const }
+      ? { label: "Offline", tone: "off" as const, hint: "Belum ada titik GPS hari ini." }
       : freshMs <= 3 * 60_000
-        ? { label: "Live", tone: "road" as const }
-        : freshMs <= 20 * 60_000
-          ? { label: "Aktif", tone: "road" as const }
-          : { label: "Senyap", tone: "late" as const };
+        ? { label: "Live", tone: "road" as const, hint: "Baru kirim lokasi." }
+        : freshMs <= 10 * 60_000
+          ? { label: "Aktif", tone: "road" as const, hint: "Masih kirim, jeda singkat." }
+          : freshMs <= 20 * 60_000
+            ? {
+                label: "Sepi",
+                tone: "late" as const,
+                hint: "Mulai sepi (>10 mnt). Pantau — bisa jadi app hampir mati.",
+              }
+            : {
+                label: "Senyap",
+                tone: "late" as const,
+                hint: "HP berhenti kirim. Kemungkinan app ditutup, clear RAM agresif, Force stop, atau hemat baterai.",
+              };
   return { mine, pagi, sore, visits, last, status, out };
 }
 
@@ -741,6 +751,9 @@ export default function TrackingDesk({
                               {card.last ? `Posisi terakhir · ${ago(card.last.recorded_at)}` : "Belum berangkat"}
                             </p>
                             <p className="mt-1 text-xs font-semibold text-[#0F172A]">{card.out ? "Di Jalan" : "Offline"}</p>
+                            {card.status.hint && card.status.tone === "late" ? (
+                              <p className="mt-1 text-[11px] leading-snug text-amber-700">{card.status.hint}</p>
+                            ) : null}
                           </div>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1157,7 +1170,7 @@ function Stat({
   );
 }
 
-function StatusBadge({ status }: { status: { label: string; tone: "off" | "road" | "late" } }) {
+function StatusBadge({ status }: { status: { label: string; tone: "off" | "road" | "late"; hint?: string } }) {
   const cls =
     status.tone === "road"
       ? "bg-emerald-50 text-emerald-600"

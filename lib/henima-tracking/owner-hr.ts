@@ -388,7 +388,7 @@ export function answerHrQuestion(raw: string, people: FieldPerson[]): string | n
     ].join("\n");
   }
 
-  if (/laporan|ringkas|status|tim|semua|hari\s+ini|brief|hrd|absensi/.test(q)) {
+  if (/laporan|ringkas|status|etatus|statys|tim|semua|hari\s+ini|brief|hrd|absensi/.test(q)) {
     return formatHrBrief(people);
   }
 

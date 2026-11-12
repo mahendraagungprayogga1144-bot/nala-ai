@@ -54,9 +54,12 @@ export async function handleOwnerBotUpdate(db: SalesDb, update: TgUpdate) {
     return;
   }
 
-  const cmd = text.split(/\s+/)[0]?.toLowerCase().replace(/@\w+$/, "") || "";
+  const rawCmd = text.split(/\s+/)[0]?.toLowerCase().replace(/@\w+$/, "") || "";
+  const cmd = rawCmd.replace(/^\//, "");
+  // status / etatus (typo) / laporan — dengan atau tanpa slash
+  const wantsStatus = /^(status|etatus|statys|laporan|report)$/.test(cmd);
 
-  if (cmd === "/start" || cmd === "/help") {
+  if (cmd === "start" || cmd === "help") {
     await ownerSendMessage(chatId, HR_HELP);
     return;
   }
@@ -76,7 +79,7 @@ export async function handleOwnerBotUpdate(db: SalesDb, update: TgUpdate) {
     return nudge ? `${body}\n\n${nudge}` : body;
   }
 
-  if (cmd === "/status" || cmd === "/laporan") {
+  if (wantsStatus) {
     await ownerSendMessage(chatId, await withNudge(await ownerStatusText(db, businessId)));
     return;
   }

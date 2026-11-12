@@ -639,12 +639,12 @@ export default function FieldClient({
         <section className="rounded-2xl border border-[#E8E8E4] bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A]">Status GPS</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A]">Sesi kerja</p>
               <p className="mt-1 text-base font-bold text-[#111]">
                 {state.checkedOut
-                  ? `Berhenti · jam ${TRACKING_AUTO_CLOSE_HOUR}:00`
+                  ? `Selesai · jam ${TRACKING_AUTO_CLOSE_HOUR}:00`
                   : live
-                    ? "GPS hidup"
+                    ? "Aktif"
                     : "Menyalakan…"}
               </p>
             </div>

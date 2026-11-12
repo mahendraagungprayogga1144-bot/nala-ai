@@ -165,9 +165,8 @@ export async function watchNativeOrBrowserGps(
       const BackgroundGeolocation = await backgroundGeo();
       const id = await BackgroundGeolocation.addWatcher(
         {
-          backgroundMessage:
-            "GPS live ke owner. Jangan swipe-close. Lokasi: Izinkan selalu. Auto stop jam 18:00.",
-          backgroundTitle: "Henima · GPS live",
+          backgroundMessage: "HENIMA sesi kerja aktif. Tetap semangat catat jual.",
+          backgroundTitle: "HENIMA · Sesi kerja",
           requestPermissions: true,
           stale: false,
           // ~5 m: jejak lebih rapat saat sales pindah lokasi.

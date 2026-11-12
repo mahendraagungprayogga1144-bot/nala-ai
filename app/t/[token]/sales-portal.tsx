@@ -446,7 +446,7 @@ function HomeView({
         <p className="mt-2 text-sm text-[#6B6B6B]">Hari ini: {formatLiveDate(now)}</p>
         {gpsLive ? (
           <p className="mt-2 text-xs font-semibold" style={{ color: GREEN }}>
-            GPS hidup · update otomatis
+            Sesi kerja aktif
           </p>
         ) : null}
       </div>

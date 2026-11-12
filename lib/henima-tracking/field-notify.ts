@@ -1,22 +1,22 @@
 /**
  * Notifikasi HP untuk sales lapangan:
- * - Ongoing ringan saat sesi kerja (tanpa bocor detail teknis)
- * - Coach penjualan jam tertentu (omzet hari ini + dorongan)
+ * - Ongoing ringan saat sesi kerja
+ * - Coach harian berulang (tetap bunyi meski app ditutup / swipe RAM)
+ *   — sekali dijadwal di APK, mengulang tiap hari sampai Force stop / clear data
  */
 
 import { isNativeApp } from "@/lib/henima-tracking/native-geo";
-import { TRACKING_AUTO_CLOSE_HOUR, wibParts } from "@/lib/henima-tracking/schedule";
 
 const ONGOING_ID = 36001;
-const REMINDER_ID = 36002;
+const CHECKIN_ID = 36010;
 const COACH_IDS = [36011, 36012, 36013] as const;
 const CHANNEL_ID = "henima_field";
 
-/** Jam coach penjualan (WIB). */
+/** Slot coach harian (jam lokal HP — di ID = WIB). */
 export const SALES_COACH_SLOTS = [
-  { hour: 11, minute: 0 },
-  { hour: 15, minute: 0 },
-  { hour: 16, minute: 30 },
+  { hour: 11, minute: 0, title: "HENIMA · Siang", body: "Siang. Cek penjualan hari ini — catat tiap transaksi, yang kecil tetap dihitung." },
+  { hour: 15, minute: 0, title: "HENIMA · Semangat jual", body: "Pukul 15. Tingkatkan penjualan hari ini. Ayo gas lagi." },
+  { hour: 16, minute: 30, title: "HENIMA · Sore", body: "Sore menjelang. Satu usaha lagi sebelum tutup — kamu diperhatikan." },
 ] as const;
 
 export async function requestFieldNotifyPermission() {
@@ -61,38 +61,10 @@ function rp(n: number) {
   return `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
 }
 
-/** Waktu lokal device yang mewakili jam:menit WIB hari ini (atau null jika sudah lewat). */
-export function nextWibSlotDate(hour: number, minute: number, from = new Date()) {
-  const p = wibParts(from);
-  // WIB = UTC+7 → simpan sebagai UTC wall-clock equivalent
-  const utcMs = Date.UTC(p.year, p.month - 1, p.day, hour - 7, minute, 0, 0);
-  const target = new Date(utcMs);
-  if (target.getTime() <= from.getTime() + 45_000) return null;
-  if (hour > TRACKING_AUTO_CLOSE_HOUR || (hour === TRACKING_AUTO_CLOSE_HOUR && minute > 0)) return null;
-  return target;
-}
-
-function coachBody(opts: {
-  nama: string;
-  hour: number;
-  omzetHari: number;
-  transaksiHari: number;
-}) {
-  const nama = opts.nama.trim() || "Sales";
-  const omzet = rp(opts.omzetHari);
-  const trx = Math.max(0, Math.round(opts.transaksiHari || 0));
-  if (opts.hour < 12) {
-    return `${nama}, pagi sudah jalan. Hari ini ${omzet} · ${trx} transaksi. Ayo gas lagi — yang kecil tetap dihitung.`;
-  }
-  if (opts.hour < 16) {
-    return `${nama}, pukul ${opts.hour}. Penjualan hari ini ${omzet} (${trx} transaksi). Tingkatkan lagi, masih ada waktu.`;
-  }
-  return `${nama}, sore menjelang. Omzet hari ini ${omzet}. Satu usaha lagi sebelum tutup — kamu diperhatikan.`;
-}
-
 /**
- * Jadwalkan notif coach di jam 11 / 15 / 16:30 WIB dengan omzet terkini.
- * Dipanggil tiap kali portal/data dimuat supaya angkanya segar.
+ * Jadwalkan notif HARIAN berulang + check-in pagi.
+ * Tetap hidup setelah swipe clear RAM (bukan Force stop).
+ * Dipanggil saat portal dibuka; setelah itu mengulang sendiri tiap hari.
  */
 export async function scheduleSalesCoachNotifications(opts: {
   nama?: string;
@@ -107,29 +79,44 @@ export async function scheduleSalesCoachNotifications(opts: {
     const { LocalNotifications } = await import("@capacitor/local-notifications");
     await ensureAndroidChannel();
     await LocalNotifications.cancel({
-      notifications: COACH_IDS.map((id) => ({ id })),
+      notifications: [{ id: CHECKIN_ID }, ...COACH_IDS.map((id) => ({ id }))],
     });
 
     const nama = opts.nama?.trim() || "Sales";
     const omzetHari = Number(opts.omzetHari) || 0;
     const transaksiHari = Number(opts.transaksiHari) || 0;
-    const notifications = [];
+    const omzetHint =
+      omzetHari > 0 || transaksiHari > 0
+        ? ` Terakhir tercatat ${rp(omzetHari)} · ${Math.round(transaksiHari)} transaksi.`
+        : "";
 
-    for (let i = 0; i < SALES_COACH_SLOTS.length; i++) {
-      const slot = SALES_COACH_SLOTS[i];
-      const at = nextWibSlotDate(slot.hour, slot.minute);
-      if (!at) continue;
-      notifications.push({
-        id: COACH_IDS[i],
-        title: "HENIMA · Semangat jual",
-        body: coachBody({ nama, hour: slot.hour, omzetHari, transaksiHari }),
+    const notifications = [
+      {
+        id: CHECKIN_ID,
+        title: "HENIMA · Pagi",
+        body: `${nama}, absen dulu lalu gas jualan.${omzetHint} Yang kecil tetap dihitung.`,
         channelId: CHANNEL_ID,
-        schedule: { at, allowWhileIdle: true },
+        schedule: {
+          on: { hour: 7, minute: 30 },
+          repeats: true,
+          allowWhileIdle: true,
+        },
+        extra: { kind: "checkin-coach" },
+      },
+      ...SALES_COACH_SLOTS.map((slot, i) => ({
+        id: COACH_IDS[i],
+        title: slot.title,
+        body: `${nama}, ${slot.body}${i === 1 && omzetHint ? omzetHint : ""}`,
+        channelId: CHANNEL_ID,
+        schedule: {
+          on: { hour: slot.hour, minute: slot.minute },
+          repeats: true,
+          allowWhileIdle: true,
+        },
         extra: { kind: "sales-coach", hour: slot.hour },
-      });
-    }
+      })),
+    ];
 
-    if (!notifications.length) return true;
     await LocalNotifications.schedule({ notifications });
     return true;
   } catch {
@@ -137,7 +124,7 @@ export async function scheduleSalesCoachNotifications(opts: {
   }
 }
 
-/** Tampilkan notif sesi kerja + reminder lembut (bukan tip teknis GPS). */
+/** Notif sesi kerja (saat app/GPS watcher aktif). Tanpa spam tiap jam. */
 export async function startFieldTrackingNotify(opts?: { nama?: string }) {
   const nama = opts?.nama?.trim() || "Sales";
   const ok = await requestFieldNotifyPermission();
@@ -147,7 +134,7 @@ export async function startFieldTrackingNotify(opts?: { nama?: string }) {
     try {
       const { LocalNotifications } = await import("@capacitor/local-notifications");
       await ensureAndroidChannel();
-      await LocalNotifications.cancel({ notifications: [{ id: ONGOING_ID }, { id: REMINDER_ID }] });
+      await LocalNotifications.cancel({ notifications: [{ id: ONGOING_ID }] });
       await LocalNotifications.schedule({
         notifications: [
           {
@@ -159,17 +146,6 @@ export async function startFieldTrackingNotify(opts?: { nama?: string }) {
             autoCancel: false,
             extra: { kind: "ongoing" },
           },
-          {
-            id: REMINDER_ID,
-            title: "HENIMA ngingetin",
-            body: "Masih di lapangan? Cek target hari ini dan gas satu transaksi lagi.",
-            channelId: CHANNEL_ID,
-            schedule: {
-              every: "hour",
-              repeats: true,
-            },
-            extra: { kind: "reminder" },
-          },
         ],
       });
       return true;
@@ -179,19 +155,28 @@ export async function startFieldTrackingNotify(opts?: { nama?: string }) {
   }
 
   try {
+    if (typeof window !== "undefined") {
+      const key = "henima_field_notify_shown";
+      if (sessionStorage.getItem(key) === "1") return true;
+      sessionStorage.setItem(key, "1");
+    }
     if (!("serviceWorker" in navigator)) {
-      new Notification("HENIMA · Sesi kerja", {
-        body: "Tetap semangat catat jual hari ini.",
-        tag: "henima-auto-track",
-        requireInteraction: true,
+      new Notification("HENIMA", {
+        body: "Semangat kerja hari ini.",
+        tag: "henima-session",
+        requireInteraction: false,
       });
       return true;
     }
     const reg = await navigator.serviceWorker.ready;
-    await reg.showNotification("HENIMA · Sesi kerja", {
-      body: "Tetap semangat catat jual hari ini.",
-      tag: "henima-auto-track",
-      requireInteraction: true,
+    const old = await reg.getNotifications({ tag: "henima-auto-track" });
+    old.forEach((note) => note.close());
+    const old2 = await reg.getNotifications({ tag: "henima-session" });
+    old2.forEach((note) => note.close());
+    await reg.showNotification("HENIMA", {
+      body: "Semangat kerja hari ini.",
+      tag: "henima-session",
+      requireInteraction: false,
       data: { url: window.location.href },
     });
     return true;
@@ -204,8 +189,9 @@ export async function stopFieldTrackingNotify() {
   if (await isNativeApp()) {
     try {
       const { LocalNotifications } = await import("@capacitor/local-notifications");
+      // Hanya tutup ongoing sesi — coach harian tetap jalan.
       await LocalNotifications.cancel({
-        notifications: [{ id: ONGOING_ID }, { id: REMINDER_ID }, ...COACH_IDS.map((id) => ({ id }))],
+        notifications: [{ id: ONGOING_ID }],
       });
     } catch {
       /* ignore */
@@ -217,6 +203,8 @@ export async function stopFieldTrackingNotify() {
     const reg = await navigator.serviceWorker.ready;
     const notes = await reg.getNotifications({ tag: "henima-auto-track" });
     notes.forEach((note) => note.close());
+    const notes2 = await reg.getNotifications({ tag: "henima-session" });
+    notes2.forEach((note) => note.close());
   } catch {
     /* ignore */
   }

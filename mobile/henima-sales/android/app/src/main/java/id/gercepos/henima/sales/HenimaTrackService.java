@@ -464,9 +464,14 @@ public class HenimaTrackService extends Service implements LocationListener {
 
   @Override
   public void onTaskRemoved(Intent rootIntent) {
-    // Clear recent / swipe app: jangan anggap sesi selesai — jadwalkan nyala lagi.
+    // Clear recent / swipe app: kirim titik terakhir (jejak "mau ditutup") lalu coba nyala lagi.
     SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
     if (p.getBoolean(KEY_ACTIVE, false) && !isPastCloseWib()) {
+      try {
+        if (lastPosted != null) postAsync(lastPosted);
+        else if (lastGpsGood != null) postAsync(lastGpsGood);
+      } catch (Exception ignored) {
+      }
       scheduleQuickRestart(getApplicationContext());
       scheduleWatchdog(getApplicationContext());
     }

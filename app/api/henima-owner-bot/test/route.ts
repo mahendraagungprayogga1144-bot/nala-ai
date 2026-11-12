@@ -9,14 +9,16 @@ import {
   ownerSetWebhook,
 } from "@/lib/henima-tracking/owner-bot";
 import { resolveOwnerChatAllowlist } from "@/lib/henima-tracking/owner-telegram";
+import { runOwnerFieldAlertsJob } from "@/lib/henima-tracking/silent-watch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
- * Tes kirim + opsional pasang webhook.
+ * Tes kirim + opsional pasang webhook / sweep lapangan sekarang.
  * Header: x-owner-bot-secret = HENIMA_OWNER_BOT_SECRET
- * Body JSON opsional: { "setWebhook": true }
+ * Body: { "setWebhook"?: true, "sweep"?: true }
  */
 export async function POST(request: Request) {
   if (!ownerBotConfigured()) {
@@ -28,7 +30,11 @@ export async function POST(request: Request) {
   }
 
   const secret = process.env.HENIMA_OWNER_BOT_SECRET?.trim() || "";
-  const body = (await request.json().catch(() => ({}))) as { setWebhook?: boolean; url?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    setWebhook?: boolean;
+    sweep?: boolean;
+    url?: string;
+  };
   let webhookUrl: string | null = null;
   if (body.setWebhook) {
     webhookUrl =
@@ -39,18 +45,28 @@ export async function POST(request: Request) {
   }
 
   const db = salesDb();
+  let sweepResult: unknown = null;
+  if (body.sweep) {
+    sweepResult = await runOwnerFieldAlertsJob(db);
+  }
+
   const chats = ownerChatIdsFromEnv().length
     ? ownerChatIdsFromEnv()
     : await resolveOwnerChatAllowlist(db);
   if (!chats.length) {
-    return NextResponse.json({ ok: false, error: "No owner chat ids", webhookUrl }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "No owner chat ids", webhookUrl, sweepResult },
+      { status: 400 },
+    );
   }
 
   const text = [
     "HRD Henima — tes koneksi",
     webhookUrl
       ? "Webhook terpasang. Coba ketik /status atau status di chat ini."
-      : "Kalau kamu baca ini, bot asisten owner sudah nyambung di production.",
+      : body.sweep
+        ? "Sweep lapangan dijalankan. Cek alert Senyap/Offline di atas/bawah pesan ini."
+        : "Kalau kamu baca ini, bot asisten owner sudah nyambung di production.",
     new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB",
   ].join("\n");
 
@@ -73,10 +89,13 @@ export async function POST(request: Request) {
     sent,
     failed,
     webhookUrl,
+    sweepResult,
     hint: failed.length
       ? "Buka bot di Telegram lalu /start dulu, baru tes lagi."
-      : webhookUrl
-        ? "Webhook siap. Ketik /status di bot HRD."
-        : "Cek inbox Telegram kamu.",
+      : body.sweep
+        ? "Sweep selesai. Cek chat HRD untuk alert Senyap/Offline."
+        : webhookUrl
+          ? "Webhook siap. Ketik /status di bot HRD."
+          : "Cek inbox Telegram kamu.",
   });
 }

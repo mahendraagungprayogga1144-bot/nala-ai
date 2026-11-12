@@ -48,8 +48,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     if (accuracy != null && (!Number.isFinite(accuracy) || accuracy < 0)) {
       return NextResponse.json({ error: "Akurasi tidak valid." }, { status: 400 });
     }
-    // Titik terlalu kasar jarang berguna untuk pantau kinerja.
+    // Titik terlalu kasar jarang berguna untuk pantau kinerja — tetap sweep HRD.
     if (accuracy != null && accuracy > 400) {
+      if (ownerBotConfigured()) {
+        const businessId = staff.business_id;
+        after(async () => {
+          try {
+            await watchSilentForBusiness(db, businessId);
+          } catch {
+            /* ignore */
+          }
+        });
+      }
       return NextResponse.json({ ok: false, skipped: "akurasi_kasar" }, { status: 200 });
     }
 

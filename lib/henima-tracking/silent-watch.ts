@@ -18,11 +18,12 @@ import {
 } from "./owner-hr";
 
 const DUTY_START_HOUR = 8;
-const REMIND_MS = 45 * 60_000;
-const ABSEN_REMIND_MS = 60 * 60_000;
-const INCIDENT_REMIND_MS = 30 * 60_000;
-const ZERO_VISIT_REMIND_MS = 90 * 60_000;
-const PULANG_REMIND_MS = 45 * 60_000;
+/** Lebih agresif: ulang tiap 30 mnt selama masih belum normal. */
+const REMIND_MS = 30 * 60_000;
+const ABSEN_REMIND_MS = 45 * 60_000;
+const INCIDENT_REMIND_MS = 20 * 60_000;
+const ZERO_VISIT_REMIND_MS = 60 * 60_000;
+const PULANG_REMIND_MS = 30 * 60_000;
 
 function inDutyHours(date = new Date()) {
   const h = wibHourNow(date);

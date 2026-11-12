@@ -12,18 +12,39 @@ const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
+function isStandaloneDisplay() {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    ("standalone" in navigator && (navigator as Navigator & { standalone?: boolean }).standalone === true)
+  );
+}
+
+function isIosSafariHint() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua);
+  // Chrome/CriOS di iPhone — GPS & PWA lebih lemah dari Safari.
+  const chromeIos = /CriOS/i.test(ua);
+  return ios && chromeIos;
+}
+
 /**
  * Pintu masuk app lapangan — tanpa link ke dashboard/login Gercep OS.
  */
 export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
   const router = useRouter();
   const [native, setNative] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+  const [chromeIos, setChromeIos] = useState(false);
   const [token, setToken] = useState("");
   const [last, setLast] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     void isNativeApp().then(setNative);
+    setStandalone(isStandaloneDisplay());
+    setChromeIos(isIosSafariHint());
     setLast(readRememberedFieldToken());
   }, []);
 
@@ -51,7 +72,9 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
       <p className="mt-2 text-sm text-[#6B6B6B]">
         {native
           ? "App khusus tracking & catat jual. Tidak membuka Gercep OS internal."
-          : "iPhone: pasang ke layar utama dari Safari. Android: APK atau Install app."}
+          : standalone
+            ? "Paste link dari leader untuk buka portal sales."
+            : "iPhone: pasang dari Safari. Android: APK. Lalu paste link dari leader."}
       </p>
 
       <section
@@ -85,49 +108,49 @@ export default function SalesAppHome({ apkUrl }: { apkUrl: string }) {
         </div>
       </section>
 
-      {!native ? (
-        <div className="mt-5">
-          <InstallToHome apkUrl={downloadUrl} />
-        </div>
+      {chromeIos ? (
+        <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950">
+          Di iPhone, pasang dari <span className="font-semibold">Safari</span> (bukan Chrome) supaya GPS & notif lebih
+          stabil. Lalu paste link leader di bawah.
+        </p>
       ) : null}
 
-      {native ? (
-        <div className="mt-6 space-y-3">
-          {last ? (
-            <button
-              type="button"
-              onClick={() => openToken(last)}
-              className="w-full rounded-2xl bg-[#111] py-3.5 text-sm font-semibold text-white"
-            >
-              Lanjut sesi terakhir
-            </button>
-          ) : null}
-          <label className="block text-xs font-semibold text-[#6B6B6B]">
-            Paste link / token dari leader
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="https://…/t/… atau token"
-              className="mt-1.5 w-full rounded-lg border border-[#E8E8E4] bg-white px-3 py-3 text-sm outline-none focus:border-[#B8952A]"
-            />
-          </label>
+      <div className="mt-5">
+        <InstallToHome apkUrl={downloadUrl} />
+      </div>
+
+      <div className="mt-6 space-y-3">
+        {last ? (
           <button
             type="button"
-            onClick={fromPasteLink}
-            className="w-full rounded-xl border border-[#E8E8E4] bg-white py-3 text-sm font-semibold"
+            onClick={() => openToken(last)}
+            className="w-full rounded-2xl bg-[#111] py-3.5 text-sm font-semibold text-white"
           >
-            Buka portal sales
+            Lanjut sesi terakhir
           </button>
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-        </div>
-      ) : (
-        <div className="mt-6 space-y-3">
-          <p className="rounded-xl border border-[#E8E8E4] bg-white px-4 py-3 text-sm leading-relaxed text-[#6B6B6B]">
-            Minta <span className="font-semibold text-[#111]">link HP</span> ke leader (tombol Salin Link HP di
-            Tracking). Buka di Safari → pasang ke layar utama. Jangan pakai login Gercep OS.
-          </p>
-        </div>
-      )}
+        ) : null}
+        <label className="block text-xs font-semibold text-[#6B6B6B]">
+          Paste link / token dari leader
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="https://…/t/… atau token"
+            className="mt-1.5 w-full rounded-lg border border-[#E8E8E4] bg-white px-3 py-3 text-sm outline-none focus:border-[#B8952A]"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={fromPasteLink}
+          className="w-full rounded-xl border border-[#E8E8E4] bg-white py-3 text-sm font-semibold"
+        >
+          Buka portal sales
+        </button>
+        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        <p className="text-xs leading-relaxed text-[#8A8A8A]">
+          Link dari leader = tombol <span className="font-semibold text-[#111]">Salin Link HP</span> di Tracking.
+          Jangan login Gercep OS.
+        </p>
+      </div>
     </main>
   );
 }

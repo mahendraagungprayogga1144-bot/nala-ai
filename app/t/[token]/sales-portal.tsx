@@ -12,6 +12,7 @@ import {
   CreditCard,
   CalendarDays,
   CheckCircle2,
+  Download,
   FileBarChart,
   Gift,
   Headphones,
@@ -25,7 +26,15 @@ import {
   Target,
   Wallet,
 } from "lucide-react";
-import { clearRememberedFieldToken, getHenimaSalesApkUrl, rememberFieldToken } from "@/lib/henima-tracking/field-app";
+import {
+  clearRememberedFieldToken,
+  fetchHenimaApkRelease,
+  getHenimaSalesApkUrl,
+  HENIMA_APP_VERSION,
+  isHenimaApkUpdateAvailable,
+  rememberFieldToken,
+  type HenimaApkRelease,
+} from "@/lib/henima-tracking/field-app";
 import { prepareFieldPhoto } from "@/lib/henima-tracking/field-photo";
 import { isNativeApp, openNativeLocationSettings } from "@/lib/henima-tracking/native-geo";
 import {
@@ -46,7 +55,7 @@ type Tab = "home" | "lokasi" | "jual" | "bayar" | "laporan" | "target" | "akun";
 const GREEN = "#2F9E68";
 /** Aksen menu Akun (sesuai mockup). */
 const AKUN_ACCENT = "#B8952A";
-const APP_VERSION = "1.4.1";
+const APP_VERSION = HENIMA_APP_VERSION;
 
 type PortalProduct = { id: string; name: string; price: number; stock: number | null };
 type PortalOrder = {
@@ -155,6 +164,7 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
     checkedOut: field.checkedOut,
     watching: false,
   });
+  const [apkRelease, setApkRelease] = useState<HenimaApkRelease | null>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/henima-tracking/field/${token}/portal`, { cache: "no-store" });
@@ -169,8 +179,15 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
     void refresh().catch((err) => setLoadError(err instanceof Error ? err.message : "Gagal memuat."));
   }, [refresh, token]);
 
+  useEffect(() => {
+    void fetchHenimaApkRelease().then(setApkRelease);
+  }, []);
+
   const nama = data?.actor.nama || field.nama;
   const gpsLive = !trackLive.checkedOut;
+  const apkUpdate = isHenimaApkUpdateAvailable(apkRelease);
+  const apkUrl = getHenimaSalesApkUrl();
+  const apkHref = apkRelease?.apkPath || apkUrl;
 
   return (
     <div
@@ -208,6 +225,9 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
               hasCheckin={Boolean(field.hasCheckinPagi || trackLive.checkedIn)}
               checkedOut={trackLive.checkedOut}
               gpsLive={gpsLive && trackLive.watching}
+              apkUpdate={apkUpdate}
+              apkVersion={apkRelease?.versionName || ""}
+              apkHref={apkHref}
               onOpen={setTab}
               onRefresh={() => void refresh().catch((err) => setLoadError(err.message))}
             />
@@ -256,6 +276,9 @@ export default function SalesPortal({ token, field }: { token: string; field: Fi
                   ? "Sales lapangan"
                   : data.actor.role
               }
+              apkRelease={apkRelease}
+              apkUpdate={apkUpdate}
+              apkHref={apkHref}
               onBack={() => setTab("home")}
             />
           ) : null}
@@ -320,6 +343,9 @@ function HomeView({
   hasCheckin,
   checkedOut,
   gpsLive,
+  apkUpdate,
+  apkVersion,
+  apkHref,
   onOpen,
   onRefresh,
 }: {
@@ -328,6 +354,9 @@ function HomeView({
   hasCheckin: boolean;
   checkedOut: boolean;
   gpsLive: boolean;
+  apkUpdate: boolean;
+  apkVersion: string;
+  apkHref: string;
   onOpen: (tab: Tab) => void;
   onRefresh: () => void;
 }) {
@@ -377,6 +406,28 @@ function HomeView({
           {nama.slice(0, 1).toUpperCase()}
         </button>
       </header>
+
+      {apkUpdate ? (
+        <a
+          href={apkHref}
+          className="flex items-center gap-3 rounded-2xl border border-[#E8E0C8] bg-[#FFFBF0] px-4 py-3 text-left"
+        >
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+            style={{ background: AKUN_ACCENT }}
+            aria-hidden
+          >
+            <Download size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-[#111]">Pembaruan tersedia</span>
+            <span className="block text-xs text-[#6B6B6B]">
+              v{apkVersion} · ketuk unduh, install di atas app lama
+            </span>
+          </span>
+          <ChevronRight size={16} className="shrink-0 text-[#C4C4C0]" aria-hidden />
+        </a>
+      ) : null}
 
       <div className="text-center">
         <p className="text-[2.35rem] font-bold leading-none tracking-tight" style={{ color: GREEN }}>
@@ -1336,16 +1387,23 @@ function TargetView({ data, onBack }: { data: PortalData | null; onBack: () => v
 function AccountView({
   nama,
   role,
+  apkRelease,
+  apkUpdate,
+  apkHref,
   onBack,
 }: {
   nama: string;
   role: string;
+  apkRelease: HenimaApkRelease | null;
+  apkUpdate: boolean;
+  apkHref: string;
   onBack: () => void;
 }) {
   const [hint, setHint] = useState("");
   const [showInstall, setShowInstall] = useState(false);
   const initial = (nama.trim().charAt(0) || "?").toUpperCase();
   const apkUrl = getHenimaSalesApkUrl();
+  const latestLabel = apkRelease?.versionName || APP_VERSION;
 
   async function openLocation() {
     setHint("");
@@ -1427,7 +1485,12 @@ function AccountView({
       label: "Versi app",
       icon: Info,
       trailing: APP_VERSION,
-      onClick: () => setHint(`Henima Sales v${APP_VERSION}`),
+      onClick: () =>
+        setHint(
+          apkUpdate
+            ? `Terpasang v${APP_VERSION} · tersedia v${latestLabel}`
+            : `HENIMA v${APP_VERSION} (terbaru)`,
+        ),
     },
   ];
 
@@ -1463,6 +1526,42 @@ function AccountView({
           <p className="text-sm text-[#6B6B6B]">{role || "Sales lapangan"}</p>
         </div>
         <CircleUserRound size={20} style={{ color: AKUN_ACCENT }} aria-hidden />
+      </section>
+
+      <section
+        className={`rounded-2xl border px-4 py-3.5 ${
+          apkUpdate ? "border-[#E8E0C8] bg-[#FFFBF0]" : "border-[#E8E8E4] bg-white"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+            style={{ background: AKUN_ACCENT }}
+            aria-hidden
+          >
+            <Download size={18} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-[#111]">Pembaruan</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-[#6B6B6B]">
+              {apkUpdate
+                ? `v${latestLabel} siap. Unduh lalu install di atas app lama — jangan dihapus.`
+                : `App sudah v${APP_VERSION}. Tidak ada pembaruan.`}
+            </p>
+            {apkRelease?.notes && apkUpdate ? (
+              <p className="mt-1 text-[11px] leading-snug text-[#8A8A8A]">{apkRelease.notes}</p>
+            ) : null}
+            {apkUpdate ? (
+              <a
+                href={apkHref}
+                className="mt-3 inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                style={{ background: "#111" }}
+              >
+                Unduh update
+              </a>
+            ) : null}
+          </div>
+        </div>
       </section>
 
       <ul className="overflow-hidden rounded-2xl border border-[#E8E8E4] bg-white">

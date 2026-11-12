@@ -16,11 +16,51 @@ export function isFieldAppAllowedPath(pathname: string) {
   return false;
 }
 
+/** Versi APK yang terpasang di build portal ini (naikkan bareng APK). */
+export const HENIMA_APP_VERSION = "1.4.1";
+export const HENIMA_APP_VERSION_CODE = 7;
+
 /** URL APK yang bisa diunduh sales (env override, atau file di /downloads). */
 export function getHenimaSalesApkUrl() {
   const raw = process.env.NEXT_PUBLIC_HENIMA_SALES_APK_URL?.trim();
   if (raw) return raw;
   return "/downloads/henima-sales.apk";
+}
+
+export type HenimaApkRelease = {
+  versionName: string;
+  versionCode: number;
+  apkPath: string;
+  notes?: string;
+};
+
+/** Manifest versi di CDN/public — dipakai cek pembaruan di app lapangan. */
+export function getHenimaSalesVersionUrl() {
+  return "/downloads/henima-sales-version.json";
+}
+
+export async function fetchHenimaApkRelease(): Promise<HenimaApkRelease | null> {
+  try {
+    const res = await fetch(`${getHenimaSalesVersionUrl()}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const json = (await res.json()) as Partial<HenimaApkRelease>;
+    const versionCode = Number(json.versionCode);
+    const versionName = String(json.versionName || "").trim();
+    if (!Number.isFinite(versionCode) || versionCode < 1 || !versionName) return null;
+    return {
+      versionName,
+      versionCode,
+      apkPath: String(json.apkPath || getHenimaSalesApkUrl()).trim() || getHenimaSalesApkUrl(),
+      notes: typeof json.notes === "string" ? json.notes : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function isHenimaApkUpdateAvailable(latest: HenimaApkRelease | null, installedCode = HENIMA_APP_VERSION_CODE) {
+  if (!latest) return false;
+  return latest.versionCode > installedCode;
 }
 
 export function fieldTokenStorageKey() {
